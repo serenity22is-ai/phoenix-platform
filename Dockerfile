@@ -46,9 +46,9 @@ RUN mkdir -p /app/instance /app/logs && \
 
 USER phoenix
 
-EXPOSE 5001
+EXPOSE 10000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:5001/ || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:10000/ || exit 1
 
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "server:app"]

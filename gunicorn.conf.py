@@ -6,11 +6,12 @@ import multiprocessing
 import os
 
 # Server Socket
-bind = os.environ.get("GUNICORN_BIND", "0.0.0.0:5001")
+port = os.environ.get("PORT", "5001")
+bind = os.environ.get("GUNICORN_BIND", f"0.0.0.0:{port}")
 backlog = 2048
 
 # Worker Processes
-workers = int(os.environ.get("GUNICORN_WORKERS", multiprocessing.cpu_count() * 2 + 1))
+workers = int(os.environ.get("GUNICORN_WORKERS", min(multiprocessing.cpu_count() * 2 + 1, 2)))
 worker_class = "gevent"
 worker_connections = 1000
 threads = 1
