@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Phoenix Arbitrage Market Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .hero {
+            text-align: center;
+            padding: 60px 20px 40px;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0a0a1a 100%);
+        }
+        .hero h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .hero h1 span { color: #1a73e8; }
+        .hero p {
+            color: #888;
+            font-size: 16px;
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+        .search-box {
+            max-width: 700px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 18px 140px 18px 24px;
+            border: 2px solid #333;
+            border-radius: 16px;
+            background: #111;
+            color: #fff;
+            font-size: 17px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-box input:focus { border-color: #1a73e8; }
+        .search-box input::placeholder { color: #555; }
+        .search-box button {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            bottom: 8px;
+            padding: 0 28px;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .search-box button:hover { background: #1557b0; }
+        .search-box button:disabled { background: #333; cursor: not-allowed; }
+        .examples {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .examples span {
+            padding: 6px 14px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .examples span:hover { border-color: #1a73e8; color: #fff; }
+        .market-selector {
+            max-width: 700px;
+            margin: 16px auto 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .market-selector label { color: #666; font-size: 13px; }
+        .market-selector select {
+            padding: 6px 12px;
+            background: #111;
+            color: #fff;
+            border: 1px solid #333;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .results-area {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .result-header h2 { font-size: 20px; color: #fff; }
+        .result-header .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-hotel { background: #00e67620; color: #00e676; }
+        .badge-cruise { background: #ff980020; color: #ff9800; }
+        .badge-rental { background: #e040fb20; color: #e040fb; }
+        .badge-flight { background: #1a73e820; color: #1a73e8; }
+        .badge-package { background: #ffffff20; color: #fff; }
+        .deal-card {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: border-color 0.2s;
+        }
+        .deal-card:hover { border-color: #1a73e8; }
+        .deal-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .deal-name { font-size: 18px; font-weight: 600; color: #fff; }
+        .deal-savings {
+            text-align: right;
+        }
+        .deal-savings .amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #00e676;
+        }
+        .deal-savings .pct {
+            font-size: 13px;
+            color: #888;
+        }
+        .deal-prices {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 12px;
+        }
+        .price-tag {
+            display: flex;
+            flex-direction: column;
+        }
+        .price-tag .label { font-size: 11px; color: #666; text-transform: uppercase; }
+        .price-tag .value { font-size: 16px; font-weight: 600; }
+        .price-home .value { color: #ff5252; text-decoration: line-through; }
+        .price-arb .value { color: #00e676; }
+        .deal-meta {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: #888;
+        }
+        .deal-meta span { display: flex; align-items: center; gap: 4px; }
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            display: none;
+        }
+        .loading.active { display: block; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #333;
+            border-top-color: #1a73e8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            display: none;
+        }
+        .error-msg {
+            background: #ff525220;
+            border: 1px solid #ff5252;
+            color: #ff5252;
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1><span>Phoenix</span> Arbitrage Market</h1>
+        <p>One search. Any travel product. Every market. Find geo-arbitrage deals on flights, hotels, cruises, and car rentals.</p>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Try: hotels in Bali, cruise from Miami, SUV rental LAX..." autofocus>
+            <button id="searchBtn" onclick="doSearch()">Search</button>
+        </div>
+
+        <div class="examples">
+            <span onclick="setQuery('hotels in Tokyo March 15-18')">Hotels in Tokyo</span>
+            <span onclick="setQuery('JFK to LHR next month')">JFK to LHR</span>
+            <span onclick="setQuery('cruise from Miami 7 nights')">Miami Cruise</span>
+            <span onclick="setQuery('SUV rental LAX March 10-15')">SUV Rental LAX</span>
+            <span onclick="setQuery('flight and hotel to Paris')">Paris Package</span>
+        </div>
+
+        <div class="market-selector">
+            <label>Your market:</label>
+            <select id="homeMarket">
+                <option value="US">United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="JP">Japan</option>
+                <option value="AU">Australia</option>
+                <option value="CA">Canada</option>
+                <option value="BR">Brazil</option>
+                <option value="IN">India</option>
+                <option value="KR">South Korea</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="results-area">
+        <div class="error-msg" id="errorMsg"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Searching across markets...</p>
+        </div>
+
+        <div id="resultsContainer" style="display:none;">
+            <div class="result-header">
+                <h2 id="resultsTitle">Results</h2>
+                <span class="badge" id="verticalBadge"></span>
+            </div>
+            <div id="dealsList"></div>
+        </div>
+
+        <div class="no-results" id="noResults">
+            <p>No arbitrage opportunities found. Try a different search.</p>
+        </div>
+    </div>
+
+    <script>
+        const input = document.getElementById('searchInput');
+        const btn = document.getElementById('searchBtn');
+
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+
+        function setQuery(q) {
+            input.value = q;
+            doSearch();
+        }
+
+        async function doSearch() {
+            const query = input.value.trim();
+            if (!query) return;
+
+            const homeMarket = document.getElementById('homeMarket').value;
+
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('noResults').style.display = 'none';
+            document.getElementById('errorMsg').style.display = 'none';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/search/arbitrage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, home_market: homeMarket }),
+                });
+                const data = await res.json();
+
+                document.getElementById('loading').classList.remove('active');
+                btn.disabled = false;
+
+                if (data.error) {
+                    document.getElementById('errorMsg').textContent = data.error;
+                    document.getElementById('errorMsg').style.display = 'block';
+                    return;
+                }
+
+                const deals = data.deals || [];
+                if (deals.length === 0) {
+                    document.getElementById('noResults').style.display = 'block';
+                    return;
+                }
+
+                const vertical = data.vertical || 'flight';
+                const badge = document.getElementById('verticalBadge');
+                badge.textContent = vertical.charAt(0).toUpperCase() + vertical.slice(1);
+                badge.className = 'badge badge-' + vertical;
+
+                document.getElementById('resultsTitle').textContent =
+                    `${deals.length} Arbitrage Deal${deals.length !== 1 ? 's' : ''} Found`;
+
+                const list = document.getElementById('dealsList');
+                list.innerHTML = '';
+
+                deals.forEach(deal => {
+                    const name = deal.name || deal.hotel_name || deal.ship_name ||
+                                 deal.vehicle_name || deal.destination_city || 'Deal';
+                    const homePrice = deal.home_price_usd || deal.home_total_usd || 0;
+                    const arbPrice = deal.cheapest_price_usd || deal.arbitrage_price_usd || deal.arbitrage_total_usd || 0;
+                    const savings = deal.user_savings_usd || deal.gross_savings_usd || 0;
+                    const pct = deal.savings_percent || 0;
+                    const market = deal.cheapest_market || deal.arbitrage_market || '';
+
+                    const meta = [];
+                    if (deal.cheapest_market) meta.push('via ' + deal.cheapest_market);
+                    if (deal.markets_checked) meta.push(deal.markets_checked + ' markets checked');
+                    if (deal.star_rating) meta.push(deal.star_rating + '-star');
+                    if (deal.duration_nights) meta.push(deal.duration_nights + ' nights');
+                    if (deal.rental_days) meta.push(deal.rental_days + ' days');
+                    if (deal.vehicle_class) meta.push(deal.vehicle_class);
+                    if (deal.cabin_category) meta.push(deal.cabin_category);
+
+                    list.innerHTML += `
+                        <div class="deal-card">
+                            <div class="deal-top">
+                                <div class="deal-name">${name}</div>
+                                <div class="deal-savings">
+                                    <div class="amount">Save $${savings.toFixed(0)}</div>
+                                    <div class="pct">${pct.toFixed(0)}% off</div>
+                                </div>
+                            </div>
+                            <div class="deal-prices">
+                                <div class="price-tag price-home">
+                                    <span class="label">Home Price</span>
+                                    <span class="value">$${homePrice.toFixed(0)}</span>
+                                </div>
+                                <div class="price-tag price-arb">
+                                    <span class="label">Arbitrage Price</span>
+                                    <span class="value">$${arbPrice.toFixed(0)}</span>
+                                </div>
+                            </div>
+                            <div class="deal-meta">
+                                ${meta.map(m => '<span>' + m + '</span>').join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('resultsContainer').style.display = 'block';
+
+            } catch (err) {
+                document.getElementById('loading').classList.remove('active');
+                btn.disabled = false;
+                document.getElementById('errorMsg').textContent = 'Search failed: ' + err.message;
+                document.getElementById('errorMsg').style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

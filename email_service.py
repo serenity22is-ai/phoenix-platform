@@ -1,0 +1,724 @@
+"""
+PHOENIX Email Service
+
+Handles all email functionality:
+- Email verification
+- Password reset
+- Price alerts
+- Booking confirmations
+
+Supports multiple backends:
+- SMTP (Gmail, etc.)
+- SendGrid
+- Mailgun
+"""
+
+import os
+import secrets
+from datetime import datetime, timedelta
+from typing import Optional
+from threading import Thread
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Email configuration
+EMAIL_CONFIG = {
+    "enabled": os.environ.get("MAIL_ENABLED", "false").lower() == "true",
+    "server": os.environ.get("MAIL_SERVER", "smtp.gmail.com"),
+    "port": int(os.environ.get("MAIL_PORT", 587)),
+    "use_tls": os.environ.get("MAIL_USE_TLS", "true").lower() == "true",
+    "username": os.environ.get("MAIL_USERNAME"),
+    "password": os.environ.get("MAIL_PASSWORD"),
+    "sender": os.environ.get("MAIL_DEFAULT_SENDER", "PHOENIX <noreply@phoenix.app>"),
+    "base_url": os.environ.get("BASE_URL", "http://localhost:5001"),
+}
+
+
+def generate_token(length: int = 32) -> str:
+    """Generate a secure random token."""
+    return secrets.token_urlsafe(length)
+
+
+def send_email_async(app, msg_data: dict):
+    """Send email in background thread."""
+    with app.app_context():
+        try:
+            send_email_smtp(
+                to=msg_data["to"],
+                subject=msg_data["subject"],
+                html_body=msg_data["html"],
+                text_body=msg_data.get("text")
+            )
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+
+
+def send_email_smtp(to: str, subject: str, html_body: str, text_body: str = None) -> bool:
+    """
+    Send email via SMTP.
+
+    Args:
+        to: Recipient email address
+        subject: Email subject
+        html_body: HTML content
+        text_body: Plain text content (optional)
+
+    Returns:
+        True if sent successfully
+    """
+    if not EMAIL_CONFIG["enabled"]:
+        print(f"[EMAIL DISABLED] Would send to {to}: {subject}")
+        return True
+
+    if not EMAIL_CONFIG["username"] or not EMAIL_CONFIG["password"]:
+        print(f"[EMAIL NOT CONFIGURED] Would send to {to}: {subject}")
+        return False
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_CONFIG["sender"]
+        msg["To"] = to
+
+        if text_body:
+            msg.attach(MIMEText(text_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(EMAIL_CONFIG["server"], EMAIL_CONFIG["port"]) as server:
+            if EMAIL_CONFIG["use_tls"]:
+                server.starttls()
+            server.login(EMAIL_CONFIG["username"], EMAIL_CONFIG["password"])
+            server.sendmail(EMAIL_CONFIG["sender"], to, msg.as_string())
+
+        print(f"[EMAIL SENT] To: {to}, Subject: {subject}")
+        return True
+
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+        return False
+
+
+def send_verification_email(to: str, token: str, name: str = None) -> bool:
+    """Send email verification link."""
+    verify_url = f"{EMAIL_CONFIG['base_url']}/verify-email/{token}"
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f7fa; padding: 40px; }}
+            .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .logo {{ color: #4361ee; font-size: 24px; font-weight: bold; margin-bottom: 20px; }}
+            .button {{ display: inline-block; background: #4361ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">PHOENIX</div>
+            <p>{greeting}</p>
+            <p>Thanks for signing up! Please verify your email address to complete your registration.</p>
+            <a href="{verify_url}" class="button">Verify Email</a>
+            <p style="font-size: 14px; color: #666;">Or copy this link: {verify_url}</p>
+            <p>This link expires in 24 hours.</p>
+            <div class="footer">
+                <p>If you didn't create an account, you can safely ignore this email.</p>
+                <p>PHOENIX - Save money on international flights</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    text = f"""
+    {greeting}
+
+    Thanks for signing up for PHOENIX!
+
+    Please verify your email by clicking this link:
+    {verify_url}
+
+    This link expires in 24 hours.
+
+    If you didn't create an account, you can safely ignore this email.
+    """
+
+    return send_email_smtp(to, "Verify your PHOENIX account", html, text)
+
+
+def send_password_reset_email(to: str, token: str, name: str = None) -> bool:
+    """Send password reset link."""
+    reset_url = f"{EMAIL_CONFIG['base_url']}/reset-password/{token}"
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f7fa; padding: 40px; }}
+            .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .logo {{ color: #4361ee; font-size: 24px; font-weight: bold; margin-bottom: 20px; }}
+            .button {{ display: inline-block; background: #4361ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">PHOENIX</div>
+            <p>{greeting}</p>
+            <p>We received a request to reset your password. Click the button below to choose a new password.</p>
+            <a href="{reset_url}" class="button">Reset Password</a>
+            <p style="font-size: 14px; color: #666;">Or copy this link: {reset_url}</p>
+            <p>This link expires in 1 hour.</p>
+            <div class="footer">
+                <p>If you didn't request a password reset, you can safely ignore this email.</p>
+                <p>PHOENIX - Save money on international flights</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    text = f"""
+    {greeting}
+
+    We received a request to reset your PHOENIX password.
+
+    Click this link to reset your password:
+    {reset_url}
+
+    This link expires in 1 hour.
+
+    If you didn't request this, you can safely ignore this email.
+    """
+
+    return send_email_smtp(to, "Reset your PHOENIX password", html, text)
+
+
+def send_price_alert_email(to: str, deals: list, name: str = None) -> bool:
+    """Send price alert notification."""
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    deals_html = ""
+    for deal in deals:
+        deals_html += f"""
+        <div style="border: 1px solid #eee; border-radius: 6px; padding: 15px; margin: 10px 0;">
+            <strong>{deal.get('route', 'N/A')}</strong> - {deal.get('airline', 'N/A')}<br>
+            <span style="color: #0f9d58; font-weight: bold;">Save ${deal.get('savings', 0):.2f}</span>
+            ({deal.get('savings_pct', 0):.0f}% off)<br>
+            <small>Book from {deal.get('market', 'JP')} market: ${deal.get('price', 0):.2f}</small>
+        </div>
+        """
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f7fa; padding: 40px; }}
+            .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .logo {{ color: #4361ee; font-size: 24px; font-weight: bold; margin-bottom: 20px; }}
+            .button {{ display: inline-block; background: #4361ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">PHOENIX</div>
+            <p>{greeting}</p>
+            <p>Great news! We found some deals matching your price alerts:</p>
+            {deals_html}
+            <a href="{EMAIL_CONFIG['base_url']}/deals" class="button">View All Deals</a>
+        </div>
+    </body>
+    </html>
+    """
+
+    return send_email_smtp(to, f"Price Alert: {len(deals)} deals found!", html)
+
+
+def send_booking_confirmation_email(to: str, booking: dict, name: str = None) -> bool:
+    """Send booking confirmation."""
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f7fa; padding: 40px; }}
+            .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .logo {{ color: #4361ee; font-size: 24px; font-weight: bold; margin-bottom: 20px; }}
+            .details {{ background: #f0f4ff; padding: 20px; border-radius: 6px; margin: 20px 0; }}
+            .savings {{ color: #0f9d58; font-size: 24px; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">PHOENIX</div>
+            <p>{greeting}</p>
+            <p>Your payment has been verified! Here are your booking details:</p>
+            <div class="details">
+                <p><strong>Route:</strong> {booking.get('route', 'N/A')}</p>
+                <p><strong>Airline:</strong> {booking.get('airline', 'N/A')}</p>
+                <p><strong>Date:</strong> {booking.get('date', 'N/A')}</p>
+                <p><strong>Platform Fee Paid:</strong> {booking.get('fee_xrp', 0):.2f} XRP</p>
+                <p class="savings">You saved: ${booking.get('savings', 0):.2f}</p>
+            </div>
+            <p>You can now access the airline booking page to complete your reservation.</p>
+            <a href="{EMAIL_CONFIG['base_url']}/book/{booking.get('deal_id', '')}" style="display: inline-block; background: #4361ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px;">Complete Booking</a>
+        </div>
+    </body>
+    </html>
+    """
+
+    return send_email_smtp(to, "PHOENIX - Payment Verified!", html)
+
+
+def send_email(to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
+    """
+    Generic email sending function.
+
+    Args:
+        to_email: Recipient email address
+        subject: Email subject line
+        html_content: HTML body content
+        text_content: Plain text content (optional)
+
+    Returns:
+        True if sent successfully
+    """
+    # Wrap HTML content in standard template
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f7fa; padding: 40px; }}
+            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .logo {{ color: #4361ee; font-size: 24px; font-weight: bold; margin-bottom: 20px; }}
+            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">PHOENIX</div>
+            {html_content}
+            <div class="footer">
+                <p>PHOENIX - Save money on international flights</p>
+                <p><a href="{EMAIL_CONFIG['base_url']}">Visit PHOENIX</a></p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    return send_email_smtp(to_email, subject, html, text_content)
+
+
+def send_booking_confirmation(user_email: str, deal, booking) -> bool:
+    """
+    Send booking confirmation after payment is verified.
+
+    Args:
+        user_email: Customer email
+        deal: Deal model instance
+        booking: Booking model instance
+
+    Returns:
+        True if sent successfully
+    """
+    # Build flight legs info
+    legs_html = ""
+    if deal.is_multi_leg and deal.flight_legs:
+        import json
+        try:
+            legs = json.loads(deal.flight_legs) if isinstance(deal.flight_legs, str) else deal.flight_legs
+            for i, leg in enumerate(legs):
+                legs_html += f"""
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 8px 0;">
+                    <strong>Leg {i+1}:</strong> {leg.get('route', 'N/A')}<br>
+                    <span style="color: #666;">Date: {leg.get('date', 'N/A')} | Market: {leg.get('cheapest_market', 'N/A')}</span>
+                </div>
+                """
+        except:
+            pass
+    else:
+        legs_html = f"""
+        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px;">
+            <strong>{deal.airline or 'Flight'} {deal.flight_number or ''}</strong><br>
+            <span>{deal.origin} → {deal.destination}</span><br>
+            <span style="color: #666;">Date: {deal.departure_date}</span>
+        </div>
+        """
+
+    html_content = f"""
+    <h2 style="color: #28a745;">Payment Confirmed!</h2>
+    <p>Great news! Your payment has been verified and your booking is being processed.</p>
+
+    <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #155724;">Booking Reference: #{booking.id}</h3>
+        <p style="margin-bottom: 0;">Status: <strong>{booking.status.replace('_', ' ').title()}</strong></p>
+    </div>
+
+    <h3>Flight Details</h3>
+    {legs_html}
+
+    <div style="margin-top: 20px;">
+        <p><strong>Total Paid:</strong> ${(deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0):.2f}</p>
+        <p style="color: #28a745;"><strong>Your Savings:</strong> ${deal.gross_savings_usd or deal.user_savings_usd or 0:.2f}</p>
+    </div>
+
+    <h3>Next Steps</h3>
+    <p>Click the button below to access your booking page and complete your reservation:</p>
+
+    <a href="{EMAIL_CONFIG['base_url']}/book/{deal.deal_id}"
+       style="display: inline-block; background: #4361ee; color: white; padding: 15px 30px;
+              text-decoration: none; border-radius: 8px; font-weight: bold; margin: 15px 0;">
+        Complete Your Booking
+    </a>
+
+    <p style="color: #666; font-size: 14px; margin-top: 20px;">
+        Need help? Reply to this email or contact our support team.
+    </p>
+    """
+
+    return send_email(
+        to_email=user_email,
+        subject=f"Payment Confirmed - {deal.origin} to {deal.destination}",
+        html_content=html_content
+    )
+
+
+def send_booking_instructions(user_email: str, deal, booking_urls: list) -> bool:
+    """
+    Send self-service booking instructions.
+
+    Args:
+        user_email: Customer email
+        deal: Deal model instance
+        booking_urls: List of booking URL dicts
+
+    Returns:
+        True if sent successfully
+    """
+    # Build booking links
+    links_html = ""
+    for url_info in booking_urls:
+        links_html += f"""
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;">
+            <strong>Leg {url_info.get('leg', 1)}: {url_info.get('route', 'N/A')}</strong><br>
+            <span style="color: #666;">Date: {url_info.get('date', 'N/A')} | Market: {url_info.get('market', 'N/A')}</span><br>
+            <a href="{EMAIL_CONFIG['base_url']}{url_info.get('proxy_url', '')}"
+               style="display: inline-block; margin-top: 10px; background: #4361ee; color: white;
+                      padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                Book This Flight
+            </a>
+        </div>
+        """
+
+    html_content = f"""
+    <h2>Complete Your Flight Booking</h2>
+    <p>Your payment has been verified! Please complete your booking within 24 hours.</p>
+
+    <h3>Your Flights</h3>
+    {links_html}
+
+    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <h4 style="margin-top: 0; color: #856404;">Important Instructions</h4>
+        <ol style="margin-bottom: 0; padding-left: 20px;">
+            <li>Click the booking links above (they'll open through our proxy)</li>
+            <li>The prices shown will reflect the regional market discount</li>
+            <li>Complete the booking using your own credit card on the airline's site</li>
+            <li>Save your confirmation code</li>
+        </ol>
+    </div>
+
+    <p style="color: #28a745; font-weight: bold;">
+        You're saving ${deal.gross_savings_usd or deal.user_savings_usd or 0:.2f} on this booking!
+    </p>
+
+    <p style="color: #666; font-size: 14px;">
+        If you have any issues, reply to this email or contact support.
+    </p>
+    """
+
+    return send_email(
+        to_email=user_email,
+        subject=f"Complete Your Booking - {deal.origin} to {deal.destination}",
+        html_content=html_content
+    )
+
+
+def send_ticket_confirmation(user_email: str, deal, booking, confirmation_code: str) -> bool:
+    """
+    Send final ticket confirmation with airline confirmation code.
+
+    Args:
+        user_email: Customer email
+        deal: Deal model instance
+        booking: Booking model instance
+        confirmation_code: Airline confirmation code
+
+    Returns:
+        True if sent successfully
+    """
+    html_content = f"""
+    <h2 style="color: #28a745;">Your Ticket is Confirmed!</h2>
+
+    <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 14px; color: #155724;">Confirmation Code</p>
+        <p style="margin: 10px 0; font-size: 32px; font-weight: bold; color: #155724; letter-spacing: 2px;">
+            {confirmation_code}
+        </p>
+    </div>
+
+    <h3>Flight Details</h3>
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+        <p><strong>Airline:</strong> {deal.airline or 'N/A'}</p>
+        <p><strong>Route:</strong> {deal.origin} → {deal.destination}</p>
+        <p><strong>Date:</strong> {deal.departure_date}</p>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <p style="color: #28a745; font-size: 18px;">
+            <strong>You saved ${deal.gross_savings_usd or deal.user_savings_usd or 0:.2f} with PHOENIX!</strong>
+        </p>
+    </div>
+
+    <h3>What's Next?</h3>
+    <ul>
+        <li>Check your email for the e-ticket from {deal.airline or 'the airline'}</li>
+        <li>Use the confirmation code above to manage your booking on the airline's website</li>
+        <li>Arrive at the airport with valid ID and your confirmation code</li>
+    </ul>
+
+    <p style="color: #666; font-size: 14px;">
+        Have a great flight! Thank you for using PHOENIX.
+    </p>
+    """
+
+    return send_email(
+        to_email=user_email,
+        subject=f"Ticket Confirmed: {confirmation_code} - {deal.origin} to {deal.destination}",
+        html_content=html_content
+    )
+
+
+# --- P2P NETWORK EMAILS ---
+
+def send_p2p_escrow_locked(to: str, name: str = None, transaction: dict = None) -> bool:
+    """Notify buyer that their RLUSD is locked in escrow."""
+    transaction = transaction or {}
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html_content = f"""
+    <h2>Escrow Locked - Your Funds Are Secure</h2>
+    <p>{greeting}</p>
+    <p>Your RLUSD has been locked in escrow on the XRPL ledger for your P2P booking.</p>
+
+    <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #2e7d32;">Escrow Details</h3>
+        <p><strong>Amount Locked:</strong> {transaction.get('total_rlusd', 0):.2f} RLUSD</p>
+        <p><strong>Route:</strong> {transaction.get('origin', '')} → {transaction.get('destination', '')}</p>
+        <p><strong>Market:</strong> {transaction.get('target_market', '')} (savings: ${transaction.get('savings_usd', 0):.2f})</p>
+        <p><strong>Escrow ID:</strong> {transaction.get('escrow_id', '')}</p>
+    </div>
+
+    <h3>What Happens Next</h3>
+    <ol>
+        <li>A helper in {transaction.get('target_market', 'the target market')} will verify the escrow on-chain</li>
+        <li>Phoenix will automate the purchase through the helper's browser</li>
+        <li>Once confirmed, your escrow releases to the helper and platform</li>
+        <li>You receive your booking confirmation</li>
+    </ol>
+
+    <p style="color: #666; font-size: 14px;">
+        Your funds are protected by XRPL smart contract escrow. If the booking fails,
+        the escrow cancels and your RLUSD is returned automatically.
+    </p>
+    """
+
+    return send_email(to, "Escrow Locked - P2P Booking in Progress", html_content)
+
+
+def send_p2p_helper_matched(to: str, name: str = None, transaction: dict = None) -> bool:
+    """Notify helper they've been matched to a transaction."""
+    transaction = transaction or {}
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html_content = f"""
+    <h2>New P2P Booking Assignment</h2>
+    <p>{greeting}</p>
+    <p>You've been matched to a new P2P booking! A buyer needs your help purchasing a flight in your market.</p>
+
+    <div style="background: #fff3e0; border: 1px solid #ffe0b2; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #e65100;">Transaction Details</h3>
+        <p><strong>Route:</strong> {transaction.get('origin', '')} → {transaction.get('destination', '')}</p>
+        <p><strong>Date:</strong> {transaction.get('departure_date', '')}</p>
+        <p><strong>Airline:</strong> {transaction.get('airline', '')}</p>
+        <p><strong>Your Earning:</strong> {transaction.get('helper_earning_rlusd', 0):.2f} RLUSD</p>
+        <p><strong>Escrow Amount:</strong> {transaction.get('total_rlusd', 0):.2f} RLUSD (locked on-chain)</p>
+    </div>
+
+    <h3>Next Steps</h3>
+    <ol>
+        <li>Verify the escrow is locked on-chain (check the XRPL explorer)</li>
+        <li>Accept the transaction in your Phoenix dashboard</li>
+        <li>Launch the Phoenix Helper app to connect your browser</li>
+        <li>Phoenix will automate the purchase - you just watch</li>
+        <li>Escrow releases to your wallet on confirmation</li>
+    </ol>
+
+    <p style="color: #2e7d32; font-weight: bold;">
+        You'll earn {transaction.get('helper_earning_rlusd', 0):.2f} RLUSD for this transaction!
+    </p>
+    """
+
+    return send_email(to, f"New P2P Booking - Earn {transaction.get('helper_earning_rlusd', 0):.2f} RLUSD", html_content)
+
+
+def send_p2p_booking_confirmed(to: str, name: str = None, transaction: dict = None) -> bool:
+    """Notify buyer that the P2P booking is confirmed."""
+    transaction = transaction or {}
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html_content = f"""
+    <h2 style="color: #2e7d32;">P2P Booking Confirmed!</h2>
+    <p>{greeting}</p>
+    <p>Your flight has been booked through the Phoenix P2P network!</p>
+
+    <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 14px; color: #2e7d32;">Confirmation Code</p>
+        <p style="margin: 10px 0; font-size: 28px; font-weight: bold; color: #1b5e20; letter-spacing: 2px;">
+            {transaction.get('confirmation_code', 'N/A')}
+        </p>
+    </div>
+
+    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">Flight Details</h3>
+        <p><strong>Route:</strong> {transaction.get('origin', '')} → {transaction.get('destination', '')}</p>
+        <p><strong>Date:</strong> {transaction.get('departure_date', '')}</p>
+        <p><strong>Airline:</strong> {transaction.get('airline', '')}</p>
+        <p style="color: #2e7d32; font-size: 18px; font-weight: bold;">
+            You saved ${transaction.get('savings_usd', 0):.2f} with Phoenix P2P!
+        </p>
+    </div>
+
+    <h3>What's Next</h3>
+    <ul>
+        <li>Check your email for the e-ticket from {transaction.get('airline', 'the airline')}</li>
+        <li>Use the confirmation code above to manage your booking</li>
+        <li>Your RLUSD escrow has been released to the helper and platform</li>
+    </ul>
+    """
+
+    return send_email(
+        to,
+        f"Booking Confirmed: {transaction.get('confirmation_code', '')} - "
+        f"{transaction.get('origin', '')} to {transaction.get('destination', '')}",
+        html_content,
+    )
+
+
+def send_p2p_helper_payment(to: str, name: str = None, transaction: dict = None) -> bool:
+    """Notify helper that escrow has released and they've been paid."""
+    transaction = transaction or {}
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html_content = f"""
+    <h2 style="color: #2e7d32;">Payment Received!</h2>
+    <p>{greeting}</p>
+    <p>The P2P booking has been confirmed and your RLUSD payment has been released from escrow.</p>
+
+    <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 14px; color: #2e7d32;">You Earned</p>
+        <p style="margin: 10px 0; font-size: 28px; font-weight: bold; color: #1b5e20;">
+            +{transaction.get('earning_rlusd', 0):.2f} RLUSD
+        </p>
+    </div>
+
+    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">Payment Breakdown</h3>
+        <p><strong>Ticket Reimbursement:</strong> {transaction.get('reimbursement_rlusd', 0):.2f} RLUSD</p>
+        <p><strong>Your Earning (cut):</strong> {transaction.get('earning_rlusd', 0):.2f} RLUSD</p>
+        <p><strong>Total Received:</strong> {transaction.get('total_rlusd', 0):.2f} RLUSD</p>
+        <p><strong>Transaction:</strong> {transaction.get('transaction_id', '')}</p>
+    </div>
+
+    <p>Your RLUSD is now in your connected wallet. You can:</p>
+    <ul>
+        <li>Use RLUSD for your own Phoenix flights</li>
+        <li>Convert to XRP on the XRPL DEX</li>
+        <li>Cash out via Coinbase Commerce</li>
+    </ul>
+
+    <p>Thanks for being part of the Citizen Data Network!</p>
+    """
+
+    return send_email(to, f"Payment: +{transaction.get('earning_rlusd', 0):.2f} RLUSD earned", html_content)
+
+
+def send_p2p_transaction_failed(to: str, name: str = None, transaction: dict = None) -> bool:
+    """Notify buyer that the P2P transaction failed."""
+    transaction = transaction or {}
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html_content = f"""
+    <h2>P2P Booking Update</h2>
+    <p>{greeting}</p>
+    <p>Unfortunately, your P2P booking could not be completed.</p>
+
+    <div style="background: #ffebee; border: 1px solid #ffcdd2; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <p><strong>Route:</strong> {transaction.get('origin', '')} → {transaction.get('destination', '')}</p>
+        <p><strong>Reason:</strong> {transaction.get('reason', 'Booking could not be completed')}</p>
+    </div>
+
+    <h3>Your Funds</h3>
+    <p>Your RLUSD escrow will be automatically returned to your wallet once the
+    escrow timeout expires. No action needed on your part — the XRPL smart contract
+    handles the refund automatically.</p>
+
+    <h3>What You Can Do</h3>
+    <ul>
+        <li>Try the booking again (another helper may be available)</li>
+        <li>Use System 1 (proxy booking) as an alternative</li>
+        <li>Contact support if you need assistance</li>
+    </ul>
+
+    <p style="color: #666; font-size: 14px;">
+        We apologize for the inconvenience. Your funds are always protected by on-chain escrow.
+    </p>
+    """
+
+    return send_email(to, f"P2P Booking Update - {transaction.get('origin', '')} to {transaction.get('destination', '')}", html_content)
+
+
+def send_p2p_escrow_refunded(to: str, name: str = None, amount_rlusd: float = 0) -> bool:
+    """Notify buyer that their escrow has been refunded."""
+    greeting = f"Hi {name}," if name else "Hi,"
+
+    html_content = f"""
+    <h2>Escrow Refunded</h2>
+    <p>{greeting}</p>
+    <p>Your RLUSD escrow has been cancelled and the funds returned to your wallet.</p>
+
+    <div style="background: #e3f2fd; border: 1px solid #bbdefb; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 14px; color: #1565c0;">Refunded</p>
+        <p style="margin: 10px 0; font-size: 28px; font-weight: bold; color: #0d47a1;">
+            {amount_rlusd:.2f} RLUSD
+        </p>
+    </div>
+
+    <p>The RLUSD has been returned to your connected XRPL wallet. You can verify
+    the transaction on the XRPL explorer.</p>
+
+    <p style="color: #666; font-size: 14px;">
+        Ready to try again? Search for flights and we'll find you the best deal.
+    </p>
+    """
+
+    return send_email(to, f"Escrow Refunded: {amount_rlusd:.2f} RLUSD Returned", html_content)

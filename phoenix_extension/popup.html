@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      color: #333;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .header h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 600;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.connected { background: #4CAF50; }
+    .status-dot.disconnected { background: #f44336; }
+    .status-dot.setup { background: #FF9800; }
+
+    /* Setup required banner */
+    .setup-banner {
+      display: none;
+      background: #fff3e0;
+      border: 1px solid #ffcc80;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .setup-banner.visible { display: block; }
+    .setup-banner p {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #e65100;
+      font-weight: 600;
+    }
+    .setup-banner a {
+      display: inline-block;
+      padding: 6px 16px;
+      background: #FF9800;
+      color: white;
+      border-radius: 4px;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .setup-banner a:hover { background: #f57c00; }
+
+    /* Consent badges */
+    .consent-badges {
+      display: none;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .consent-badges.visible { display: flex; }
+    .consent-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .consent-badge.on { background: #e8f5e9; color: #2e7d32; }
+    .consent-badge.off { background: #f5f5f5; color: #999; }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .stat-label { color: #666; }
+    .stat-value { font-weight: 600; }
+    .earnings {
+      background: #f0f7ff;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 12px 0;
+      text-align: center;
+    }
+    .earnings .amount {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a73e8;
+    }
+    .earnings .label {
+      color: #666;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .footer {
+      margin-top: 12px;
+      text-align: center;
+    }
+    .footer a {
+      color: #1a73e8;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .privacy-footer {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 10px;
+    }
+    .privacy-footer a {
+      color: #999;
+      text-decoration: none;
+    }
+    .privacy-footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="status-dot" id="statusDot"></span>
+    <h1>Phoenix Node</h1>
+  </div>
+
+  <!-- User info (shown when authenticated via Google) -->
+  <div id="userInfo" style="display:none;">
+    <div style="display:flex;align-items:center;gap:8px;padding:8px;background:#f8f9fa;border-radius:6px;margin-bottom:12px;">
+      <div style="width:32px;height:32px;border-radius:50%;background:#1a73e8;color:white;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;" id="userInitial">U</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:#333;" id="userNamePopup">User</div>
+        <div style="font-size:11px;color:#666;" id="userEmailPopup"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup required banner (shown if onboarding not completed) -->
+  <div class="setup-banner" id="setupBanner">
+    <p>Setup Required</p>
+    <a href="onboarding.html" target="_blank" id="setupLink">Complete Setup</a>
+  </div>
+
+  <!-- Consent category badges -->
+  <div class="consent-badges" id="consentBadges"></div>
+
+  <div class="earnings">
+    <div class="amount" id="earnings">$0.00</div>
+    <div class="label">Today's Earnings (RLUSD)</div>
+  </div>
+
+  <div class="stat-row">
+    <span class="stat-label">Node ID</span>
+    <span class="stat-value" id="nodeId">&mdash;</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-label">Events Captured</span>
+    <span class="stat-value" id="eventsCaptured">0</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-label">Events Sent</span>
+    <span class="stat-value" id="eventsSent">0</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-label">Uptime</span>
+    <span class="stat-value" id="uptime">&mdash;</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-label">Status</span>
+    <span class="stat-value" id="status">Checking...</span>
+  </div>
+
+  <div class="footer">
+    <a href="#" id="dashboardLink">Open Dashboard</a>
+    &nbsp;|&nbsp;
+    <a href="options.html" id="settingsLink">Settings</a>
+  </div>
+
+  <div class="privacy-footer">
+    <a href="https://phoenix.example.com/privacy" target="_blank">Privacy Policy</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "test_date": "2026-01-28T23:51:21.585410",
+  "flight_date": "2026-02-18",
+  "total_routes": 6,
+  "successful": 0,
+  "with_savings": 0,
+  "us_cheaper": 0,
+  "results": [
+    {
+      "route": "JFK \u2192 LAX",
+      "us_price": 0,
+      "status": "partial_data",
+      "total_flights": 0
+    },
+    {
+      "route": "LAX \u2192 MIA",
+      "us_price": 0,
+      "status": "partial_data",
+      "total_flights": 0
+    },
+    {
+      "route": "ORD \u2192 SFO",
+      "us_price": 0,
+      "status": "partial_data",
+      "total_flights": 0
+    },
+    {
+      "route": "DFW \u2192 SEA",
+      "us_price": 0,
+      "status": "partial_data",
+      "total_flights": 0
+    },
+    {
+      "route": "BOS \u2192 ATL",
+      "us_price": 0,
+      "status": "partial_data",
+      "total_flights": 0
+    },
+    {
+      "route": "DEN \u2192 LAS",
+      "us_price": 0,
+      "status": "partial_data",
+      "total_flights": 0
+    }
+  ]
+}

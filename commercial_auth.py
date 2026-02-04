@@ -1,0 +1,1346 @@
+"""
+PHOENIX Commercial API Authentication Middleware
+
+Authenticates commercial API requests via API key in the Authorization header
+or X-API-Key header. Enforces rate limits, scope checks, and account status.
+
+Usage:
+    from commercial_auth import require_api_key, get_commercial_account
+
+    @app.route("/api/v1/search", methods=["POST"])
+    @require_api_key(scope="search")
+    def commercial_search():
+        account = get_commercial_account()
+        # account is the authenticated CommercialAccount
+        ...
+
+Header format:
+    Authorization: Bearer phx_<key>
+    — or —
+    X-API-Key: phx_<key>
+"""
+
+import functools
+import logging
+from datetime import datetime, timedelta
+
+from flask import request, g, jsonify
+
+logger = logging.getLogger(__name__)
+
+
+def _extract_api_key():
+    """Extract API key from request headers."""
+    # Try Authorization: Bearer phx_xxx
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:].strip()
+
+    # Try X-API-Key: phx_xxx
+    return request.headers.get("X-API-Key", "").strip() or None
+
+
+def get_commercial_account():
+    """Get the authenticated commercial account from the request context."""
+    return getattr(g, "commercial_account", None)
+
+
+def get_commercial_scopes():
+    """Get the scopes of the authenticated API key."""
+    return getattr(g, "commercial_scopes", [])
+
+
+def require_api_key(scope=None):
+    """
+    Decorator that requires a valid commercial API key.
+
+    Args:
+        scope: Optional required scope (e.g. "search", "book", "p2p", "analytics").
+               If None, any valid key is accepted.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            key_string = _extract_api_key()
+            if not key_string:
+                return jsonify({"error": "API key required", "hint": "Set Authorization: Bearer phx_<key>"}), 401
+
+            from commercial import commercial_manager
+            result = commercial_manager.verify_api_key(key_string)
+
+            if result is None:
+                return jsonify({"error": "Invalid or expired API key"}), 401
+
+            account, api_key, scopes = result
+
+            # Check scope
+            if scope and scope not in scopes:
+                return jsonify({
+                    "error": f"Insufficient scope: '{scope}' required",
+                    "your_scopes": scopes,
+                }), 403
+
+            # Check account is active
+            if not account.is_active:
+                return jsonify({"error": "Account suspended"}), 403
+
+            # Store in request context
+            g.commercial_account = account
+            g.commercial_api_key = api_key
+            g.commercial_scopes = scopes
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# Browsing API Rate Limiter (Build #71)
+# ---------------------------------------------------------------------------
+
+import time as _time
+
+_browsing_rate_buckets = {}  # account_id -> [timestamp, ...]
+
+
+def _check_browsing_rate_limit(account):
+    """Per-account rate limiting for browsing data API using sliding window.
+
+    Uses the tier's rate_limit_per_minute (10/60/300/1000).
+    Returns {"allowed": bool, "limit": int, "current": int}.
+    """
+    from browsing_tiers import get_tier
+
+    tier_key = getattr(account, "browsing_tier", None) or "browsing_free"
+    tier = get_tier(tier_key)
+    limit = tier["rate_limit_per_minute"]
+
+    account_key = str(account.id)
+    now = _time.time()
+    window = 60.0  # 1-minute sliding window
+
+    timestamps = _browsing_rate_buckets.get(account_key, [])
+    timestamps = [ts for ts in timestamps if now - ts < window]
+
+    current = len(timestamps)
+
+    if current >= limit:
+        _browsing_rate_buckets[account_key] = timestamps
+        return {"allowed": False, "limit": limit, "current": current}
+
+    timestamps.append(now)
+    _browsing_rate_buckets[account_key] = timestamps
+    return {"allowed": True, "limit": limit, "current": current + 1}
+
+
+def register_commercial_routes(app):
+    """Register commercial API endpoints on the Flask app."""
+    from flask_login import login_required, current_user
+
+    # ------------------------------------------------------------------
+    # Account management (authenticated via session — account owner/admin)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/commercial/accounts", methods=["POST"])
+    @login_required
+    def create_commercial_account():
+        """Create a new commercial account."""
+        if not current_user.is_admin:
+            return jsonify({"error": "Admin only"}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        from commercial import commercial_manager
+        result = commercial_manager.create_account(
+            name=data.get("name"),
+            contact_email=data.get("contact_email"),
+            owner_user_id=data.get("owner_user_id", current_user.id),
+            contact_name=data.get("contact_name"),
+            company_website=data.get("company_website"),
+        )
+        return jsonify(result), 201
+
+    @app.route("/api/commercial/accounts", methods=["GET"])
+    @login_required
+    def list_commercial_accounts():
+        """List commercial accounts (admin only)."""
+        if not current_user.is_admin:
+            return jsonify({"error": "Admin only"}), 403
+
+        from commercial import commercial_manager
+        accounts = commercial_manager.list_accounts()
+        return jsonify({"accounts": accounts})
+
+    @app.route("/api/commercial/accounts/<account_id>", methods=["GET"])
+    @login_required
+    def get_commercial_account_detail(account_id):
+        """Get commercial account details and stats."""
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account(account_id)
+        if not account:
+            return jsonify({"error": "Not found"}), 404
+
+        if not current_user.is_admin and account.owner_user_id != current_user.id:
+            return jsonify({"error": "Forbidden"}), 403
+
+        stats = commercial_manager.get_account_stats(account_id)
+        return jsonify(stats)
+
+    @app.route("/api/commercial/accounts/<account_id>/suspend", methods=["POST"])
+    @login_required
+    def suspend_commercial_account(account_id):
+        """Suspend a commercial account (admin only)."""
+        if not current_user.is_admin:
+            return jsonify({"error": "Admin only"}), 403
+
+        from commercial import commercial_manager
+        data = request.get_json() or {}
+        result = commercial_manager.suspend_account(account_id, reason=data.get("reason"))
+        return jsonify(result)
+
+    @app.route("/api/commercial/accounts/<account_id>/reactivate", methods=["POST"])
+    @login_required
+    def reactivate_commercial_account(account_id):
+        """Reactivate a suspended account (admin only)."""
+        if not current_user.is_admin:
+            return jsonify({"error": "Admin only"}), 403
+
+        from commercial import commercial_manager
+        result = commercial_manager.reactivate_account(account_id)
+        return jsonify(result)
+
+    # ------------------------------------------------------------------
+    # API key management
+    # ------------------------------------------------------------------
+
+    @app.route("/api/commercial/accounts/<account_id>/keys", methods=["POST"])
+    @login_required
+    def create_api_key(account_id):
+        """Generate a new API key for a commercial account."""
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account(account_id)
+        if not account:
+            return jsonify({"error": "Not found"}), 404
+        if not current_user.is_admin and account.owner_user_id != current_user.id:
+            return jsonify({"error": "Forbidden"}), 403
+
+        data = request.get_json() or {}
+        result = commercial_manager.create_api_key(
+            account_id=account_id,
+            label=data.get("label", "Default"),
+            scopes=data.get("scopes"),
+            expires_days=data.get("expires_days"),
+        )
+        return jsonify(result), 201
+
+    @app.route("/api/commercial/accounts/<account_id>/keys/<int:key_id>", methods=["DELETE"])
+    @login_required
+    def revoke_api_key_route(account_id, key_id):
+        """Revoke an API key."""
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account(account_id)
+        if not account:
+            return jsonify({"error": "Not found"}), 404
+        if not current_user.is_admin and account.owner_user_id != current_user.id:
+            return jsonify({"error": "Forbidden"}), 403
+
+        result = commercial_manager.revoke_api_key(key_id, account_id)
+        return jsonify(result)
+
+    # ------------------------------------------------------------------
+    # Commercial API endpoints (authenticated via API key)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/v1/search", methods=["POST"])
+    @require_api_key(scope="search")
+    def commercial_search():
+        """
+        Commercial search endpoint — returns arbitrage opportunities.
+
+        POST body: {"origin": "JFK", "destination": "NRT", "date": "2026-03-15"}
+        """
+        account = get_commercial_account()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        origin = data.get("origin")
+        destination = data.get("destination")
+        date = data.get("date")
+        cabin = data.get("cabin_class", "economy")
+        return_date = data.get("return_date")
+
+        if not all([origin, destination, date]):
+            return jsonify({"error": "origin, destination, and date required"}), 400
+
+        try:
+            from search import search_global
+            results = search_global(
+                origin=origin,
+                destination=destination,
+                date=date,
+                return_date=return_date,
+                fast_mode=True,
+            )
+
+            # Record search for data pipeline
+            try:
+                from search_tracker import tracker
+                tracker.record_search(
+                    user_id=None,
+                    origin=origin,
+                    destination=destination,
+                    departure_date=date,
+                    results=results.get("deals", []) if isinstance(results, dict) else results,
+                    method="commercial_api",
+                )
+            except Exception:
+                pass  # Non-blocking
+
+            # Calculate savings for each deal
+            flights = results if isinstance(results, list) else results.get("flights", [])
+            deals = results.get("deals", []) if isinstance(results, dict) else []
+            enriched_deals = []
+            for deal_data in deals:
+                deal_info = deal_data.get("deal", {})
+                home_price = deal_info.get("home_price", 0) or 0
+                arb_price = deal_info.get("arbitrage_price", 0) or 0
+                if home_price > 0 and arb_price > 0 and home_price > arb_price:
+                    gross_savings = home_price - arb_price
+                    fee_amount = gross_savings * (account.fee_percent / 100)
+                    net_savings = gross_savings - fee_amount
+                    deal_data["savings"] = {
+                        "home_price_usd": home_price,
+                        "arbitrage_price_usd": arb_price,
+                        "gross_savings_usd": round(gross_savings, 2),
+                        "fee_percent": account.fee_percent,
+                        "fee_usd": round(fee_amount, 2),
+                        "net_savings_usd": round(net_savings, 2),
+                        "savings_percent": round((gross_savings / home_price) * 100, 1),
+                    }
+                enriched_deals.append(deal_data)
+
+            return jsonify({
+                "account_id": account.account_id,
+                "tier": account.current_tier,
+                "fee_percent": account.fee_percent,
+                "results": flights,
+                "deals": enriched_deals,
+            })
+        except Exception as e:
+            logger.error(f"Commercial search error: {e}")
+            return jsonify({"error": "Search failed"}), 500
+
+    @app.route("/api/v1/account/stats", methods=["GET"])
+    @require_api_key(scope="analytics")
+    def commercial_my_stats():
+        """Get usage stats for the authenticated commercial account."""
+        account = get_commercial_account()
+        from commercial import commercial_manager
+        stats = commercial_manager.get_account_stats(account.account_id)
+        return jsonify(stats)
+
+    @app.route("/api/v1/account/tier", methods=["GET"])
+    @require_api_key()
+    def commercial_my_tier():
+        """Get current tier info for the authenticated account."""
+        account = get_commercial_account()
+        from commercial import TIERS, TIER_ORDER
+
+        current = account.current_tier
+        tier_info = TIERS[current]
+
+        # Find next tier
+        current_idx = TIER_ORDER.index(current) if current in TIER_ORDER else len(TIER_ORDER) - 1
+        next_tier = TIER_ORDER[current_idx - 1] if current_idx > 0 else None
+
+        return jsonify({
+            "current_tier": current,
+            "fee_percent": account.fee_percent,
+            "tickets_last_30d": account.tickets_last_30d,
+            "next_tier": next_tier,
+            "next_tier_threshold": TIERS[next_tier]["min_tickets_30d"] if next_tier else None,
+            "tickets_needed": max(0, TIERS[next_tier]["min_tickets_30d"] - (account.tickets_last_30d or 0)) if next_tier else 0,
+            "all_tiers": {name: {"fee_percent": t["fee_percent"], "min_tickets": t["min_tickets_30d"]} for name, t in TIERS.items()},
+        })
+
+    # ------------------------------------------------------------------
+    # Referral routes
+    # ------------------------------------------------------------------
+
+    @app.route("/join/<referral_code>")
+    def agency_portal_redirect(referral_code):
+        """
+        Agency-branded signup redirect.
+
+        /join/APEXTRAVEL → validates code, stores in session, redirects to signup.
+        The signup handler reads the code from session and calls attribute_referral().
+        """
+        from flask import redirect, session, url_for
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account_by_referral_code(referral_code)
+        if not account:
+            return jsonify({"error": "Invalid referral code"}), 404
+
+        # Store in session so the signup flow can attribute it
+        session["referral_code"] = account.referral_code
+        session["referral_account_id"] = account.account_id
+        session["referral_agency_name"] = account.name
+
+        # Redirect to signup page (frontend will show agency branding)
+        return redirect(f"/signup?ref={account.referral_code}")
+
+    @app.route("/api/referral/validate/<referral_code>", methods=["GET"])
+    def validate_referral_code(referral_code):
+        """Validate a referral code and return the agency name (public endpoint)."""
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account_by_referral_code(referral_code)
+        if not account:
+            return jsonify({"valid": False}), 404
+
+        return jsonify({
+            "valid": True,
+            "agency_name": account.name,
+            "referral_code": account.referral_code,
+        })
+
+    @app.route("/api/commercial/accounts/<account_id>/referrals", methods=["GET"])
+    @login_required
+    def get_referral_stats(account_id):
+        """Get referral stats for a commercial account."""
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account(account_id)
+        if not account:
+            return jsonify({"error": "Not found"}), 404
+        if not current_user.is_admin and account.owner_user_id != current_user.id:
+            return jsonify({"error": "Forbidden"}), 403
+
+        stats = commercial_manager.get_referral_stats(account_id)
+        if not stats:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify(stats)
+
+    @app.route("/api/commercial/accounts/<account_id>/referral-code", methods=["PUT"])
+    @login_required
+    def update_referral_code(account_id):
+        """Update an account's referral code."""
+        from commercial import commercial_manager
+
+        account = commercial_manager.get_account(account_id)
+        if not account:
+            return jsonify({"error": "Not found"}), 404
+        if not current_user.is_admin and account.owner_user_id != current_user.id:
+            return jsonify({"error": "Forbidden"}), 403
+
+        data = request.get_json()
+        if not data or not data.get("referral_code"):
+            return jsonify({"error": "referral_code required"}), 400
+
+        result = commercial_manager.update_referral_code(account_id, data["referral_code"])
+        if "error" in result:
+            return jsonify(result), 400
+        return jsonify(result)
+
+    @app.route("/api/v1/account/referrals", methods=["GET"])
+    @require_api_key(scope="analytics")
+    def commercial_my_referrals():
+        """Get referral stats for the authenticated commercial account (via API key)."""
+        account = get_commercial_account()
+        from commercial import commercial_manager
+        stats = commercial_manager.get_referral_stats(account.account_id)
+        return jsonify(stats)
+
+    @app.route("/api/v1/account/share-links", methods=["GET"])
+    @require_api_key(scope="analytics")
+    def commercial_share_links():
+        """Get multi-platform share links for the commercial account's referral code."""
+        account = get_commercial_account()
+        if not account.referral_code:
+            return jsonify({"error": "No referral code set for this account"}), 400
+
+        from share_links import generate_referral_share_links
+        import os
+        base_url = os.environ.get("BASE_URL", "http://localhost:5001")
+        share = generate_referral_share_links(
+            account.referral_code,
+            account.company_name or "",
+            base_url,
+        )
+        return jsonify({
+            "referral_code": account.referral_code,
+            "referral_url": f"{base_url}/join/{account.referral_code}",
+            "share_links": share,
+        })
+
+    # ------------------------------------------------------------------
+    # Commercial Account Self-Service Onboarding (Build #71)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/commercial/signup", methods=["POST"])
+    def commercial_signup():
+        """Self-service commercial account signup.
+
+        POST body: {
+            "company_name": "Apex Travel Co",
+            "contact_email": "api@apextravel.com",
+            "contact_name": "Jane Smith",
+            "company_website": "https://apextravel.com"
+        }
+
+        Returns account_id and a starter API key (scope: search, analytics).
+        Account is created in pending state until email verification.
+        """
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        company_name = (data.get("company_name") or "").strip()
+        contact_email = (data.get("contact_email") or "").strip()
+        contact_name = (data.get("contact_name") or "").strip()
+        company_website = (data.get("company_website") or "").strip()
+
+        # Validation
+        if not company_name or len(company_name) < 2:
+            return jsonify({"error": "company_name is required (min 2 chars)"}), 400
+        if not contact_email or "@" not in contact_email:
+            return jsonify({"error": "Valid contact_email is required"}), 400
+        if len(company_name) > 200:
+            return jsonify({"error": "company_name too long (max 200 chars)"}), 400
+
+        # Check for duplicate email
+        from models import CommercialAccount
+        existing = CommercialAccount.query.filter_by(contact_email=contact_email).first()
+        if existing:
+            return jsonify({"error": "An account with this email already exists"}), 409
+
+        from commercial import commercial_manager
+        import secrets
+
+        try:
+            # Create the account
+            result = commercial_manager.create_account(
+                name=company_name,
+                contact_email=contact_email,
+                owner_user_id=None,
+                contact_name=contact_name,
+                company_website=company_website,
+            )
+
+            account_id = result.get("account_id")
+            if not account_id:
+                return jsonify({"error": "Failed to create account"}), 500
+
+            # Generate a starter API key with basic scopes
+            key_result = commercial_manager.create_api_key(
+                account_id=account_id,
+                label="Starter Key (auto-generated)",
+                scopes=["search", "analytics", "data_marketplace"],
+                expires_days=365,
+            )
+
+            # Generate verification token
+            verification_token = secrets.token_urlsafe(32)
+
+            logger.info(
+                "Commercial signup: %s (%s) — account_id=%s",
+                company_name, contact_email, account_id,
+            )
+
+            return jsonify({
+                "status": "created",
+                "account_id": account_id,
+                "company_name": company_name,
+                "contact_email": contact_email,
+                "api_key": key_result.get("api_key"),
+                "api_key_prefix": key_result.get("prefix"),
+                "scopes": ["search", "analytics"],
+                "tier": "starter",
+                "message": "Account created. Your API key is shown once — save it securely.",
+                "next_steps": [
+                    "Save your API key — it will not be shown again",
+                    "Set Authorization: Bearer <your-key> in API requests",
+                    "Start with POST /api/v1/search to find arbitrage deals",
+                    "Check GET /api/v1/account/tier for your current pricing tier",
+                ],
+            }), 201
+
+        except Exception as e:
+            logger.exception("Commercial signup failed for %s", contact_email)
+            return jsonify({"error": "Signup failed. Please try again or contact support."}), 500
+
+    # --- Intelligence API Routes (Commercial) ---
+
+    @app.route("/api/v1/intelligence/route/<origin>/<destination>")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_route(origin, destination):
+        """Route intelligence profile via commercial API."""
+        from phoenix_intelligence import intelligence
+        data = intelligence.get_route_intelligence(
+            origin.upper(), destination.upper(),
+            days_back=int(request.args.get("days", 30)),
+        )
+        return jsonify(data)
+
+    @app.route("/api/v1/intelligence/market/<market>")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_market(market):
+        """Market briefing via commercial API."""
+        from phoenix_intelligence import intelligence
+        data = intelligence.get_market_briefing(
+            market.upper(),
+            days_back=int(request.args.get("days", 7)),
+        )
+        return jsonify(data)
+
+    @app.route("/api/v1/intelligence/trending")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_trending():
+        """Trending routes and anomalies via commercial API."""
+        from phoenix_intelligence import intelligence
+        anomalies = intelligence.detect_anomalies(
+            days=int(request.args.get("days", 7)),
+        )
+        stats = intelligence.get_platform_stats()
+        return jsonify({"anomalies": anomalies, "platform": stats})
+
+    # --- Phase 2 Commercial Intelligence Routes ---
+
+    @app.route("/api/v1/intelligence/p2p/network")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_p2p_network():
+        """P2P network health via commercial API."""
+        from phoenix_intelligence import intelligence
+        days = int(request.args.get("days", 30))
+        return jsonify(intelligence.get_p2p_network(days_back=days))
+
+    @app.route("/api/v1/intelligence/p2p/savings")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_p2p_savings():
+        """Top P2P savings routes via commercial API."""
+        from phoenix_intelligence import intelligence
+        days = int(request.args.get("days", 30))
+        limit = int(request.args.get("limit", 10))
+        return jsonify(intelligence.get_p2p_savings(days_back=days, limit=limit))
+
+    @app.route("/api/v1/intelligence/nodes")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_nodes():
+        """CitizenSERP node network via commercial API."""
+        from phoenix_intelligence import intelligence
+        return jsonify(intelligence.get_node_network())
+
+    @app.route("/api/v1/intelligence/proxy")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_proxy():
+        """Proxy portal usage via commercial API."""
+        from phoenix_intelligence import intelligence
+        days = int(request.args.get("days", 7))
+        return jsonify(intelligence.get_proxy_usage(days_back=days))
+
+    @app.route("/api/v1/intelligence/ai")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_ai():
+        """AI analytics via commercial API."""
+        from phoenix_intelligence import intelligence
+        days = int(request.args.get("days", 30))
+        return jsonify(intelligence.get_ai_analytics(days_back=days))
+
+    @app.route("/api/v1/intelligence/price-history/<origin>/<dest>")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_price_history(origin, dest):
+        """Price timeline via commercial API."""
+        from phoenix_intelligence import intelligence
+        days = int(request.args.get("days", 30))
+        return jsonify(intelligence.get_price_timeline(origin.upper(), dest.upper(), days_back=days))
+
+    @app.route("/api/v1/intelligence/airlines/<origin>/<dest>")
+    @require_api_key(scope="analytics")
+    def commercial_intelligence_airlines(origin, dest):
+        """Airline competitive pricing via commercial API."""
+        from phoenix_intelligence import intelligence
+        days = int(request.args.get("days", 7))
+        return jsonify(intelligence.get_airline_comparison(origin.upper(), dest.upper(), days_back=days))
+
+    # --- Commercial Agent Routes ---
+
+    @app.route("/api/v1/agent/search", methods=["POST"])
+    @require_api_key(scope="search")
+    def commercial_agent_search():
+        """Agent-orchestrated search via commercial API."""
+        from phoenix_agent import phoenix_agent
+        data = request.get_json() or {}
+        query = data.get("query", "")
+        if not query:
+            return jsonify({"error": "query is required"}), 400
+        task_type = data.get("task_type", "flight_search")
+        user_market = data.get("market", "US")
+        result = phoenix_agent.handle_search(
+            query=query,
+            user_id=None,
+            task_type=task_type,
+            user_market=user_market,
+            params=data.get("params", {}),
+        )
+        return jsonify(result)
+
+    @app.route("/api/v1/agent/analyze/<origin>/<destination>")
+    @require_api_key(scope="analytics")
+    def commercial_agent_analyze(origin, destination):
+        """Agent route analysis via commercial API."""
+        from phoenix_agent import phoenix_agent
+        user_market = request.args.get("market", "US")
+        return jsonify(phoenix_agent.analyze_route(
+            origin.upper(), destination.upper(), user_market=user_market
+        ))
+
+    @app.route("/api/v1/agent/discover")
+    @require_api_key(scope="analytics")
+    def commercial_agent_discover():
+        """Agent opportunity discovery via commercial API."""
+        from phoenix_agent import phoenix_agent
+        force = request.args.get("force", "false").lower() == "true"
+        return jsonify(phoenix_agent.discover_opportunities(force=force))
+
+    @app.route("/api/v1/agent/status")
+    @require_api_key(scope="analytics")
+    def commercial_agent_status():
+        """Agent status via commercial API."""
+        from phoenix_agent import phoenix_agent
+        return jsonify(phoenix_agent.get_agent_status())
+
+    @app.route("/api/v1/tasks/types")
+    @require_api_key(scope="analytics")
+    def commercial_task_types():
+        """List CitizenSERP task types via commercial API."""
+        from citizenserp_tasks import task_registry
+        return jsonify({"task_types": task_registry.list_types()})
+
+    @app.route("/api/v1/tasks/stats")
+    @require_api_key(scope="analytics")
+    def commercial_task_stats():
+        """Task dispatcher stats via commercial API."""
+        from citizenserp_tasks import task_dispatcher
+        return jsonify(task_dispatcher.get_stats())
+
+    # ------------------------------------------------------------------
+    # SERP API endpoints (residential proxy SERP extraction service)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/v1/serp/search", methods=["POST"])
+    @require_api_key(scope="serp")
+    def serp_api_search():
+        """Execute a SERP extraction query (sync or async).
+
+        POST body: {
+            "engine": "google",
+            "market": "JP",
+            "query": "laptop prices",
+            "mode": "sync",          # "sync" (default) or "async"
+            "pages": 1,
+            "options": {
+                "screenshot": false,
+                "js_rendering": true,
+                "shopping": false,
+                "local": false,
+                "realtime": false
+            },
+            "callback_url": null     # For async mode — webhook URL
+        }
+        """
+        account = get_commercial_account()
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        from serp_api import serp_api_manager
+        mode = data.get("mode", "sync")
+
+        if mode == "async":
+            result = serp_api_manager.execute_async(account, data)
+        else:
+            result = serp_api_manager.execute_sync(account, data)
+
+        if "error" in result:
+            status_code = 429 if "rate" in result.get("error", "").lower() else 400
+            if "quota" in result.get("error", "").lower():
+                status_code = 429
+            return jsonify(result), status_code
+
+        return jsonify(result)
+
+    @app.route("/api/v1/serp/batch", methods=["POST"])
+    @require_api_key(scope="serp")
+    def serp_api_batch():
+        """Submit a batch of SERP queries (async only).
+
+        POST body: {
+            "queries": [
+                {"engine": "google", "market": "JP", "query": "laptops"},
+                {"engine": "google", "market": "DE", "query": "laptops"},
+            ],
+            "callback_url": "https://example.com/webhook"
+        }
+        """
+        account = get_commercial_account()
+        data = request.get_json()
+        if not data or not data.get("queries"):
+            return jsonify({"error": "queries array required"}), 400
+
+        queries = data["queries"]
+        if len(queries) > 100:
+            return jsonify({"error": "Maximum 100 queries per batch"}), 400
+
+        from serp_api import serp_api_manager
+
+        callback_url = data.get("callback_url")
+        results = []
+        for q in queries:
+            if callback_url:
+                q["callback_url"] = callback_url
+            result = serp_api_manager.execute_async(account, q)
+            results.append(result)
+
+        submitted = sum(1 for r in results if "error" not in r)
+        failed = sum(1 for r in results if "error" in r)
+
+        return jsonify({
+            "batch_size": len(queries),
+            "submitted": submitted,
+            "failed": failed,
+            "queries": results,
+        })
+
+    @app.route("/api/v1/serp/query/<query_id>", methods=["GET"])
+    @require_api_key(scope="serp")
+    def serp_api_query_result(query_id):
+        """Get result/status for a SERP query by query_id."""
+        account = get_commercial_account()
+        from serp_api import serp_api_manager
+
+        result = serp_api_manager.get_query_result(query_id)
+        if not result:
+            return jsonify({"error": "Query not found"}), 404
+
+        # Verify ownership
+        if result.get("account_id") != account.id:
+            return jsonify({"error": "Query not found"}), 404
+
+        return jsonify(result)
+
+    @app.route("/api/v1/serp/usage", methods=["GET"])
+    @require_api_key(scope="serp")
+    def serp_api_usage():
+        """Get SERP API usage stats for the current billing period."""
+        account = get_commercial_account()
+        from serp_api import serp_api_manager
+        return jsonify(serp_api_manager.get_usage_stats(account))
+
+    @app.route("/api/v1/serp/engines", methods=["GET"])
+    @require_api_key(scope="serp")
+    def serp_api_engines():
+        """List supported search engines and their available markets."""
+        from serp_api import serp_api_manager
+        return jsonify({"engines": serp_api_manager.get_supported_engines()})
+
+    @app.route("/api/v1/serp/pricing", methods=["GET"])
+    @require_api_key(scope="serp")
+    def serp_api_pricing():
+        """Get current tier info, credit balance, and pricing for all tiers."""
+        account = get_commercial_account()
+        from serp_api import serp_api_manager
+        return jsonify(serp_api_manager.get_pricing_info(account))
+
+    # ==================================================================
+    # Node Yield Dashboard API (Build #65)
+    # ==================================================================
+
+    @app.route("/api/v1/node/yield", methods=["GET"])
+    @login_required
+    def node_yield_summary():
+        """Current yield summary for the authenticated node."""
+        if not current_user.is_helper_node:
+            return jsonify({"error": "Not a registered node"}), 403
+        from node_yield_dashboard import yield_dashboard
+        return jsonify(yield_dashboard.get_yield_summary(current_user.id))
+
+    @app.route("/api/v1/node/yield/history", methods=["GET"])
+    @login_required
+    def node_yield_history():
+        """Historical yield breakdown for the authenticated node."""
+        if not current_user.is_helper_node:
+            return jsonify({"error": "Not a registered node"}), 403
+        from node_yield_dashboard import yield_dashboard
+        days = int(request.args.get("days", 30))
+        days = min(max(days, 1), 365)
+        return jsonify(yield_dashboard.get_yield_history(current_user.id, days_back=days))
+
+    @app.route("/api/v1/node/yield/categories", methods=["GET"])
+    @login_required
+    def node_yield_categories():
+        """Earnings by data category for the authenticated node."""
+        if not current_user.is_helper_node:
+            return jsonify({"error": "Not a registered node"}), 403
+        from node_yield_dashboard import yield_dashboard
+        days = int(request.args.get("days", 30))
+        days = min(max(days, 1), 365)
+        return jsonify(yield_dashboard.get_category_breakdown(current_user.id, days_back=days))
+
+    @app.route("/api/v1/node/yield/optimize", methods=["GET"])
+    @login_required
+    def node_yield_optimize():
+        """Yield optimization suggestions for the authenticated node."""
+        if not current_user.is_helper_node:
+            return jsonify({"error": "Not a registered node"}), 403
+        from node_yield_dashboard import yield_dashboard
+        return jsonify(yield_dashboard.get_yield_optimization(current_user.id))
+
+    # ------------------------------------------------------------------
+    # Node Operator Dashboard Enhancements (Build #71)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/v1/node/payouts", methods=["GET"])
+    @login_required
+    def node_payouts():
+        """Payout history for the authenticated node operator."""
+        if not current_user.is_helper_node:
+            return jsonify({"error": "Not a registered node"}), 403
+
+        from models import NodePayout, db
+
+        limit = min(int(request.args.get("limit", 50)), 200)
+        status_filter = request.args.get("status")
+
+        query = NodePayout.query.filter_by(user_id=current_user.id)
+        if status_filter in ("pending", "sent", "confirmed", "failed"):
+            query = query.filter_by(status=status_filter)
+        total = query.count()
+        payouts = query.order_by(NodePayout.created_at.desc()).limit(limit).all()
+
+        total_earned = db.session.query(db.func.coalesce(db.func.sum(NodePayout.payout_amount_rlusd), 0)).filter(
+            NodePayout.user_id == current_user.id
+        ).scalar()
+        total_disbursed = db.session.query(db.func.coalesce(db.func.sum(NodePayout.payout_amount_rlusd), 0)).filter(
+            NodePayout.user_id == current_user.id,
+            NodePayout.status == "confirmed"
+        ).scalar()
+        pending_amount = db.session.query(db.func.coalesce(db.func.sum(NodePayout.payout_amount_rlusd), 0)).filter(
+            NodePayout.user_id == current_user.id,
+            NodePayout.status == "pending"
+        ).scalar()
+
+        return jsonify({
+            "payouts": [p.to_dict() for p in payouts],
+            "total": total,
+            "summary": {
+                "total_earned_usd": round(float(total_earned), 6),
+                "total_disbursed_usd": round(float(total_disbursed), 6),
+                "pending_usd": round(float(pending_amount), 6),
+            }
+        })
+
+    @app.route("/api/v1/node/quality", methods=["GET"])
+    @login_required
+    def node_quality():
+        """Quality rating and feedback summary for the authenticated node."""
+        if not current_user.is_helper_node:
+            return jsonify({"error": "Not a registered node"}), 403
+
+        from models import HelperProfile
+        from data_quality_feedback import quality_feedback_engine
+
+        profile = HelperProfile.query.filter_by(user_id=current_user.id).first()
+        if not profile or not profile.node_id:
+            return jsonify({"error": "No node profile found"}), 404
+
+        node_id = profile.node_id
+        multiplier = quality_feedback_engine.get_node_adjustment(node_id)
+        stats = quality_feedback_engine.get_feedback_stats(account_id=None, days_back=30)
+
+        if multiplier >= 1.3:
+            rating = "excellent"
+        elif multiplier >= 1.0:
+            rating = "good"
+        elif multiplier >= 0.7:
+            rating = "fair"
+        else:
+            rating = "poor"
+
+        return jsonify({
+            "node_id": node_id,
+            "quality_multiplier": round(float(multiplier), 4),
+            "quality_rating": rating,
+            "feedback_summary": stats,
+            "impact": f"Your earnings are multiplied by {round(float(multiplier), 4)}x"
+        })
+
+    # ==================================================================
+    # Ad Intelligence Commercial API (Build #65)
+    # ==================================================================
+
+    @app.route("/api/v1/intelligence/ads", methods=["GET"])
+    @require_api_key(scope="ad_intelligence")
+    def ad_intelligence_query():
+        """Query ad intelligence data. Filter by market, vertical, advertiser."""
+        account = get_commercial_account()
+        from ad_intelligence import ad_intelligence_engine
+        return jsonify(ad_intelligence_engine.query_ads(
+            market=request.args.get("market"),
+            vertical=request.args.get("vertical"),
+            advertiser=request.args.get("advertiser"),
+            ad_network=request.args.get("ad_network"),
+            days_back=int(request.args.get("days", 7)),
+            limit=min(int(request.args.get("limit", 100)), 1000),
+            offset=int(request.args.get("offset", 0)),
+        ))
+
+    @app.route("/api/v1/intelligence/ads/trends", methods=["GET"])
+    @require_api_key(scope="ad_intelligence")
+    def ad_intelligence_trends():
+        """Ad spend trends by market/vertical over time."""
+        account = get_commercial_account()
+        from ad_intelligence import ad_intelligence_engine
+        return jsonify(ad_intelligence_engine.get_ad_trends(
+            market=request.args.get("market"),
+            vertical=request.args.get("vertical"),
+            days_back=int(request.args.get("days", 30)),
+            granularity=request.args.get("granularity", "daily"),
+        ))
+
+    @app.route("/api/v1/intelligence/ads/competitors", methods=["GET"])
+    @require_api_key(scope="ad_intelligence")
+    def ad_intelligence_competitors():
+        """Competitor ad tracking reports."""
+        account = get_commercial_account()
+        from ad_intelligence import ad_intelligence_engine
+        return jsonify(ad_intelligence_engine.get_competitor_report(
+            advertiser=request.args.get("advertiser"),
+            vertical=request.args.get("vertical"),
+            market=request.args.get("market"),
+            days_back=int(request.args.get("days", 30)),
+        ))
+
+    # ==================================================================
+    # Marketplace Commercial API (Build #66)
+    # ==================================================================
+
+    @app.route("/api/v1/marketplace/listings", methods=["GET"])
+    @require_api_key(scope="analytics")
+    def marketplace_listings():
+        """Query marketplace listing records. Filter by market, location, bargains."""
+        from models import MarketplaceListingRecord
+        query = MarketplaceListingRecord.query
+        market = request.args.get("market")
+        location = request.args.get("location")
+        bargains_only = request.args.get("bargains_only", "false").lower() == "true"
+        days = int(request.args.get("days", 7))
+        limit = min(int(request.args.get("limit", 100)), 1000)
+        offset = int(request.args.get("offset", 0))
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(MarketplaceListingRecord.observed_at >= cutoff)
+        if market:
+            query = query.filter(MarketplaceListingRecord.market == market)
+        if location:
+            query = query.filter(MarketplaceListingRecord.location.ilike(f"%{location}%"))
+        if bargains_only:
+            query = query.filter(MarketplaceListingRecord.is_bargain == True)
+
+        total = query.count()
+        records = query.order_by(MarketplaceListingRecord.observed_at.desc()).offset(offset).limit(limit).all()
+        return jsonify({
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "listings": [r.to_dict() for r in records],
+        })
+
+    @app.route("/api/v1/marketplace/stats", methods=["GET"])
+    @require_api_key(scope="analytics")
+    def marketplace_stats():
+        """Marketplace listing statistics — volume, price distribution, bargain rates."""
+        from models import MarketplaceListingRecord, db
+        days = int(request.args.get("days", 7))
+        market = request.args.get("market")
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        base = MarketplaceListingRecord.query.filter(
+            MarketplaceListingRecord.observed_at >= cutoff
+        )
+        if market:
+            base = base.filter(MarketplaceListingRecord.market == market)
+
+        total = base.count()
+        bargains = base.filter(MarketplaceListingRecord.is_bargain == True).count()
+        avg_price = db.session.query(db.func.avg(MarketplaceListingRecord.price_usd)).filter(
+            MarketplaceListingRecord.observed_at >= cutoff
+        )
+        if market:
+            avg_price = avg_price.filter(MarketplaceListingRecord.market == market)
+        avg_price = avg_price.scalar() or 0
+
+        # Per-market breakdown
+        from sqlalchemy import func
+        market_counts = db.session.query(
+            MarketplaceListingRecord.market,
+            func.count(MarketplaceListingRecord.id),
+        ).filter(
+            MarketplaceListingRecord.observed_at >= cutoff
+        ).group_by(MarketplaceListingRecord.market).all()
+
+        return jsonify({
+            "days": days,
+            "total_listings": total,
+            "total_bargains": bargains,
+            "bargain_rate": round(bargains / total * 100, 1) if total > 0 else 0,
+            "avg_price_usd": round(avg_price, 2),
+            "by_market": {m: c for m, c in market_counts},
+        })
+
+    @app.route("/api/v1/vertical/prices", methods=["GET"])
+    @require_api_key(scope="analytics")
+    def vertical_price_query():
+        """Query structured price records across verticals (flights, hotels, cruises, products)."""
+        vertical = request.args.get("vertical", "flights")
+        market = request.args.get("market")
+        days = int(request.args.get("days", 7))
+        limit = min(int(request.args.get("limit", 100)), 1000)
+        offset = int(request.args.get("offset", 0))
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        from models import FlightPriceRecord, HotelPriceRecord, CruisePriceRecord, ProductPriceRecord
+        model_map = {
+            "flights": FlightPriceRecord,
+            "hotels": HotelPriceRecord,
+            "cruises": CruisePriceRecord,
+            "products": ProductPriceRecord,
+        }
+        model = model_map.get(vertical)
+        if not model:
+            return jsonify({"error": f"Unknown vertical: {vertical}. Use: {', '.join(model_map.keys())}"}), 400
+
+        query = model.query.filter(model.observed_at >= cutoff)
+        if market:
+            query = query.filter(model.market == market)
+
+        # Vertical-specific filters
+        if vertical == "flights":
+            origin = request.args.get("origin")
+            destination = request.args.get("destination")
+            airline = request.args.get("airline")
+            if origin:
+                query = query.filter(model.origin == origin.upper())
+            if destination:
+                query = query.filter(model.destination == destination.upper())
+            if airline:
+                query = query.filter(model.airline.ilike(f"%{airline}%"))
+        elif vertical == "hotels":
+            hotel_name = request.args.get("hotel_name")
+            location = request.args.get("location")
+            if hotel_name:
+                query = query.filter(model.hotel_name.ilike(f"%{hotel_name}%"))
+            if location:
+                query = query.filter(model.location.ilike(f"%{location}%"))
+        elif vertical == "cruises":
+            cruise_line = request.args.get("cruise_line")
+            departure_port = request.args.get("departure_port")
+            if cruise_line:
+                query = query.filter(model.cruise_line.ilike(f"%{cruise_line}%"))
+            if departure_port:
+                query = query.filter(model.departure_port.ilike(f"%{departure_port}%"))
+        elif vertical == "products":
+            category = request.args.get("category")
+            platform = request.args.get("platform")
+            if category:
+                query = query.filter(model.category == category)
+            if platform:
+                query = query.filter(model.platform.ilike(f"%{platform}%"))
+
+        total = query.count()
+        records = query.order_by(model.observed_at.desc()).offset(offset).limit(limit).all()
+        return jsonify({
+            "vertical": vertical,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "records": [r.to_dict() for r in records],
+        })
+
+    # ==================================================================
+    # Browsing Data Intelligence API (Build #69)
+    # ==================================================================
+
+    @app.route("/api/v1/intelligence/browsing", methods=["GET"])
+    @require_api_key(scope="browsing_data")
+    def browsing_data_query():
+        """Query browsing event intelligence. Filter by event_type, domain, category, quality."""
+        account = get_commercial_account()
+        from browsing_tiers import (
+            check_browsing_access, check_browsing_quota,
+            record_browsing_usage, reset_monthly_browsing, get_tier,
+        )
+        reset_monthly_browsing(account)
+
+        # Rate limit check (Build #71)
+        rate_check = _check_browsing_rate_limit(account)
+        if not rate_check["allowed"]:
+            return jsonify({"error": "Rate limit exceeded", "limit_per_minute": rate_check["limit"], "retry_after_seconds": 60}), 429
+
+        # Raw events require paid tier (Build #71)
+        if not check_browsing_access(account, "raw_events"):
+            return jsonify({"error": "Raw browsing events require Starter tier or above", "upgrade_url": "/api/v1/intelligence/browsing/pricing"}), 403
+
+        # Quota check (Build #71)
+        quota = check_browsing_quota(account)
+        if not quota["allowed"]:
+            return jsonify({"error": "Monthly browsing event quota exhausted", "quota": quota}), 429
+
+        # Enforce tier limits on days_back and results
+        tier_key = getattr(account, "browsing_tier", None) or "browsing_free"
+        tier = get_tier(tier_key)
+        days_back = min(int(request.args.get("days", 7)), tier["max_days_back"])
+        limit = min(int(request.args.get("limit", 100)), tier["max_results_per_query"])
+
+        from node_data_processor import node_data_processor
+        result = node_data_processor.query_browsing_events(
+            event_type=request.args.get("event_type"),
+            domain=request.args.get("domain"),
+            data_category=request.args.get("data_category"),
+            min_quality=int(request.args.get("min_quality", 0)),
+            days_back=days_back,
+            limit=limit,
+            offset=int(request.args.get("offset", 0)),
+        )
+
+        # Record usage (Build #71)
+        events_returned = len(result.get("events", result.get("records", [])))
+        if events_returned > 0:
+            record_browsing_usage(account, events_returned)
+
+        return jsonify(result)
+
+    @app.route("/api/v1/intelligence/browsing/trends", methods=["GET"])
+    @require_api_key(scope="browsing_data")
+    def browsing_data_trends():
+        """Browsing data trends — time-series, top domains, event distribution."""
+        account = get_commercial_account()
+        from browsing_tiers import check_browsing_access, check_browsing_quota, record_browsing_usage, reset_monthly_browsing, get_tier
+        reset_monthly_browsing(account)
+
+        # Rate limit check (Build #71)
+        rate_check = _check_browsing_rate_limit(account)
+        if not rate_check["allowed"]:
+            return jsonify({"error": "Rate limit exceeded", "limit_per_minute": rate_check["limit"], "retry_after_seconds": 60}), 429
+
+        # Trends are available to all tiers (aggregated data)
+        # Enforce tier limits on days_back
+        tier_key = getattr(account, "browsing_tier", None) or "browsing_free"
+        tier = get_tier(tier_key)
+        days_back = min(int(request.args.get("days", 30)), tier["max_days_back"])
+
+        from node_data_processor import node_data_processor
+        result = node_data_processor.get_browsing_trends(
+            event_type=request.args.get("event_type"),
+            domain=request.args.get("domain"),
+            days_back=days_back,
+            granularity=request.args.get("granularity", "daily"),
+        )
+
+        # Record 1 event of usage for trends queries
+        record_browsing_usage(account, 1)
+        return jsonify(result)
+
+    @app.route("/api/v1/intelligence/browsing/domain/<domain>", methods=["GET"])
+    @require_api_key(scope="browsing_data")
+    def browsing_data_domain_report(domain):
+        """Deep-dive report for a specific domain — event breakdown, quality, trends."""
+        account = get_commercial_account()
+        from browsing_tiers import check_browsing_access, check_browsing_quota, record_browsing_usage, reset_monthly_browsing, get_tier
+        reset_monthly_browsing(account)
+
+        # Rate limit check (Build #71)
+        rate_check = _check_browsing_rate_limit(account)
+        if not rate_check["allowed"]:
+            return jsonify({"error": "Rate limit exceeded", "limit_per_minute": rate_check["limit"], "retry_after_seconds": 60}), 429
+
+        # Domain reports require Starter tier or above (Build #71)
+        if not check_browsing_access(account, "domain_reports"):
+            return jsonify({"error": "Domain reports require Starter tier or above", "upgrade_url": "/api/v1/intelligence/browsing/pricing"}), 403
+
+        # Quota check (Build #71)
+        quota = check_browsing_quota(account)
+        if not quota["allowed"]:
+            return jsonify({"error": "Monthly browsing event quota exhausted", "quota": quota}), 429
+
+        # Enforce tier limits on days_back
+        tier_key = getattr(account, "browsing_tier", None) or "browsing_free"
+        tier = get_tier(tier_key)
+        days_back = min(int(request.args.get("days", 30)), tier["max_days_back"])
+
+        from node_data_processor import node_data_processor
+        result = node_data_processor.get_browsing_domain_report(
+            domain=domain,
+            days_back=days_back,
+        )
+
+        # Record usage (Build #71)
+        record_browsing_usage(account, 10)  # Domain reports cost 10 events
+        return jsonify(result)
+
+    # ==================================================================
+    # Data Quality Feedback API (Build #69)
+    # ==================================================================
+
+    @app.route("/api/v1/intelligence/feedback", methods=["POST"])
+    @require_api_key(scope="browsing_data")
+    def submit_data_quality_feedback():
+        """Submit quality ratings for browsing data records."""
+        account = get_commercial_account()
+        data = request.get_json()
+        if not data or not data.get("feedbacks"):
+            return jsonify({"error": "feedbacks array required"}), 400
+        feedbacks = data["feedbacks"]
+        if len(feedbacks) > 100:
+            return jsonify({"error": "Maximum 100 feedbacks per request"}), 400
+        from data_quality_feedback import quality_feedback_engine
+        result = quality_feedback_engine.submit_feedback(account.id, feedbacks)
+        return jsonify(result)
+
+    @app.route("/api/v1/intelligence/feedback/stats", methods=["GET"])
+    @require_api_key(scope="browsing_data")
+    def data_quality_feedback_stats():
+        """Get quality feedback statistics."""
+        account = get_commercial_account()
+        from data_quality_feedback import quality_feedback_engine
+        return jsonify(quality_feedback_engine.get_feedback_stats(
+            account_id=account.id,
+            days_back=int(request.args.get("days", 30)),
+        ))
+
+    # ==================================================================
+    # Browsing Data Tier API (Build #70)
+    # ==================================================================
+
+    @app.route("/api/v1/intelligence/browsing/tier", methods=["GET"])
+    @require_api_key(scope="browsing_data")
+    def browsing_tier_info():
+        """Get current browsing data tier, usage, and available features."""
+        account = get_commercial_account()
+        from browsing_tiers import get_browsing_tier_info, reset_monthly_browsing
+        reset_monthly_browsing(account)
+        return jsonify(get_browsing_tier_info(account))
+
+    @app.route("/api/v1/intelligence/browsing/pricing", methods=["GET"])
+    @require_api_key(scope="browsing_data")
+    def browsing_tier_pricing():
+        """Get all browsing data tier options and pricing."""
+        from browsing_tiers import get_all_tiers
+        return jsonify({"tiers": get_all_tiers()})

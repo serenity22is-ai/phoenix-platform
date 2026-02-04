@@ -1,0 +1,18 @@
+[Unit]
+Description=Phoenix Node Service — background data bridge for CitizenSERP network
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=__PYTHON_PATH__ __NODE_SERVICE_PATH__ --token __HELPER_TOKEN__ --server __SERVER_URL__
+Restart=always
+RestartSec=10
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+# Logging
+StandardOutput=append:__LOG_DIR__/phoenix-node-service.log
+StandardError=append:__LOG_DIR__/phoenix-node-service.log
+
+[Install]
+WantedBy=default.target

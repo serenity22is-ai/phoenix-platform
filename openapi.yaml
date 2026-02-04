@@ -1,0 +1,958 @@
+openapi: 3.1.0
+info:
+  title: PHOENIX Flight Arbitrage API
+  version: 0.1.0
+  description: |
+    API for the PHOENIX flight price arbitrage platform.
+    Detects geographic pricing differences and enables P2P purchasing
+    through a helper network with XRPL/RLUSD escrow.
+  contact:
+    name: Phoenix Support
+    email: support@phoenix.flights
+
+servers:
+  - url: http://localhost:5001
+    description: Development
+  - url: https://phoenix.flights
+    description: Production
+
+tags:
+  - name: Search
+    description: Flight search and price comparison
+  - name: Deals
+    description: Cached flight deals
+  - name: P2P
+    description: Peer-to-peer booking network
+  - name: Payments
+    description: Payment processing (Stripe, Coinbase, XRP)
+  - name: Escrow
+    description: XRPL escrow management
+  - name: Wallet
+    description: User wallet and card management
+  - name: Admin
+    description: Admin operations
+  - name: System
+    description: Health, metrics, and system endpoints
+
+paths:
+  # ========== Search ==========
+  /api/search:
+    post:
+      tags: [Search]
+      summary: Search flights with proxy-based price comparison
+      description: |
+        Searches Google Flights via residential proxies across multiple markets
+        to find geographic pricing differences.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [origin, destination, date]
+              properties:
+                origin:
+                  type: string
+                  example: JFK
+                destination:
+                  type: string
+                  example: LHR
+                date:
+                  type: string
+                  format: date
+                  example: "2026-06-15"
+                return_date:
+                  type: string
+                  format: date
+                passengers:
+                  type: integer
+                  default: 1
+                cabin_class:
+                  type: string
+                  enum: [economy, premium_economy, business, first]
+                  default: economy
+      responses:
+        "200":
+          description: Search results with price comparisons
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SearchResult"
+                  markets_searched:
+                    type: integer
+                  search_id:
+                    type: string
+        "400":
+          description: Invalid search parameters
+        "429":
+          description: Rate limit exceeded
+
+  /api/search/itinerary:
+    post:
+      tags: [Search]
+      summary: Search specific itinerary across markets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                origin:
+                  type: string
+                destination:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                flight_number:
+                  type: string
+      responses:
+        "200":
+          description: Itinerary price comparison
+
+  /api/search/flight:
+    post:
+      tags: [Search]
+      summary: Search a specific flight number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                flight_number:
+                  type: string
+                  example: BA178
+                date:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: Flight details and pricing
+
+  /api/search/calendar:
+    post:
+      tags: [Search]
+      summary: Calendar view of prices across date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                origin:
+                  type: string
+                destination:
+                  type: string
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: Date-price grid
+
+  /api/search/compare-itinerary:
+    post:
+      tags: [Search]
+      summary: Compare itinerary prices across all markets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                origin:
+                  type: string
+                destination:
+                  type: string
+                date:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: Market-by-market price comparison
+
+  /api/search/direct:
+    post:
+      tags: [Search]
+      summary: Direct proxy search on a specific market
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                origin:
+                  type: string
+                destination:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                market:
+                  type: string
+                  example: GB
+      responses:
+        "200":
+          description: Search results from specific market
+
+  /api/airports:
+    get:
+      tags: [Search]
+      summary: Search airports by code or name
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: JFK
+      responses:
+        "200":
+          description: Matching airports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                    name:
+                      type: string
+                    city:
+                      type: string
+                    country:
+                      type: string
+
+  /api/markets/{origin}/{destination}:
+    get:
+      tags: [Search]
+      summary: Get available markets for a route
+      parameters:
+        - name: origin
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: destination
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Available markets for the route
+
+  # ========== Deals ==========
+  /api/deals:
+    get:
+      tags: [Deals]
+      summary: List active deals
+      parameters:
+        - name: origin
+          in: query
+          schema:
+            type: string
+        - name: destination
+          in: query
+          schema:
+            type: string
+        - name: min_savings
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Active deals list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deals:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Deal"
+
+  /api/deals/create:
+    post:
+      tags: [Deals]
+      summary: Create a new deal (internal)
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealCreate"
+      responses:
+        "201":
+          description: Deal created
+        "400":
+          description: Invalid deal data
+
+  # ========== P2P Network ==========
+  /api/p2p/book:
+    post:
+      tags: [P2P]
+      summary: Initiate a P2P booking request
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [origin, destination, date, flight_number, target_market, target_price, us_price]
+              properties:
+                origin:
+                  type: string
+                destination:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                flight_number:
+                  type: string
+                target_market:
+                  type: string
+                target_price:
+                  type: number
+                us_price:
+                  type: number
+                passenger_name:
+                  type: string
+                passenger_email:
+                  type: string
+      responses:
+        "200":
+          description: P2P transaction initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                  status:
+                    type: string
+        "401":
+          description: Authentication required
+
+  /api/p2p/match:
+    post:
+      tags: [P2P]
+      summary: Match a P2P request with a helper
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                helper_id:
+                  type: integer
+      responses:
+        "200":
+          description: Helper matched
+
+  /api/p2p/transaction/{transaction_id}:
+    get:
+      tags: [P2P]
+      summary: Get P2P transaction details
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/P2PTransaction"
+        "404":
+          description: Transaction not found
+
+  /api/p2p/transaction/{transaction_id}/verify:
+    post:
+      tags: [P2P]
+      summary: Verify escrow for a P2P transaction
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Escrow verified
+
+  /api/p2p/transaction/{transaction_id}/session:
+    post:
+      tags: [P2P]
+      summary: Start browser session for P2P purchase
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Browser session started
+
+  /api/p2p/transaction/{transaction_id}/purchase:
+    post:
+      tags: [P2P]
+      summary: Execute purchase on helper's browser
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Purchase initiated
+
+  /api/p2p/transaction/{transaction_id}/confirm:
+    post:
+      tags: [P2P]
+      summary: Confirm purchase and release escrow
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirmation_code:
+                  type: string
+      responses:
+        "200":
+          description: Purchase confirmed, escrow released
+
+  /api/p2p/transaction/{transaction_id}/cancel:
+    post:
+      tags: [P2P]
+      summary: Cancel a P2P transaction
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transaction cancelled
+
+  /api/p2p/my-transactions:
+    get:
+      tags: [P2P]
+      summary: List current user's P2P transactions
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: User's transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/P2PTransaction"
+
+  /api/p2p/browser-session/{session_id}:
+    get:
+      tags: [P2P]
+      summary: Get browser session status
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session status
+        "404":
+          description: Session not found
+
+  /api/p2p/escrow/verify/{tx_hash}:
+    get:
+      tags: [P2P]
+      summary: Verify on-chain escrow by transaction hash
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: tx_hash
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Escrow verification result
+
+  # ========== Payments ==========
+  /api/payment/stripe/create:
+    post:
+      tags: [Payments]
+      summary: Create Stripe checkout session
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deal_id:
+                  type: string
+                amount_usd:
+                  type: number
+      responses:
+        "200":
+          description: Stripe session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                  url:
+                    type: string
+
+  /api/payment/coinbase/create:
+    post:
+      tags: [Payments]
+      summary: Create Coinbase Commerce charge
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deal_id:
+                  type: string
+                amount_usd:
+                  type: number
+      responses:
+        "200":
+          description: Coinbase charge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  charge_code:
+                    type: string
+                  hosted_url:
+                    type: string
+
+  /api/payment/verify:
+    post:
+      tags: [Payments]
+      summary: Verify a payment
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                payment_id:
+                  type: integer
+                tx_hash:
+                  type: string
+      responses:
+        "200":
+          description: Payment verification result
+
+  # ========== Escrow ==========
+  /api/escrow/create:
+    post:
+      tags: [Escrow]
+      summary: Create XRPL escrow
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deal_id:
+                  type: string
+                sender_address:
+                  type: string
+                amount_xrp:
+                  type: number
+      responses:
+        "200":
+          description: Escrow created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  escrow_id:
+                    type: string
+                  condition:
+                    type: string
+                  cancel_after:
+                    type: string
+                    format: date-time
+
+  /api/escrow/confirm:
+    post:
+      tags: [Escrow]
+      summary: Confirm escrow creation on-chain
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                escrow_id:
+                  type: string
+                tx_hash:
+                  type: string
+      responses:
+        "200":
+          description: Escrow confirmed
+
+  /api/escrow/release:
+    post:
+      tags: [Escrow]
+      summary: Release escrow (booking successful)
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                escrow_id:
+                  type: string
+                confirmation_code:
+                  type: string
+      responses:
+        "200":
+          description: Escrow released
+
+  /api/escrow/cancel:
+    post:
+      tags: [Escrow]
+      summary: Cancel escrow (booking failed)
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                escrow_id:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Escrow cancelled
+
+  /api/escrow/{escrow_id}:
+    get:
+      tags: [Escrow]
+      summary: Get escrow status
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: escrow_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Escrow details
+
+  # ========== System ==========
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, unhealthy]
+                  services:
+                    type: object
+                  timestamp:
+                    type: string
+        "503":
+          description: Service unhealthy
+
+  /metrics:
+    get:
+      tags: [System]
+      summary: Prometheus metrics endpoint
+      responses:
+        "200":
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /api/proxies/status:
+    get:
+      tags: [System]
+      summary: Get proxy pool status
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Proxy pool statistics
+
+  /api/scraper/status:
+    get:
+      tags: [System]
+      summary: Get scraper engine status
+      responses:
+        "200":
+          description: Scraper engine statistics
+
+  /api/translate:
+    post:
+      tags: [System]
+      summary: Translate text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                target_lang:
+                  type: string
+      responses:
+        "200":
+          description: Translated text
+
+  /api/languages:
+    get:
+      tags: [System]
+      summary: List supported languages
+      responses:
+        "200":
+          description: Language list
+
+  /api/save-guest-email:
+    post:
+      tags: [System]
+      summary: Save guest email for notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Email saved
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+
+  schemas:
+    SearchResult:
+      type: object
+      properties:
+        airline:
+          type: string
+        flight_number:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        departure_date:
+          type: string
+          format: date
+        us_price:
+          type: number
+        best_price:
+          type: number
+        best_market:
+          type: string
+        savings_usd:
+          type: number
+        savings_percent:
+          type: number
+
+    Deal:
+      type: object
+      properties:
+        deal_id:
+          type: string
+        airline:
+          type: string
+        flight_number:
+          type: string
+        route:
+          type: string
+        departure_date:
+          type: string
+          format: date
+        home_price_usd:
+          type: number
+        arbitrage_price_usd:
+          type: number
+        arbitrage_market:
+          type: string
+        user_savings_usd:
+          type: number
+        savings_percent:
+          type: number
+        is_active:
+          type: boolean
+
+    DealCreate:
+      type: object
+      required: [origin, destination, departure_date, home_price_usd, arbitrage_price_usd]
+      properties:
+        origin:
+          type: string
+        destination:
+          type: string
+        departure_date:
+          type: string
+          format: date
+        airline:
+          type: string
+        flight_number:
+          type: string
+        home_price_usd:
+          type: number
+        arbitrage_price_usd:
+          type: number
+        arbitrage_market:
+          type: string
+
+    P2PTransaction:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+        status:
+          type: string
+          enum: [requested, matched, escrow_locked, helper_accepted, purchasing, confirmed, completed, failed, cancelled, disputed]
+        origin:
+          type: string
+        destination:
+          type: string
+        departure_date:
+          type: string
+          format: date
+        airline:
+          type: string
+        us_price_usd:
+          type: number
+        target_price_usd:
+          type: number
+        target_market:
+          type: string
+        savings_usd:
+          type: number
+        escrow_amount_rlusd:
+          type: number
+        helper_earning_rlusd:
+          type: number
+        confirmation_code:
+          type: string
+        escrow_tx_hash:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
