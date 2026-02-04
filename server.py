@@ -8277,285 +8277,413 @@ def phoenix_ai_page():
 
 PHOENIX_INSTALL_CONTENT = """
 <style>
-.install-container {
-    max-width: 640px;
+.nodes-container {
+    max-width: 900px;
     margin: 0 auto;
-    padding: 2rem 1.5rem;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 1.5rem 1rem;
     color: #e0e0e0;
 }
-.install-hero {
+.nodes-hero {
     text-align: center;
     margin-bottom: 2rem;
 }
-.install-hero h1 {
-    font-size: 1.8rem;
+.nodes-hero h1 {
+    font-size: 2rem;
     color: #ff6b00;
     margin-bottom: 0.5rem;
 }
-.install-hero p {
+.nodes-hero p {
     color: #aaa;
     font-size: 1rem;
     line-height: 1.5;
+    max-width: 600px;
+    margin: 0 auto;
 }
-.install-steps {
-    background: #1a1a2e;
-    border: 1px solid #333;
+
+/* Founder badge */
+.founder-banner {
+    background: linear-gradient(135deg, #1a0a2e, #2a1040);
+    border: 1px solid #ff6b00;
     border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
 }
-.install-steps h2 {
-    font-size: 1.1rem;
-    color: #ff6b00;
-    margin-bottom: 1rem;
+.founder-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,107,0,0.08) 0%, transparent 70%);
+    animation: founderPulse 4s ease-in-out infinite;
 }
-.install-step {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #2a2a3e;
+@keyframes founderPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
 }
-.install-step:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-}
-.step-num {
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+.founder-banner .founder-tag {
+    display: inline-block;
     background: #ff6b00;
     color: #000;
     font-weight: 700;
-    font-size: 0.85rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+    position: relative;
 }
-.step-text h3 {
-    font-size: 0.95rem;
-    color: #fff;
-    margin: 0 0 0.25rem 0;
-}
-.step-text p {
-    font-size: 0.85rem;
-    color: #999;
-    margin: 0;
-    line-height: 1.4;
-}
-.install-benefits {
-    background: #1a1a2e;
-    border: 1px solid #333;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-}
-.install-benefits h2 {
-    font-size: 1.1rem;
-    color: #ff6b00;
-    margin-bottom: 1rem;
-}
-.benefit-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+.founder-banner p {
+    color: #ddd;
     font-size: 0.9rem;
+    margin: 0;
+    position: relative;
 }
-.benefit-icon {
-    flex-shrink: 0;
-    width: 24px;
+.founder-banner strong { color: #ff6b00; }
+
+/* Active node status */
+.active-node-bar {
+    background: #0d1f0d;
+    border: 1px solid #2d5a2d;
+    border-radius: 10px;
+    padding: 0.85rem 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.node-pulse {
+    width: 10px;
+    height: 10px;
+    background: #4ade80;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.4); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+}
+.active-node-bar span { color: #4ade80; font-size: 0.9rem; font-weight: 500; }
+.active-node-bar .node-type { color: #aaa; font-size: 0.8rem; margin-left: auto; }
+
+/* Section headers */
+.section-label {
+    font-size: 0.75rem;
+    color: #888;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+/* Node type cards */
+.node-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 2.5rem;
+}
+.node-card {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 14px;
+    padding: 1.25rem;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    position: relative;
+}
+.node-card:hover {
+    border-color: #ff6b00;
+    transform: translateY(-2px);
+}
+.node-card.active-card {
+    border-color: #4ade80;
+    background: #121a28;
+}
+.node-card.static-card {
+    cursor: default;
+}
+.node-card.static-card:hover {
+    border-color: #2a2a4a;
+    transform: none;
+}
+.node-card .card-icon {
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+}
+.node-card h3 {
+    font-size: 1rem;
+    color: #fff;
+    margin: 0 0 4px 0;
+}
+.node-card .card-desc {
+    font-size: 0.82rem;
+    color: #999;
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+.node-card .card-tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+.tag-active { background: #0d2d0d; color: #4ade80; border: 1px solid #2d5a2d; }
+.tag-setup { background: #2a1a00; color: #ff6b00; border: 1px solid #5a3a00; }
+
+/* Tier progression */
+.tier-section { margin-bottom: 2.5rem; }
+.tier-track {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #2a2a4a;
+}
+.tier-step {
+    flex: 1;
+    padding: 1rem 0.75rem;
     text-align: center;
+    position: relative;
+    background: #1a1a2e;
+    border-right: 1px solid #2a2a4a;
 }
-.install-privacy {
+.tier-step:last-child { border-right: none; }
+.tier-step.current {
+    background: linear-gradient(180deg, #2a1a00, #1a1a2e);
+    border-bottom: 3px solid #ff6b00;
+}
+.tier-step .tier-name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.tier-bronze .tier-name { color: #cd7f32; }
+.tier-silver .tier-name { color: #c0c0c0; }
+.tier-gold .tier-name { color: #ffd700; }
+.tier-platinum .tier-name { color: #e5e4e2; }
+.tier-step .tier-mult {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+}
+.tier-step .tier-detail {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 2px;
+}
+.tier-info {
     background: #0d1b2a;
     border: 1px solid #1b3a5c;
-    border-radius: 12px;
-    padding: 1.25rem;
-    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
     font-size: 0.85rem;
     color: #8ab4f8;
     line-height: 1.5;
 }
-.install-privacy strong {
-    color: #fff;
+.tier-info strong { color: #fff; }
+
+/* Earnings preview */
+.earnings-card {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
 }
-.install-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-.install-btn {
-    display: block;
-    width: 100%;
-    padding: 0.9rem;
-    border: none;
-    border-radius: 10px;
+.earnings-card h3 {
     font-size: 1rem;
+    color: #ff6b00;
+    margin: 0 0 12px 0;
+}
+.earnings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #2a2a3e;
+    font-size: 0.85rem;
+}
+.earnings-row:last-child { border-bottom: none; }
+.earnings-row .label { color: #aaa; }
+.earnings-row .value { color: #fff; font-weight: 600; }
+.earnings-row .value.highlight { color: #4ade80; }
+.earnings-row .value.pending { color: #888; font-style: italic; font-weight: 400; }
+
+/* CTA */
+.nodes-cta {
+    display: flex;
+    gap: 12px;
+    margin-top: 2rem;
+}
+.nodes-cta a {
+    flex: 1;
+    display: block;
+    padding: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.95rem;
     font-weight: 600;
-    cursor: pointer;
     text-align: center;
     text-decoration: none;
     transition: opacity 0.2s;
 }
-.install-btn:hover { opacity: 0.9; }
-.install-btn.primary {
+.nodes-cta a:hover { opacity: 0.9; }
+.cta-primary {
     background: linear-gradient(135deg, #ff6b00, #ff8c33);
     color: #000;
 }
-.install-btn.secondary {
+.cta-secondary {
     background: #2a2a3e;
     color: #ccc;
     border: 1px solid #444;
 }
-.install-tos {
-    text-align: center;
-    font-size: 0.75rem;
-    color: #666;
-    line-height: 1.4;
+
+@media (max-width: 600px) {
+    .node-grid { grid-template-columns: 1fr; }
+    .tier-track { flex-direction: column; }
+    .tier-step { border-right: none; border-bottom: 1px solid #2a2a4a; }
+    .tier-step:last-child { border-bottom: none; }
+    .nodes-cta { flex-direction: column; }
 }
-.install-tos a { color: #ff6b00; text-decoration: underline; }
-.install-status { display: none; text-align: center; margin-top: 1rem; }
-.install-status.show { display: block; }
-.install-status .success { color: #4caf50; font-weight: 600; }
-.install-status .info { color: #8ab4f8; }
 </style>
 
-<div class="install-container">
-    <div class="install-hero">
-        <h1>Install Phoenix</h1>
-        <p>Add Phoenix to your device for the best experience.<br>
-        Fast access, offline support, and your Bronze Node starts earning.</p>
+<div class="nodes-container">
+    <div class="nodes-hero">
+        <h1>Welcome to the Phoenix Network</h1>
+        <p>You're a dedicated node now. Search flights at wholesale prices across 195 markets, earn credits for every query you route, and grow your node for higher rewards.</p>
     </div>
 
-    <div class="install-steps">
-        <h2>How It Works</h2>
-        <div class="install-step">
-            <div class="step-num">1</div>
-            <div class="step-text">
-                <h3>Install the App</h3>
-                <p>Add Phoenix to your home screen. Works on any device — phone, tablet, or desktop.</p>
-            </div>
-        </div>
-        <div class="install-step">
-            <div class="step-num">2</div>
-            <div class="step-text">
-                <h3>Your Node Activates</h3>
-                <p>As a Bronze Node, your device helps route searches across the Phoenix network while you use the app. No data sharing required.</p>
-            </div>
-        </div>
-        <div class="install-step">
-            <div class="step-num">3</div>
-            <div class="step-text">
-                <h3>Search &amp; Save</h3>
-                <p>You get 3 free AI-powered searches per day. Find deals across multiple markets simultaneously.</p>
-            </div>
-        </div>
+    <div class="founder-banner">
+        <div class="founder-tag">FOUNDING MEMBER</div>
+        <p>You're among the first 500 dedicated nodes on the Phoenix Network. Founding members receive a <strong>3x credit multiplier</strong> on all network earnings &mdash; permanently.</p>
     </div>
 
-    <div class="install-benefits">
-        <h2>Your Bronze Node Benefits</h2>
-        <div class="benefit-row">
-            <div class="benefit-icon">&#x1f50d;</div>
-            <div>3 free searches per day across 2 markets</div>
-        </div>
-        <div class="benefit-row">
-            <div class="benefit-icon">&#x1f6e1;</div>
-            <div>Full privacy — proxy only, no data sharing required</div>
-        </div>
-        <div class="benefit-row">
-            <div class="benefit-icon">&#x1f4b0;</div>
-            <div>Earn RLUSD rewards as your node serves the network</div>
-        </div>
-        <div class="benefit-row">
-            <div class="benefit-icon">&#x2b06;</div>
-            <div>Upgrade anytime — share data for more searches or subscribe</div>
-        </div>
+    <!-- Active node status -->
+    <div class="active-node-bar">
+        <div class="node-pulse"></div>
+        <span>Your Dedicated Node is Active</span>
+        <span class="node-type">Bronze Tier</span>
     </div>
 
-    <div class="install-privacy">
-        <strong>Your privacy is protected.</strong> Bronze nodes act as proxy relays only.
-        Your device routes encrypted requests for the Phoenix network — no personal data
-        is collected beyond what you enter in the app. You can opt into data sharing
-        later from your dashboard to unlock higher tiers.
-    </div>
+    <!-- Expand your node -->
+    <div class="section-label">Expand Your Node</div>
+    <div class="node-grid">
+        <a class="node-card" href="/setup#desktop-mac">
+            <div class="card-icon">&#x1F5A5;</div>
+            <h3>Desktop Node</h3>
+            <div class="card-desc">Run a 24/7 background service on your computer. Earns credits around the clock, even when you're not browsing. macOS, Linux, Windows.</div>
+            <span class="card-tag tag-setup">SETUP NOW</span>
+        </a>
 
-    <div class="install-actions">
-        <button class="install-btn primary" id="installBtn" onclick="installPhoenix()">
-            Install Phoenix
-        </button>
-        <a href="/ai" class="install-btn secondary">
-            Skip for Now — Go to Phoenix AI
+        <a class="node-card" href="/setup#extension">
+            <div class="card-icon">&#x1F9E9;</div>
+            <h3>Chrome Extension</h3>
+            <div class="card-desc">Earn credits as you browse the web. Opt in to share anonymous search and price data for higher tier rewards.</div>
+            <span class="card-tag tag-setup">SETUP NOW</span>
+        </a>
+
+        <a class="node-card" href="/setup#mobile">
+            <div class="card-icon">&#x1F4F1;</div>
+            <h3>Mobile App</h3>
+            <div class="card-desc">Install Phoenix on your home screen. Search deals on the go and run a background node from your phone.</div>
+            <span class="card-tag tag-setup">INSTALL</span>
         </a>
     </div>
 
-    <div class="install-tos">
-        By installing, you agree to the <a href="/terms">Terms of Service</a> including
-        proxy node participation while using the app.
+    <!-- Tier progression -->
+    <div class="tier-section">
+        <div class="section-label">Node Tiers &amp; Credit Multipliers</div>
+        <div class="tier-track">
+            <div class="tier-step tier-bronze current">
+                <div class="tier-name">BRONZE</div>
+                <div class="tier-mult">1.0x</div>
+                <div class="tier-detail">Proxy only</div>
+            </div>
+            <div class="tier-step tier-silver">
+                <div class="tier-name">SILVER</div>
+                <div class="tier-mult">1.25x</div>
+                <div class="tier-detail">+ basic data sharing</div>
+            </div>
+            <div class="tier-step tier-gold">
+                <div class="tier-name">GOLD</div>
+                <div class="tier-mult">1.5x</div>
+                <div class="tier-detail">+ full data sharing</div>
+            </div>
+            <div class="tier-step tier-platinum">
+                <div class="tier-name">PLATINUM</div>
+                <div class="tier-mult">2.0x</div>
+                <div class="tier-detail">+ high uptime node</div>
+            </div>
+        </div>
+        <div class="tier-info">
+            <strong>How tiers work:</strong> Every registered user starts as a dedicated Bronze node. Add a desktop node, chrome extension, or opt into data sharing to climb tiers. Higher tiers earn more credits per query routed &mdash; and nodes sharing more data receive higher income rewards when payouts activate. Your tier applies across all your connected devices.
+        </div>
     </div>
 
-    <div class="install-status" id="installStatus"></div>
+    <!-- Earnings preview -->
+    <div class="earnings-card">
+        <h3>Your Network Credits</h3>
+        <div class="earnings-row">
+            <span class="label">Current tier</span>
+            <span class="value">Bronze (1.0x)</span>
+        </div>
+        <div class="earnings-row">
+            <span class="label">Founder multiplier</span>
+            <span class="value highlight">3.0x</span>
+        </div>
+        <div class="earnings-row">
+            <span class="label">Effective rate</span>
+            <span class="value highlight">3.0x base</span>
+        </div>
+        <div class="earnings-row">
+            <span class="label">Credits accrued</span>
+            <span class="value pending">Tracking begins on first query</span>
+        </div>
+        <div class="earnings-row">
+            <span class="label">Payout status</span>
+            <span class="value pending">Activates at 500 network nodes</span>
+        </div>
+    </div>
+
+    <!-- What you get now -->
+    <div class="section-label">What You Get Right Now</div>
+    <div class="node-grid" style="margin-bottom:1.5rem;">
+        <div class="node-card static-card">
+            <div class="card-icon">&#x2708;</div>
+            <h3>Wholesale Flight Pricing</h3>
+            <div class="card-desc">Search flights across 195 markets simultaneously. Phoenix finds geographic price arbitrage that saves 20-60% on the same flights.</div>
+        </div>
+        <div class="node-card static-card">
+            <div class="card-icon">&#x1F916;</div>
+            <h3>AI-Powered Search</h3>
+            <div class="card-desc">3 free AI searches per day. Compare deals across currencies, markets, and booking paths automatically.</div>
+        </div>
+        <div class="node-card static-card">
+            <div class="card-icon">&#x1F4B0;</div>
+            <h3>Earn Phoenix Credits</h3>
+            <div class="card-desc">Every query your node routes earns credits. Founding members lock in a permanent 3x multiplier. Credits convert to RLUSD payouts.</div>
+        </div>
+    </div>
+
+    <div class="nodes-cta">
+        <a href="/ai" class="cta-primary">Start Searching</a>
+        <a href="/setup" class="cta-secondary">Setup More Nodes</a>
+    </div>
 </div>
 
 <script>
 (function() {
-    let deferredPrompt = null;
-    const installBtn = document.getElementById('installBtn');
-    const installStatus = document.getElementById('installStatus');
-
-    // Capture the beforeinstallprompt event for PWA install
-    window.addEventListener('beforeinstallprompt', function(e) {
-        e.preventDefault();
-        deferredPrompt = e;
-        installBtn.textContent = 'Install Phoenix';
-    });
-
-    // Detect if already installed
-    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
-        installBtn.textContent = 'Phoenix is Installed';
-        installBtn.style.opacity = '0.6';
-        installBtn.disabled = true;
-        installStatus.innerHTML = '<div class="success">Phoenix is already installed on this device.</div>';
-        installStatus.classList.add('show');
-    }
-
-    window.installPhoenix = function() {
-        if (deferredPrompt) {
-            // Native PWA install prompt
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(function(result) {
-                if (result.outcome === 'accepted') {
-                    installStatus.innerHTML = '<div class="success">Phoenix installed! Redirecting...</div>';
-                    installStatus.classList.add('show');
-                    setTimeout(function() { window.location.href = '/ai'; }, 1500);
-                } else {
-                    installStatus.innerHTML = '<div class="info">Install cancelled. You can install later from your dashboard.</div>';
-                    installStatus.classList.add('show');
-                }
-                deferredPrompt = null;
-            });
-        } else {
-            // Fallback: show manual install instructions
-            var ua = navigator.userAgent || '';
-            var instructions = '';
-            if (/iPhone|iPad|iPod/.test(ua)) {
-                instructions = 'Tap the <strong>Share</strong> button in Safari, then tap <strong>Add to Home Screen</strong>.';
-            } else if (/Android/.test(ua)) {
-                instructions = 'Tap the <strong>menu (three dots)</strong> in Chrome, then tap <strong>Add to Home Screen</strong>.';
-            } else {
-                instructions = 'Click the install icon in your browser address bar, or use your browser menu to add this site to your desktop.';
-            }
-            installStatus.innerHTML = '<div class="info">' + instructions + '</div>';
-            installStatus.classList.add('show');
-        }
-    };
-
-    // Register service worker
+    // Register service worker for PWA
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.js').then(function(reg) {
             console.log('Phoenix service worker registered:', reg.scope);
@@ -8569,12 +8697,13 @@ PHOENIX_INSTALL_CONTENT = """
 
 
 @app.route("/install")
+@app.route("/nodes")
 @login_required
 def phoenix_install_page():
-    """Phoenix OS install prompt page — shown after registration."""
+    """Node dashboard — shown after registration and accessible via /nodes."""
     return render_template_string(
         BASE_TEMPLATE,
-        title="Install Phoenix",
+        title="Your Nodes",
         content=PHOENIX_INSTALL_CONTENT,
         current_user=current_user
     )

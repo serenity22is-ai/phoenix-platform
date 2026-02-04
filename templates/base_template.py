@@ -1648,6 +1648,7 @@ BASE_TEMPLATE = '''
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
                 <a href="/ai" class="nav-link">Chat</a>
+                <a href="/nodes" class="nav-link">Nodes</a>
                 <a href="/wallet" class="nav-link">Wallet</a>
                 <div class="nav-more-wrapper">
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
