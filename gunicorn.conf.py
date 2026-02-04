@@ -28,8 +28,8 @@ max_requests_jitter = 50
 preload_app = True
 
 # Logging
-accesslog = os.environ.get("GUNICORN_ACCESS_LOG", "/app/logs/gunicorn-access.log")
-errorlog = os.environ.get("GUNICORN_ERROR_LOG", "/app/logs/gunicorn-error.log")
+accesslog = os.environ.get("GUNICORN_ACCESS_LOG", "-")
+errorlog = os.environ.get("GUNICORN_ERROR_LOG", "-")
 loglevel = os.environ.get("GUNICORN_LOG_LEVEL", "info")
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 capture_output = True
