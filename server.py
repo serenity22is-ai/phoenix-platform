@@ -4001,7 +4001,7 @@ def send_booking_confirmation_email(booking, deal, passenger_data):
             <p><strong>Date:</strong> {deal.departure_date}</p>
         </div>
 
-        <p>You saved <strong>${deal.user_savings_usd or 0:.2f}</strong> on this booking!</p>
+        <p>You saved <strong>${(deal.user_savings_usd or 0):.2f}</strong> on this booking!</p>
 
         <p style="color: #666; font-size: 14px;">
             Your e-ticket will be sent separately by the airline to {passenger_data.get('email')}.
@@ -4061,7 +4061,7 @@ def send_self_service_instructions(booking, deal, passenger_data):
             <li>Save your confirmation number</li>
         </ol>
 
-        <p>You're saving <strong>${deal.user_savings_usd or 0:.2f}</strong> on this booking!</p>
+        <p>You're saving <strong>${(deal.user_savings_usd or 0):.2f}</strong> on this booking!</p>
         """
 
         send_email(
@@ -15516,8 +15516,8 @@ def p2p_my_bookings():
             <td style="padding: 12px;">{t.origin} → {t.destination}</td>
             <td>{t.departure_date or 'N/A'}</td>
             <td><span class="market-tag">{t.target_market or 'N/A'}</span></td>
-            <td style="color: #28a745;">${t.savings_usd or 0:.2f}</td>
-            <td>{t.escrow_amount_rlusd or 0:.2f} RLUSD</td>
+            <td style="color: #28a745;">${(t.savings_usd or 0):.2f}</td>
+            <td>{(t.escrow_amount_rlusd or 0):.2f} RLUSD</td>
             <td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: {status_color}; color: {status_text_color};">{t.status}</span></td>
             <td>{t.confirmation_code or '-'}</td>
         </tr>
@@ -16085,7 +16085,7 @@ def admin_deals():
         {''.join([f"""
         <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
             <strong>{d.airline} {d.flight_number}</strong> | {d.origin} &rarr; {d.destination} | {d.departure_date}
-            <br><span style="color: #666;">Savings: ${d.user_savings_usd or 0:.2f} ({d.savings_percent or 0:.0f}%) | Fee: ${d.platform_fee_usd or 0:.2f}</span>
+            <br><span style="color: #666;">Savings: ${(d.user_savings_usd or 0):.2f} ({(d.savings_percent or 0):.0f}%) | Fee: ${(d.platform_fee_usd or 0):.2f}</span>
         </div>
         """ for d in active_deals]) if active_deals else '<p style="color: #666;">No active deals. Run a scan to populate.</p>'}
     </div>
