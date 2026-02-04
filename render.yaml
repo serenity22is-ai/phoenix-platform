@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: phoenix-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: phoenix-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          name: phoenix-redis
+          type: redis
+          property: connectionString
+    healthCheckPath: /
+    autoDeploy: true
+
+  - type: redis
+    name: phoenix-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: phoenix-db
+    plan: free
+    databaseName: phoenix_db
+    user: phoenix
