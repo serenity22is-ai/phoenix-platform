@@ -16082,22 +16082,12 @@ def admin_deals():
 
     <div class="card">
         <h2>Active Deals ({len(active_deals)})</h2>
-        {''.join([f"""
-        <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
-            <strong>{d.airline} {d.flight_number}</strong> | {d.origin} &rarr; {d.destination} | {d.departure_date}
-            <br><span style="color: #666;">Savings: ${(d.user_savings_usd or 0):.2f} ({(d.savings_percent or 0):.0f}%) | Fee: ${(d.platform_fee_usd or 0):.2f}</span>
-        </div>
-        """ for d in active_deals]) if active_deals else '<p style="color: #666;">No active deals. Run a scan to populate.</p>'}
+        {''.join(['<div style="border-bottom: 1px solid #eee; padding: 10px 0;"><strong>' + str(d.airline) + ' ' + str(d.flight_number) + '</strong> | ' + str(d.origin) + ' &rarr; ' + str(d.destination) + ' | ' + str(d.departure_date) + '<br><span style="color: #666;">Savings: $' + format(d.user_savings_usd or 0, '.2f') + ' (' + format(d.savings_percent or 0, '.0f') + '%) | Fee: $' + format(d.platform_fee_usd or 0, '.2f') + '</span></div>' for d in active_deals]) if active_deals else '<p style="color: #666;">No active deals. Run a scan to populate.</p>'}
     </div>
 
     <div class="card">
         <h2>Recent Inactive Deals</h2>
-        {''.join([f"""
-        <div style="border-bottom: 1px solid #eee; padding: 10px 0;">
-            <strong>{d.airline} {d.flight_number}</strong> | {d.origin} &rarr; {d.destination}
-            <br><span style="color: #999;">Expired</span>
-        </div>
-        """ for d in inactive_deals]) if inactive_deals else '<p style="color: #666;">No inactive deals.</p>'}
+        {''.join(['<div style="border-bottom: 1px solid #eee; padding: 10px 0;"><strong>' + str(d.airline) + ' ' + str(d.flight_number) + '</strong> | ' + str(d.origin) + ' &rarr; ' + str(d.destination) + '<br><span style="color: #999;">Expired</span></div>' for d in inactive_deals]) if inactive_deals else '<p style="color: #666;">No inactive deals.</p>'}
     </div>
     """
 
