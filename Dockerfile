@@ -26,20 +26,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps for Playwright and runtime
+# Runtime deps (libpq for PostgreSQL, curl for healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
-    libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 \
-    libglib2.0-0 libnss3 libnssutil3 libnspr4 \
-    libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libdbus-1-3 \
-    libatspi2.0-0 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
-    libfontconfig1 libfreetype6 libpq5 curl \
+    libpq5 curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local
 
-# Install Playwright Chromium only
-RUN playwright install chromium && playwright install-deps chromium
+# Install Playwright Chromium + all its system deps
+RUN playwright install --with-deps chromium
 
 # Non-root user
 RUN groupadd -r phoenix && useradd -r -g phoenix -d /app -s /sbin/nologin phoenix
