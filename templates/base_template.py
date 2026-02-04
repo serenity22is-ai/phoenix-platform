@@ -1648,27 +1648,25 @@ BASE_TEMPLATE = '''
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
                 <a href="/ai" class="nav-link">Chat</a>
-                <a href="/nodes" class="nav-link">Nodes</a>
+                <a href="/search" class="nav-link">Flights</a>
+                <a href="/deals" class="nav-link">Deals</a>
                 <a href="/wallet" class="nav-link">Wallet</a>
                 <div class="nav-more-wrapper">
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
                     <div class="nav-more-menu" id="navMoreMenu">
-                        <a href="/search" class="nav-more-link">Flight Search</a>
-                        <a href="/deals" class="nav-more-link">Deals</a>
-                        <a href="/portal" class="nav-more-link">Proxy Portal</a>
                         <a href="/dashboard" class="nav-more-link">Dashboard</a>
-                        <a href="/helper" class="nav-more-link">Helper</a>
-                        <a href="/earn" class="nav-more-link">Earn</a>
-                        <a href="/setup" class="nav-more-link">Setup Guides</a>
+                        {% if current_user.is_admin %}<a href="/nodes" class="nav-more-link" style="color: var(--phoenix-glow);">Nodes</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/portal" class="nav-more-link" style="color: var(--phoenix-glow);">Proxy Portal</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/helper" class="nav-more-link" style="color: var(--phoenix-glow);">Helper</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/earn" class="nav-more-link" style="color: var(--phoenix-glow);">Earn</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/setup" class="nav-more-link" style="color: var(--phoenix-glow);">Setup Guides</a>{% endif %}
                         {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--phoenix-glow);">Admin</a>{% endif %}
                     </div>
                 </div>
                 <a href="/logout" class="nav-link nav-cta">Logout</a>
             {% else %}
-                <a href="/search" class="nav-link">Search</a>
+                <a href="/search" class="nav-link">Flights</a>
                 <a href="/deals" class="nav-link">Deals</a>
-                <a href="/earn" class="nav-link">Earn</a>
-                <a href="/setup" class="nav-link">Setup</a>
                 <a href="/login" class="nav-link">Login</a>
                 <a href="/register" class="nav-link nav-cta">Get Started</a>
             {% endif %}

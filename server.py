@@ -2362,7 +2362,7 @@ def register():
             flash("Redirecting you to your saved deal!", "info")
             return redirect(f"/book/{redirect_deal}")
 
-        return redirect("/install")
+        return redirect("/ai")
 
     return render_template_string(
         BASE_TEMPLATE,
@@ -8700,7 +8700,9 @@ PHOENIX_INSTALL_CONTENT = """
 @app.route("/nodes")
 @login_required
 def phoenix_install_page():
-    """Node dashboard — shown after registration and accessible via /nodes."""
+    """Node dashboard — Phase 2 feature, admin-only until CitizenSERP launch."""
+    if not getattr(current_user, 'is_admin', False):
+        return redirect("/ai")
     return render_template_string(
         BASE_TEMPLATE,
         title="Your Nodes",
