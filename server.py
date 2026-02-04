@@ -119,7 +119,10 @@ app = Flask(__name__)
 
 # Core config
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///phoenix.db')
+_db_url = os.environ.get('DATABASE_URL', 'sqlite:///phoenix.db')
+if _db_url.startswith('postgres://'):
+    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Session config
@@ -2321,6 +2324,21 @@ def register():
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
+
+        # Create HelperProfile with helper_token for node service / extension auth
+        try:
+            helper = HelperProfile(
+                user_id=user.id,
+                is_active=True,
+                is_approved=True,
+                country_code=user.home_market or "US",
+                helper_token=secrets.token_urlsafe(48),
+                node_id=f"NOD-{secrets.token_hex(8)}",
+            )
+            db.session.add(helper)
+            db.session.commit()
+        except Exception as hp_err:
+            logger.warning(f"HelperProfile creation failed for user {user.id} (non-blocking): {hp_err}")
 
         # --- Node Consent Economy: Auto-onboard new user as node ---
         try:
@@ -8559,6 +8577,258 @@ def phoenix_install_page():
         title="Install Phoenix",
         content=PHOENIX_INSTALL_CONTENT,
         current_user=current_user
+    )
+
+
+# --- Setup Guides ---
+
+SETUP_GUIDES_CONTENT = """
+<style>
+.setup-hero { text-align: center; margin-bottom: 40px; }
+.setup-hero h1 { font-size: 2.2em; margin-bottom: 10px; }
+.setup-hero p { color: #aaa; font-size: 1.1em; }
+.tab-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; border-bottom: 2px solid #333; padding-bottom: 12px; }
+.tab-btn { background: transparent; border: 1px solid #444; color: #ccc; padding: 10px 20px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+.tab-btn:hover { background: #1a1a2e; color: #fff; }
+.tab-btn.active { background: #ff6b00; border-color: #ff6b00; color: #fff; font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.guide-card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+.guide-card h3 { color: #ff6b00; margin-top: 0; font-size: 1.3em; }
+.step { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
+.step-num { background: #ff6b00; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.step-content { flex: 1; }
+.step-content p { margin: 0 0 8px 0; color: #ddd; }
+.code-block { background: #0d0d1a; border: 1px solid #333; border-radius: 8px; padding: 14px 18px; font-family: monospace; font-size: 13px; color: #4fc3f7; overflow-x: auto; position: relative; margin: 8px 0; word-break: break-all; }
+.copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #ccc; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.copy-btn:hover { background: #ff6b00; color: #fff; }
+.token-box { background: #0d0d1a; border: 2px solid #ff6b00; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center; }
+.token-box code { color: #4fc3f7; font-size: 14px; word-break: break-all; }
+.token-box .label { color: #aaa; font-size: 12px; margin-bottom: 6px; }
+.note { background: #1a1a0d; border-left: 3px solid #ff6b00; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; color: #ddd; font-size: 13px; }
+</style>
+
+<div class="setup-hero">
+    <h1>Get Started with Phoenix</h1>
+    <p>Install Phoenix on your devices to join the distributed network and start earning.</p>
+</div>
+
+{% if helper_token %}
+<div class="token-box">
+    <div class="label">YOUR HELPER TOKEN</div>
+    <code id="user-token">{{ helper_token }}</code>
+    <br><br>
+    <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('user-token').textContent);this.textContent='Copied!'">Copy Token</button>
+</div>
+{% endif %}
+
+<div class="tab-buttons">
+    <button class="tab-btn active" onclick="showTab('desktop-mac')">Desktop (macOS/Linux)</button>
+    <button class="tab-btn" onclick="showTab('desktop-win')">Desktop (Windows)</button>
+    <button class="tab-btn" onclick="showTab('extension')">Chrome Extension</button>
+    <button class="tab-btn" onclick="showTab('mobile')">Mobile Apps</button>
+</div>
+
+<div id="desktop-mac" class="tab-panel active">
+    <div class="guide-card">
+        <h3>Desktop Node — macOS &amp; Linux</h3>
+        <p style="color:#aaa; margin-bottom: 24px;">Run a persistent background node on your computer. Earns rewards 24/7.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <p><strong>Get your Helper Token</strong></p>
+                <p>Sign in to Phoenix, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a> to find your token. Or copy it from the box above.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <p><strong>Make sure Python 3 is installed</strong></p>
+                <div class="code-block">python3 --version<button class="copy-btn" onclick="navigator.clipboard.writeText('python3 --version');this.textContent='Copied!'">Copy</button></div>
+                <p>If not installed: <a href="https://python.org/downloads" style="color:#4fc3f7;">python.org/downloads</a></p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <p><strong>Install the node service</strong></p>
+                <div class="code-block">pip3 install aiohttp &amp;&amp; curl -sL https://phoenix-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://phoenix-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip3 install aiohttp && curl -sL https://phoenix-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://phoenix-web-nj67.onrender.com');">Copy</button></div>
+                <p style="color:#888; font-size:13px;">Replace <code>YOUR_TOKEN</code> with the token from step 1.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <p><strong>Check status</strong></p>
+                <div class="code-block">curl -s http://localhost:19750/status<button class="copy-btn" onclick="navigator.clipboard.writeText('curl -s http://localhost:19750/status');">Copy</button></div>
+            </div>
+        </div>
+
+        <div class="note">The node runs as a background service (LaunchAgent on macOS, systemd on Linux). It starts automatically on login and restarts if it crashes.</div>
+    </div>
+</div>
+
+<div id="desktop-win" class="tab-panel">
+    <div class="guide-card">
+        <h3>Desktop Node — Windows</h3>
+        <p style="color:#aaa; margin-bottom: 24px;">Run a persistent background node via Windows Task Scheduler.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <p><strong>Get your Helper Token</strong></p>
+                <p>Sign in to Phoenix, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a>.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <p><strong>Install Python 3</strong></p>
+                <p>Download from <a href="https://python.org/downloads" style="color:#4fc3f7;">python.org/downloads</a>. Check "Add to PATH" during install.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <p><strong>Open PowerShell as Administrator and run:</strong></p>
+                <div class="code-block">pip install aiohttp; Invoke-WebRequest -Uri "https://phoenix-web-nj67.onrender.com/static/install-node.ps1" -OutFile install-node.ps1; .\\install-node.ps1 -Token YOUR_TOKEN -Server https://phoenix-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip install aiohttp; Invoke-WebRequest -Uri &quot;https://phoenix-web-nj67.onrender.com/static/install-node.ps1&quot; -OutFile install-node.ps1; .\\\\install-node.ps1 -Token YOUR_TOKEN -Server https://phoenix-web-nj67.onrender.com');">Copy</button></div>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <p><strong>Check status</strong></p>
+                <div class="code-block">.\\install-node.ps1 -Status<button class="copy-btn" onclick="navigator.clipboard.writeText('.\\\\install-node.ps1 -Status');">Copy</button></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="extension" class="tab-panel">
+    <div class="guide-card">
+        <h3>Chrome Extension</h3>
+        <p style="color:#aaa; margin-bottom: 24px;">Earn rewards while browsing. The extension collects anonymous price and search data you choose to share.</p>
+
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <p><strong>Install the extension</strong></p>
+                <p>Open Chrome and go to <code>chrome://extensions</code>. Enable "Developer mode" (top right toggle).</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <p><strong>Load the extension</strong></p>
+                <p>Click "Load unpacked" and select the <code>phoenix_extension</code> folder from the project directory.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <p><strong>Complete onboarding</strong></p>
+                <p>The extension will open an onboarding page. Sign in with Google, Microsoft, or Apple — or paste your Helper Token manually.</p>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <p><strong>Choose what to share</strong></p>
+                <p>Select which data categories you want to share. Each category earns different reward points. You can change this anytime.</p>
+            </div>
+        </div>
+
+        <div class="note">The extension badge shows "ON" when active, "D" for direct mode (no desktop node), and "OFF" when paused. Click the Phoenix icon to manage settings.</div>
+    </div>
+</div>
+
+<div id="mobile" class="tab-panel">
+    <div class="guide-card">
+        <h3>Mobile Apps</h3>
+        <p style="color:#aaa; margin-bottom: 24px;">Access Phoenix on your phone. Search flights, book deals, and run a background node.</p>
+
+        <h4 style="color:#fff; margin-top:24px;">iPhone (iOS)</h4>
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <p>Open Safari and visit <a href="https://phoenix-web-nj67.onrender.com" style="color:#4fc3f7;">phoenix-web-nj67.onrender.com</a></p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <p>Tap the <strong>Share</strong> button, then <strong>"Add to Home Screen"</strong></p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <p>Open the Phoenix icon from your home screen — it runs as a full-screen PWA</p>
+            </div>
+        </div>
+
+        <h4 style="color:#fff; margin-top:24px;">Android</h4>
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <p>Open Chrome and visit <a href="https://phoenix-web-nj67.onrender.com" style="color:#4fc3f7;">phoenix-web-nj67.onrender.com</a></p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <p>Tap the <strong>menu (three dots)</strong>, then <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong></p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <p>Open from your home screen — the app runs in standalone mode</p>
+            </div>
+        </div>
+
+        <div class="note">The native Capacitor builds (installed on your devices) also work and will receive updates as you push new code.</div>
+    </div>
+</div>
+
+<script>
+function showTab(id) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+}
+</script>
+"""
+
+
+@app.route("/setup")
+def setup_guides():
+    """Quick-start setup guides for Phoenix components."""
+    helper_token = ""
+    if current_user.is_authenticated:
+        helper = HelperProfile.query.filter_by(user_id=current_user.id).first()
+        if helper and helper.helper_token:
+            helper_token = helper.helper_token
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Setup Guides",
+        content=render_template_string(
+            SETUP_GUIDES_CONTENT,
+            helper_token=helper_token,
+            current_user=current_user,
+        ),
+        current_user=current_user,
     )
 
 

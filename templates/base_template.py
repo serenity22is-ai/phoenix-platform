@@ -1658,6 +1658,7 @@ BASE_TEMPLATE = '''
                         <a href="/dashboard" class="nav-more-link">Dashboard</a>
                         <a href="/helper" class="nav-more-link">Helper</a>
                         <a href="/earn" class="nav-more-link">Earn</a>
+                        <a href="/setup" class="nav-more-link">Setup Guides</a>
                         {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--phoenix-glow);">Admin</a>{% endif %}
                     </div>
                 </div>
@@ -1666,6 +1667,7 @@ BASE_TEMPLATE = '''
                 <a href="/search" class="nav-link">Search</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/earn" class="nav-link">Earn</a>
+                <a href="/setup" class="nav-link">Setup</a>
                 <a href="/login" class="nav-link">Login</a>
                 <a href="/register" class="nav-link nav-cta">Get Started</a>
             {% endif %}
