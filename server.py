@@ -7488,8 +7488,8 @@ PHOENIX_AI_CONTENT = """
     .ai-conv-item:hover, .ai-conv-item.active { background: rgba(255,107,53,0.15); color: #fff; }
     .ai-conv-item .conv-time { font-size: 0.75rem; color: #666; display: block; }
 
-    .ai-main { flex: 1; display: flex; flex-direction: column; background: rgba(10,10,10,0.95); }
-    .ai-messages { flex: 1; overflow-y: auto; padding: 20px 40px; }
+    .ai-main { flex: 1; display: flex; flex-direction: column; background: rgba(10,10,10,0.95); position: relative; overflow: hidden; }
+    .ai-messages { flex: 1; overflow-y: auto; padding: 20px 40px; padding-bottom: 100px; }
     .ai-message { margin-bottom: 24px; max-width: 800px; }
     .ai-message.user { margin-left: auto; }
     .ai-message.assistant { margin-right: auto; }
@@ -7505,7 +7505,7 @@ PHOENIX_AI_CONTENT = """
 
     .ai-tool-badge { display: inline-block; background: rgba(255,107,53,0.2); color: #ff6b35; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin: 4px 2px; }
 
-    .ai-input-area { padding: 20px 40px; border-top: 1px solid rgba(255,107,53,0.15); background: rgba(15,15,15,0.95); }
+    .ai-input-area { padding: 20px 40px; border-top: 1px solid rgba(255,107,53,0.15); background: rgba(15,15,15,0.98); position: sticky; bottom: 0; z-index: 100; flex-shrink: 0; }
     .ai-input-wrapper { display: flex; max-width: 800px; margin: 0 auto; background: rgba(30,30,30,0.9); border: 1px solid rgba(255,107,53,0.3); border-radius: 16px; overflow: hidden; }
     .ai-input-wrapper:focus-within { border-color: #ff6b35; box-shadow: 0 0 20px rgba(255,107,53,0.15); }
     .ai-input { flex: 1; background: transparent; border: none; color: #f5f5f5; padding: 16px 20px; font-family: 'Outfit', sans-serif; font-size: 1.05rem; outline: none; resize: none; max-height: 120px; }
@@ -7561,8 +7561,9 @@ PHOENIX_AI_CONTENT = """
 
     @media (max-width: 768px) {
         .ai-sidebar { display: none; }
-        .ai-messages { padding: 15px; }
-        .ai-input-area { padding: 15px; }
+        .ai-messages { padding: 15px; padding-bottom: 90px; }
+        .ai-input-area { padding: 15px; position: fixed; bottom: 0; left: 0; right: 0; }
+        .ai-chat-container { height: calc(100vh - 60px); }
     }
 </style>
 
