@@ -7477,130 +7477,161 @@ def ai_search_page():
 
 PHOENIX_AI_CONTENT = """
 <style>
-    .ai-chat-container { display: flex; height: calc(100vh - 80px); max-width: 1400px; margin: 0 auto; }
-    .ai-sidebar { width: 280px; background: rgba(20,20,20,0.9); border-right: 1px solid rgba(255,107,53,0.2); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
-    .ai-sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .ai-sidebar-header h3 { font-family: 'Outfit', sans-serif; color: #ff6b35; font-size: 1.1rem; margin: 0; }
-    .ai-new-chat-btn { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; }
-    .ai-new-chat-btn:hover { transform: scale(1.05); }
+    /* Main layout - full viewport like ChatGPT/Claude */
+    .ai-chat-container { display: flex; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+
+    /* Sidebar */
+    .ai-sidebar { width: 260px; background: #0a0a0a; border-right: 1px solid rgba(255,255,255,0.08); padding: 12px; overflow-y: auto; display: flex; flex-direction: column; flex-shrink: 0; }
+    .ai-sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 8px 4px; }
+    .ai-sidebar-header h3 { font-family: 'Outfit', sans-serif; color: #fff; font-size: 0.9rem; font-weight: 600; margin: 0; }
+    .ai-new-chat-btn { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.85rem; transition: background 0.2s; }
+    .ai-new-chat-btn:hover { background: rgba(255,255,255,0.1); }
     .ai-conv-list { flex: 1; overflow-y: auto; }
-    .ai-conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; color: #fff; font-size: 0.9rem; transition: background 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ai-conv-item:hover, .ai-conv-item.active { background: rgba(255,107,53,0.15); color: #fff; }
-    .ai-conv-item .conv-time { font-size: 0.75rem; color: #666; display: block; }
+    .ai-conv-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 2px; color: rgba(255,255,255,0.8); font-size: 0.875rem; transition: background 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ai-conv-item:hover { background: rgba(255,255,255,0.08); }
+    .ai-conv-item.active { background: rgba(255,107,53,0.15); color: #fff; }
+    .ai-conv-item .conv-time { font-size: 0.7rem; color: rgba(255,255,255,0.4); display: block; margin-top: 2px; }
 
-    .ai-main { flex: 1; display: flex; flex-direction: column; background: rgba(10,10,10,0.95); position: relative; overflow: hidden; }
-    .ai-messages { flex: 1; overflow-y: auto; padding: 20px 40px; padding-bottom: 100px; }
-    .ai-message { margin-bottom: 24px; max-width: 800px; }
-    .ai-message.user { margin-left: auto; }
-    .ai-message.assistant { margin-right: auto; }
-    .ai-message-content { padding: 16px 20px; border-radius: 16px; line-height: 1.6; font-family: 'Outfit', sans-serif; font-size: 1.05rem; }
-    .ai-message.user .ai-message-content { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-bottom-right-radius: 4px; }
-    .ai-message.assistant .ai-message-content { background: rgba(40,40,40,0.9); color: #e0e0e0; border: 1px solid rgba(255,107,53,0.15); border-bottom-left-radius: 4px; }
-    .ai-message-content table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-    .ai-message-content th, .ai-message-content td { padding: 8px 12px; border: 1px solid rgba(255,107,53,0.2); text-align: left; }
-    .ai-message-content th { background: rgba(255,107,53,0.1); color: #ff6b35; }
-    .ai-message-content a { color: #ff6b35; text-decoration: underline; }
-    .ai-message-content code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-    .ai-message-content pre { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; overflow-x: auto; }
+    /* Main chat area */
+    .ai-main { flex: 1; display: flex; flex-direction: column; background: #0f0f0f; min-width: 0; }
 
-    .ai-tool-badge { display: inline-block; background: rgba(255,107,53,0.2); color: #ff6b35; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; margin: 4px 2px; }
+    /* Messages container - scrollable */
+    .ai-messages { flex: 1; overflow-y: auto; padding: 0; }
+    .ai-messages-inner { max-width: 768px; margin: 0 auto; padding: 24px 24px 120px 24px; }
 
-    .ai-input-area { padding: 20px 40px; border-top: 1px solid rgba(255,107,53,0.15); background: rgba(15,15,15,0.98); position: sticky; bottom: 0; z-index: 100; flex-shrink: 0; }
-    .ai-input-wrapper { display: flex; max-width: 800px; margin: 0 auto; background: rgba(30,30,30,0.9); border: 1px solid rgba(255,107,53,0.3); border-radius: 16px; overflow: hidden; }
-    .ai-input-wrapper:focus-within { border-color: #ff6b35; box-shadow: 0 0 20px rgba(255,107,53,0.15); }
-    .ai-input { flex: 1; background: transparent; border: none; color: #f5f5f5; padding: 16px 20px; font-family: 'Outfit', sans-serif; font-size: 1.05rem; outline: none; resize: none; max-height: 120px; }
-    .ai-input::placeholder { color: #666; }
-    .ai-send-btn { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; padding: 16px 24px; cursor: pointer; font-size: 1.1rem; transition: opacity 0.2s; }
-    .ai-send-btn:hover { opacity: 0.9; }
-    .ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    /* Individual messages */
+    .ai-message { margin-bottom: 24px; }
+    .ai-message.user { }
+    .ai-message.assistant { }
+    .ai-message-content { padding: 0; line-height: 1.7; font-family: 'Outfit', sans-serif; font-size: 1rem; color: #ececec; }
+    .ai-message.user .ai-message-content { background: rgba(255,107,53,0.12); color: #fff; padding: 14px 18px; border-radius: 12px; }
+    .ai-message.assistant .ai-message-content { background: transparent; color: #ececec; padding: 4px 0; }
+    .ai-message-content p { margin: 0 0 12px 0; }
+    .ai-message-content p:last-child { margin-bottom: 0; }
+    .ai-message-content table { width: 100%; border-collapse: collapse; margin: 16px 0; background: rgba(255,255,255,0.03); border-radius: 8px; overflow: hidden; }
+    .ai-message-content th, .ai-message-content td { padding: 10px 14px; border: 1px solid rgba(255,255,255,0.08); text-align: left; }
+    .ai-message-content th { background: rgba(255,107,53,0.1); color: #ff6b35; font-weight: 600; }
+    .ai-message-content a { color: #ff6b35; text-decoration: none; }
+    .ai-message-content a:hover { text-decoration: underline; }
+    .ai-message-content code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Monaco, monospace; }
+    .ai-message-content pre { background: rgba(0,0,0,0.4); padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+    .ai-message-content ul, .ai-message-content ol { margin: 12px 0; padding-left: 24px; }
+    .ai-message-content li { margin-bottom: 6px; }
 
-    .ai-tier-badge { position: absolute; top: 10px; right: 20px; background: rgba(255,107,53,0.15); color: #ff6b35; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-family: 'Outfit', sans-serif; }
+    .ai-tool-badge { display: inline-block; background: rgba(255,107,53,0.15); color: #ff6b35; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; margin: 4px 4px 4px 0; font-weight: 500; }
 
-    .ai-quick-actions { display: flex; gap: 8px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
-    .ai-quick-btn { background: rgba(30,30,30,0.8); border: 1px solid rgba(255,107,53,0.2); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.9rem; transition: all 0.2s; }
-    .ai-quick-btn:hover { border-color: #ff6b35; color: #ff6b35; background: rgba(255,107,53,0.1); }
+    /* Input area - fixed at bottom */
+    .ai-input-area { padding: 16px 24px 24px; background: linear-gradient(transparent, #0f0f0f 20%); position: absolute; bottom: 0; left: 260px; right: 0; }
+    .ai-input-wrapper { display: flex; align-items: flex-end; max-width: 768px; margin: 0 auto; background: #1a1a1a; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
+    .ai-input-wrapper:focus-within { border-color: rgba(255,107,53,0.5); box-shadow: 0 0 0 2px rgba(255,107,53,0.1); }
+    .ai-input { flex: 1; background: transparent; border: none; color: #fff; padding: 14px 16px; font-family: 'Outfit', sans-serif; font-size: 1rem; outline: none; resize: none; min-height: 24px; max-height: 200px; line-height: 1.5; }
+    .ai-input::placeholder { color: rgba(255,255,255,0.4); }
+    .ai-send-btn { background: #ff6b35; color: white; border: none; width: 40px; height: 40px; margin: 6px; border-radius: 8px; cursor: pointer; font-size: 1rem; transition: background 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ai-send-btn:hover { background: #ff4d00; }
+    .ai-send-btn:disabled { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); cursor: not-allowed; }
 
-    .ai-welcome { text-align: center; padding: 40px 20px; }
-    .ai-welcome h2 { font-family: 'Outfit', sans-serif; color: #ff6b35; font-size: 2rem; margin-bottom: 16px; }
-    .ai-welcome .ai-welcome-intro { color: #fff; font-size: 0.95rem; max-width: 560px; margin: 0 auto 12px; line-height: 1.7; text-align: left; }
-    .ai-welcome .ai-welcome-invite { color: #ff6b35; font-size: 0.95rem; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; font-weight: 600; }
+    .ai-tier-badge { display: none; }
 
-    .ai-typing { display: inline-block; }
-    .ai-typing span { display: inline-block; width: 8px; height: 8px; background: #ff6b35; border-radius: 50%; margin: 0 2px; animation: typing 1.4s infinite; }
+    /* Quick action buttons */
+    .ai-quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 24px 0; max-width: 500px; }
+    .ai-quick-btn { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); padding: 14px 16px; border-radius: 10px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.9rem; transition: all 0.2s; text-align: left; }
+    .ai-quick-btn:hover { border-color: rgba(255,107,53,0.4); background: rgba(255,107,53,0.05); color: #fff; }
+
+    /* Welcome screen */
+    .ai-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: 40px 20px; text-align: center; }
+    .ai-welcome h2 { font-family: 'Outfit', sans-serif; color: #fff; font-size: 2rem; font-weight: 600; margin-bottom: 12px; }
+    .ai-welcome .ai-welcome-intro { color: rgba(255,255,255,0.6); font-size: 1.05rem; max-width: 480px; margin: 0 auto 32px; line-height: 1.6; }
+
+    /* Typing indicator */
+    .ai-typing { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; }
+    .ai-typing span { display: inline-block; width: 8px; height: 8px; background: #ff6b35; border-radius: 50%; animation: typing 1.4s infinite; }
     .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
     .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes typing { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-8px); } }
+    @keyframes typing { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
 
-    /* Rich card styles */
-    .ai-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-    .ai-card { background: rgba(20,20,20,0.9); border: 1px solid rgba(255,107,53,0.25); border-radius: 12px; padding: 14px 16px; transition: border-color 0.2s; }
-    .ai-card:hover { border-color: rgba(255,107,53,0.5); }
-    .ai-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .ai-card-title { font-weight: 700; color: #f5f5f5; font-size: 1rem; }
-    .ai-card-badge { background: rgba(255,107,53,0.2); color: #ff6b35; padding: 2px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
-    .ai-card-badge.green { background: rgba(0,200,100,0.15); color: #00c864; }
-    .ai-card-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 0.92rem; color: #fff; }
-    .ai-card-row .label { color: #fff; }
-    .ai-card-row .value { color: #e0e0e0; font-weight: 600; }
-    .ai-card-price { font-size: 1.3rem; font-weight: 700; color: #ff6b35; }
+    /* Flight/deal cards */
+    .ai-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .ai-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; transition: border-color 0.2s; }
+    .ai-card:hover { border-color: rgba(255,107,53,0.3); }
+    .ai-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .ai-card-title { font-weight: 600; color: #fff; font-size: 1rem; }
+    .ai-card-badge { background: rgba(255,107,53,0.15); color: #ff6b35; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+    .ai-card-badge.green { background: rgba(0,200,100,0.12); color: #00c864; }
+    .ai-card-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.9rem; }
+    .ai-card-row .label { color: rgba(255,255,255,0.6); }
+    .ai-card-row .value { color: #fff; font-weight: 500; }
+    .ai-card-price { font-size: 1.4rem; font-weight: 700; color: #ff6b35; }
     .ai-card-savings { color: #00c864; font-size: 0.85rem; font-weight: 600; }
-    .ai-card-action { display: inline-block; margin-top: 8px; padding: 6px 16px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
-    .ai-card-action:hover { opacity: 0.9; }
-    .ai-card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    .ai-card-btn { padding: 6px 14px; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-decoration: none; border: none; transition: opacity 0.2s; }
-    .ai-card-btn.primary { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; }
-    .ai-card-btn.save { background: rgba(255,107,53,0.1); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; }
-    .ai-card-btn:hover { opacity: 0.85; }
-    .ai-card-divider { border: none; border-top: 1px solid rgba(255,107,53,0.1); margin: 8px 0; }
-    .ai-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    @media (max-width: 600px) { .ai-card-grid { grid-template-columns: 1fr; } }
+    .ai-card-action { display: inline-block; margin-top: 12px; padding: 10px 20px; background: #ff6b35; color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: background 0.2s; }
+    .ai-card-action:hover { background: #ff4d00; }
+    .ai-card-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    .ai-card-btn { padding: 8px 16px; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-decoration: none; border: none; transition: all 0.2s; }
+    .ai-card-btn.primary { background: #ff6b35; color: white; }
+    .ai-card-btn.primary:hover { background: #ff4d00; }
+    .ai-card-btn.save { background: transparent; border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; }
+    .ai-card-btn.save:hover { background: rgba(255,107,53,0.1); }
+    .ai-card-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
+    .ai-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
 
     .ai-wallet-card { display: flex; align-items: center; gap: 12px; }
-    .ai-wallet-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,107,53,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #ff6b35; flex-shrink: 0; }
+    .ai-wallet-icon { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,53,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #ff6b35; flex-shrink: 0; }
     .ai-wallet-details { flex: 1; }
 
+    .ai-saved-deals { display: none !important; }
+
+    /* Mobile responsive */
     @media (max-width: 768px) {
         .ai-sidebar { display: none; }
-        .ai-messages { padding: 15px; padding-bottom: 90px; }
-        .ai-input-area { padding: 15px; position: fixed; bottom: 0; left: 0; right: 0; }
-        .ai-chat-container { height: calc(100vh - 60px); }
+        .ai-chat-container { flex-direction: column; }
+        .ai-messages-inner { padding: 16px 16px 140px 16px; }
+        .ai-input-area { left: 0; padding: 12px 16px 20px; }
+        .ai-quick-actions { grid-template-columns: 1fr; }
+        .ai-card-grid { grid-template-columns: 1fr; }
+        .ai-welcome { min-height: 50vh; padding: 24px 16px; }
+        .ai-welcome h2 { font-size: 1.6rem; }
+    }
+    @media (max-width: 480px) {
+        .ai-message.user .ai-message-content { padding: 12px 14px; }
+        .ai-input { padding: 12px 14px; font-size: 16px; }
     }
 </style>
 
-<div class="ai-chat-container" style="position: relative;">
-    <div class="ai-tier-badge" id="tierBadge">Loading...</div>
-    <div class="ai-saved-deals" id="savedDealsBar" style="display:none;align-items:center;gap:6px;padding:4px 12px;background:rgba(255,107,53,0.1);border-radius:8px;font-size:0.85rem;color:#ff6b35;cursor:pointer;" onclick="showSavedDeals()"><span id="savedDealsCounter">0</span> saved deals</div>
-
+<div class="ai-chat-container">
     <div class="ai-sidebar">
         <div class="ai-sidebar-header">
-            <h3>Conversations</h3>
-            <button class="ai-new-chat-btn" onclick="newConversation()">+ New</button>
+            <h3>History</h3>
+            <button class="ai-new-chat-btn" onclick="newConversation()">New chat</button>
         </div>
         <div class="ai-conv-list" id="convList"></div>
     </div>
 
     <div class="ai-main">
         <div class="ai-messages" id="messages">
-            <div class="ai-welcome" id="welcomeScreen">
-                <p class="ai-welcome-intro" style="font-size: 1.1rem; margin-bottom: 24px;">
-                    Search flights across 195 markets. Find the best price.
-                </p>
-                <div class="ai-quick-actions">
-                    <button class="ai-quick-btn" onclick="sendQuick('Find the cheapest flights from NYC to Tokyo next month')">NYC to Tokyo</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Cheapest flights from LA to London in March')">LA to London</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Find flights from Miami to Paris')">Miami to Paris</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Best deals on flights to Bali')">Flights to Bali</button>
+            <div class="ai-messages-inner">
+                <div class="ai-welcome" id="welcomeScreen">
+                    <h2>Phoenix</h2>
+                    <p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p>
+                    <div class="ai-quick-actions">
+                        <button class="ai-quick-btn" onclick="sendQuick('Find flights from NYC to Tokyo next month')">NYC → Tokyo</button>
+                        <button class="ai-quick-btn" onclick="sendQuick('Cheapest flights from LA to London in March')">LA → London</button>
+                        <button class="ai-quick-btn" onclick="sendQuick('Find flights from Miami to Paris')">Miami → Paris</button>
+                        <button class="ai-quick-btn" onclick="sendQuick('Best deals on flights to Bali')">Flights to Bali</button>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="ai-input-area">
             <div class="ai-input-wrapper">
-                <textarea class="ai-input" id="chatInput" placeholder="Ask Phoenix AI anything..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
-                <button class="ai-send-btn" id="sendBtn" onclick="sendMessage()">&#10148;</button>
+                <textarea class="ai-input" id="chatInput" placeholder="Message Phoenix..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+                <button class="ai-send-btn" id="sendBtn" onclick="sendMessage()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
             </div>
         </div>
     </div>
+    <div id="tierBadge" style="display:none;"></div>
+    <div id="savedDealsBar" style="display:none;"><span id="savedDealsCounter">0</span></div>
 </div>
 
 <script>
@@ -7679,7 +7710,8 @@ async function loadConversation(convId) {
         const resp = await fetch('/api/v1/ai/conversations/' + convId);
         const data = await resp.json();
         const msgs = document.getElementById('messages');
-        msgs.innerHTML = '';
+        const inner = msgs.querySelector('.ai-messages-inner') || msgs;
+        inner.innerHTML = '';
         (data.messages || []).forEach(m => {
             appendMessage(m.role, m.content, m.tool_calls);
         });
@@ -7691,9 +7723,8 @@ async function loadConversation(convId) {
 function newConversation() {
     currentConvId = null;
     const msgs = document.getElementById('messages');
-    msgs.innerHTML = document.getElementById('welcomeScreen') ? '' : '';
-    // Re-add welcome screen
-    msgs.innerHTML = '<div class="ai-welcome" id="welcomeScreen"><h2>Phoenix AI</h2><p class="ai-welcome-intro">Phoenix is an intelligent arbitrage engine. Prices for flights, hotels, products, rentals, and cruises vary dramatically depending on which country you book from. Phoenix uses a global proxy network to search across 195 markets simultaneously, finds where the price is lowest, and helps you purchase at that price.</p><p class="ai-welcome-intro">You can search for anything by describing what you want, or paste a link to a specific product, listing, or booking page. Phoenix will compare that item across markets and show you where the best deal is.</p><p class="ai-welcome-intro">Want to earn? <a href="/helper" style="color:#ff6b35;">Become a Helper Node</a> \u2014 contribute your local browsing to the Phoenix proxy network and earn XRP for every request you serve.</p><p class="ai-welcome-invite">Try a search below, paste a link to something you want to buy, or invite others to join.</p><div class="ai-quick-actions"><button class="ai-quick-btn" onclick="sendQuick(&#39;Find the cheapest flights from NYC to Tokyo next month&#39;)">Flights to Tokyo</button><button class="ai-quick-btn" onclick="sendQuick(&#39;Compare hotel prices in Bali across different markets&#39;)">Hotels in Bali</button><button class="ai-quick-btn" onclick="sendQuick(&#39;Compare MacBook Pro prices across countries&#39;)">MacBook prices</button><button class="ai-quick-btn" onclick="sendQuick(&#39;Find cruise deals in the Mediterranean&#39;)">Med cruises</button><button class="ai-quick-btn" onclick="sendQuick(&#39;Show me trending arbitrage opportunities right now&#39;)">Trending deals</button><button class="ai-quick-btn" onclick="sendQuick(&#39;How do I become a helper node and start earning?&#39;)">Become a node</button></div><div style="margin-top:20px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;"><a href="/register" style="padding:10px 24px;background:linear-gradient(135deg,#ff6b35,#ff4d00);color:white;border-radius:10px;text-decoration:none;font-weight:600;font-size:0.9rem;">Invite a Friend</a><a href="/helper" style="padding:10px 24px;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);color:#ff6b35;border-radius:10px;text-decoration:none;font-weight:600;font-size:0.9rem;">Onboard as Node</a></div></div>';
+    const inner = msgs.querySelector('.ai-messages-inner') || msgs;
+    inner.innerHTML = '<div class="ai-welcome" id="welcomeScreen"><h2>Phoenix</h2><p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p><div class="ai-quick-actions"><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from NYC to Tokyo next month\')">NYC → Tokyo</button><button class="ai-quick-btn" onclick="sendQuick(\'Cheapest flights from LA to London in March\')">LA → London</button><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from Miami to Paris\')">Miami → Paris</button><button class="ai-quick-btn" onclick="sendQuick(\'Best deals on flights to Bali\')">Flights to Bali</button></div></div>';
 }
 
 function sendQuick(text) {
@@ -7703,6 +7734,7 @@ function sendQuick(text) {
 
 function appendMessage(role, content, toolCalls) {
     const msgs = document.getElementById('messages');
+    const inner = msgs.querySelector('.ai-messages-inner') || msgs;
     const welcome = document.getElementById('welcomeScreen');
     if (welcome) welcome.remove();
 
@@ -7717,7 +7749,7 @@ function appendMessage(role, content, toolCalls) {
     }
 
     div.innerHTML = '<div class="ai-message-content">' + (toolBadges ? toolBadges + '<br>' : '') + formatContent(content) + richCards + '</div>';
-    msgs.appendChild(div);
+    inner.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
 }
 
