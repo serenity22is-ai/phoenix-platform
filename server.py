@@ -1062,7 +1062,7 @@ HOME_CONTENT = """
         width: 100%;
         padding: 18px 60px 18px 24px;
         font-size: 16px;
-        font-family: 'Rajdhani', sans-serif;
+        font-family: 'Outfit', sans-serif;
         font-weight: 500;
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1218,12 +1218,11 @@ HOME_CONTENT = """
     </div>
 
     <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; opacity: 0; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;">
-        <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Rajdhani', sans-serif; transition: opacity 0.2s;">Register Now</a>
-        <a href="/helper" style="padding: 14px 32px; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Rajdhani', sans-serif; transition: all 0.2s;">Onboard as Node</a>
-        <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Rajdhani', sans-serif; transition: all 0.2s;">Sign In</a>
+        <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
+        <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Sign In</a>
     </div>
 
-    <p class="phoenix-note">Powered by AI proxy network &amp; XRPL &middot; Earn XRP by running a <a href="/helper">helper node</a></p>
+    <p class="phoenix-note">Wholesale flight pricing powered by Amadeus GDS</p>
 </section>
 
 <script>
@@ -7482,8 +7481,8 @@ PHOENIX_AI_CONTENT = """
     .ai-chat-container { display: flex; height: calc(100vh - 80px); max-width: 1400px; margin: 0 auto; }
     .ai-sidebar { width: 280px; background: rgba(20,20,20,0.9); border-right: 1px solid rgba(255,107,53,0.2); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
     .ai-sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .ai-sidebar-header h3 { font-family: 'Cinzel', serif; color: #ff6b35; font-size: 1.1rem; margin: 0; }
-    .ai-new-chat-btn { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 600; }
+    .ai-sidebar-header h3 { font-family: 'Outfit', sans-serif; color: #ff6b35; font-size: 1.1rem; margin: 0; }
+    .ai-new-chat-btn { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; }
     .ai-new-chat-btn:hover { transform: scale(1.05); }
     .ai-conv-list { flex: 1; overflow-y: auto; }
     .ai-conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; color: #fff; font-size: 0.9rem; transition: background 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -7495,7 +7494,7 @@ PHOENIX_AI_CONTENT = """
     .ai-message { margin-bottom: 24px; max-width: 800px; }
     .ai-message.user { margin-left: auto; }
     .ai-message.assistant { margin-right: auto; }
-    .ai-message-content { padding: 16px 20px; border-radius: 16px; line-height: 1.6; font-family: 'Rajdhani', sans-serif; font-size: 1.05rem; }
+    .ai-message-content { padding: 16px 20px; border-radius: 16px; line-height: 1.6; font-family: 'Outfit', sans-serif; font-size: 1.05rem; }
     .ai-message.user .ai-message-content { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-bottom-right-radius: 4px; }
     .ai-message.assistant .ai-message-content { background: rgba(40,40,40,0.9); color: #e0e0e0; border: 1px solid rgba(255,107,53,0.15); border-bottom-left-radius: 4px; }
     .ai-message-content table { width: 100%; border-collapse: collapse; margin: 12px 0; }
@@ -7510,20 +7509,20 @@ PHOENIX_AI_CONTENT = """
     .ai-input-area { padding: 20px 40px; border-top: 1px solid rgba(255,107,53,0.15); background: rgba(15,15,15,0.95); }
     .ai-input-wrapper { display: flex; max-width: 800px; margin: 0 auto; background: rgba(30,30,30,0.9); border: 1px solid rgba(255,107,53,0.3); border-radius: 16px; overflow: hidden; }
     .ai-input-wrapper:focus-within { border-color: #ff6b35; box-shadow: 0 0 20px rgba(255,107,53,0.15); }
-    .ai-input { flex: 1; background: transparent; border: none; color: #f5f5f5; padding: 16px 20px; font-family: 'Rajdhani', sans-serif; font-size: 1.05rem; outline: none; resize: none; max-height: 120px; }
+    .ai-input { flex: 1; background: transparent; border: none; color: #f5f5f5; padding: 16px 20px; font-family: 'Outfit', sans-serif; font-size: 1.05rem; outline: none; resize: none; max-height: 120px; }
     .ai-input::placeholder { color: #666; }
     .ai-send-btn { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; padding: 16px 24px; cursor: pointer; font-size: 1.1rem; transition: opacity 0.2s; }
     .ai-send-btn:hover { opacity: 0.9; }
     .ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .ai-tier-badge { position: absolute; top: 10px; right: 20px; background: rgba(255,107,53,0.15); color: #ff6b35; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-family: 'Rajdhani', sans-serif; }
+    .ai-tier-badge { position: absolute; top: 10px; right: 20px; background: rgba(255,107,53,0.15); color: #ff6b35; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-family: 'Outfit', sans-serif; }
 
     .ai-quick-actions { display: flex; gap: 8px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
-    .ai-quick-btn { background: rgba(30,30,30,0.8); border: 1px solid rgba(255,107,53,0.2); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; transition: all 0.2s; }
+    .ai-quick-btn { background: rgba(30,30,30,0.8); border: 1px solid rgba(255,107,53,0.2); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.9rem; transition: all 0.2s; }
     .ai-quick-btn:hover { border-color: #ff6b35; color: #ff6b35; background: rgba(255,107,53,0.1); }
 
     .ai-welcome { text-align: center; padding: 40px 20px; }
-    .ai-welcome h2 { font-family: 'Cinzel', serif; color: #ff6b35; font-size: 2rem; margin-bottom: 16px; }
+    .ai-welcome h2 { font-family: 'Outfit', sans-serif; color: #ff6b35; font-size: 2rem; margin-bottom: 16px; }
     .ai-welcome .ai-welcome-intro { color: #fff; font-size: 0.95rem; max-width: 560px; margin: 0 auto 12px; line-height: 1.7; text-align: left; }
     .ai-welcome .ai-welcome-invite { color: #ff6b35; font-size: 0.95rem; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; font-weight: 600; }
 
@@ -7546,10 +7545,10 @@ PHOENIX_AI_CONTENT = """
     .ai-card-row .value { color: #e0e0e0; font-weight: 600; }
     .ai-card-price { font-size: 1.3rem; font-weight: 700; color: #ff6b35; }
     .ai-card-savings { color: #00c864; font-size: 0.85rem; font-weight: 600; }
-    .ai-card-action { display: inline-block; margin-top: 8px; padding: 6px 16px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
+    .ai-card-action { display: inline-block; margin-top: 8px; padding: 6px 16px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
     .ai-card-action:hover { opacity: 0.9; }
     .ai-card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    .ai-card-btn { padding: 6px 14px; border-radius: 8px; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-decoration: none; border: none; transition: opacity 0.2s; }
+    .ai-card-btn { padding: 6px 14px; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-decoration: none; border: none; transition: opacity 0.2s; }
     .ai-card-btn.primary { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; }
     .ai-card-btn.save { background: rgba(255,107,53,0.1); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; }
     .ai-card-btn:hover { opacity: 0.85; }
@@ -7583,30 +7582,14 @@ PHOENIX_AI_CONTENT = """
     <div class="ai-main">
         <div class="ai-messages" id="messages">
             <div class="ai-welcome" id="welcomeScreen">
-                <h2>Phoenix AI</h2>
-                <p class="ai-welcome-intro">
-                    Phoenix is an intelligent arbitrage engine. Prices for flights, hotels, products, rentals, and cruises vary dramatically depending on which country you book from. Phoenix uses a global proxy network to search across 195 markets simultaneously, finds where the price is lowest, and helps you purchase at that price — regardless of where you are.
-                </p>
-                <p class="ai-welcome-intro">
-                    You can search for anything by describing what you want, or paste a link to a specific product, listing, or booking page. Phoenix will compare that item across markets and show you where the best deal is. The more you search, the smarter Phoenix gets at finding arbitrage patterns.
-                </p>
-                <p class="ai-welcome-intro">
-                    Want to earn? <a href="/helper" style="color:#ff6b35;">Become a Helper Node</a> — contribute your local browsing to the Phoenix proxy network and earn XRP for every request you serve. The network grows stronger with every node.
-                </p>
-                <p class="ai-welcome-invite">
-                    Try a search below, paste a link to something you want to buy, or invite others to join.
+                <p class="ai-welcome-intro" style="font-size: 1.1rem; margin-bottom: 24px;">
+                    Access wholesale flight pricing. Phoenix searches Amadeus GDS rates and compares them to consumer prices — the difference is your savings.
                 </p>
                 <div class="ai-quick-actions">
-                    <button class="ai-quick-btn" onclick="sendQuick('Find the cheapest flights from NYC to Tokyo next month')">Flights to Tokyo</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Compare hotel prices in Bali across different markets')">Hotels in Bali</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Compare MacBook Pro prices across countries')">MacBook prices</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Find cruise deals in the Mediterranean')">Med cruises</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('Show me trending arbitrage opportunities right now')">Trending deals</button>
-                    <button class="ai-quick-btn" onclick="sendQuick('How do I become a helper node and start earning?')">Become a node</button>
-                </div>
-                <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                    <a href="/register" style="padding: 10px 24px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.9rem; font-family: 'Rajdhani', sans-serif;">Invite a Friend</a>
-                    <a href="/helper" style="padding: 10px 24px; background: rgba(255,107,53,0.1); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.9rem; font-family: 'Rajdhani', sans-serif;">Onboard as Node</a>
+                    <button class="ai-quick-btn" onclick="sendQuick('Find the cheapest flights from NYC to Tokyo next month')">NYC to Tokyo</button>
+                    <button class="ai-quick-btn" onclick="sendQuick('Cheapest flights from LA to London in March')">LA to London</button>
+                    <button class="ai-quick-btn" onclick="sendQuick('Find flights from Miami to Paris')">Miami to Paris</button>
+                    <button class="ai-quick-btn" onclick="sendQuick('Best deals on flights to Bali')">Flights to Bali</button>
                 </div>
             </div>
         </div>
