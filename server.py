@@ -1219,10 +1219,9 @@ HOME_CONTENT = """
 
     <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; opacity: 0; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;">
         <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
+        <a href="/helper" style="padding: 14px 32px; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the Phoenix Network</a>
         <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Sign In</a>
     </div>
-
-    <p class="phoenix-note">Wholesale flight pricing powered by Amadeus GDS</p>
 </section>
 
 <script>
@@ -7583,7 +7582,7 @@ PHOENIX_AI_CONTENT = """
         <div class="ai-messages" id="messages">
             <div class="ai-welcome" id="welcomeScreen">
                 <p class="ai-welcome-intro" style="font-size: 1.1rem; margin-bottom: 24px;">
-                    Access wholesale flight pricing. Phoenix searches Amadeus GDS rates and compares them to consumer prices — the difference is your savings.
+                    Search flights across 195 markets. Find the best price.
                 </p>
                 <div class="ai-quick-actions">
                     <button class="ai-quick-btn" onclick="sendQuick('Find the cheapest flights from NYC to Tokyo next month')">NYC to Tokyo</button>
@@ -8415,7 +8414,7 @@ PHOENIX_INSTALL_CONTENT = """
 <div class="welcome-container">
     <div class="welcome-hero">
         <h1>Welcome to Phoenix</h1>
-        <p>You now have access to wholesale flight pricing across 195 markets. Phoenix finds price differences on the same flights across regions and passes the savings to you.</p>
+        <p>Search flights across 195 markets. Phoenix finds price differences on the same flights across regions and passes the savings to you.</p>
     </div>
 
     <div class="welcome-card">
@@ -8424,7 +8423,7 @@ PHOENIX_INSTALL_CONTENT = """
             <div class="w-step-num">1</div>
             <div class="step-text">
                 <h3>Tell Phoenix Where You Want to Go</h3>
-                <p>Open the AI chat and describe your trip. Phoenix searches wholesale pricing databases and compares rates across markets.</p>
+                <p>Open the AI chat and describe your trip. Phoenix compares rates across markets to find the lowest price.</p>
             </div>
         </div>
         <div class="welcome-step">
@@ -8451,8 +8450,8 @@ PHOENIX_INSTALL_CONTENT = """
         </div>
         <div class="feature-item">
             <div class="feat-icon">&#x1F4B0;</div>
-            <h3>Wholesale Rates</h3>
-            <p>Access the same GDS pricing travel agents use</p>
+            <h3>Best Prices</h3>
+            <p>We find the lowest price available, period</p>
         </div>
         <div class="feature-item">
             <div class="feat-icon">&#x1F916;</div>
