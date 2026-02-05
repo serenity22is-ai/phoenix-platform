@@ -83,7 +83,7 @@ BASE_TEMPLATE = '''
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Google OAuth handled via server-side redirect, no JS library needed -->
     <style>
         /* ============================================
@@ -100,13 +100,13 @@ BASE_TEMPLATE = '''
             --earth-teal: #0d4f4f;
             --earth-green: #1a5f4a;
 
-            /* Readable text colors - HIGH CONTRAST */
+            /* Text colors - ALL WHITE */
             --text-bright: #ffffff;
-            --text-primary: #f5f5f5;
-            --text-secondary: #d8d8e0;
-            --text-muted: #b8b8c8;
+            --text-primary: #ffffff;
+            --text-secondary: #ffffff;
+            --text-muted: #cccccc;
             --text-on-light: #1a1a2e;
-            --text-on-card: #2d2d3a;
+            --text-on-card: #ffffff;
 
             /* Accent colors - Phoenix fire theme */
             --phoenix-glow: #ff6b35;
@@ -131,9 +131,9 @@ BASE_TEMPLATE = '''
             --space-3xl: 64px;
             --space-4xl: 96px;
 
-            /* Typography - Cinematic */
-            --font-display: 'Cinzel', 'Palatino', Georgia, serif;
-            --font-sans: 'Rajdhani', 'Segoe UI', sans-serif;
+            /* Typography - Clean Modern */
+            --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'SF Mono', 'Fira Code', monospace;
 
             /* Transitions */
@@ -1655,7 +1655,7 @@ BASE_TEMPLATE = '''
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
                     <div class="nav-more-menu" id="navMoreMenu">
                         <a href="/dashboard" class="nav-more-link">Dashboard</a>
-                        {% if current_user.is_admin %}<a href="/nodes" class="nav-more-link" style="color: var(--phoenix-glow);">Nodes</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/admin/nodes" class="nav-more-link" style="color: var(--phoenix-glow);">Nodes</a>{% endif %}
                         {% if current_user.is_admin %}<a href="/portal" class="nav-more-link" style="color: var(--phoenix-glow);">Proxy Portal</a>{% endif %}
                         {% if current_user.is_admin %}<a href="/helper" class="nav-more-link" style="color: var(--phoenix-glow);">Helper</a>{% endif %}
                         {% if current_user.is_admin %}<a href="/earn" class="nav-more-link" style="color: var(--phoenix-glow);">Earn</a>{% endif %}

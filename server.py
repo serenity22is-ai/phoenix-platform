@@ -1448,7 +1448,7 @@ SETTINGS_CONTENT = """
 DEALS_CONTENT = """
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <h1 style="margin: 0;">Available Deals</h1>
-    <div style="color: #aaa; font-size: 14px;">
+    <div style="color: #fff; font-size: 14px;">
         XRP: <strong style="color: #ff6b35;">${{ "%.2f"|format(xrp_price) }}</strong> |
         Network: <strong>{{ network }}</strong> |
         {{ deals|length }} deal{{ 's' if deals|length != 1 else '' }} found
@@ -1465,7 +1465,7 @@ DEALS_CONTENT = """
                 <h3 style="margin: 0 0 5px 0; color: #f5f5f5;">
                     {{ d.airline or 'Flight' }} {{ d.flight_number or '' }}
                 </h3>
-                <div style="color: #aaa; font-size: 14px;">
+                <div style="color: #fff; font-size: 14px;">
                     {{ d.origin }} &rarr; {{ d.destination }} &bull;
                     {{ d.departure_date.strftime('%b %d, %Y') if d.departure_date else 'TBD' }}
                     {% if d.stops %} &bull; {{ d.stops }} stop{{ 's' if d.stops > 1 else '' }}{% endif %}
@@ -1483,15 +1483,15 @@ DEALS_CONTENT = """
 
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
             <div>
-                <div style="color: #999; font-size: 12px; text-transform: uppercase;">{{ d.home_market or 'US' }} Price</div>
+                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">{{ d.home_market or 'US' }} Price</div>
                 <div style="color: #e57373; font-size: 18px; text-decoration: line-through;">${{ "%.0f"|format(d.home_price_usd or 0) }}</div>
             </div>
             <div>
-                <div style="color: #999; font-size: 12px; text-transform: uppercase;">Phoenix Price</div>
+                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">Phoenix Price</div>
                 <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.arbitrage_price_usd or 0) }}</div>
             </div>
             <div>
-                <div style="color: #999; font-size: 12px; text-transform: uppercase;">You Save</div>
+                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">You Save</div>
                 <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.gross_savings_usd or d.user_savings_usd or 0) }}</div>
             </div>
         </div>
@@ -1502,7 +1502,7 @@ DEALS_CONTENT = """
             {% else %}
                 <a href="/save-deal/{{ d.deal_id }}" class="btn" style="display: inline-block;">Sign Up to Book</a>
             {% endif %}
-            <span style="color: #888; font-size: 12px; margin-left: 10px;">
+            <span style="color: #fff; font-size: 12px; margin-left: 10px;">
                 Expires {{ d.expires_at.strftime('%b %d %H:%M UTC') if d.expires_at else 'in 24h' }}
             </span>
         </div>
@@ -1512,7 +1512,7 @@ DEALS_CONTENT = """
 {% else %}
     <div class="card" style="text-align: center; padding: 60px 20px;">
         <h2 style="color: #f5f5f5; margin-bottom: 10px;">No Active Deals Right Now</h2>
-        <p style="color: #aaa; max-width: 500px; margin: 0 auto 20px;">
+        <p style="color: #fff; max-width: 500px; margin: 0 auto 20px;">
             Deals are generated when our system finds price differences across global markets.
             Try searching for a specific route, or check back soon.
         </p>
@@ -1531,7 +1531,7 @@ GUEST_CHECKOUT_CONTENT = """
         <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.origin }} → {{ deal.destination }}</p>
         <p style="margin: 5px 0; color: #666;">{{ deal.departure_date }}</p>
         <p style="margin-top: 15px; font-size: 1.2em;">
-            <span style="text-decoration: line-through; color: #999;">${{ "%.2f"|format(deal.home_price_usd or 0) }}</span>
+            <span style="text-decoration: line-through; color: #fff;">${{ "%.2f"|format(deal.home_price_usd or 0) }}</span>
             <span style="color: #28a745; font-weight: bold; margin-left: 10px;">${{ "%.2f"|format(deal.arbitrage_price_usd or 0) }}</span>
             <span class="tag" style="margin-left: 10px;">Save ${{ "%.2f"|format(deal.user_savings_usd or 0) }}</span>
         </p>
@@ -2362,7 +2362,7 @@ def register():
             flash("Redirecting you to your saved deal!", "info")
             return redirect(f"/book/{redirect_deal}")
 
-        return redirect("/ai")
+        return redirect("/install")
 
     return render_template_string(
         BASE_TEMPLATE,
@@ -6129,8 +6129,8 @@ EARN_CONTENT = """
     <div class="card card-light" style="text-align: center; padding: 50px 40px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white; border: none;">
         <p style="font-size: 12px; color: #ff6b35; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">The Citizen SerpAPI</p>
         <h1 style="color: #ff6b35; margin-bottom: 10px; font-size: 36px;">Earn With PHOENIX</h1>
-        <p style="font-size: 22px; color: #ccc; margin-bottom: 20px;">Turn your Google account into passive income</p>
-        <p style="font-size: 16px; color: #aaa; max-width: 600px; margin: 0 auto; line-height: 1.7;">
+        <p style="font-size: 22px; color: #fff; margin-bottom: 20px;">Turn your Google account into passive income</p>
+        <p style="font-size: 16px; color: #fff; max-width: 600px; margin: 0 auto; line-height: 1.7;">
             Earn XRP every time Phoenix uses your account to find and book cheaper flights
             for travelers worldwide. You provide access. We handle everything else.
         </p>
@@ -6139,13 +6139,13 @@ EARN_CONTENT = """
     <!-- The Mission -->
     <div class="card card-light" style="margin-top: 20px; background: #0d1117; color: white; border: 1px solid #30363d;">
         <h2 style="color: #ff6b35; margin-bottom: 15px;">The Honest API</h2>
-        <p style="color: #ccc; line-height: 1.8; font-size: 15px;">
+        <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             Google, Expedia, and every major travel platform serve you different prices based on where you are.
             Not different flights &mdash; <strong style="color: white;">different prices for the exact same seat</strong>.
             They use your IP address, your cookies, and your location to calculate how much they can charge you.
             This data is never shared with you. You never see what someone in Spain pays for the same flight.
         </p>
-        <p style="color: #ccc; line-height: 1.8; font-size: 15px;">
+        <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             Companies like SerpAPI sell access to this hidden data for thousands of dollars a month &mdash;
             to hedge funds, to corporations, to anyone with money. They scrape it from the same internet you use,
             through the same infrastructure you pay for, and they profit. You get nothing.
@@ -6276,7 +6276,7 @@ EARN_CONTENT = """
             </div>
         </div>
 
-        <p style="color: #888; font-size: 13px; margin-top: 12px; text-align: center;">
+        <p style="color: #fff; font-size: 13px; margin-top: 12px; text-align: center;">
             No middleman. No trust required. The smart contract handles everything.
         </p>
     </div>
@@ -6337,18 +6337,18 @@ EARN_CONTENT = """
     <!-- Data Sovereignty Pitch -->
     <div class="card card-light" style="margin-top: 20px; background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; border: none;">
         <h2 style="color: #ff6b35; margin-bottom: 15px;">Take Back Your Data</h2>
-        <p style="color: #ccc; line-height: 1.8; font-size: 15px;">
+        <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             Every day, airlines use geographic price discrimination to overcharge millions of travelers.
             They use <em>your</em> IP address, <em>your</em> cookies, and <em>your</em> search patterns to determine
             how much they can charge you. The institutions profit. You don't.
         </p>
-        <p style="color: #ccc; line-height: 1.8; font-size: 15px;">
+        <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             Phoenix changes the equation. By joining the network, your Google account and local market access
             become a tool for global price transparency. Instead of data farms and proxy infrastructure
             profiting from internet access, <strong style="color: #ff6b35;">real people earn real money</strong>
             by contributing what they already have &mdash; a browser, an internet connection, and a location.
         </p>
-        <p style="color: #ccc; line-height: 1.8; font-size: 15px;">
+        <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             This isn't just about saving money on flights. It's about building a network where
             <strong style="color: #ff6b35;">consumers benefit from their own data</strong> instead of handing it
             to institutions for free. Every helper in the Phoenix network is a statement: our data, our profit.
@@ -6412,7 +6412,7 @@ EARN_CONTENT = """
         <a href="/register" class="btn" style="padding: 16px 50px; font-size: 18px; background: #ff6b35; color: white; border-radius: 8px; text-decoration: none; display: inline-block;">
             Start Earning With Phoenix
         </a>
-        <p style="color: #888; font-size: 13px; margin-top: 12px;">
+        <p style="color: #fff; font-size: 13px; margin-top: 12px;">
             Connect your wallet. Grant access. Get paid.
         </p>
     </div>
@@ -6448,7 +6448,7 @@ PORTAL_CONTENT = """
         margin-bottom: 10px;
     }
     .portal-hero .accent { color: #ff6b35; }
-    .portal-hero p { color: #aaa; font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+    .portal-hero p { color: #fff; font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
 
     .portal-section { margin-bottom: 40px; }
     .portal-section h2 { color: #1a1a2e; font-size: 1.5rem; margin-bottom: 20px; }
@@ -6471,7 +6471,7 @@ PORTAL_CONTENT = """
     .market-card.selected { border-color: #ff6b35; background: #fff5f0; }
     .market-card .flag { font-size: 2rem; display: block; margin-bottom: 5px; }
     .market-card .name { font-size: 0.85rem; font-weight: 600; color: #1a1a2e; }
-    .market-card .count { font-size: 0.75rem; color: #888; margin-top: 3px; }
+    .market-card .count { font-size: 0.75rem; color: #fff; margin-top: 3px; }
 
     .category-tabs {
         display: flex;
@@ -6545,7 +6545,7 @@ PORTAL_CONTENT = """
     .session-info { flex: 1; }
     .session-info .country { font-weight: 600; color: #1a1a2e; }
     .session-info .details { font-size: 0.8rem; color: #666; font-family: monospace; margin-top: 5px; }
-    .session-info .expiry { font-size: 0.8rem; color: #888; margin-top: 3px; }
+    .session-info .expiry { font-size: 0.8rem; color: #fff; margin-top: 3px; }
     .end-btn {
         padding: 6px 14px;
         background: #dc3545;
@@ -6573,7 +6573,7 @@ PORTAL_CONTENT = """
         font-family: monospace;
         font-size: 0.85rem;
     }
-    .proxy-details .cred-label { color: #aaa; }
+    .proxy-details .cred-label { color: #fff; }
     .proxy-details .cred-value { color: #4fc3f7; }
 
     .setup-guide {
@@ -6589,7 +6589,7 @@ PORTAL_CONTENT = """
     .setup-step p { color: #666; font-size: 0.85rem; margin: 0; line-height: 1.6; }
     .setup-step code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
 
-    .no-market { text-align: center; padding: 40px; color: #888; }
+    .no-market { text-align: center; padding: 40px; color: #fff; }
 
     @media (max-width: 768px) {
         .portal-hero h1 { font-size: 1.8rem; }
@@ -6615,7 +6615,7 @@ PORTAL_CONTENT = """
 <div class="portal-section">
     <h2>Select a Market</h2>
     <div id="marketGrid" class="market-grid">
-        <div style="padding: 20px; color: #888;">Loading markets...</div>
+        <div style="padding: 20px; color: #fff;">Loading markets...</div>
     </div>
 </div>
 
@@ -6655,7 +6655,7 @@ PORTAL_CONTENT = """
 <!-- Earn CTA -->
 <div style="text-align: center; margin: 40px 0; padding: 40px; background: linear-gradient(135deg, #0f3460, #1a1a2e); border-radius: 16px;">
     <h2 style="color: #fff; margin-bottom: 10px;">Power the Network</h2>
-    <p style="color: #aaa; margin-bottom: 20px;">Earn RLUSD by contributing your connection as a proxy node.</p>
+    <p style="color: #fff; margin-bottom: 20px;">Earn RLUSD by contributing your connection as a proxy node.</p>
     <a href="/earn" style="display: inline-block; padding: 14px 32px; background: #ff6b35; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Learn How to Earn</a>
 </div>
 
@@ -7103,7 +7103,7 @@ AI_SEARCH_CONTENT = """
             <div id="aiBestResponse" style="padding: 20px; background: #f0f4ff; border-radius: 10px; border-left: 4px solid #667eea; margin-bottom: 15px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="font-weight: 600; color: #667eea;" id="aiBestProvider">--</span>
-                    <span style="font-size: 12px; color: #999;" id="aiBestTime">--</span>
+                    <span style="font-size: 12px; color: #fff;" id="aiBestTime">--</span>
                 </div>
                 <div id="aiBestText" style="line-height: 1.6; white-space: pre-wrap;"></div>
             </div>
@@ -7112,7 +7112,7 @@ AI_SEARCH_CONTENT = """
                 <div id="aiAllResponses" style="margin-top: 10px;"></div>
             </details>
         </div>
-        <div id="aiSearching" style="display: none; text-align: center; padding: 30px; color: #999;">
+        <div id="aiSearching" style="display: none; text-align: center; padding: 30px; color: #fff;">
             <div style="font-size: 24px; margin-bottom: 10px;">Querying AI providers...</div>
             <div style="font-size: 13px;">Searching across multiple models simultaneously</div>
         </div>
@@ -7486,7 +7486,7 @@ PHOENIX_AI_CONTENT = """
     .ai-new-chat-btn { background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 600; }
     .ai-new-chat-btn:hover { transform: scale(1.05); }
     .ai-conv-list { flex: 1; overflow-y: auto; }
-    .ai-conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; color: #ccc; font-size: 0.9rem; transition: background 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ai-conv-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; color: #fff; font-size: 0.9rem; transition: background 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ai-conv-item:hover, .ai-conv-item.active { background: rgba(255,107,53,0.15); color: #fff; }
     .ai-conv-item .conv-time { font-size: 0.75rem; color: #666; display: block; }
 
@@ -7519,12 +7519,12 @@ PHOENIX_AI_CONTENT = """
     .ai-tier-badge { position: absolute; top: 10px; right: 20px; background: rgba(255,107,53,0.15); color: #ff6b35; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-family: 'Rajdhani', sans-serif; }
 
     .ai-quick-actions { display: flex; gap: 8px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
-    .ai-quick-btn { background: rgba(30,30,30,0.8); border: 1px solid rgba(255,107,53,0.2); color: #ccc; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; transition: all 0.2s; }
+    .ai-quick-btn { background: rgba(30,30,30,0.8); border: 1px solid rgba(255,107,53,0.2); color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; transition: all 0.2s; }
     .ai-quick-btn:hover { border-color: #ff6b35; color: #ff6b35; background: rgba(255,107,53,0.1); }
 
     .ai-welcome { text-align: center; padding: 40px 20px; }
     .ai-welcome h2 { font-family: 'Cinzel', serif; color: #ff6b35; font-size: 2rem; margin-bottom: 16px; }
-    .ai-welcome .ai-welcome-intro { color: #ccc; font-size: 0.95rem; max-width: 560px; margin: 0 auto 12px; line-height: 1.7; text-align: left; }
+    .ai-welcome .ai-welcome-intro { color: #fff; font-size: 0.95rem; max-width: 560px; margin: 0 auto 12px; line-height: 1.7; text-align: left; }
     .ai-welcome .ai-welcome-invite { color: #ff6b35; font-size: 0.95rem; max-width: 560px; margin: 0 auto 28px; line-height: 1.6; font-weight: 600; }
 
     .ai-typing { display: inline-block; }
@@ -7541,8 +7541,8 @@ PHOENIX_AI_CONTENT = """
     .ai-card-title { font-weight: 700; color: #f5f5f5; font-size: 1rem; }
     .ai-card-badge { background: rgba(255,107,53,0.2); color: #ff6b35; padding: 2px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
     .ai-card-badge.green { background: rgba(0,200,100,0.15); color: #00c864; }
-    .ai-card-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 0.92rem; color: #aaa; }
-    .ai-card-row .label { color: #888; }
+    .ai-card-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 0.92rem; color: #fff; }
+    .ai-card-row .label { color: #fff; }
     .ai-card-row .value { color: #e0e0e0; font-weight: 600; }
     .ai-card-price { font-size: 1.3rem; font-weight: 700; color: #ff6b35; }
     .ai-card-savings { color: #00c864; font-size: 0.85rem; font-weight: 600; }
@@ -8277,419 +8277,287 @@ def phoenix_ai_page():
 
 PHOENIX_INSTALL_CONTENT = """
 <style>
-.nodes-container {
-    max-width: 900px;
+.welcome-container {
+    max-width: 640px;
     margin: 0 auto;
-    padding: 1.5rem 1rem;
+    padding: 2rem 1.5rem;
     color: #e0e0e0;
 }
-.nodes-hero {
+.welcome-hero {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
 }
-.nodes-hero h1 {
+.welcome-hero h1 {
     font-size: 2rem;
     color: #ff6b00;
     margin-bottom: 0.5rem;
 }
-.nodes-hero p {
-    color: #aaa;
+.welcome-hero p {
+    color: #fff;
     font-size: 1rem;
-    line-height: 1.5;
-    max-width: 600px;
+    line-height: 1.6;
+    max-width: 520px;
     margin: 0 auto;
 }
-
-/* Founder badge */
-.founder-banner {
-    background: linear-gradient(135deg, #1a0a2e, #2a1040);
-    border: 1px solid #ff6b00;
-    border-radius: 12px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 2rem;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-}
-.founder-banner::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,107,0,0.08) 0%, transparent 70%);
-    animation: founderPulse 4s ease-in-out infinite;
-}
-@keyframes founderPulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-}
-.founder-banner .founder-tag {
-    display: inline-block;
-    background: #ff6b00;
-    color: #000;
-    font-weight: 700;
-    font-size: 0.7rem;
-    letter-spacing: 1px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 8px;
-    position: relative;
-}
-.founder-banner p {
-    color: #ddd;
-    font-size: 0.9rem;
-    margin: 0;
-    position: relative;
-}
-.founder-banner strong { color: #ff6b00; }
-
-/* Active node status */
-.active-node-bar {
-    background: #0d1f0d;
-    border: 1px solid #2d5a2d;
-    border-radius: 10px;
-    padding: 0.85rem 1.25rem;
-    margin-bottom: 2rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.node-pulse {
-    width: 10px;
-    height: 10px;
-    background: #4ade80;
-    border-radius: 50%;
-    animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.4); }
-    50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(74,222,128,0); }
-}
-.active-node-bar span { color: #4ade80; font-size: 0.9rem; font-weight: 500; }
-.active-node-bar .node-type { color: #aaa; font-size: 0.8rem; margin-left: auto; }
-
-/* Section headers */
-.section-label {
-    font-size: 0.75rem;
-    color: #888;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    margin-bottom: 12px;
-    font-weight: 600;
-}
-
-/* Node type cards */
-.node-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
-    margin-bottom: 2.5rem;
-}
-.node-card {
-    background: #1a1a2e;
-    border: 1px solid #2a2a4a;
-    border-radius: 14px;
-    padding: 1.25rem;
-    transition: border-color 0.2s, transform 0.2s;
-    cursor: pointer;
-    text-decoration: none;
-    color: inherit;
-    display: block;
-    position: relative;
-}
-.node-card:hover {
-    border-color: #ff6b00;
-    transform: translateY(-2px);
-}
-.node-card.active-card {
-    border-color: #4ade80;
-    background: #121a28;
-}
-.node-card.static-card {
-    cursor: default;
-}
-.node-card.static-card:hover {
-    border-color: #2a2a4a;
-    transform: none;
-}
-.node-card .card-icon {
-    font-size: 1.8rem;
-    margin-bottom: 10px;
-}
-.node-card h3 {
-    font-size: 1rem;
-    color: #fff;
-    margin: 0 0 4px 0;
-}
-.node-card .card-desc {
-    font-size: 0.82rem;
-    color: #999;
-    line-height: 1.4;
-    margin-bottom: 12px;
-}
-.node-card .card-tag {
-    display: inline-block;
-    font-size: 0.7rem;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-weight: 600;
-}
-.tag-active { background: #0d2d0d; color: #4ade80; border: 1px solid #2d5a2d; }
-.tag-setup { background: #2a1a00; color: #ff6b00; border: 1px solid #5a3a00; }
-
-/* Tier progression */
-.tier-section { margin-bottom: 2.5rem; }
-.tier-track {
-    display: flex;
-    gap: 0;
-    margin-bottom: 16px;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid #2a2a4a;
-}
-.tier-step {
-    flex: 1;
-    padding: 1rem 0.75rem;
-    text-align: center;
-    position: relative;
-    background: #1a1a2e;
-    border-right: 1px solid #2a2a4a;
-}
-.tier-step:last-child { border-right: none; }
-.tier-step.current {
-    background: linear-gradient(180deg, #2a1a00, #1a1a2e);
-    border-bottom: 3px solid #ff6b00;
-}
-.tier-step .tier-name {
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-}
-.tier-bronze .tier-name { color: #cd7f32; }
-.tier-silver .tier-name { color: #c0c0c0; }
-.tier-gold .tier-name { color: #ffd700; }
-.tier-platinum .tier-name { color: #e5e4e2; }
-.tier-step .tier-mult {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #fff;
-}
-.tier-step .tier-detail {
-    font-size: 0.7rem;
-    color: #888;
-    margin-top: 2px;
-}
-.tier-info {
-    background: #0d1b2a;
-    border: 1px solid #1b3a5c;
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-    font-size: 0.85rem;
-    color: #8ab4f8;
-    line-height: 1.5;
-}
-.tier-info strong { color: #fff; }
-
-/* Earnings preview */
-.earnings-card {
+.welcome-card {
     background: #1a1a2e;
     border: 1px solid #2a2a4a;
     border-radius: 14px;
     padding: 1.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
 }
-.earnings-card h3 {
-    font-size: 1rem;
+.welcome-card h2 {
+    font-size: 1.1rem;
     color: #ff6b00;
-    margin: 0 0 12px 0;
+    margin: 0 0 1rem 0;
 }
-.earnings-row {
+.welcome-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #2a2a3e;
+}
+.welcome-step:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+.w-step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #ff6b00;
+    color: #000;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.step-text h3 {
+    font-size: 0.95rem;
+    color: #fff;
+    margin: 0 0 0.25rem 0;
+}
+.step-text p {
+    font-size: 0.85rem;
+    color: #fff;
+    margin: 0;
+    line-height: 1.4;
+}
+.feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+}
+.feature-item {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 1.1rem;
+    text-align: center;
+}
+.feature-item .feat-icon {
+    font-size: 1.6rem;
+    margin-bottom: 6px;
+}
+.feature-item h3 {
+    font-size: 0.85rem;
+    color: #fff;
+    margin: 0 0 4px 0;
+}
+.feature-item p {
+    font-size: 0.75rem;
+    color: #fff;
+    margin: 0;
+    line-height: 1.3;
+}
+.tier-preview {
+    background: #0d1b2a;
+    border: 1px solid #1b3a5c;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+    color: #8ab4f8;
+    line-height: 1.5;
+}
+.tier-preview strong { color: #fff; }
+.tier-preview .tier-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #2a2a3e;
-    font-size: 0.85rem;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(138,180,248,0.15);
 }
-.earnings-row:last-child { border-bottom: none; }
-.earnings-row .label { color: #aaa; }
-.earnings-row .value { color: #fff; font-weight: 600; }
-.earnings-row .value.highlight { color: #4ade80; }
-.earnings-row .value.pending { color: #888; font-style: italic; font-weight: 400; }
-
-/* CTA */
-.nodes-cta {
+.tier-preview .tier-row:last-child { border-bottom: none; }
+.tier-preview .tier-name { font-weight: 600; }
+.welcome-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 2rem;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
 }
-.nodes-cta a {
-    flex: 1;
+.welcome-btn {
     display: block;
+    width: 100%;
     padding: 0.9rem;
+    border: none;
     border-radius: 10px;
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 600;
+    cursor: pointer;
     text-align: center;
     text-decoration: none;
     transition: opacity 0.2s;
 }
-.nodes-cta a:hover { opacity: 0.9; }
-.cta-primary {
+.welcome-btn:hover { opacity: 0.9; }
+.welcome-btn.primary {
     background: linear-gradient(135deg, #ff6b00, #ff8c33);
     color: #000;
 }
-.cta-secondary {
+.welcome-btn.secondary {
     background: #2a2a3e;
-    color: #ccc;
+    color: #fff;
     border: 1px solid #444;
 }
-
-@media (max-width: 600px) {
-    .node-grid { grid-template-columns: 1fr; }
-    .tier-track { flex-direction: column; }
-    .tier-step { border-right: none; border-bottom: 1px solid #2a2a4a; }
-    .tier-step:last-child { border-bottom: none; }
-    .nodes-cta { flex-direction: column; }
+@media (max-width: 480px) {
+    .feature-grid { grid-template-columns: 1fr; }
 }
 </style>
 
-<div class="nodes-container">
-    <div class="nodes-hero">
-        <h1>Welcome to the Phoenix Network</h1>
-        <p>You're a dedicated node now. Search flights at wholesale prices across 195 markets, earn credits for every query you route, and grow your node for higher rewards.</p>
+<div class="welcome-container">
+    <div class="welcome-hero">
+        <h1>Welcome to Phoenix</h1>
+        <p>You now have access to wholesale flight pricing across 195 markets. Phoenix finds price differences on the same flights across regions and passes the savings to you.</p>
     </div>
 
-    <div class="founder-banner">
-        <div class="founder-tag">FOUNDING MEMBER</div>
-        <p>You're among the first 500 dedicated nodes on the Phoenix Network. Founding members receive a <strong>3x credit multiplier</strong> on all network earnings &mdash; permanently.</p>
-    </div>
-
-    <!-- Active node status -->
-    <div class="active-node-bar">
-        <div class="node-pulse"></div>
-        <span>Your Dedicated Node is Active</span>
-        <span class="node-type">Bronze Tier</span>
-    </div>
-
-    <!-- Expand your node -->
-    <div class="section-label">Expand Your Node</div>
-    <div class="node-grid">
-        <a class="node-card" href="/setup#desktop-mac">
-            <div class="card-icon">&#x1F5A5;</div>
-            <h3>Desktop Node</h3>
-            <div class="card-desc">Run a 24/7 background service on your computer. Earns credits around the clock, even when you're not browsing. macOS, Linux, Windows.</div>
-            <span class="card-tag tag-setup">SETUP NOW</span>
-        </a>
-
-        <a class="node-card" href="/setup#extension">
-            <div class="card-icon">&#x1F9E9;</div>
-            <h3>Chrome Extension</h3>
-            <div class="card-desc">Earn credits as you browse the web. Opt in to share anonymous search and price data for higher tier rewards.</div>
-            <span class="card-tag tag-setup">SETUP NOW</span>
-        </a>
-
-        <a class="node-card" href="/setup#mobile">
-            <div class="card-icon">&#x1F4F1;</div>
-            <h3>Mobile App</h3>
-            <div class="card-desc">Install Phoenix on your home screen. Search deals on the go and run a background node from your phone.</div>
-            <span class="card-tag tag-setup">INSTALL</span>
-        </a>
-    </div>
-
-    <!-- Tier progression -->
-    <div class="tier-section">
-        <div class="section-label">Node Tiers &amp; Credit Multipliers</div>
-        <div class="tier-track">
-            <div class="tier-step tier-bronze current">
-                <div class="tier-name">BRONZE</div>
-                <div class="tier-mult">1.0x</div>
-                <div class="tier-detail">Proxy only</div>
-            </div>
-            <div class="tier-step tier-silver">
-                <div class="tier-name">SILVER</div>
-                <div class="tier-mult">1.25x</div>
-                <div class="tier-detail">+ basic data sharing</div>
-            </div>
-            <div class="tier-step tier-gold">
-                <div class="tier-name">GOLD</div>
-                <div class="tier-mult">1.5x</div>
-                <div class="tier-detail">+ full data sharing</div>
-            </div>
-            <div class="tier-step tier-platinum">
-                <div class="tier-name">PLATINUM</div>
-                <div class="tier-mult">2.0x</div>
-                <div class="tier-detail">+ high uptime node</div>
+    <div class="welcome-card">
+        <h2>How It Works</h2>
+        <div class="welcome-step">
+            <div class="w-step-num">1</div>
+            <div class="step-text">
+                <h3>Tell Phoenix Where You Want to Go</h3>
+                <p>Open the AI chat and describe your trip. Phoenix searches wholesale pricing databases and compares rates across markets.</p>
             </div>
         </div>
-        <div class="tier-info">
-            <strong>How tiers work:</strong> Every registered user starts as a dedicated Bronze node. Add a desktop node, chrome extension, or opt into data sharing to climb tiers. Higher tiers earn more credits per query routed &mdash; and nodes sharing more data receive higher income rewards when payouts activate. Your tier applies across all your connected devices.
+        <div class="welcome-step">
+            <div class="w-step-num">2</div>
+            <div class="step-text">
+                <h3>Phoenix Finds the Best Price</h3>
+                <p>The same flight can cost 20-60% less depending on which market you book through. Phoenix checks them all and shows you the lowest.</p>
+            </div>
+        </div>
+        <div class="welcome-step">
+            <div class="w-step-num">3</div>
+            <div class="step-text">
+                <h3>Book &amp; Save</h3>
+                <p>Pay with card or crypto. Phoenix only charges a fee when it finds savings &mdash; if there is no arbitrage, there is no fee.</p>
+            </div>
         </div>
     </div>
 
-    <!-- Earnings preview -->
-    <div class="earnings-card">
-        <h3>Your Network Credits</h3>
-        <div class="earnings-row">
-            <span class="label">Current tier</span>
-            <span class="value">Bronze (1.0x)</span>
+    <div class="feature-grid">
+        <div class="feature-item">
+            <div class="feat-icon">&#x2708;</div>
+            <h3>195 Markets</h3>
+            <p>Every search checks pricing across global markets simultaneously</p>
         </div>
-        <div class="earnings-row">
-            <span class="label">Founder multiplier</span>
-            <span class="value highlight">3.0x</span>
+        <div class="feature-item">
+            <div class="feat-icon">&#x1F4B0;</div>
+            <h3>Wholesale Rates</h3>
+            <p>Access the same GDS pricing travel agents use</p>
         </div>
-        <div class="earnings-row">
-            <span class="label">Effective rate</span>
-            <span class="value highlight">3.0x base</span>
+        <div class="feature-item">
+            <div class="feat-icon">&#x1F916;</div>
+            <h3>AI-Powered</h3>
+            <p>Conversational search &mdash; just describe your trip</p>
         </div>
-        <div class="earnings-row">
-            <span class="label">Credits accrued</span>
-            <span class="value pending">Tracking begins on first query</span>
-        </div>
-        <div class="earnings-row">
-            <span class="label">Payout status</span>
-            <span class="value pending">Activates at 500 network nodes</span>
+        <div class="feature-item">
+            <div class="feat-icon">&#x1F512;</div>
+            <h3>Pay Your Way</h3>
+            <p>Card, crypto, or RLUSD &mdash; your choice</p>
         </div>
     </div>
 
-    <!-- What you get now -->
-    <div class="section-label">What You Get Right Now</div>
-    <div class="node-grid" style="margin-bottom:1.5rem;">
-        <div class="node-card static-card">
-            <div class="card-icon">&#x2708;</div>
-            <h3>Wholesale Flight Pricing</h3>
-            <div class="card-desc">Search flights across 195 markets simultaneously. Phoenix finds geographic price arbitrage that saves 20-60% on the same flights.</div>
+    <div class="tier-preview">
+        <strong>Your Search Tier</strong>
+        <p style="margin:8px 0 12px 0;">Your account tier determines how many markets Phoenix checks and how many searches you get per day.</p>
+        <div class="tier-row">
+            <span class="tier-name" style="color:#cd7f32;">Bronze</span>
+            <span>10 searches / day &middot; 5 markets</span>
         </div>
-        <div class="node-card static-card">
-            <div class="card-icon">&#x1F916;</div>
-            <h3>AI-Powered Search</h3>
-            <div class="card-desc">3 free AI searches per day. Compare deals across currencies, markets, and booking paths automatically.</div>
+        <div class="tier-row">
+            <span class="tier-name" style="color:#c0c0c0;">Silver</span>
+            <span>20 searches / day &middot; 8 markets</span>
         </div>
-        <div class="node-card static-card">
-            <div class="card-icon">&#x1F4B0;</div>
-            <h3>Earn Phoenix Credits</h3>
-            <div class="card-desc">Every query your node routes earns credits. Founding members lock in a permanent 3x multiplier. Credits convert to RLUSD payouts.</div>
+        <div class="tier-row">
+            <span class="tier-name" style="color:#ffd700;">Gold</span>
+            <span>40 searches / day &middot; 12 markets</span>
+        </div>
+        <div class="tier-row">
+            <span class="tier-name" style="color:#e5e4e2;">Platinum</span>
+            <span>Unlimited &middot; All markets</span>
         </div>
     </div>
 
-    <div class="nodes-cta">
-        <a href="/ai" class="cta-primary">Start Searching</a>
-        <a href="/setup" class="cta-secondary">Setup More Nodes</a>
+    <div class="welcome-actions">
+        <a href="/ai" class="welcome-btn primary">Start Searching</a>
+        <button class="welcome-btn secondary" id="installBtn" onclick="installPhoenix()">
+            Install App on This Device
+        </button>
     </div>
 </div>
 
 <script>
 (function() {
-    // Register service worker for PWA
+    var deferredPrompt = null;
+    var installBtn = document.getElementById('installBtn');
+
+    window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        deferredPrompt = e;
+    });
+
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        installBtn.textContent = 'App Installed';
+        installBtn.style.opacity = '0.5';
+        installBtn.disabled = true;
+    }
+
+    window.installPhoenix = function() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(function(result) {
+                if (result.outcome === 'accepted') {
+                    installBtn.textContent = 'Installed\!';
+                    setTimeout(function() { window.location.href = '/ai'; }, 1000);
+                }
+                deferredPrompt = null;
+            });
+        } else {
+            var ua = navigator.userAgent || '';
+            var msg = '';
+            if (/iPhone|iPad|iPod/.test(ua)) {
+test </b> end
+                msg = 'Tap Share, then Add to Home Screen.';
+            } else if (/Android/.test(ua)) {
+                msg = 'Tap the menu, then Add to Home Screen or Install App.';
+            } else {
+                msg = 'Use your browser menu to install this site as an app.';
+            }
+            var el = document.createElement('p');
+            el.style.cssText = 'text-align:center;color:#8ab4f8;font-size:0.85rem;margin-top:8px';
+            el.innerHTML = msg;
+            installBtn.parentNode.insertBefore(el, installBtn.nextSibling);
+        }
+    };
+
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js').then(function(reg) {
-            console.log('Phoenix service worker registered:', reg.scope);
-        }).catch(function(err) {
-            console.log('Service worker registration skipped:', err);
-        });
+        navigator.serviceWorker.register('/service-worker.js').catch(function(){});
     }
 })();
 </script>
@@ -8697,15 +8565,12 @@ PHOENIX_INSTALL_CONTENT = """
 
 
 @app.route("/install")
-@app.route("/nodes")
 @login_required
 def phoenix_install_page():
-    """Node dashboard — Phase 2 feature, admin-only until CitizenSERP launch."""
-    if not getattr(current_user, 'is_admin', False):
-        return redirect("/ai")
+    """Welcome page shown after registration."""
     return render_template_string(
         BASE_TEMPLATE,
-        title="Your Nodes",
+        title="Welcome to Phoenix",
         content=PHOENIX_INSTALL_CONTENT,
         current_user=current_user
     )
@@ -8717,9 +8582,9 @@ SETUP_GUIDES_CONTENT = """
 <style>
 .setup-hero { text-align: center; margin-bottom: 40px; }
 .setup-hero h1 { font-size: 2.2em; margin-bottom: 10px; }
-.setup-hero p { color: #aaa; font-size: 1.1em; }
+.setup-hero p { color: #fff; font-size: 1.1em; }
 .tab-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; border-bottom: 2px solid #333; padding-bottom: 12px; }
-.tab-btn { background: transparent; border: 1px solid #444; color: #ccc; padding: 10px 20px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+.tab-btn { background: transparent; border: 1px solid #444; color: #fff; padding: 10px 20px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; transition: all 0.2s; }
 .tab-btn:hover { background: #1a1a2e; color: #fff; }
 .tab-btn.active { background: #ff6b00; border-color: #ff6b00; color: #fff; font-weight: 600; }
 .tab-panel { display: none; }
@@ -8729,14 +8594,14 @@ SETUP_GUIDES_CONTENT = """
 .step { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
 .step-num { background: #ff6b00; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
 .step-content { flex: 1; }
-.step-content p { margin: 0 0 8px 0; color: #ddd; }
+.step-content p { margin: 0 0 8px 0; color: #fff; }
 .code-block { background: #0d0d1a; border: 1px solid #333; border-radius: 8px; padding: 14px 18px; font-family: monospace; font-size: 13px; color: #4fc3f7; overflow-x: auto; position: relative; margin: 8px 0; word-break: break-all; }
-.copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #ccc; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
 .copy-btn:hover { background: #ff6b00; color: #fff; }
 .token-box { background: #0d0d1a; border: 2px solid #ff6b00; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center; }
 .token-box code { color: #4fc3f7; font-size: 14px; word-break: break-all; }
-.token-box .label { color: #aaa; font-size: 12px; margin-bottom: 6px; }
-.note { background: #1a1a0d; border-left: 3px solid #ff6b00; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; color: #ddd; font-size: 13px; }
+.token-box .label { color: #fff; font-size: 12px; margin-bottom: 6px; }
+.note { background: #1a1a0d; border-left: 3px solid #ff6b00; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; color: #fff; font-size: 13px; }
 </style>
 
 <div class="setup-hero">
@@ -10061,7 +9926,7 @@ WALLET_CONTENT = """
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p style="color: #999; font-style: italic;">No wallets connected yet.</p>
+                    <p style="color: #fff; font-style: italic;">No wallets connected yet.</p>
                 {% endif %}
             </div>
 
@@ -10103,7 +9968,7 @@ WALLET_CONTENT = """
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p style="color: #999; font-style: italic;">No cards added yet.</p>
+                    <p style="color: #fff; font-style: italic;">No cards added yet.</p>
                 {% endif %}
             </div>
 
@@ -10144,7 +10009,7 @@ WALLET_CONTENT = """
                 Markets accessible with your current payment setup. Add cards or verify your wallet to expand coverage.
             </p>
             <div id="zone-availability" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-                <p style="color: #999; font-style: italic;">Loading zone availability...</p>
+                <p style="color: #fff; font-style: italic;">Loading zone availability...</p>
             </div>
             <p id="zone-crypto-note" style="display: none; color: #2e7d32; font-size: 13px; margin-top: 12px;">
                 With a verified XRPL wallet, you get universal access via Phoenix virtual card to ALL zones.
@@ -10161,7 +10026,7 @@ WALLET_CONTENT = """
                 Or bring your own payment method &mdash; Phoenix doesn't require you to use these.
             </p>
             <div id="ramp-providers" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
-                <p style="color: #999; font-style: italic;">Loading ramp providers...</p>
+                <p style="color: #fff; font-style: italic;">Loading ramp providers...</p>
             </div>
 
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
@@ -10205,7 +10070,7 @@ WALLET_CONTENT = """
                         </div>
                     </a>
                 </div>
-                <p style="color: #999; font-size: 12px; margin-top: 10px;">
+                <p style="color: #fff; font-size: 12px; margin-top: 10px;">
                     Purchase XRP or RLUSD on any exchange, then send to your connected XRPL wallet address above.
                 </p>
             </details>
@@ -10240,7 +10105,7 @@ WALLET_CONTENT = """
                     <span style="font-size:11px; color:#666;">All markets</span>
                 </div>
             </div>
-            <p style="color: #999; font-size: 12px; margin-top: 12px;">
+            <p style="color: #fff; font-size: 12px; margin-top: 12px;">
                 Est. total cost: ~0.5-1% (crypto to USDC) + card network fees. Unlocks ALL markets worldwide.
             </p>
         </div>
@@ -10455,7 +10320,7 @@ HELPER_DASHBOARD_CONTENT = """
     .chart-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
     .chart-bar { width: 100%; min-width: 20px; max-width: 40px; background: linear-gradient(180deg, #ff6b35, #ff8c00); border-radius: 4px 4px 0 0; transition: height 0.3s ease; position: relative; }
     .chart-bar:hover { opacity: 0.85; }
-    .chart-bar-label { font-size: 10px; color: #999; margin-top: 6px; }
+    .chart-bar-label { font-size: 10px; color: #fff; margin-top: 6px; }
     .chart-bar-value { font-size: 9px; color: #666; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
     .earnings-summary { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
     .earnings-period { padding: 10px 16px; background: white; border: 1px solid #eee; border-radius: 8px; }
@@ -10471,7 +10336,7 @@ HELPER_DASHBOARD_CONTENT = """
     .tx-item:last-child { border-bottom: none; }
     .tx-route { color: #1a1a2e; font-weight: 600; }
     .tx-airline { color: #666; font-size: 13px; margin-left: 8px; }
-    .tx-date { color: #999; font-size: 12px; }
+    .tx-date { color: #fff; font-size: 12px; }
     .tx-earning { color: #2e7d32; font-weight: bold; }
     .tx-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
     .tx-badge.completed { background: #e8f5e9; color: #2e7d32; }
@@ -10697,7 +10562,7 @@ HELPER_DASHBOARD_CONTENT = """
                 </div>
                 {% endfor %}
             {% else %}
-                <p style="color: #999; font-style: italic; padding: 20px 0;">No transactions yet. Once Phoenix matches you with a booking request, it will appear here.</p>
+                <p style="color: #fff; font-style: italic; padding: 20px 0;">No transactions yet. Once Phoenix matches you with a booking request, it will appear here.</p>
             {% endif %}
         </div>
 
@@ -10906,13 +10771,13 @@ def helper_token_view():
 BROWSING_DASHBOARD_CONTENT = """
 <div style="max-width: 900px; margin: 0 auto; padding: 30px 20px;">
     <h2 style="color: #ff6b35; margin-bottom: 5px;">Browser Extension Dashboard</h2>
-    <p style="color: #999; margin-bottom: 25px;">Passive browsing data earnings from the Phoenix Chrome extension.</p>
+    <p style="color: #fff; margin-bottom: 25px;">Passive browsing data earnings from the Phoenix Chrome extension.</p>
 
     <!-- Connection Status -->
     <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(255,107,53,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div>
-                <div style="font-size: 13px; color: #999;">Extension Status</div>
+                <div style="font-size: 13px; color: #fff;">Extension Status</div>
                 {% if helper and helper.helper_token %}
                     <div style="color: #0f9d58; font-weight: 600;">
                         <span style="display: inline-block; width: 8px; height: 8px; background: #0f9d58; border-radius: 50%; margin-right: 6px;"></span>
@@ -10926,12 +10791,12 @@ BROWSING_DASHBOARD_CONTENT = """
                 {% endif %}
             </div>
             <div>
-                <div style="font-size: 13px; color: #999;">Node ID</div>
-                <div style="font-family: monospace; color: #ddd;">{{ helper.node_id or '—' }}</div>
+                <div style="font-size: 13px; color: #fff;">Node ID</div>
+                <div style="font-family: monospace; color: #fff;">{{ helper.node_id or '—' }}</div>
             </div>
             <div>
-                <div style="font-size: 13px; color: #999;">Last Seen</div>
-                <div style="color: #ddd;">{{ helper.last_seen.strftime('%b %d, %H:%M UTC') if helper and helper.last_seen else '—' }}</div>
+                <div style="font-size: 13px; color: #fff;">Last Seen</div>
+                <div style="color: #fff;">{{ helper.last_seen.strftime('%b %d, %H:%M UTC') if helper and helper.last_seen else '—' }}</div>
             </div>
         </div>
     </div>
@@ -10941,10 +10806,10 @@ BROWSING_DASHBOARD_CONTENT = """
         <div style="font-size: 15px; font-weight: 600; color: #ff6b35; margin-bottom: 12px;">Helper Token</div>
         {% if helper and helper.helper_token %}
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <code id="token-display" style="background: #1a1a2e; padding: 8px 14px; border-radius: 6px; color: #ddd; font-size: 13px; word-break: break-all;">{{ helper.helper_token }}</code>
+                <code id="token-display" style="background: #1a1a2e; padding: 8px 14px; border-radius: 6px; color: #fff; font-size: 13px; word-break: break-all;">{{ helper.helper_token }}</code>
                 <button onclick="navigator.clipboard.writeText(document.getElementById('token-display').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy'},1500)})" style="padding: 8px 16px; background: #ff6b35; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">Copy</button>
             </div>
-            <p style="color: #888; font-size: 12px; margin-top: 8px;">Use this token in the extension options or node service CLI.</p>
+            <p style="color: #fff; font-size: 12px; margin-top: 8px;">Use this token in the extension options or node service CLI.</p>
             <form action="/helper/token/generate" method="POST" style="margin-top: 10px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" style="padding: 6px 14px; background: transparent; color: #f44336; border: 1px solid #f44336; border-radius: 6px; cursor: pointer; font-size: 12px;" onclick="return confirm('This will invalidate your current token. Continue?')">Regenerate Token</button>
@@ -10961,19 +10826,19 @@ BROWSING_DASHBOARD_CONTENT = """
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
         <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
             <div style="font-size: 24px; font-weight: 700; color: #ff6b35;">{{ '%.4f' | format(stats.totals.total_value_usd) }}</div>
-            <div style="font-size: 12px; color: #999; margin-top: 4px;">Total Earnings (USD)</div>
+            <div style="font-size: 12px; color: #fff; margin-top: 4px;">Total Earnings (USD)</div>
         </div>
         <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="font-size: 24px; font-weight: 700; color: #ddd;">{{ stats.totals.total_events }}</div>
-            <div style="font-size: 12px; color: #999; margin-top: 4px;">Total Events (7d)</div>
+            <div style="font-size: 24px; font-weight: 700; color: #fff;">{{ stats.totals.total_events }}</div>
+            <div style="font-size: 12px; color: #fff; margin-top: 4px;">Total Events (7d)</div>
         </div>
         <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="font-size: 24px; font-weight: 700; color: #ddd;">{{ stats.totals.avg_events_per_day }}</div>
-            <div style="font-size: 12px; color: #999; margin-top: 4px;">Avg Events/Day</div>
+            <div style="font-size: 24px; font-weight: 700; color: #fff;">{{ stats.totals.avg_events_per_day }}</div>
+            <div style="font-size: 12px; color: #fff; margin-top: 4px;">Avg Events/Day</div>
         </div>
         <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="font-size: 24px; font-weight: 700; color: #ddd;">{{ stats.totals.avg_quality }}</div>
-            <div style="font-size: 12px; color: #999; margin-top: 4px;">Avg Quality Score</div>
+            <div style="font-size: 24px; font-weight: 700; color: #fff;">{{ stats.totals.avg_quality }}</div>
+            <div style="font-size: 12px; color: #fff; margin-top: 4px;">Avg Quality Score</div>
         </div>
     </div>
 
@@ -10983,24 +10848,24 @@ BROWSING_DASHBOARD_CONTENT = """
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <th style="text-align: left; padding: 8px 0; color: #999; font-size: 12px;">Type</th>
-                    <th style="text-align: right; padding: 8px 0; color: #999; font-size: 12px;">Count</th>
-                    <th style="text-align: right; padding: 8px 0; color: #999; font-size: 12px;">Value (USD)</th>
-                    <th style="text-align: right; padding: 8px 0; color: #999; font-size: 12px;">Avg Quality</th>
+                    <th style="text-align: left; padding: 8px 0; color: #fff; font-size: 12px;">Type</th>
+                    <th style="text-align: right; padding: 8px 0; color: #fff; font-size: 12px;">Count</th>
+                    <th style="text-align: right; padding: 8px 0; color: #fff; font-size: 12px;">Value (USD)</th>
+                    <th style="text-align: right; padding: 8px 0; color: #fff; font-size: 12px;">Avg Quality</th>
                 </tr>
             </thead>
             <tbody>
                 {% for etype, data in stats.per_type.items() %}
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <td style="padding: 10px 0; color: #ddd;">{{ etype | replace('_', ' ') | title }}</td>
-                    <td style="padding: 10px 0; color: #ddd; text-align: right;">{{ data.count }}</td>
+                    <td style="padding: 10px 0; color: #fff;">{{ etype | replace('_', ' ') | title }}</td>
+                    <td style="padding: 10px 0; color: #fff; text-align: right;">{{ data.count }}</td>
                     <td style="padding: 10px 0; color: #ff6b35; text-align: right;">${{ '%.4f' | format(data.value_usd) }}</td>
-                    <td style="padding: 10px 0; color: #ddd; text-align: right;">{{ data.avg_quality }}/100</td>
+                    <td style="padding: 10px 0; color: #fff; text-align: right;">{{ data.avg_quality }}/100</td>
                 </tr>
                 {% endfor %}
                 {% if not stats.per_type %}
                 <tr>
-                    <td colspan="4" style="padding: 20px 0; color: #888; font-style: italic; text-align: center;">No browsing events captured yet. Install the extension and start browsing!</td>
+                    <td colspan="4" style="padding: 20px 0; color: #fff; font-style: italic; text-align: center;">No browsing events captured yet. Install the extension and start browsing!</td>
                 </tr>
                 {% endif %}
             </tbody>
@@ -11010,7 +10875,7 @@ BROWSING_DASHBOARD_CONTENT = """
     <!-- Setup Instructions -->
     <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.05);">
         <div style="font-size: 15px; font-weight: 600; color: #ff6b35; margin-bottom: 12px;">Quick Setup</div>
-        <ol style="color: #ccc; line-height: 1.8; padding-left: 20px; margin: 0;">
+        <ol style="color: #fff; line-height: 1.8; padding-left: 20px; margin: 0;">
             <li>Generate a helper token above (if you haven't already)</li>
             <li>Install the Phoenix Chrome extension from <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">chrome://extensions</code> (load unpacked)</li>
             <li>Open extension options and paste your helper token</li>
@@ -12963,8 +12828,8 @@ function displayResults(data) {
                         <td>${flight.stops === 0 ? 'Nonstop' : (flight.stops !== undefined ? flight.stops + ' stop' + (flight.stops > 1 ? 's' : '') : 'N/A')}</td>
                         <td style="font-weight: bold; color: #28a745;">$${cheapestPrice?.toFixed(0) || 'N/A'}</td>
                         <td><span class="market-tag">Phoenix</span></td>
-                        <td>${isExclusive ? '<span style="color: #999; font-size: 11px;">Not available</span>' : `$${usPrice?.toFixed(0) || 'N/A'}`}</td>
-                        <td>${hasSavings ? `<span style="color: #28a745; font-weight: bold;">$${savings.toFixed(0)} (${savingsPct}%)</span>` : (isExclusive ? `<span style="color: #ff6b35; font-weight: bold;">Exclusive Deal</span>` : '<span style="color: #999;">-</span>')}</td>
+                        <td>${isExclusive ? '<span style="color: #fff; font-size: 11px;">Not available</span>' : `$${usPrice?.toFixed(0) || 'N/A'}`}</td>
+                        <td>${hasSavings ? `<span style="color: #28a745; font-weight: bold;">$${savings.toFixed(0)} (${savingsPct}%)</span>` : (isExclusive ? `<span style="color: #ff6b35; font-weight: bold;">Exclusive Deal</span>` : '<span style="color: #fff;">-</span>')}</td>
                         <td>
                             <button class="btn select-flight-btn" onclick="selectFlightForLeg(${legNum}, '${flightData}')" style="padding: 8px 16px; font-size: 12px;">
                                 ${hasSavings || isExclusive ? 'Book & Save' : 'Select'}
@@ -12991,7 +12856,7 @@ function displayResults(data) {
                 <div style="display: flex; gap: 20px; margin: 15px 0;">
                     <div>
                         <span style="color: #666;">Normal price:</span>
-                        <span style="text-decoration: line-through; color: #999;">$${deal.home_price?.toFixed(2) || 'N/A'}</span>
+                        <span style="text-decoration: line-through; color: #fff;">$${deal.home_price?.toFixed(2) || 'N/A'}</span>
                     </div>
                     <div>
                         <span style="color: #666;">Our price:</span>
@@ -13181,15 +13046,15 @@ function updateCheckoutPanel() {
                         </div>
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                             <div>
-                                <p style="color: #888; margin: 0; font-size: 11px; text-transform: uppercase;">Airline</p>
+                                <p style="color: #fff; margin: 0; font-size: 11px; text-transform: uppercase;">Airline</p>
                                 <p style="font-weight: 600; margin: 2px 0 0 0; color: #1a1a2e;">${flight.airline || 'Multiple'}</p>
                             </div>
                             <div>
-                                <p style="color: #888; margin: 0; font-size: 11px; text-transform: uppercase;">Departure</p>
+                                <p style="color: #fff; margin: 0; font-size: 11px; text-transform: uppercase;">Departure</p>
                                 <p style="font-weight: 600; margin: 2px 0 0 0; color: #1a1a2e;">${flight.departure_time || 'TBD'}</p>
                             </div>
                             <div>
-                                <p style="color: #888; margin: 0; font-size: 11px; text-transform: uppercase;">Duration</p>
+                                <p style="color: #fff; margin: 0; font-size: 11px; text-transform: uppercase;">Duration</p>
                                 <p style="font-weight: 600; margin: 2px 0 0 0; color: #1a1a2e;">${flight.duration || 'N/A'}</p>
                             </div>
                         </div>
@@ -13203,15 +13068,15 @@ function updateCheckoutPanel() {
                         </div>
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                             <div>
-                                <p style="color: #888; margin: 0; font-size: 11px; text-transform: uppercase;">Airline</p>
+                                <p style="color: #fff; margin: 0; font-size: 11px; text-transform: uppercase;">Airline</p>
                                 <p style="font-weight: 600; margin: 2px 0 0 0; color: #1a1a2e;">${flight.airline || 'Multiple'}</p>
                             </div>
                             <div>
-                                <p style="color: #888; margin: 0; font-size: 11px; text-transform: uppercase;">Departure</p>
+                                <p style="color: #fff; margin: 0; font-size: 11px; text-transform: uppercase;">Departure</p>
                                 <p style="font-weight: 600; margin: 2px 0 0 0; color: #1a1a2e;">Confirmed at booking</p>
                             </div>
                             <div>
-                                <p style="color: #888; margin: 0; font-size: 11px; text-transform: uppercase;">Duration</p>
+                                <p style="color: #fff; margin: 0; font-size: 11px; text-transform: uppercase;">Duration</p>
                                 <p style="font-weight: 600; margin: 2px 0 0 0; color: #1a1a2e;">~${flight.duration || 'Similar'}</p>
                             </div>
                         </div>
@@ -15469,7 +15334,7 @@ P2P_BOOK_CONTENT = """
 <style>
 .p2p-hero { background: linear-gradient(135deg, #1a0a2e 0%, #0d1b2a 50%, #1b2838 100%); padding: 40px; border-radius: 16px; color: white; margin-bottom: 30px; }
 .p2p-hero h1 { margin: 0 0 10px 0; font-size: 28px; }
-.p2p-hero .subtitle { color: #aaa; font-size: 16px; }
+.p2p-hero .subtitle { color: #fff; font-size: 16px; }
 .p2p-step { display: flex; gap: 20px; margin-bottom: 30px; }
 .p2p-step-number { width: 40px; height: 40px; border-radius: 50%; background: #ff6b35; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
 .p2p-step-content { flex: 1; }
@@ -15640,7 +15505,7 @@ P2P_STATUS_CONTENT = """
 .timeline-step.failed .dot { background: #dc3545; border-color: #dc3545; }
 .timeline-step h4 { margin: 0 0 4px 0; }
 .timeline-step p { margin: 0; color: #666; font-size: 14px; }
-.timeline-step .time { color: #999; font-size: 12px; }
+.timeline-step .time { color: #fff; font-size: 12px; }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,53,0.4); } 50% { box-shadow: 0 0 0 8px rgba(255,107,53,0); } }
 </style>
 
@@ -16470,7 +16335,7 @@ def admin_deals():
 
     <div class="card" style="margin-bottom: 20px;">
         <h2>Deal Scanner</h2>
-        <p style="color: #aaa;">Trigger a background scan to search popular routes and populate deals.</p>
+        <p style="color: #fff;">Trigger a background scan to search popular routes and populate deals.</p>
         <form method="POST" action="/admin/deals/scan" style="display: inline;">
             <input type="hidden" name="csrf_token" value="{csrf_tok}">
             <button type="submit" class="btn" style="margin-right: 10px;">Run Quick Scan (3 routes)</button>
@@ -16488,7 +16353,7 @@ def admin_deals():
 
     <div class="card">
         <h2>Recent Inactive Deals</h2>
-        {''.join(['<div style="border-bottom: 1px solid #eee; padding: 10px 0;"><strong>' + str(d.airline) + ' ' + str(d.flight_number) + '</strong> | ' + str(d.origin) + ' &rarr; ' + str(d.destination) + '<br><span style="color: #999;">Expired</span></div>' for d in inactive_deals]) if inactive_deals else '<p style="color: #666;">No inactive deals.</p>'}
+        {''.join(['<div style="border-bottom: 1px solid #eee; padding: 10px 0;"><strong>' + str(d.airline) + ' ' + str(d.flight_number) + '</strong> | ' + str(d.origin) + ' &rarr; ' + str(d.destination) + '<br><span style="color: #fff;">Expired</span></div>' for d in inactive_deals]) if inactive_deals else '<p style="color: #666;">No inactive deals.</p>'}
     </div>
     """
 
@@ -16884,7 +16749,7 @@ ADMIN_HELPERS_CONTENT = """
                     {% if h.is_active %}
                         <span style="color: #28a745; font-weight: 600;">Active</span>
                     {% else %}
-                        <span style="color: #999;">Paused</span>
+                        <span style="color: #fff;">Paused</span>
                     {% endif %}
                 </td>
                 <td>{{ h.successful_transactions }}/{{ h.total_transactions }}</td>
@@ -17134,7 +16999,7 @@ def admin_task_result(task_id):
 
 ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
 <h1 style="color: #ff6b35;">Node Fleet Dashboard</h1>
-<p style="color: #999;">Real-time monitoring of the Phoenix node network and browsing data pipeline.</p>
+<p style="color: #fff;">Real-time monitoring of the Phoenix node network and browsing data pipeline.</p>
 
 <!-- Fleet Summary -->
 <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">
