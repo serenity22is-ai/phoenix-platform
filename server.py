@@ -1180,18 +1180,18 @@ HOME_CONTENT = """
 
 <section class="phoenix-landing">
     <div class="phoenix-logo-mark">PHOENIX</div>
-    <p class="phoenix-tagline">Search anything. Compare prices across 195 markets. Save on every purchase.</p>
+    <p class="phoenix-tagline">Find flights and hotels at the best prices across 195 markets.</p>
 
     <div class="phoenix-search-bar">
-        <input type="text" id="homeSearchInput" placeholder="Search flights, hotels, products, rentals..." autocomplete="off">
+        <input type="text" id="homeSearchInput" placeholder="Search flights and hotels..." autocomplete="off">
         <button class="phoenix-search-btn" onclick="homeSearch()" aria-label="Search">&#10132;</button>
     </div>
 
     <div class="phoenix-chips">
-        <a class="phoenix-chip" onclick="homeQuick('Cheap flights from NYC to Tokyo next month')">Cheap flights to Tokyo</a>
+        <a class="phoenix-chip" onclick="homeQuick('Cheap flights from NYC to Tokyo next month')">NYC → Tokyo</a>
         <a class="phoenix-chip" onclick="homeQuick('Best hotel deals in Bali')">Hotels in Bali</a>
-        <a class="phoenix-chip" onclick="homeQuick('Compare MacBook prices across countries')">MacBook prices</a>
-        <a class="phoenix-chip" onclick="homeQuick('Cruise deals in the Mediterranean')">Mediterranean cruises</a>
+        <a class="phoenix-chip" onclick="homeQuick('Flights from LA to London')">LA → London</a>
+        <a class="phoenix-chip" onclick="homeQuick('Cheap hotels in Paris')">Hotels in Paris</a>
     </div>
 
     <div class="phoenix-verticals">
@@ -1202,18 +1202,6 @@ HOME_CONTENT = """
         <a class="phoenix-vertical" onclick="homeQuick('Search hotels')">
             <span class="v-icon">&#127976;</span>
             <span class="v-label">Hotels</span>
-        </a>
-        <a class="phoenix-vertical" onclick="homeQuick('Search products')">
-            <span class="v-icon">&#128722;</span>
-            <span class="v-label">Products</span>
-        </a>
-        <a class="phoenix-vertical" onclick="homeQuick('Search rentals')">
-            <span class="v-icon">&#128663;</span>
-            <span class="v-label">Rentals</span>
-        </a>
-        <a class="phoenix-vertical" onclick="homeQuick('Search cruises')">
-            <span class="v-icon">&#128674;</span>
-            <span class="v-label">Cruises</span>
         </a>
     </div>
 
@@ -8254,7 +8242,7 @@ async function sendMessage() {
             if (err.error === 'free_trial_exhausted') {
                 appendMessage('assistant', '<div style="text-align:center;padding:16px 0;">' +
                     '<div style="font-size:1.3rem;font-weight:700;margin-bottom:8px;">You\\'ve used all 3 free searches</div>' +
-                    '<div style="margin-bottom:16px;opacity:0.85;">Create a free account to keep searching and unlock unlimited arbitrage across flights, hotels, products, rentals, and cruises.</div>' +
+                    '<div style="margin-bottom:16px;opacity:0.85;">Create a free account to keep searching and find the best prices on flights and hotels.</div>' +
                     '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">' +
                     '<a href="/register" style="padding:10px 24px;background:linear-gradient(135deg,#ff6b35,#ff4d00);color:white;border-radius:10px;text-decoration:none;font-weight:600;">Create Free Account</a>' +
                     '<a href="/login" style="padding:10px 24px;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);color:#ff6b35;border-radius:10px;text-decoration:none;font-weight:600;">Sign In</a>' +
