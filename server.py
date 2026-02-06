@@ -1319,6 +1319,53 @@ REGISTER_CONTENT = """
 DASHBOARD_CONTENT = """
 <h1>Welcome, {{ user.name or user.email }}!</h1>
 
+<!-- Tier Card -->
+<div class="card" style="background: linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,77,0,0.05)); border: 1px solid rgba(255,107,53,0.3); margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 4px;">Your Tier</div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                {% if tier_info.current_tier == 'platinum' %}
+                <span style="font-size: 1.8rem; font-weight: 700; color: #e5e4e2;">Platinum</span>
+                {% elif tier_info.current_tier == 'gold' %}
+                <span style="font-size: 1.8rem; font-weight: 700; color: #ffd700;">Gold</span>
+                {% elif tier_info.current_tier == 'silver' %}
+                <span style="font-size: 1.8rem; font-weight: 700; color: #c0c0c0;">Silver</span>
+                {% else %}
+                <span style="font-size: 1.8rem; font-weight: 700; color: #cd7f32;">Bronze</span>
+                {% endif %}
+            </div>
+        </div>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+            <div style="text-align: center;">
+                <div style="font-size: 1.4rem; font-weight: 700; color: #ff6b35;">{{ tier_info.queries_per_day }}</div>
+                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">searches/day</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 1.4rem; font-weight: 700; color: #ff6b35;">{{ tier_info.markets_per_query }}</div>
+                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">markets</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 1.4rem; font-weight: 700; color: #00c864;">{{ tier_info.user_keeps_pct }}%</div>
+                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">you keep</div>
+            </div>
+        </div>
+    </div>
+    {% if tier_info.current_tier != 'platinum' %}
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+        <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+            {% if tier_info.current_tier == 'bronze' %}
+            <strong>Upgrade to Silver:</strong> <a href="/helper" style="color: #ff6b35;">Join the Phoenix Network</a> to get 10 searches/day and 5 markets.
+            {% elif tier_info.current_tier == 'silver' %}
+            <strong>Upgrade to Gold:</strong> Enable data sharing in your node settings for 20 searches/day and 8 markets.
+            {% elif tier_info.current_tier == 'gold' %}
+            <strong>Upgrade to Platinum:</strong> Maintain high uptime (95%+) for 40 searches/day and 12 markets.
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
 <div class="stats">
     <div class="stat-card">
         <div class="stat-value">{{ payments_count }}</div>
@@ -3107,6 +3154,23 @@ def dashboard():
         if p.deal and p.deal.user_savings_usd
     )
 
+    # Get tier info
+    from phoenix_ai import get_combined_quota, check_ai_quota, ARBITRAGE_FREE_QUERIES
+    tier_quota = get_combined_quota(current_user)
+    ai_quota = check_ai_quota(current_user)
+    node_tier = tier_quota.get("node_tier", "bronze")
+    tier_config = ARBITRAGE_FREE_QUERIES.get(node_tier, ARBITRAGE_FREE_QUERIES["bronze"])
+
+    tier_info = {
+        "current_tier": node_tier,
+        "queries_per_day": tier_config.get("free_queries_per_day", 5),
+        "markets_per_query": tier_config.get("max_tools_per_query", 3),
+        "platform_fee_pct": int(tier_config.get("platform_fee_pct", 0.25) * 100),
+        "user_keeps_pct": int((1 - tier_config.get("platform_fee_pct", 0.25)) * 100),
+        "queries_used_today": ai_quota.get("used", 0),
+        "queries_remaining": ai_quota.get("remaining", 0),
+    }
+
     return render_template_string(
         BASE_TEMPLATE,
         title="Dashboard",
@@ -3117,7 +3181,8 @@ def dashboard():
             bookings_count=current_user.bookings.count(),
             total_savings=total_savings,
             recent_payments=payments,
-            language_name=get_language_name(current_user.preferred_language or 'en')
+            language_name=get_language_name(current_user.preferred_language or 'en'),
+            tier_info=tier_info
         ),
         current_user=current_user
     )
@@ -7530,7 +7595,7 @@ PHOENIX_AI_CONTENT = """
     .ai-send-btn:hover { background: #ff4d00; }
     .ai-send-btn:disabled { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); cursor: not-allowed; }
 
-    .ai-tier-badge { display: none; }
+    .ai-tier-badge { background: rgba(255,107,53,0.1); color: #ff6b35; padding: 10px 12px; border-radius: 8px; font-size: 0.8rem; font-family: 'Outfit', sans-serif; text-align: center; margin-top: auto; border: 1px solid rgba(255,107,53,0.2); }
 
     /* Quick action buttons */
     .ai-quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 24px 0; max-width: 500px; }
@@ -7603,6 +7668,7 @@ PHOENIX_AI_CONTENT = """
             <button class="ai-new-chat-btn" onclick="newConversation()">New chat</button>
         </div>
         <div class="ai-conv-list" id="convList"></div>
+        <div class="ai-tier-badge" id="tierBadge">Loading...</div>
     </div>
 
     <div class="ai-main">
@@ -7630,8 +7696,6 @@ PHOENIX_AI_CONTENT = """
             </div>
         </div>
     </div>
-    <div id="tierBadge" style="display:none;"></div>
-    <div id="savedDealsBar" style="display:none;"><span id="savedDealsCounter">0</span></div>
 </div>
 
 <script>
