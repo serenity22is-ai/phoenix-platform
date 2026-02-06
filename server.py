@@ -169,6 +169,17 @@ def _set_security_headers(response):
     return response
 
 
+# --- Feature Flags Helper (Build #95) ---
+def is_feature_enabled(flag_key):
+    """Check if a feature flag is enabled. Use this throughout the codebase."""
+    try:
+        from models import FeatureFlag
+        return FeatureFlag.is_flag_enabled(flag_key)
+    except Exception:
+        # Default to False if there's any error (DB not ready, etc.)
+        return False
+
+
 # --- Node Client Template Context (Build #91) ---
 @app.context_processor
 def _inject_node_context():
@@ -15903,6 +15914,7 @@ ADMIN_NAV = """
     <a href="/admin/nodes" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#0f9d58;background:rgba(15,157,88,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(15,157,88,0.3)'" onmouseout="this.style.background='rgba(15,157,88,0.1)'">Nodes</a>
     <a href="/admin/payouts" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Payouts</a>
     <a href="/admin/node-consent" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#00bcd4;background:rgba(0,188,212,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(0,188,212,0.3)'" onmouseout="this.style.background='rgba(0,188,212,0.1)'">Consent Economy</a>
+    <a href="/admin/features" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#ffd700;background:rgba(255,215,0,0.15);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,215,0,0.3)'" onmouseout="this.style.background='rgba(255,215,0,0.15)'">Features</a>
 </nav>
 """
 
@@ -16289,6 +16301,223 @@ def admin_dashboard():
         ),
         current_user=current_user
     )
+
+
+@app.route("/admin/features")
+@admin_required
+def admin_features():
+    """Admin feature flags management - control phased rollout."""
+    from models import FeatureFlag, SystemSetting
+
+    # Initialize flags and settings if needed
+    FeatureFlag.init_default_flags()
+    SystemSetting.init_defaults()
+
+    # Group flags by layer
+    flags = FeatureFlag.query.order_by(FeatureFlag.layer, FeatureFlag.flag_key).all()
+    layer1 = [f for f in flags if f.layer == 1]
+    layer2 = [f for f in flags if f.layer == 2]
+    layer3 = [f for f in flags if f.layer == 3]
+
+    # Get node payout percentage
+    payout_pct = SystemSetting.get('node_payout_pct', 0)
+
+    content = ADMIN_NAV + """
+    <h1>Feature Flags</h1>
+    <p style="color: #aaa;">Control which features are enabled. Toggle switches to enable/disable features across all users.</p>
+
+    <style>
+        .layer-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .layer-title { font-size: 1.2rem; font-weight: 700; }
+        .layer-1 .layer-title { color: #00c864; }
+        .layer-2 .layer-title { color: #ff6b35; }
+        .layer-3 .layer-title { color: #ffd700; }
+        .layer-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .layer-1 .layer-badge { background: rgba(0,200,100,0.15); color: #00c864; }
+        .layer-2 .layer-badge { background: rgba(255,107,53,0.15); color: #ff6b35; }
+        .layer-3 .layer-badge { background: rgba(255,215,0,0.15); color: #ffd700; }
+        .flag-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .flag-row:last-child { border-bottom: none; }
+        .flag-info { flex: 1; }
+        .flag-name { font-weight: 600; color: #fff; margin-bottom: 4px; }
+        .flag-desc { font-size: 0.85rem; color: #888; }
+        .toggle-switch { position: relative; width: 50px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #333; border-radius: 26px; transition: 0.3s; }
+        .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+        input:checked + .toggle-slider { background: #00c864; }
+        input:checked + .toggle-slider:before { transform: translateX(24px); }
+        .enabled-at { font-size: 0.75rem; color: #666; margin-top: 4px; }
+    </style>
+
+    <div class="layer-card layer-1">
+        <div class="layer-header">
+            <span class="layer-title">Layer 1 — Launch</span>
+            <span class="layer-badge">LIVE</span>
+        </div>
+        {% for flag in layer1 %}
+        <div class="flag-row">
+            <div class="flag-info">
+                <div class="flag-name">{{ flag.flag_name }}</div>
+                <div class="flag-desc">{{ flag.description }}</div>
+                {% if flag.enabled_at %}<div class="enabled-at">Enabled {{ flag.enabled_at.strftime('%Y-%m-%d') }}</div>{% endif %}
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" {{ 'checked' if flag.is_enabled else '' }} onchange="toggleFlag('{{ flag.flag_key }}', this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="layer-card layer-2">
+        <div class="layer-header">
+            <span class="layer-title">Layer 2 — Funded</span>
+            <span class="layer-badge">READY</span>
+        </div>
+        {% for flag in layer2 %}
+        <div class="flag-row">
+            <div class="flag-info">
+                <div class="flag-name">{{ flag.flag_name }}</div>
+                <div class="flag-desc">{{ flag.description }}</div>
+                {% if flag.enabled_at %}<div class="enabled-at">Enabled {{ flag.enabled_at.strftime('%Y-%m-%d') }}</div>{% endif %}
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" {{ 'checked' if flag.is_enabled else '' }} onchange="toggleFlag('{{ flag.flag_key }}', this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="layer-card layer-3">
+        <div class="layer-header">
+            <span class="layer-title">Layer 3 — Scale</span>
+            <span class="layer-badge">FUTURE</span>
+        </div>
+        {% for flag in layer3 %}
+        <div class="flag-row">
+            <div class="flag-info">
+                <div class="flag-name">{{ flag.flag_name }}</div>
+                <div class="flag-desc">{{ flag.description }}</div>
+                {% if flag.enabled_at %}<div class="enabled-at">Enabled {{ flag.enabled_at.strftime('%Y-%m-%d') }}</div>{% endif %}
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" {{ 'checked' if flag.is_enabled else '' }} onchange="toggleFlag('{{ flag.flag_key }}', this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Node Payout Settings -->
+    <div class="layer-card" style="border-color: rgba(0,200,100,0.3);">
+        <div class="layer-header">
+            <span class="layer-title" style="color: #00c864;">Node Payout Settings</span>
+            <span class="layer-badge" style="background: rgba(0,200,100,0.15); color: #00c864;">MANUAL</span>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label style="font-weight: 600; color: #fff;">Node Payout Percentage</label>
+                <span id="payoutValue" style="font-size: 1.4rem; font-weight: 700; color: #00c864;">{{ payout_pct }}%</span>
+            </div>
+            <input type="range" id="payoutSlider" min="0" max="100" value="{{ payout_pct }}"
+                   style="width: 100%; accent-color: #00c864;"
+                   oninput="document.getElementById('payoutValue').textContent = this.value + '%'">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #666; margin-top: 4px;">
+                <span>0% (Phoenix keeps all)</span>
+                <span>100% (Nodes get all)</span>
+            </div>
+            <button onclick="updatePayoutPct()" style="margin-top: 12px; padding: 10px 24px; background: #00c864; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Save Payout %</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #888;">This controls how much of proxy revenue goes to nodes. Adjust as funding allows. Goal is 100% at scale.</p>
+    </div>
+
+    <script>
+    async function updatePayoutPct() {
+        const pct = document.getElementById('payoutSlider').value;
+        try {
+            const resp = await fetch('/api/admin/node-payout-pct', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payout_pct: parseInt(pct) })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alert('Node payout set to ' + pct + '%');
+            } else {
+                alert('Failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch(e) {
+            alert('Error updating payout');
+        }
+    }
+
+    async function toggleFlag(flagKey, enabled) {
+        try {
+            const resp = await fetch('/api/admin/feature-flag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ flag_key: flagKey, enabled: enabled })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert('Failed to update flag: ' + (data.error || 'Unknown error'));
+                location.reload();
+            }
+        } catch(e) {
+            alert('Error updating flag');
+            location.reload();
+        }
+    }
+    </script>
+    """
+
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Feature Flags",
+        content=render_template_string(content, layer1=layer1, layer2=layer2, layer3=layer3, payout_pct=payout_pct),
+        current_user=current_user
+    )
+
+
+@app.route("/api/admin/feature-flag", methods=["POST"])
+@admin_required
+def api_admin_feature_flag():
+    """Toggle a feature flag."""
+    from models import FeatureFlag
+
+    data = request.get_json()
+    flag_key = data.get("flag_key")
+    enabled = data.get("enabled", False)
+
+    if not flag_key:
+        return jsonify({"success": False, "error": "Missing flag_key"}), 400
+
+    success = FeatureFlag.set_flag(flag_key, enabled, current_user.id)
+    if success:
+        return jsonify({"success": True, "flag_key": flag_key, "enabled": enabled})
+    return jsonify({"success": False, "error": "Flag not found"}), 404
+
+
+@app.route("/api/admin/node-payout-pct", methods=["POST"])
+@admin_required
+def api_admin_node_payout_pct():
+    """Set node payout percentage."""
+    from models import SystemSetting
+
+    data = request.get_json()
+    payout_pct = data.get("payout_pct")
+
+    if payout_pct is None:
+        return jsonify({"success": False, "error": "Missing payout_pct"}), 400
+
+    payout_pct = max(0, min(100, int(payout_pct)))  # Clamp to 0-100
+    success = SystemSetting.set('node_payout_pct', payout_pct, 'int', admin_id=current_user.id)
+    if success:
+        return jsonify({"success": True, "payout_pct": payout_pct})
+    return jsonify({"success": False, "error": "Failed to update"}), 500
 
 
 @app.route("/admin/payments")

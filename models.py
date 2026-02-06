@@ -3770,9 +3770,184 @@ class BundleItem(db.Model):
         }
 
 
+class FeatureFlag(db.Model):
+    """Admin-controlled feature flags for phased rollout. (Build #95)
+
+    Layer 1 (Launch): Flights, Hotels, Tier System, Proxy B2B Sales
+    Layer 2 (Funded): Products, Rentals, Cruises, Node Payments
+    Layer 3 (Scale): Own SERP, Data Marketplace, 100% Node Revenue
+    """
+    __tablename__ = 'feature_flags'
+
+    id = db.Column(db.Integer, primary_key=True)
+    flag_key = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    flag_name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    layer = db.Column(db.Integer, default=1)  # 1, 2, or 3
+    is_enabled = db.Column(db.Boolean, default=False)
+
+    # Metadata
+    enabled_at = db.Column(db.DateTime, nullable=True)
+    enabled_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'flag_key': self.flag_key,
+            'flag_name': self.flag_name,
+            'description': self.description,
+            'layer': self.layer,
+            'is_enabled': self.is_enabled,
+            'enabled_at': self.enabled_at.isoformat() if self.enabled_at else None,
+        }
+
+    @classmethod
+    def is_flag_enabled(cls, flag_key):
+        """Check if a feature flag is enabled."""
+        flag = cls.query.filter_by(flag_key=flag_key).first()
+        return flag.is_enabled if flag else False
+
+    @classmethod
+    def get_all_flags(cls):
+        """Get all feature flags grouped by layer."""
+        flags = cls.query.order_by(cls.layer, cls.flag_key).all()
+        return [f.to_dict() for f in flags]
+
+    @classmethod
+    def set_flag(cls, flag_key, enabled, admin_id=None):
+        """Enable or disable a feature flag."""
+        flag = cls.query.filter_by(flag_key=flag_key).first()
+        if flag:
+            flag.is_enabled = enabled
+            if enabled:
+                flag.enabled_at = datetime.utcnow()
+                flag.enabled_by = admin_id
+            else:
+                flag.enabled_at = None
+                flag.enabled_by = None
+            db.session.commit()
+            return True
+        return False
+
+    @classmethod
+    def init_default_flags(cls):
+        """Initialize default feature flags if they don't exist."""
+        default_flags = [
+            # Layer 1 - Launch
+            ('vertical_flights', 'Flights Vertical', 'Search and book flights via Amadeus', 1, True),
+            ('vertical_hotels', 'Hotels Vertical', 'Search and book hotels via Amadeus', 1, True),
+            ('tier_system', 'Tier System', 'Bronze/Silver/Gold/Platinum user tiers', 1, True),
+            ('node_onboarding', 'Node Onboarding', 'Allow users to join the Phoenix Network', 1, True),
+            ('proxy_b2b_sales', 'Proxy B2B Sales', 'Sell proxy access to enterprise customers', 1, True),
+
+            # Layer 2 - Funded
+            ('vertical_products', 'Products Vertical', 'Price comparison for physical products', 2, False),
+            ('vertical_rentals', 'Rentals Vertical', 'Car and vacation rentals', 2, False),
+            ('vertical_cruises', 'Cruises Vertical', 'Cruise booking and comparison', 2, False),
+            ('node_network_active', 'Node Network Active', 'Use node network for user searches', 2, False),
+            ('node_payments', 'Node Payments', 'Pay nodes for bandwidth/proxy usage', 2, False),
+
+            # Layer 3 - Scale
+            ('citizenserp_active', 'CitizenSERP Active', 'Use own SERP infrastructure', 3, False),
+            ('data_marketplace', 'Data Marketplace', 'Sell browsing data to enterprises', 3, False),
+            ('arbitrage_rewards', 'Arbitrage Rewards', 'Nodes earn from arbitrage discoveries', 3, False),
+            ('full_node_revenue', 'Full Node Revenue', '100% proxy revenue to nodes', 3, False),
+        ]
+
+        for flag_key, name, desc, layer, enabled in default_flags:
+            existing = cls.query.filter_by(flag_key=flag_key).first()
+            if not existing:
+                flag = cls(
+                    flag_key=flag_key,
+                    flag_name=name,
+                    description=desc,
+                    layer=layer,
+                    is_enabled=enabled,
+                    enabled_at=datetime.utcnow() if enabled else None,
+                )
+                db.session.add(flag)
+
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+class SystemSetting(db.Model):
+    """Admin-controlled system settings. (Build #95)"""
+    __tablename__ = 'system_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    setting_key = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    setting_value = db.Column(db.Text, nullable=True)
+    setting_type = db.Column(db.String(20), default='string')  # string, int, float, bool, json
+    description = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    @classmethod
+    def get(cls, key, default=None):
+        """Get a setting value."""
+        setting = cls.query.filter_by(setting_key=key).first()
+        if not setting:
+            return default
+        if setting.setting_type == 'int':
+            return int(setting.setting_value) if setting.setting_value else default
+        if setting.setting_type == 'float':
+            return float(setting.setting_value) if setting.setting_value else default
+        if setting.setting_type == 'bool':
+            return setting.setting_value.lower() in ('true', '1', 'yes') if setting.setting_value else default
+        if setting.setting_type == 'json':
+            import json
+            return json.loads(setting.setting_value) if setting.setting_value else default
+        return setting.setting_value
+
+    @classmethod
+    def set(cls, key, value, setting_type='string', description=None, admin_id=None):
+        """Set a setting value."""
+        setting = cls.query.filter_by(setting_key=key).first()
+        if setting:
+            setting.setting_value = str(value)
+            setting.updated_by = admin_id
+        else:
+            setting = cls(
+                setting_key=key,
+                setting_value=str(value),
+                setting_type=setting_type,
+                description=description,
+                updated_by=admin_id,
+            )
+            db.session.add(setting)
+        try:
+            db.session.commit()
+            return True
+        except Exception:
+            db.session.rollback()
+            return False
+
+    @classmethod
+    def init_defaults(cls):
+        """Initialize default system settings."""
+        defaults = [
+            ('node_payout_pct', '0', 'int', 'Percentage of proxy revenue paid to nodes (0-100)'),
+        ]
+        for key, value, stype, desc in defaults:
+            if not cls.query.filter_by(setting_key=key).first():
+                setting = cls(setting_key=key, setting_value=value, setting_type=stype, description=desc)
+                db.session.add(setting)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
 def init_db(app):
     """Initialize database with Flask app."""
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        # Initialize default feature flags and system settings
+        FeatureFlag.init_default_flags()
+        SystemSetting.init_defaults()
         print("Database initialized successfully!")
