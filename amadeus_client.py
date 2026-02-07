@@ -465,9 +465,52 @@ class AmadeusClient:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _build_traveler_object(self, traveler: Dict, traveler_id: str = "1") -> Dict:
+        """Build Amadeus traveler object from dict or TravelerProfile. (Build #98)"""
+        # If it's already in Amadeus format (has 'id' key), return as-is
+        if "id" in traveler and "name" in traveler:
+            return traveler
+
+        traveler_obj = {
+            "id": traveler_id,
+            "dateOfBirth": traveler.get("date_of_birth", "1990-01-01"),
+            "name": {
+                "firstName": traveler.get("first_name", "").upper(),
+                "lastName": traveler.get("last_name", "").upper(),
+            },
+            "gender": traveler.get("gender", "MALE").upper(),
+            "contact": {
+                "emailAddress": traveler.get("email", ""),
+                "phones": [{
+                    "deviceType": "MOBILE",
+                    "countryCallingCode": traveler.get("phone_country_code", "1"),
+                    "number": traveler.get("phone", "").replace("+", "").replace("-", "").replace(" ", ""),
+                }],
+            },
+        }
+
+        # Add middle name if present
+        if traveler.get("middle_name"):
+            traveler_obj["name"]["secondLastName"] = traveler["middle_name"].upper()
+
+        # Add passport/document if provided (required for international)
+        if traveler.get("passport_number"):
+            traveler_obj["documents"] = [{
+                "documentType": "PASSPORT",
+                "number": traveler["passport_number"],
+                "expiryDate": traveler.get("passport_expiry", "2030-01-01"),
+                "issuanceCountry": traveler.get("passport_country", "US"),
+                "nationality": traveler.get("nationality", "US"),
+                "holder": True,
+            }]
+
+        return traveler_obj
+
     def create_booking(self, offer: Dict, traveler: Dict) -> Dict:
         """
-        Create a flight booking (Flight Orders API).
+        Create a flight booking for a single traveler (Flight Orders API).
+
+        For multi-passenger bookings, use create_booking_multi() instead.
 
         Args:
             offer: Confirmed flight offer (from price_confirm, or raw search offer)
@@ -481,49 +524,65 @@ class AmadeusClient:
         Returns:
             Dict with success, order_id, pnr, segments, price, raw_order
         """
+        return self.create_booking_multi(offer, [traveler])
+
+    def create_booking_multi(self, offer: Dict, travelers: List[Dict], contact_email: str = None) -> Dict:
+        """
+        Create a flight booking for multiple travelers (Flight Orders API). (Build #98)
+
+        Supports up to 9 passengers per PNR (Amadeus limit).
+
+        Args:
+            offer: Confirmed flight offer (from price_confirm, or raw search offer)
+            travelers: List of dicts, each with passenger details:
+                - first_name, last_name (required)
+                - date_of_birth (YYYY-MM-DD)
+                - gender (MALE/FEMALE)
+                - email, phone (at least one traveler must have contact info)
+                - passport_number, passport_expiry, passport_country, nationality (for international)
+            contact_email: Optional primary contact email for the booking
+
+        Returns:
+            Dict with success, order_id, pnr, segments, price, travelers_booked, raw_order
+        """
+        if not travelers:
+            return {"success": False, "error": "At least one traveler is required"}
+
+        if len(travelers) > 9:
+            return {"success": False, "error": "Maximum 9 passengers per booking (Amadeus limit)"}
+
         token = self._get_access_token()
         if not token:
             return {"success": False, "error": "Authentication failed"}
 
-        # Build traveler object
-        traveler_obj = {
-            "id": "1",
-            "dateOfBirth": traveler.get("date_of_birth", "1990-01-01"),
-            "name": {
-                "firstName": traveler.get("first_name", "").upper(),
-                "lastName": traveler.get("last_name", "").upper(),
-            },
-            "gender": traveler.get("gender", "MALE").upper(),
-            "contact": {
-                "emailAddress": traveler.get("email", ""),
-                "phones": [{
-                    "deviceType": "MOBILE",
-                    "countryCallingCode": "1",
-                    "number": traveler.get("phone", "").replace("+1", "").replace("-", "").replace(" ", ""),
-                }],
-            },
-        }
+        # Build traveler objects with sequential IDs
+        traveler_objects = []
+        for idx, traveler in enumerate(travelers, start=1):
+            traveler_obj = self._build_traveler_object(traveler, str(idx))
+            traveler_objects.append(traveler_obj)
 
-        # Add passport/document if provided
-        if traveler.get("passport_number"):
-            traveler_obj["documents"] = [{
-                "documentType": "PASSPORT",
-                "number": traveler["passport_number"],
-                "expiryDate": traveler.get("passport_expiry", "2030-01-01"),
-                "issuanceCountry": traveler.get("passport_country", "US"),
-                "nationality": traveler.get("nationality", "US"),
-                "holder": True,
-            }]
+        # Ensure at least one traveler has contact info
+        has_contact = any(
+            t.get("contact", {}).get("emailAddress") or
+            t.get("contact", {}).get("phones", [{}])[0].get("number")
+            for t in traveler_objects
+        )
+        if not has_contact and contact_email:
+            # Add contact to first traveler
+            traveler_objects[0]["contact"] = {
+                "emailAddress": contact_email,
+                "phones": [{"deviceType": "MOBILE", "countryCallingCode": "1", "number": "0000000000"}],
+            }
 
         payload = {
             "data": {
                 "type": "flight-order",
                 "flightOffers": [offer],
-                "travelers": [traveler_obj],
+                "travelers": traveler_objects,
                 "remarks": {
                     "general": [{
                         "subType": "GENERAL_MISCELLANEOUS",
-                        "text": "PHOENIX FLIGHT BOOKING",
+                        "text": f"PHOENIX BOOKING - {len(travelers)} PAX",
                     }]
                 },
                 "ticketingAgreement": {
@@ -573,7 +632,11 @@ class AmadeusClient:
                 price = float(flight_offers[0]["price"]["total"]) if flight_offers else 0
                 currency = flight_offers[0]["price"].get("currency", "USD") if flight_offers else "USD"
 
-                print(f"[AMADEUS] Booking created: PNR={pnr}, price=${price}")
+                # Extract booked travelers
+                booked_travelers = order.get("travelers", [])
+                travelers_count = len(booked_travelers)
+
+                print(f"[AMADEUS] Booking created: PNR={pnr}, {travelers_count} pax, price=${price}")
                 return {
                     "success": True,
                     "order_id": order.get("id"),
@@ -582,6 +645,7 @@ class AmadeusClient:
                     "segments": segments,
                     "price": price,
                     "currency": currency,
+                    "travelers_booked": travelers_count,
                     "raw_order": order,
                 }
 

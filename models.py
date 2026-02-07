@@ -654,6 +654,191 @@ class UserCard(db.Model):
         }
 
 
+class TravelerProfile(db.Model):
+    """
+    Saved traveler profiles for booking. (Build #98)
+
+    Users can save multiple travelers (self, family, colleagues) with all
+    data required for IATA/APIS compliance. This enables:
+    - Multi-passenger bookings
+    - Booking for someone else
+    - Pre-filled checkout for returning users
+
+    Fields align with Amadeus Flight Orders API and IATA APIS requirements.
+    """
+    __tablename__ = 'traveler_profiles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    # Profile metadata
+    label = db.Column(db.String(50), default='Primary Traveler')  # "Me", "Spouse", "Child 1"
+    is_primary = db.Column(db.Boolean, default=False)  # Is this the account owner?
+    is_active = db.Column(db.Boolean, default=True)
+
+    # Required identity fields (IATA standard)
+    title = db.Column(db.String(10))  # MR, MRS, MS, MISS, DR
+    first_name = db.Column(db.String(100), nullable=False)
+    middle_name = db.Column(db.String(100))
+    last_name = db.Column(db.String(100), nullable=False)
+    date_of_birth = db.Column(db.Date, nullable=False)
+    gender = db.Column(db.String(10), nullable=False)  # MALE, FEMALE
+
+    # Passenger type
+    passenger_type = db.Column(db.String(10), default='ADULT')  # ADULT, CHILD, INFANT
+
+    # Contact info
+    email = db.Column(db.String(255))
+    phone = db.Column(db.String(30))  # With country code, e.g., +1-555-123-4567
+    phone_country_code = db.Column(db.String(5), default='1')  # Just the code, e.g., "1" for US
+
+    # Travel document (APIS - required for international)
+    passport_number = db.Column(db.String(50))
+    passport_expiry = db.Column(db.Date)
+    passport_country = db.Column(db.String(2))  # ISO 2-letter, e.g., "US"
+    nationality = db.Column(db.String(2))  # ISO 2-letter
+
+    # US-specific (TSA requirements)
+    redress_number = db.Column(db.String(20))  # DHS Redress Number
+    known_traveler_number = db.Column(db.String(20))  # TSA PreCheck / Global Entry
+
+    # Frequent flyer programs (JSON: {"AA": "123456", "UA": "789012"})
+    frequent_flyer_numbers = db.Column(db.Text)  # JSON string
+
+    # Preferences
+    seat_preference = db.Column(db.String(20))  # WINDOW, AISLE, MIDDLE
+    meal_preference = db.Column(db.String(30))  # VEGETARIAN, VEGAN, KOSHER, HALAL, etc.
+    special_assistance = db.Column(db.String(100))  # WHEELCHAIR, OXYGEN, etc.
+
+    # Emergency contact
+    emergency_contact_name = db.Column(db.String(100))
+    emergency_contact_phone = db.Column(db.String(30))
+    emergency_contact_relation = db.Column(db.String(30))  # SPOUSE, PARENT, FRIEND
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('User', backref=db.backref('travelers', lazy='dynamic'))
+
+    def get_frequent_flyer(self, airline_code):
+        """Get frequent flyer number for a specific airline."""
+        import json
+        if not self.frequent_flyer_numbers:
+            return None
+        try:
+            ff = json.loads(self.frequent_flyer_numbers)
+            return ff.get(airline_code.upper())
+        except Exception:
+            return None
+
+    def set_frequent_flyer(self, airline_code, number):
+        """Set frequent flyer number for a specific airline."""
+        import json
+        try:
+            ff = json.loads(self.frequent_flyer_numbers or '{}')
+        except Exception:
+            ff = {}
+        ff[airline_code.upper()] = number
+        self.frequent_flyer_numbers = json.dumps(ff)
+
+    def to_amadeus_traveler(self, traveler_id="1"):
+        """Convert to Amadeus Flight Orders API traveler format."""
+        traveler_obj = {
+            "id": traveler_id,
+            "dateOfBirth": self.date_of_birth.strftime("%Y-%m-%d") if self.date_of_birth else "1990-01-01",
+            "name": {
+                "firstName": (self.first_name or "").upper(),
+                "lastName": (self.last_name or "").upper(),
+            },
+            "gender": (self.gender or "MALE").upper(),
+            "contact": {
+                "emailAddress": self.email or "",
+                "phones": [{
+                    "deviceType": "MOBILE",
+                    "countryCallingCode": self.phone_country_code or "1",
+                    "number": (self.phone or "").replace("+", "").replace("-", "").replace(" ", ""),
+                }],
+            },
+        }
+
+        # Add middle name if present
+        if self.middle_name:
+            traveler_obj["name"]["secondLastName"] = self.middle_name.upper()
+
+        # Add passport/document for international flights
+        if self.passport_number:
+            traveler_obj["documents"] = [{
+                "documentType": "PASSPORT",
+                "number": self.passport_number,
+                "expiryDate": self.passport_expiry.strftime("%Y-%m-%d") if self.passport_expiry else "2030-01-01",
+                "issuanceCountry": self.passport_country or "US",
+                "nationality": self.nationality or "US",
+                "holder": True,
+            }]
+
+        # Add TSA numbers if present (for US flights)
+        if self.redress_number or self.known_traveler_number:
+            traveler_obj["loyaltyPrograms"] = []
+            # Note: These are handled differently in real APIS, simplified here
+
+        return traveler_obj
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'label': self.label,
+            'is_primary': self.is_primary,
+            'title': self.title,
+            'first_name': self.first_name,
+            'middle_name': self.middle_name,
+            'last_name': self.last_name,
+            'full_name': f"{self.first_name} {self.last_name}",
+            'date_of_birth': self.date_of_birth.isoformat() if self.date_of_birth else None,
+            'gender': self.gender,
+            'passenger_type': self.passenger_type,
+            'email': self.email,
+            'phone': self.phone,
+            'has_passport': bool(self.passport_number),
+            'passport_country': self.passport_country,
+            'nationality': self.nationality,
+            'seat_preference': self.seat_preference,
+            'meal_preference': self.meal_preference,
+            'has_tsa_precheck': bool(self.known_traveler_number),
+        }
+
+    def to_dict_full(self):
+        """Full dict including sensitive data (for user's own profile view)."""
+        d = self.to_dict()
+        d.update({
+            'passport_number': self.passport_number,
+            'passport_expiry': self.passport_expiry.isoformat() if self.passport_expiry else None,
+            'redress_number': self.redress_number,
+            'known_traveler_number': self.known_traveler_number,
+            'frequent_flyer_numbers': self.frequent_flyer_numbers,
+            'special_assistance': self.special_assistance,
+            'emergency_contact_name': self.emergency_contact_name,
+            'emergency_contact_phone': self.emergency_contact_phone,
+            'emergency_contact_relation': self.emergency_contact_relation,
+        })
+        return d
+
+    @staticmethod
+    def create_from_user(user):
+        """Create a primary traveler profile from user account data."""
+        return TravelerProfile(
+            user_id=user.id,
+            label="Me",
+            is_primary=True,
+            first_name=user.name.split()[0] if user.name else "",
+            last_name=" ".join(user.name.split()[1:]) if user.name and len(user.name.split()) > 1 else "",
+            email=user.email,
+            gender="MALE",  # Default, user should update
+            date_of_birth=None,  # User must provide
+        )
+
+
 class P2PTransaction(db.Model):
     """
     P2P booking transaction — tracks the full lifecycle of a P2P purchase.

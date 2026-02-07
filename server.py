@@ -3452,6 +3452,190 @@ def api_account_delete():
     return jsonify({"status": "deleted", "message": "Account has been permanently deleted."})
 
 
+# --- Traveler Profile API (Build #98) ---
+
+@app.route("/api/travelers", methods=["GET"])
+@login_required
+def api_travelers_list():
+    """List all saved travelers for the current user."""
+    from models import TravelerProfile
+    travelers = TravelerProfile.query.filter_by(
+        user_id=current_user.id, is_active=True
+    ).order_by(TravelerProfile.is_primary.desc(), TravelerProfile.created_at).all()
+    return jsonify({
+        "travelers": [t.to_dict() for t in travelers],
+        "count": len(travelers),
+    })
+
+
+@app.route("/api/travelers", methods=["POST"])
+@login_required
+def api_travelers_create():
+    """Create a new saved traveler."""
+    from models import TravelerProfile
+    from datetime import datetime
+
+    data = request.get_json() or {}
+
+    # Validate required fields
+    required = ["first_name", "last_name", "date_of_birth", "gender"]
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+    # Parse date of birth
+    try:
+        dob = datetime.strptime(data["date_of_birth"], "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "Invalid date_of_birth format. Use YYYY-MM-DD"}), 400
+
+    # Parse passport expiry if provided
+    passport_expiry = None
+    if data.get("passport_expiry"):
+        try:
+            passport_expiry = datetime.strptime(data["passport_expiry"], "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Invalid passport_expiry format. Use YYYY-MM-DD"}), 400
+
+    # Check if this is the first traveler (make it primary)
+    existing_count = TravelerProfile.query.filter_by(user_id=current_user.id, is_active=True).count()
+    is_primary = existing_count == 0
+
+    traveler = TravelerProfile(
+        user_id=current_user.id,
+        label=data.get("label", "Traveler"),
+        is_primary=is_primary,
+        title=data.get("title"),
+        first_name=data["first_name"],
+        middle_name=data.get("middle_name"),
+        last_name=data["last_name"],
+        date_of_birth=dob,
+        gender=data["gender"].upper(),
+        passenger_type=data.get("passenger_type", "ADULT").upper(),
+        email=data.get("email"),
+        phone=data.get("phone"),
+        phone_country_code=data.get("phone_country_code", "1"),
+        passport_number=data.get("passport_number"),
+        passport_expiry=passport_expiry,
+        passport_country=data.get("passport_country"),
+        nationality=data.get("nationality"),
+        redress_number=data.get("redress_number"),
+        known_traveler_number=data.get("known_traveler_number"),
+        seat_preference=data.get("seat_preference"),
+        meal_preference=data.get("meal_preference"),
+        special_assistance=data.get("special_assistance"),
+        emergency_contact_name=data.get("emergency_contact_name"),
+        emergency_contact_phone=data.get("emergency_contact_phone"),
+        emergency_contact_relation=data.get("emergency_contact_relation"),
+    )
+
+    db.session.add(traveler)
+    db.session.commit()
+
+    return jsonify({"success": True, "traveler": traveler.to_dict()}), 201
+
+
+@app.route("/api/travelers/<int:traveler_id>", methods=["GET"])
+@login_required
+def api_travelers_get(traveler_id):
+    """Get a specific traveler's full details."""
+    from models import TravelerProfile
+    traveler = TravelerProfile.query.filter_by(
+        id=traveler_id, user_id=current_user.id
+    ).first()
+    if not traveler:
+        return jsonify({"error": "Traveler not found"}), 404
+    return jsonify({"traveler": traveler.to_dict_full()})
+
+
+@app.route("/api/travelers/<int:traveler_id>", methods=["PUT"])
+@login_required
+def api_travelers_update(traveler_id):
+    """Update a saved traveler."""
+    from models import TravelerProfile
+    from datetime import datetime
+
+    traveler = TravelerProfile.query.filter_by(
+        id=traveler_id, user_id=current_user.id
+    ).first()
+    if not traveler:
+        return jsonify({"error": "Traveler not found"}), 404
+
+    data = request.get_json() or {}
+
+    # Update allowed fields
+    updateable = [
+        "label", "title", "first_name", "middle_name", "last_name", "gender",
+        "passenger_type", "email", "phone", "phone_country_code",
+        "passport_number", "passport_country", "nationality",
+        "redress_number", "known_traveler_number", "seat_preference",
+        "meal_preference", "special_assistance", "emergency_contact_name",
+        "emergency_contact_phone", "emergency_contact_relation",
+    ]
+
+    for field in updateable:
+        if field in data:
+            setattr(traveler, field, data[field])
+
+    # Handle date fields separately
+    if "date_of_birth" in data:
+        try:
+            traveler.date_of_birth = datetime.strptime(data["date_of_birth"], "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Invalid date_of_birth format"}), 400
+
+    if "passport_expiry" in data:
+        if data["passport_expiry"]:
+            try:
+                traveler.passport_expiry = datetime.strptime(data["passport_expiry"], "%Y-%m-%d").date()
+            except ValueError:
+                return jsonify({"error": "Invalid passport_expiry format"}), 400
+        else:
+            traveler.passport_expiry = None
+
+    db.session.commit()
+    return jsonify({"success": True, "traveler": traveler.to_dict()})
+
+
+@app.route("/api/travelers/<int:traveler_id>", methods=["DELETE"])
+@login_required
+def api_travelers_delete(traveler_id):
+    """Delete (deactivate) a saved traveler."""
+    from models import TravelerProfile
+    traveler = TravelerProfile.query.filter_by(
+        id=traveler_id, user_id=current_user.id
+    ).first()
+    if not traveler:
+        return jsonify({"error": "Traveler not found"}), 404
+
+    if traveler.is_primary:
+        return jsonify({"error": "Cannot delete primary traveler. Update another traveler to primary first."}), 400
+
+    traveler.is_active = False
+    db.session.commit()
+    return jsonify({"success": True, "message": "Traveler deleted"})
+
+
+@app.route("/api/travelers/<int:traveler_id>/primary", methods=["POST"])
+@login_required
+def api_travelers_set_primary(traveler_id):
+    """Set a traveler as the primary traveler."""
+    from models import TravelerProfile
+    traveler = TravelerProfile.query.filter_by(
+        id=traveler_id, user_id=current_user.id, is_active=True
+    ).first()
+    if not traveler:
+        return jsonify({"error": "Traveler not found"}), 404
+
+    # Unset current primary
+    TravelerProfile.query.filter_by(user_id=current_user.id, is_primary=True).update(
+        {"is_primary": False}
+    )
+    traveler.is_primary = True
+    db.session.commit()
+    return jsonify({"success": True, "traveler": traveler.to_dict()})
+
+
 @app.route("/deals")
 def deals():
     """Browse available deals from the database."""
