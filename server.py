@@ -209,6 +209,25 @@ def _inject_node_context():
         pass
     return ctx
 
+
+# --- Feature Flags Template Context (Build #96) ---
+@app.context_processor
+def _inject_feature_flags():
+    """Inject feature flags into all templates for conditional rendering."""
+    return {
+        "feature_flights": is_feature_enabled("vertical_flights"),
+        "feature_hotels": is_feature_enabled("vertical_hotels"),
+        "feature_products": is_feature_enabled("vertical_products"),
+        "feature_rentals": is_feature_enabled("vertical_rentals"),
+        "feature_cruises": is_feature_enabled("vertical_cruises"),
+        "feature_tier_system": is_feature_enabled("tier_system"),
+        "feature_node_onboarding": is_feature_enabled("node_onboarding"),
+        "feature_node_payments": is_feature_enabled("node_payments"),
+        "feature_proxy_b2b": is_feature_enabled("proxy_b2b_sales"),
+        "feature_citizenserp": is_feature_enabled("citizenserp_active"),
+        "feature_data_marketplace": is_feature_enabled("data_marketplace"),
+    }
+
 # Initialize database
 init_db(app)
 
@@ -1199,26 +1218,54 @@ HOME_CONTENT = """
     </div>
 
     <div class="phoenix-chips">
+        {% if feature_flights %}
         <a class="phoenix-chip" onclick="homeQuick('Cheap flights from NYC to Tokyo next month')">NYC → Tokyo</a>
-        <a class="phoenix-chip" onclick="homeQuick('Best hotel deals in Bali')">Hotels in Bali</a>
         <a class="phoenix-chip" onclick="homeQuick('Flights from LA to London')">LA → London</a>
+        {% endif %}
+        {% if feature_hotels %}
+        <a class="phoenix-chip" onclick="homeQuick('Best hotel deals in Bali')">Hotels in Bali</a>
         <a class="phoenix-chip" onclick="homeQuick('Cheap hotels in Paris')">Hotels in Paris</a>
+        {% endif %}
     </div>
 
     <div class="phoenix-verticals">
+        {% if feature_flights %}
         <a class="phoenix-vertical" onclick="homeQuick('Search flights')">
             <span class="v-icon">&#9992;</span>
             <span class="v-label">Flights</span>
         </a>
+        {% endif %}
+        {% if feature_hotels %}
         <a class="phoenix-vertical" onclick="homeQuick('Search hotels')">
             <span class="v-icon">&#127976;</span>
             <span class="v-label">Hotels</span>
         </a>
+        {% endif %}
+        {% if feature_products %}
+        <a class="phoenix-vertical" onclick="homeQuick('Search products')">
+            <span class="v-icon">&#128722;</span>
+            <span class="v-label">Products</span>
+        </a>
+        {% endif %}
+        {% if feature_rentals %}
+        <a class="phoenix-vertical" onclick="homeQuick('Search car rentals')">
+            <span class="v-icon">&#128663;</span>
+            <span class="v-label">Rentals</span>
+        </a>
+        {% endif %}
+        {% if feature_cruises %}
+        <a class="phoenix-vertical" onclick="homeQuick('Search cruises')">
+            <span class="v-icon">&#128674;</span>
+            <span class="v-label">Cruises</span>
+        </a>
+        {% endif %}
     </div>
 
     <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; opacity: 0; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;">
         <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
+        {% if feature_node_onboarding %}
         <a href="/helper" style="padding: 14px 32px; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the Phoenix Network</a>
+        {% endif %}
         <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Sign In</a>
     </div>
 </section>
@@ -8646,6 +8693,10 @@ test </b> end
 @login_required
 def phoenix_install_page():
     """Welcome page shown after registration."""
+    # Gate behind feature flag (Build #96)
+    if not is_feature_enabled("node_onboarding"):
+        flash("Node network coming soon.", "info")
+        return redirect("/dashboard")
     return render_template_string(
         BASE_TEMPLATE,
         title="Welcome to Phoenix",
@@ -8889,6 +8940,10 @@ function showTab(id) {
 @app.route("/setup")
 def setup_guides():
     """Quick-start setup guides for Phoenix components."""
+    # Gate behind feature flag (Build #96)
+    if not is_feature_enabled("node_onboarding"):
+        flash("Node network coming soon.", "info")
+        return redirect("/")
     helper_token = ""
     if current_user.is_authenticated:
         helper = HelperProfile.query.filter_by(user_id=current_user.id).first()
@@ -10661,6 +10716,10 @@ HELPER_DASHBOARD_CONTENT = """
 @login_required
 def helper_dashboard():
     """Helper dashboard — P2P earning profile."""
+    # Gate behind feature flag (Build #96)
+    if not is_feature_enabled("node_onboarding"):
+        flash("Node network coming soon.", "info")
+        return redirect("/dashboard")
     helper = HelperProfile.query.filter_by(user_id=current_user.id).first()
     transactions = []
     earnings_by_day = []
@@ -17732,10 +17791,20 @@ def admin_trigger_epoch():
 
 # --- Node Registry API Routes ---
 
+def _node_network_check():
+    """Return error response if node network is disabled. (Build #96)"""
+    if not is_feature_enabled("node_onboarding"):
+        return jsonify({"error": "Node network is not yet active"}), 503
+    return None
+
+
 @app.route("/api/nodes/register", methods=["POST"])
 @login_required
 def api_node_register():
     """Register a helper node in the CitizenSERP network."""
+    check = _node_network_check()
+    if check:
+        return check
     try:
         from node_registry import node_registry
         data = request.get_json() or {}
@@ -17756,6 +17825,9 @@ def api_node_register():
 @login_required
 def api_node_heartbeat():
     """Node heartbeat — keeps node alive in the registry."""
+    check = _node_network_check()
+    if check:
+        return check
     try:
         from node_registry import node_registry
         data = request.get_json() or {}
@@ -17775,6 +17847,9 @@ def api_node_heartbeat():
 @login_required
 def api_node_unregister():
     """Unregister a node from the network."""
+    check = _node_network_check()
+    if check:
+        return check
     try:
         from node_registry import node_registry
         data = request.get_json() or {}
@@ -17792,6 +17867,9 @@ def api_node_unregister():
 @login_required
 def api_nodes_discover():
     """Discover available nodes, optionally filtered by zone/country/task type."""
+    check = _node_network_check()
+    if check:
+        return check
     try:
         from node_registry import node_registry
         zone = request.args.get("zone")
@@ -17810,6 +17888,9 @@ def api_nodes_discover():
 @login_required
 def api_nodes_topology():
     """Get network topology — node counts by zone, country, status."""
+    check = _node_network_check()
+    if check:
+        return check
     try:
         from node_registry import node_registry
         return jsonify(node_registry.get_network_topology())
@@ -17822,6 +17903,9 @@ def api_nodes_topology():
 @login_required
 def api_nodes_my():
     """Get the current user's registered node(s)."""
+    check = _node_network_check()
+    if check:
+        return check
     try:
         from node_registry import node_registry
         node = node_registry.get_node_for_user(current_user.id)
@@ -17873,6 +17957,9 @@ def api_node_onboard():
 
     Returns helper_token + node instructions.
     """
+    check = _node_network_check()
+    if check:
+        return check
     import secrets as _secrets
     try:
         data = request.get_json(silent=True) or {}
