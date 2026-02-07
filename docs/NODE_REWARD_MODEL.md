@@ -151,5 +151,136 @@ These nodes don't generate user activity data but provide consistent, high-quali
 
 ---
 
-*Last updated: Build #96*
+## Anti-Dilution System (Build #97)
+
+### Threat Model: Sybil Attacks on Reward Pool
+
+A well-funded adversary (big tech, VC-backed competitor, crypto whale) could attempt to spin up thousands of nodes to dilute rewards for legitimate users.
+
+**Attack Scenario**: Google or BrightData floods the network with dedicated server nodes to:
+1. Dilute the reward pool so real users quit
+2. Destroy the network's value proposition
+3. Eliminate a competitive threat
+
+### Why This Attack is Self-Defeating
+
+```
+Attacker spins up 1M nodes
+├── They pay: hardware, bandwidth, residential IPs ($1-5/IP/month)
+├── Phoenix gains: 1M more proxies to sell
+├── Phoenix revenue: increases (more capacity = more sales)
+└── Attacker ROI: negative (paying to build OUR infrastructure)
+```
+
+**Key insight**: They'd be spending $30-150M/month on residential IPs to build our network for free.
+
+### Defense Layers
+
+| Layer | Protection | Implementation |
+|-------|------------|----------------|
+| **Ratio Cap** | Dedicated ≤ 10% of data nodes | `node_antidilution.DEDICATED_TO_DATA_RATIO = 0.10` |
+| **Demand Cap** | No oversupply | Cap based on actual proxy sales volume |
+| **Escrow Period** | 30-day payout delay | New nodes earn to escrow before withdrawal |
+| **Geo Monitoring** | Flag concentration | Alert if >40% from single country |
+| **Spike Detection** | Flag floods | Alert if >100 nodes/hour onboarding |
+
+### The Mathematical Failsafe
+
+```python
+def calculate_dedicated_node_cap():
+    data_nodes = count_nodes(type=['mobile', 'desktop'])
+    dedicated_cap = data_nodes * 0.10  # 10% ratio
+
+    # Also cap based on actual proxy demand
+    monthly_proxy_demand_gb = get_proxy_sales_volume()
+    demand_based_cap = monthly_proxy_demand_gb / avg_node_capacity_gb
+
+    # Use the LOWER of the two caps
+    return min(dedicated_cap, demand_based_cap)
+```
+
+### Attack Cost Analysis
+
+| Data Nodes (Mobile/Desktop) | Dedicated Node Cap (10%) | Monthly Attack Cost |
+|----------------------------|--------------------------|---------------------|
+| 1M | 100K max | ~$100K-500K/month |
+| 10M | 1M max | ~$1-5M/month |
+| 100M | 10M max | ~$10-50M/month |
+| 300M | 30M max | ~$30-150M/month |
+
+**Critical**: They can't fake mobile/desktop nodes. Real browsing data comes from real humans with real devices. The data tier is naturally protected.
+
+### Why Mobile/Desktop Nodes Can't Be Faked
+
+1. **Browsing patterns are unique** - Bot behavior is detectable
+2. **Device fingerprints are hardware-bound** - VMs leave traces
+3. **Location data is GPS-verified** - Datacenter IPs don't have GPS
+4. **App usage patterns are organic** - Bots don't use Instagram naturally
+5. **Scale is prohibitive** - Faking 300M real users requires... 300M real people
+
+### Competitive Advantage: Price Dumping
+
+Our infrastructure cost is **zero** (user-owned nodes). Competitors pay for infrastructure.
+
+| Provider | Cost/GB | Our Cost/GB | Our Price/GB (50% undercut) |
+|----------|---------|-------------|----------------------------|
+| Bright Data | $10-15 | ~$0 | $5-7 |
+| Oxylabs | $8-12 | ~$0 | $4-6 |
+| Smartproxy | $7-10 | ~$0 | $3.50-5 |
+
+**They can't compete on price without going bankrupt.**
+
+### Admin Controls
+
+Available at `/admin/security`:
+
+1. **Node Distribution** - Real-time counts by type
+2. **Cap Status** - Current dedicated vs capacity
+3. **Geographic Health** - Country distribution
+4. **Onboarding Rate** - Spike detection
+5. **Configuration** - Adjustable thresholds:
+   - Dedicated:Data ratio (default 10%)
+   - Geographic concentration threshold (default 40%)
+   - Escrow period (default 30 days)
+
+### API Endpoints
+
+```
+GET  /api/admin/antidilution         - Full status report
+POST /api/admin/antidilution/config  - Update thresholds
+```
+
+### Response to Attack Scenarios
+
+| Scenario | Detection | Response |
+|----------|-----------|----------|
+| Flood of dedicated nodes | Cap reached, spike alert | Automatic rejection at cap |
+| Geographic concentration | Geo flag triggered | Admin review, possible pause |
+| Onboarding spike | Rate alert | Admin review, possible freeze |
+| Fake mobile/desktop nodes | Data quality scoring (future) | Auto-flag low-quality data |
+
+### Future Enhancements
+
+1. **Data quality scoring** - ML-based detection of synthetic browsing patterns
+2. **Stake requirement** - Optional bond for dedicated servers (refundable after 6 months)
+3. **Invite-only Platinum** - Admin approval for dedicated server tier during early phases
+4. **IP reputation scoring** - Flag known datacenter/VPN IP ranges
+
+---
+
+## Summary: Attack Economics
+
+**For an attacker to hurt Phoenix, they must:**
+1. Spend millions on residential IPs
+2. Build infrastructure Phoenix sells
+3. Sustain losses indefinitely
+4. Watch Phoenix grow from their investment
+
+**The only viable attack path**: Short-term panic causing user exodus. Defense: Escrow period + transparency + spike detection.
+
+**Bottom line**: An attack on Phoenix is economically self-defeating. They pay to build what we sell.
+
+---
+
+*Last updated: Build #97*
 *This document is internal only - do not expose to users until Phase 4*
