@@ -15974,6 +15974,7 @@ ADMIN_NAV = """
     <a href="/admin/payouts" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Payouts</a>
     <a href="/admin/node-consent" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#00bcd4;background:rgba(0,188,212,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(0,188,212,0.3)'" onmouseout="this.style.background='rgba(0,188,212,0.1)'">Consent Economy</a>
     <a href="/admin/features" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#ffd700;background:rgba(255,215,0,0.15);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,215,0,0.3)'" onmouseout="this.style.background='rgba(255,215,0,0.15)'">Features</a>
+    <a href="/admin/security" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#f44336;background:rgba(244,67,54,0.15);transition:background 0.2s;" onmouseover="this.style.background='rgba(244,67,54,0.3)'" onmouseout="this.style.background='rgba(244,67,54,0.15)'">Security</a>
 </nav>
 """
 
@@ -16577,6 +16578,259 @@ def api_admin_node_payout_pct():
     if success:
         return jsonify({"success": True, "payout_pct": payout_pct})
     return jsonify({"success": False, "error": "Failed to update"}), 500
+
+
+@app.route("/api/admin/antidilution")
+@admin_required
+def api_admin_antidilution():
+    """Get anti-dilution system status. (Build #97)
+
+    Returns node counts, cap status, geographic distribution,
+    and onboarding spike detection.
+    """
+    try:
+        from node_antidilution import get_antidilution_status
+        return jsonify(get_antidilution_status())
+    except Exception as e:
+        logger.error(f"Anti-dilution status error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/admin/antidilution/config", methods=["POST"])
+@admin_required
+def api_admin_antidilution_config():
+    """Update anti-dilution configuration. (Build #97)"""
+    try:
+        import node_antidilution
+        data = request.get_json() or {}
+
+        # Update configurable values
+        if "dedicated_ratio" in data:
+            ratio = max(0.01, min(0.50, float(data["dedicated_ratio"])))
+            node_antidilution.DEDICATED_TO_DATA_RATIO = ratio
+
+        if "geo_threshold" in data:
+            threshold = max(0.10, min(1.0, float(data["geo_threshold"])))
+            node_antidilution.GEO_CONCENTRATION_THRESHOLD = threshold
+
+        if "escrow_days" in data:
+            days = max(0, min(90, int(data["escrow_days"])))
+            node_antidilution.NEW_NODE_ESCROW_DAYS = days
+
+        return jsonify({
+            "success": True,
+            "config": {
+                "dedicated_ratio": node_antidilution.DEDICATED_TO_DATA_RATIO,
+                "geo_threshold": node_antidilution.GEO_CONCENTRATION_THRESHOLD,
+                "escrow_days": node_antidilution.NEW_NODE_ESCROW_DAYS,
+            }
+        })
+    except Exception as e:
+        logger.error(f"Anti-dilution config update error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/security")
+@admin_required
+def admin_security():
+    """Anti-dilution and network security dashboard. (Build #97)"""
+    try:
+        from node_antidilution import get_antidilution_status
+        status = get_antidilution_status()
+    except Exception as e:
+        logger.error(f"Failed to get anti-dilution status: {e}")
+        status = {"error": str(e)}
+
+    content = ADMIN_NAV + """
+<style>
+.security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.security-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; }
+.security-card h3 { margin: 0 0 15px 0; font-size: 16px; color: #e8e8e8; display: flex; align-items: center; gap: 8px; }
+.security-card .icon { font-size: 20px; }
+.stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: #888; }
+.stat-value { font-weight: 600; color: #e8e8e8; }
+.stat-value.good { color: #4caf50; }
+.stat-value.warning { color: #ff9800; }
+.stat-value.danger { color: #f44336; }
+.health-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.health-badge.healthy { background: rgba(76,175,80,0.2); color: #4caf50; }
+.health-badge.warning { background: rgba(255,152,0,0.2); color: #ff9800; }
+.health-badge.critical { background: rgba(244,67,54,0.2); color: #f44336; }
+.config-section { margin-top: 30px; }
+.config-row { display: flex; align-items: center; gap: 15px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.config-label { flex: 1; color: #888; }
+.config-input { width: 100px; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; text-align: right; }
+.config-unit { color: #666; min-width: 40px; }
+.save-btn { padding: 10px 24px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 20px; }
+.save-btn:hover { opacity: 0.9; }
+.geo-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+.geo-segment { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; }
+</style>
+
+<h1 style="display: flex; align-items: center; gap: 12px;">
+    <span style="font-size: 28px;">&#128737;</span>
+    Network Security
+    <span class="health-badge {{ 'healthy' if status.get('health', {}).get('overall', False) else 'warning' }}">
+        {{ 'HEALTHY' if status.get('health', {}).get('overall', False) else 'ATTENTION NEEDED' }}
+    </span>
+</h1>
+<p style="color: #888; margin-bottom: 30px;">Anti-dilution controls protect the node reward pool from Sybil attacks.</p>
+
+<div class="security-grid">
+    <!-- Node Counts -->
+    <div class="security-card">
+        <h3><span class="icon">&#128187;</span> Node Distribution</h3>
+        <div class="stat-row">
+            <span class="stat-label">Mobile Nodes</span>
+            <span class="stat-value">{{ status.get('node_counts', {}).get('mobile', 0) }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Desktop Nodes</span>
+            <span class="stat-value">{{ status.get('node_counts', {}).get('desktop', 0) }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Dedicated Servers</span>
+            <span class="stat-value">{{ status.get('node_counts', {}).get('dedicated_server', 0) }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Total Nodes</span>
+            <span class="stat-value" style="font-size: 18px;">{{ status.get('node_counts', {}).get('total', 0) }}</span>
+        </div>
+    </div>
+
+    <!-- Dedicated Node Cap -->
+    <div class="security-card">
+        <h3><span class="icon">&#128274;</span> Dedicated Node Cap</h3>
+        {% set cap = status.get('dedicated_cap', {}) %}
+        <div class="stat-row">
+            <span class="stat-label">Current / Cap</span>
+            <span class="stat-value {{ 'danger' if cap.get('at_capacity') else 'good' }}">
+                {{ cap.get('current_dedicated', 0) }} / {{ cap.get('effective_cap', 0) }}
+            </span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Headroom</span>
+            <span class="stat-value {{ 'danger' if cap.get('headroom', 0) == 0 else 'good' }}">
+                {{ cap.get('headroom', 0) }} slots
+            </span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Ratio Cap</span>
+            <span class="stat-value">{{ cap.get('ratio_cap', 0) }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Demand Cap</span>
+            <span class="stat-value">{{ cap.get('demand_cap', 0) }}</span>
+        </div>
+    </div>
+
+    <!-- Onboarding Spike -->
+    <div class="security-card">
+        <h3><span class="icon">&#128200;</span> Onboarding Rate</h3>
+        {% set spike = status.get('onboarding_spike', {}) %}
+        <div class="stat-row">
+            <span class="stat-label">Nodes (last hour)</span>
+            <span class="stat-value {{ 'danger' if spike.get('is_spike') else 'good' }}">
+                {{ spike.get('nodes_last_hour', 0) }}
+            </span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Spike Threshold</span>
+            <span class="stat-value">{{ spike.get('threshold', 100) }}/hr</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Status</span>
+            <span class="stat-value {{ 'danger' if spike.get('is_spike') else 'good' }}">
+                {{ 'SPIKE DETECTED' if spike.get('is_spike') else 'Normal' }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Geographic Distribution -->
+    <div class="security-card">
+        <h3><span class="icon">&#127758;</span> Geographic Distribution</h3>
+        {% set geo = status.get('geographic', {}) %}
+        <div class="stat-row">
+            <span class="stat-label">Countries</span>
+            <span class="stat-value">{{ geo.get('distribution', {})|length }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Concentration</span>
+            <span class="stat-value {{ 'good' if geo.get('healthy', True) else 'warning' }}">
+                {{ 'Healthy' if geo.get('healthy', True) else 'Concentrated' }}
+            </span>
+        </div>
+        {% if geo.get('flags') %}
+        <div style="margin-top: 10px; padding: 10px; background: rgba(255,152,0,0.1); border-radius: 6px;">
+            {% for flag in geo.get('flags', []) %}
+            <div style="color: #ff9800; font-size: 12px;">
+                &#9888; {{ flag.get('country') }}: {{ flag.get('percentage') }}% (threshold: {{ flag.get('threshold') }}%)
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Configuration -->
+<div class="security-card config-section">
+    <h3><span class="icon">&#9881;</span> Anti-Dilution Configuration</h3>
+    {% set config = status.get('config', {}) %}
+    <div class="config-row">
+        <span class="config-label">Dedicated:Data Node Ratio</span>
+        <input type="number" id="dedicated_ratio" class="config-input"
+               value="{{ (config.get('dedicated_ratio_limit', 0.10) * 100)|int }}" min="1" max="50" step="1">
+        <span class="config-unit">%</span>
+    </div>
+    <div class="config-row">
+        <span class="config-label">Geographic Concentration Threshold</span>
+        <input type="number" id="geo_threshold" class="config-input"
+               value="{{ (config.get('geo_concentration_threshold', 0.40) * 100)|int }}" min="10" max="100" step="5">
+        <span class="config-unit">%</span>
+    </div>
+    <div class="config-row">
+        <span class="config-label">New Node Escrow Period</span>
+        <input type="number" id="escrow_days" class="config-input"
+               value="{{ config.get('escrow_days', 30) }}" min="0" max="90" step="1">
+        <span class="config-unit">days</span>
+    </div>
+    <button class="save-btn" onclick="saveConfig()">Save Configuration</button>
+</div>
+
+<script>
+async function saveConfig() {
+    const data = {
+        dedicated_ratio: parseFloat(document.getElementById('dedicated_ratio').value) / 100,
+        geo_threshold: parseFloat(document.getElementById('geo_threshold').value) / 100,
+        escrow_days: parseInt(document.getElementById('escrow_days').value)
+    };
+    try {
+        const resp = await fetch('/api/admin/antidilution/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        if (result.success) {
+            alert('Configuration saved!');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Failed to save: ' + e.message);
+    }
+}
+</script>
+"""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Network Security",
+        content=render_template_string(content, status=status),
+        current_user=current_user
+    )
 
 
 @app.route("/admin/payments")
@@ -17807,8 +18061,19 @@ def api_node_register():
         return check
     try:
         from node_registry import node_registry
+        from node_antidilution import check_onboarding_allowed
         data = request.get_json() or {}
         capabilities = data.get("capabilities", {})
+
+        # Anti-dilution check (Build #97)
+        allowed, reason = check_onboarding_allowed(capabilities, current_user.id)
+        if not allowed:
+            return jsonify({
+                "error": "capacity_limit",
+                "message": reason,
+                "hint": "Install the mobile app or desktop extension to join as a data-generating node."
+            }), 503
+
         result = node_registry.register_node(
             user_id=current_user.id,
             capabilities=capabilities,
@@ -17954,6 +18219,9 @@ def api_node_onboard():
         country_code: 2-letter ISO (default: "US")
         city: city name
         zone_code: sub-regional zone (e.g. "US-NE")
+        platform: 'mobile', 'desktop', 'windows', 'macos', 'linux'
+        has_extension: bool
+        has_browser: bool
 
     Returns helper_token + node instructions.
     """
@@ -17963,6 +18231,22 @@ def api_node_onboard():
     import secrets as _secrets
     try:
         data = request.get_json(silent=True) or {}
+
+        # Anti-dilution check (Build #97)
+        from node_antidilution import check_onboarding_allowed
+        capabilities = {
+            "platform": data.get("platform", "linux"),
+            "has_extension": data.get("has_extension", False),
+            "has_browser": data.get("has_browser", False),
+            "has_auth_sessions": data.get("has_auth_sessions", False),
+        }
+        allowed, reason = check_onboarding_allowed(capabilities, current_user.id)
+        if not allowed:
+            return jsonify({
+                "error": "capacity_limit",
+                "message": reason,
+                "hint": "Install the mobile app or desktop extension to join as a data-generating node."
+            }), 503
         country_code = (data.get("country_code") or "US").strip().upper()[:2]
         city = (data.get("city") or "").strip() or None
         zone_code = (data.get("zone_code") or "").strip() or None
