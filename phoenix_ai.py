@@ -1,5 +1,5 @@
 """
-PHOENIX AI Engine — LLM-Powered Tool-Calling Orchestrator (Build #72)
+PHOENIX AI Engine — LLM-Powered Tool-Calling Orchestrator (Build #99)
 
 Core AI chat module that connects an LLM (Claude via Anthropic tool-calling API)
 to every Phoenix platform capability. Users interact via natural language; the
@@ -352,7 +352,8 @@ PHOENIX_AI_SYSTEM_PROMPT = (
     "- search_products: Product price comparison across markets\n"
     "- analyze_route, get_route_intelligence: Route analysis and market intelligence\n"
     "- get_market_briefing, get_trending, get_price_history: Market data\n"
-    "- get_node_status, get_earnings: Node operator tools\n\n"
+    "- get_node_status, get_earnings: Node operator tools\n"
+    "- get_saved_travelers, prepare_booking: Booking and traveler management\n\n"
 
     "ALWAYS use the available tools to answer questions with real data. "
     "Do not guess prices or make up data — call the appropriate tool first.\n\n"
@@ -367,6 +368,17 @@ PHOENIX_AI_SYSTEM_PROMPT = (
     "The tool results include rich card data that will be displayed automatically — "
     "your text should complement the cards, not repeat every detail. Focus on the "
     "top 3-5 options and highlight the best deals.\n\n"
+
+    "BOOKING FLOW — COLLECT TRAVELER INFO:\n"
+    "When a user wants to BOOK a flight (not just search), you need traveler details:\n"
+    "1. First, call get_saved_travelers to see if they have saved profiles\n"
+    "2. Ask: 'How many passengers are traveling?'\n"
+    "3. For each passenger, either:\n"
+    "   - Let them select from saved travelers, OR\n"
+    "   - Collect: first name, last name, date of birth, gender, email, phone\n"
+    "4. For international flights, also need: passport number, expiry, nationality\n"
+    "5. Once you have all traveler info, call prepare_booking to validate and confirm\n"
+    "Do NOT ask for all this info upfront for searches — only when booking.\n\n"
 
     "Format prices in USD unless the user specifies otherwise. "
     "If a tool returns an error, explain what happened and suggest alternatives."
@@ -1025,6 +1037,92 @@ PHOENIX_AI_TOOLS = [
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+    # =======================================================================
+    # Build #99 — Smart Booking Tools (Traveler Collection)
+    # =======================================================================
+    {
+        "name": "get_saved_travelers",
+        "description": (
+            "Get the user's saved traveler profiles. Returns a list of saved travelers "
+            "with their names, dates of birth, passport info, and preferences. Use this "
+            "when the user wants to book a flight or asks about their saved travelers."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "prepare_booking",
+        "description": (
+            "Prepare a flight booking with traveler details. Call this AFTER the user "
+            "has selected a flight and provided traveler information. This validates the "
+            "booking data and returns a booking summary for user confirmation. "
+            "Requires: flight offer ID, list of traveler IDs or new traveler details."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "offer_id": {
+                    "type": "string",
+                    "description": "The flight offer ID from search results",
+                },
+                "traveler_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "List of saved traveler profile IDs to use for booking",
+                },
+                "new_travelers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "first_name": {"type": "string"},
+                            "last_name": {"type": "string"},
+                            "date_of_birth": {"type": "string", "description": "YYYY-MM-DD format"},
+                            "gender": {"type": "string", "enum": ["M", "F"]},
+                            "email": {"type": "string"},
+                            "phone": {"type": "string"},
+                        },
+                    },
+                    "description": "New traveler details if not using saved profiles",
+                },
+                "contact_email": {
+                    "type": "string",
+                    "description": "Contact email for booking confirmations",
+                },
+            },
+            "required": ["offer_id"],
+        },
+    },
+    {
+        "name": "get_booking_requirements",
+        "description": (
+            "Get the required traveler information for a specific flight booking. "
+            "Returns what passenger data is needed (passport for international, TSA info "
+            "for US domestic, etc.). Use this to guide the user on what info they need "
+            "to provide before booking."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "origin": {
+                    "type": "string",
+                    "description": "Origin airport IATA code",
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "Destination airport IATA code",
+                },
+                "passenger_count": {
+                    "type": "integer",
+                    "description": "Number of passengers (default 1)",
+                },
+            },
+            "required": ["origin", "destination"],
         },
     },
 ]
@@ -1694,6 +1792,137 @@ class PhoenixAI:
                     "is_verified": getattr(user, 'is_verified', False),
                 }
 
+            # ---------------------------------------------------------------
+            # Build #99 — Smart Booking Tools (Traveler Collection)
+            # ---------------------------------------------------------------
+
+            elif tool_name == "get_saved_travelers":
+                from models import TravelerProfile
+                travelers = TravelerProfile.query.filter_by(
+                    user_id=user_id, is_active=True
+                ).order_by(TravelerProfile.is_primary.desc()).all()
+                return {
+                    "travelers": [
+                        {
+                            "id": t.id,
+                            "name": f"{t.first_name} {t.last_name}",
+                            "first_name": t.first_name,
+                            "last_name": t.last_name,
+                            "date_of_birth": str(t.date_of_birth) if t.date_of_birth else None,
+                            "gender": t.gender,
+                            "email": t.email,
+                            "phone": t.phone,
+                            "passenger_type": t.passenger_type or "ADULT",
+                            "has_passport": bool(t.passport_number),
+                            "passport_country": t.passport_country,
+                            "is_primary": t.is_primary,
+                        }
+                        for t in travelers
+                    ],
+                    "count": len(travelers),
+                    "has_travelers": len(travelers) > 0,
+                }
+
+            elif tool_name == "prepare_booking":
+                from models import TravelerProfile
+                offer_id = tool_input.get("offer_id", "")
+                traveler_ids = tool_input.get("traveler_ids", [])
+                new_travelers = tool_input.get("new_travelers", [])
+                contact_email = tool_input.get("contact_email")
+
+                # Validate we have traveler info
+                if not traveler_ids and not new_travelers:
+                    return {
+                        "success": False,
+                        "error": "No travelers specified",
+                        "message": "Please provide either saved traveler IDs or new traveler details.",
+                        "action_needed": "collect_travelers",
+                    }
+
+                # Load saved travelers
+                travelers_data = []
+                if traveler_ids:
+                    saved = TravelerProfile.query.filter(
+                        TravelerProfile.id.in_(traveler_ids),
+                        TravelerProfile.user_id == user_id
+                    ).all()
+                    for t in saved:
+                        travelers_data.append({
+                            "source": "saved",
+                            "id": t.id,
+                            "name": f"{t.first_name} {t.last_name}",
+                            "date_of_birth": str(t.date_of_birth) if t.date_of_birth else None,
+                            "gender": t.gender,
+                            "email": t.email or contact_email,
+                            "has_passport": bool(t.passport_number),
+                        })
+
+                # Add new travelers
+                for nt in new_travelers:
+                    travelers_data.append({
+                        "source": "new",
+                        "name": f"{nt.get('first_name', '')} {nt.get('last_name', '')}",
+                        "date_of_birth": nt.get("date_of_birth"),
+                        "gender": nt.get("gender"),
+                        "email": nt.get("email") or contact_email,
+                        "has_passport": False,  # New travelers need passport info for intl
+                    })
+
+                return {
+                    "success": True,
+                    "offer_id": offer_id,
+                    "travelers": travelers_data,
+                    "passenger_count": len(travelers_data),
+                    "ready_to_book": len(travelers_data) > 0,
+                    "message": f"Booking prepared for {len(travelers_data)} passenger(s). Ready to proceed with payment.",
+                    "next_step": "confirm_and_pay",
+                }
+
+            elif tool_name == "get_booking_requirements":
+                origin = tool_input.get("origin", "").upper()
+                destination = tool_input.get("destination", "").upper()
+                passenger_count = tool_input.get("passenger_count", 1)
+
+                # Determine if international (simple heuristic: different first 2 chars = different country)
+                # In reality we'd use airport country codes from a database
+                is_international = origin[:2] != destination[:2] if len(origin) >= 2 and len(destination) >= 2 else True
+                is_us_domestic = origin.startswith(("J", "L", "S", "O", "D", "A", "M", "C", "P", "B")) and not is_international
+
+                base_requirements = [
+                    "Full legal name (as on ID)",
+                    "Date of birth",
+                    "Gender",
+                    "Contact email",
+                    "Contact phone",
+                ]
+
+                if is_international:
+                    base_requirements.extend([
+                        "Passport number",
+                        "Passport expiry date",
+                        "Passport issuing country",
+                        "Nationality",
+                    ])
+
+                if is_us_domestic or destination.startswith(("J", "L", "S", "O", "D", "A", "M")):
+                    base_requirements.extend([
+                        "TSA Redress Number (if applicable)",
+                        "Known Traveler Number (if applicable)",
+                    ])
+
+                return {
+                    "origin": origin,
+                    "destination": destination,
+                    "is_international": is_international,
+                    "passenger_count": passenger_count,
+                    "required_fields": base_requirements,
+                    "message": (
+                        f"For this {'international' if is_international else 'domestic'} flight, "
+                        f"each of the {passenger_count} passenger(s) will need: {', '.join(base_requirements[:5])}."
+                        + (" Plus passport details." if is_international else "")
+                    ),
+                }
+
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
 
@@ -1767,6 +1996,13 @@ class PhoenixAI:
                 return self._format_deals(result)
             elif tool_name == "discover_opportunities":
                 return self._format_opportunities(result)
+            # Build #99 — Smart booking tool formatters
+            elif tool_name == "get_saved_travelers":
+                return self._format_saved_travelers(result)
+            elif tool_name == "prepare_booking":
+                return self._format_prepare_booking(result)
+            elif tool_name == "get_booking_requirements":
+                return result.get("message", json.dumps(result))
         except Exception as e:
             self.logger.warning("Format failed for %s: %s", tool_name, e)
 
@@ -2119,6 +2355,58 @@ class PhoenixAI:
             elif opp.get("site"):
                 detail = f" (site: {opp['site']})"
             lines.append(f"  [{priority}] {opp_type}{detail} -> {action}")
+        return "\n".join(lines)
+
+    # -- Build #99: Smart booking formatters --
+
+    def _format_saved_travelers(self, result):
+        """Format saved travelers list for AI response."""
+        travelers = result.get("travelers", [])
+        count = result.get("count", 0)
+
+        if count == 0:
+            return (
+                "No saved travelers found.\n"
+                "To book, you'll need to provide traveler details:\n"
+                "- Full name (as on ID)\n"
+                "- Date of birth\n"
+                "- Gender\n"
+                "- Email and phone\n"
+                "For international flights, also passport info."
+            )
+
+        lines = [f"Saved Travelers ({count}):"]
+        for i, t in enumerate(travelers, 1):
+            primary = " (Primary)" if t.get("is_primary") else ""
+            passport = " [Passport on file]" if t.get("has_passport") else ""
+            pax_type = t.get("passenger_type", "ADULT")
+            lines.append(
+                f"  {i}. {t.get('name', 'Unknown')}{primary} — "
+                f"{pax_type}{passport}"
+            )
+
+        lines.append("\nYou can select saved travelers by number, or provide new traveler details.")
+        return "\n".join(lines)
+
+    def _format_prepare_booking(self, result):
+        """Format booking preparation results."""
+        if not result.get("success"):
+            return f"Booking preparation failed: {result.get('error', 'Unknown error')}\n{result.get('message', '')}"
+
+        lines = [
+            "Booking Prepared Successfully:",
+            f"  Offer ID: {result.get('offer_id', 'N/A')}",
+            f"  Passengers: {result.get('passenger_count', 0)}",
+        ]
+
+        travelers = result.get("travelers", [])
+        for i, t in enumerate(travelers, 1):
+            source = "(saved)" if t.get("source") == "saved" else "(new)"
+            lines.append(f"    {i}. {t.get('name', 'Unknown')} {source}")
+
+        lines.append(f"\nNext step: {result.get('next_step', 'Confirm and proceed to payment')}")
+        lines.append(result.get("message", ""))
+
         return "\n".join(lines)
 
 
