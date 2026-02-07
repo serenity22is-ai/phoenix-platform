@@ -39,7 +39,7 @@ load_dotenv()
 # Import from local modules
 from models import (db, init_db, User, Deal, Payment, Booking, PriceAlert, Escrow,
                     HelperProfile, UserWallet, UserCard, P2PTransaction, P2PEscrow,
-                    NodeConsentProfile, RevenueAllocation)
+                    NodeConsentProfile, RevenueAllocation, TravelerProfile)
 from translation import (
     translate_html, translate_text, translate_form_data,
     detect_language, detect_language_from_html,
@@ -1534,6 +1534,251 @@ SETTINGS_CONTENT = """
         <button type="submit" class="btn">Update Password</button>
     </form>
 </div>
+"""
+
+# ============================================================================
+# Traveler Management UI (Build #100)
+# ============================================================================
+
+TRAVELERS_CONTENT = """
+<div style="max-width:900px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+        <div>
+            <h1 style="color:#fff;margin:0 0 8px 0;font-size:28px;">Saved Travelers</h1>
+            <p style="color:#aaa;margin:0;font-size:15px;">Manage traveler profiles for faster booking</p>
+        </div>
+        <button onclick="showAddTraveler()" class="btn" style="background:#00d4ff;color:#000;font-weight:600;">
+            + Add Traveler
+        </button>
+    </div>
+
+    {% if travelers %}
+    <div style="display:flex;flex-direction:column;gap:16px;">
+        {% for t in travelers %}
+        <div class="card" style="border-left:4px solid {{ '#00d4ff' if t.is_primary else '#444' }};">
+            <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:16px;">
+                <div style="flex:1;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                        <h3 style="margin:0;color:#fff;">{{ t.first_name }} {{ t.last_name }}</h3>
+                        {% if t.is_primary %}
+                        <span style="background:#00d4ff;color:#000;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;">PRIMARY</span>
+                        {% endif %}
+                        <span style="background:rgba(255,255,255,0.1);color:#aaa;font-size:11px;padding:2px 8px;border-radius:4px;">{{ t.passenger_type or 'ADULT' }}</span>
+                    </div>
+                    <div style="color:#888;font-size:14px;">
+                        {% if t.date_of_birth %}DOB: {{ t.date_of_birth.strftime('%b %d, %Y') }} &bull; {% endif %}
+                        {{ t.gender or '?' }} &bull;
+                        {{ t.email or 'No email' }}
+                    </div>
+                    {% if t.passport_number %}
+                    <div style="color:#4caf50;font-size:13px;margin-top:8px;">
+                        <span style="margin-right:8px;">&#x2713;</span>Passport on file ({{ t.passport_country or '?' }})
+                        {% if t.passport_expiry %} &bull; Expires {{ t.passport_expiry.strftime('%b %Y') }}{% endif %}
+                    </div>
+                    {% else %}
+                    <div style="color:#ff9800;font-size:13px;margin-top:8px;">
+                        <span style="margin-right:8px;">&#x26A0;</span>No passport info — required for international flights
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="editTraveler({{ t.id }})" style="background:transparent;border:1px solid #555;color:#fff;padding:8px 16px;border-radius:4px;cursor:pointer;">Edit</button>
+                    {% if not t.is_primary %}
+                    <button onclick="setPrimary({{ t.id }})" style="background:transparent;border:1px solid #00d4ff;color:#00d4ff;padding:8px 16px;border-radius:4px;cursor:pointer;">Set Primary</button>
+                    {% endif %}
+                    <button onclick="deleteTraveler({{ t.id }})" style="background:transparent;border:1px solid #e57373;color:#e57373;padding:8px 16px;border-radius:4px;cursor:pointer;">Delete</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:60px 20px;">
+        <div style="font-size:48px;margin-bottom:16px;">&#x1F464;</div>
+        <h3 style="color:#fff;margin:0 0 8px 0;">No Saved Travelers</h3>
+        <p style="color:#888;margin:0 0 24px 0;">Add your first traveler profile to speed up booking</p>
+        <button onclick="showAddTraveler()" class="btn" style="background:#00d4ff;color:#000;font-weight:600;">
+            + Add Your First Traveler
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add/Edit Traveler Modal -->
+<div id="travelerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:1000;overflow-y:auto;">
+    <div style="max-width:600px;margin:40px auto;background:#1a1a2e;border-radius:12px;padding:32px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <h2 id="modalTitle" style="color:#fff;margin:0;">Add Traveler</h2>
+            <button onclick="closeModal()" style="background:transparent;border:none;color:#888;font-size:24px;cursor:pointer;">&times;</button>
+        </div>
+        <form id="travelerForm" onsubmit="saveTraveler(event)">
+            <input type="hidden" id="travelerId" value="">
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">First Name *</label>
+                    <input type="text" id="firstName" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Last Name *</label>
+                    <input type="text" id="lastName" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;">
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Date of Birth *</label>
+                    <input type="date" id="dob" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Gender *</label>
+                    <select id="gender" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                        <option value="">Select</option>
+                        <option value="M">Male</option>
+                        <option value="F">Female</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Passenger Type</label>
+                    <select id="passengerType" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                        <option value="ADULT">Adult</option>
+                        <option value="CHILD">Child (2-11)</option>
+                        <option value="INFANT">Infant (0-2)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Email</label>
+                    <input type="email" id="email" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Phone</label>
+                    <input type="tel" id="phone" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+            </div>
+
+            <hr style="border:none;border-top:1px solid #333;margin:24px 0;">
+            <h3 style="color:#fff;margin:0 0 16px 0;font-size:16px;">Passport Details (for international flights)</h3>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Passport Number</label>
+                    <input type="text" id="passportNumber" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Expiry Date</label>
+                    <input type="date" id="passportExpiry" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Issuing Country</label>
+                    <input type="text" id="passportCountry" placeholder="e.g., US" maxlength="2" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+                <div class="form-group">
+                    <label style="color:#aaa;font-size:13px;">Nationality</label>
+                    <input type="text" id="nationality" placeholder="e.g., US" maxlength="2" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                </div>
+            </div>
+
+            <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;">
+                <button type="button" onclick="closeModal()" style="background:transparent;border:1px solid #555;color:#fff;padding:12px 24px;border-radius:6px;cursor:pointer;">Cancel</button>
+                <button type="submit" class="btn" style="background:#00d4ff;color:#000;font-weight:600;padding:12px 24px;">Save Traveler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showAddTraveler() {
+    document.getElementById('modalTitle').textContent = 'Add Traveler';
+    document.getElementById('travelerId').value = '';
+    document.getElementById('travelerForm').reset();
+    document.getElementById('travelerModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('travelerModal').style.display = 'none';
+}
+
+async function editTraveler(id) {
+    try {
+        const resp = await fetch('/api/travelers/' + id);
+        const data = await resp.json();
+        if (data.traveler) {
+            const t = data.traveler;
+            document.getElementById('modalTitle').textContent = 'Edit Traveler';
+            document.getElementById('travelerId').value = t.id;
+            document.getElementById('firstName').value = t.first_name || '';
+            document.getElementById('lastName').value = t.last_name || '';
+            document.getElementById('dob').value = t.date_of_birth || '';
+            document.getElementById('gender').value = t.gender || '';
+            document.getElementById('passengerType').value = t.passenger_type || 'ADULT';
+            document.getElementById('email').value = t.email || '';
+            document.getElementById('phone').value = t.phone || '';
+            document.getElementById('passportNumber').value = t.passport_number || '';
+            document.getElementById('passportExpiry').value = t.passport_expiry || '';
+            document.getElementById('passportCountry').value = t.passport_country || '';
+            document.getElementById('nationality').value = t.nationality || '';
+            document.getElementById('travelerModal').style.display = 'block';
+        }
+    } catch (e) { alert('Failed to load traveler'); }
+}
+
+async function saveTraveler(e) {
+    e.preventDefault();
+    const id = document.getElementById('travelerId').value;
+    const data = {
+        first_name: document.getElementById('firstName').value,
+        last_name: document.getElementById('lastName').value,
+        date_of_birth: document.getElementById('dob').value,
+        gender: document.getElementById('gender').value,
+        passenger_type: document.getElementById('passengerType').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        passport_number: document.getElementById('passportNumber').value,
+        passport_expiry: document.getElementById('passportExpiry').value,
+        passport_country: document.getElementById('passportCountry').value.toUpperCase(),
+        nationality: document.getElementById('nationality').value.toUpperCase(),
+    };
+
+    try {
+        const url = id ? '/api/travelers/' + id : '/api/travelers';
+        const method = id ? 'PUT' : 'POST';
+        const resp = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            const err = await resp.json();
+            alert(err.error || 'Failed to save');
+        }
+    } catch (e) { alert('Failed to save traveler'); }
+}
+
+async function setPrimary(id) {
+    try {
+        const resp = await fetch('/api/travelers/' + id + '/primary', { method: 'POST' });
+        if (resp.ok) window.location.reload();
+        else alert('Failed to set primary');
+    } catch (e) { alert('Error setting primary'); }
+}
+
+async function deleteTraveler(id) {
+    if (!confirm('Delete this traveler?')) return;
+    try {
+        const resp = await fetch('/api/travelers/' + id, { method: 'DELETE' });
+        if (resp.ok) window.location.reload();
+        else alert('Failed to delete');
+    } catch (e) { alert('Error deleting traveler'); }
+}
+</script>
 """
 
 DEALS_CONTENT = """
@@ -3297,6 +3542,28 @@ def change_password():
     db.session.commit()
     flash("Password updated successfully!", "success")
     return redirect("/settings")
+
+
+# --- Traveler Management UI (Build #100) ---
+
+@app.route("/travelers")
+@login_required
+def travelers_page():
+    """Saved travelers management page."""
+    travelers = TravelerProfile.query.filter_by(
+        user_id=current_user.id,
+        is_active=True
+    ).order_by(TravelerProfile.is_primary.desc(), TravelerProfile.created_at.desc()).all()
+
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Saved Travelers",
+        content=render_template_string(
+            TRAVELERS_CONTENT,
+            travelers=travelers
+        ),
+        current_user=current_user
+    )
 
 
 # --- GDPR Data Rights ---

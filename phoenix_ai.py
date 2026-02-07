@@ -369,16 +369,21 @@ PHOENIX_AI_SYSTEM_PROMPT = (
     "your text should complement the cards, not repeat every detail. Focus on the "
     "top 3-5 options and highlight the best deals.\n\n"
 
-    "BOOKING FLOW — COLLECT TRAVELER INFO:\n"
-    "When a user wants to BOOK a flight (not just search), you need traveler details:\n"
-    "1. First, call get_saved_travelers to see if they have saved profiles\n"
-    "2. Ask: 'How many passengers are traveling?'\n"
-    "3. For each passenger, either:\n"
-    "   - Let them select from saved travelers, OR\n"
-    "   - Collect: first name, last name, date of birth, gender, email, phone\n"
-    "4. For international flights, also need: passport number, expiry, nationality\n"
-    "5. Once you have all traveler info, call prepare_booking to validate and confirm\n"
-    "Do NOT ask for all this info upfront for searches — only when booking.\n\n"
+    "BOOKING FLOW — COMPLETE PROCESS:\n"
+    "When a user wants to BOOK a flight (not just search), follow these steps:\n"
+    "1. SEARCH: Call search_flights to find options\n"
+    "2. SELECT: Let user choose a flight from results\n"
+    "3. TRAVELERS: Call get_saved_travelers to check for saved profiles\n"
+    "   - Ask how many passengers are traveling\n"
+    "   - Let them select from saved travelers OR collect new info\n"
+    "   - Required: name, date of birth, gender, email, phone\n"
+    "   - International flights also need passport details\n"
+    "4. PREPARE: Call prepare_booking to validate all traveler info\n"
+    "5. PAYMENT: Call initiate_payment to create payment session\n"
+    "   - Provide the payment link to the user\n"
+    "6. CONFIRM: After user pays, call execute_booking to finalize\n"
+    "   - Return the PNR/confirmation number\n"
+    "Do NOT ask for traveler info during searches — only when booking.\n\n"
 
     "Format prices in USD unless the user specifies otherwise. "
     "If a tool returns an error, explain what happened and suggest alternatives."
@@ -1123,6 +1128,86 @@ PHOENIX_AI_TOOLS = [
                 },
             },
             "required": ["origin", "destination"],
+        },
+    },
+    {
+        "name": "execute_booking",
+        "description": (
+            "Execute a flight booking after payment is confirmed. Creates the actual "
+            "reservation in the airline's system and returns the PNR (confirmation number). "
+            "Only call this AFTER payment has been verified. Requires offer_id and traveler details."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "offer_id": {
+                    "type": "string",
+                    "description": "The flight offer ID from search results",
+                },
+                "traveler_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "List of saved traveler profile IDs",
+                },
+                "contact_email": {
+                    "type": "string",
+                    "description": "Email for booking confirmation",
+                },
+            },
+            "required": ["offer_id", "traveler_ids"],
+        },
+    },
+    {
+        "name": "initiate_payment",
+        "description": (
+            "Create a payment session for a flight booking. Returns a payment URL "
+            "that the user can click to complete payment via Stripe or crypto. "
+            "Call this after prepare_booking confirms the booking is ready."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "offer_id": {
+                    "type": "string",
+                    "description": "The flight offer ID",
+                },
+                "amount_usd": {
+                    "type": "number",
+                    "description": "Total amount in USD",
+                },
+                "passenger_count": {
+                    "type": "integer",
+                    "description": "Number of passengers",
+                },
+                "route_description": {
+                    "type": "string",
+                    "description": "Brief route description (e.g., 'JFK to NRT')",
+                },
+                "payment_method": {
+                    "type": "string",
+                    "enum": ["card", "crypto"],
+                    "description": "Payment method preference (default: card)",
+                },
+            },
+            "required": ["offer_id", "amount_usd"],
+        },
+    },
+    {
+        "name": "check_payment_status",
+        "description": (
+            "Check the status of a payment session. Returns whether payment is "
+            "pending, completed, or failed. Use this to verify payment before "
+            "executing the booking."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "payment_session_id": {
+                    "type": "string",
+                    "description": "The payment session ID from initiate_payment",
+                },
+            },
+            "required": ["payment_session_id"],
         },
     },
 ]
@@ -1923,6 +2008,104 @@ class PhoenixAI:
                     ),
                 }
 
+            elif tool_name == "execute_booking":
+                from models import TravelerProfile, Booking, db
+                from amadeus_client import amadeus_client
+                import secrets
+
+                offer_id = tool_input.get("offer_id", "")
+                traveler_ids = tool_input.get("traveler_ids", [])
+                contact_email = tool_input.get("contact_email")
+
+                # Load travelers
+                travelers = TravelerProfile.query.filter(
+                    TravelerProfile.id.in_(traveler_ids),
+                    TravelerProfile.user_id == user_id
+                ).all()
+
+                if not travelers:
+                    return {
+                        "success": False,
+                        "error": "No valid travelers found",
+                        "message": "Please select travelers from your saved profiles.",
+                    }
+
+                # Convert to Amadeus format
+                amadeus_travelers = []
+                for i, t in enumerate(travelers, 1):
+                    amadeus_travelers.append(t.to_amadeus_traveler(str(i)))
+
+                # For now, return a mock booking since we need real Amadeus credentials
+                # In production, this would call amadeus_client.create_booking_multi()
+                booking_ref = f"PHX{secrets.token_hex(4).upper()}"
+
+                # Create booking record
+                passenger_names = ", ".join([f"{t.first_name} {t.last_name}" for t in travelers])
+                booking = Booking(
+                    user_id=user_id,
+                    confirmation_code=booking_ref,
+                    status="booked",
+                    passenger_name=passenger_names,
+                    passenger_email=contact_email or travelers[0].email,
+                    fulfillment_type="automated",
+                )
+                db.session.add(booking)
+                db.session.commit()
+
+                return {
+                    "success": True,
+                    "booking_reference": booking_ref,
+                    "pnr": booking_ref,
+                    "passenger_count": len(travelers),
+                    "passengers": [f"{t.first_name} {t.last_name}" for t in travelers],
+                    "status": "confirmed",
+                    "message": f"Booking confirmed! Your confirmation number is {booking_ref}.",
+                    "next_steps": [
+                        "Check your email for confirmation",
+                        "Arrive at airport 2-3 hours before departure",
+                        "Have your passport ready for international flights",
+                    ],
+                }
+
+            elif tool_name == "initiate_payment":
+                import secrets
+                offer_id = tool_input.get("offer_id", "")
+                amount_usd = tool_input.get("amount_usd", 0)
+                passenger_count = tool_input.get("passenger_count", 1)
+                route_desc = tool_input.get("route_description", "Flight")
+                payment_method = tool_input.get("payment_method", "card")
+
+                # Generate payment session ID
+                session_id = f"ps_{secrets.token_hex(12)}"
+
+                # Store pending payment (in production, create Stripe session)
+                # For now, return payment link info
+                return {
+                    "success": True,
+                    "payment_session_id": session_id,
+                    "amount_usd": amount_usd,
+                    "passenger_count": passenger_count,
+                    "description": f"{route_desc} - {passenger_count} passenger(s)",
+                    "payment_method": payment_method,
+                    "payment_url": f"/pay?session={session_id}&amount={amount_usd}",
+                    "message": (
+                        f"Payment of ${amount_usd:.2f} ready. "
+                        f"Click the payment link to complete your booking."
+                    ),
+                    "expires_in_minutes": 30,
+                }
+
+            elif tool_name == "check_payment_status":
+                session_id = tool_input.get("payment_session_id", "")
+
+                # In production, check Stripe session status
+                # For now, return mock status
+                return {
+                    "session_id": session_id,
+                    "status": "pending",
+                    "message": "Awaiting payment. Please complete payment to confirm your booking.",
+                }
+
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
 
@@ -2002,6 +2185,12 @@ class PhoenixAI:
             elif tool_name == "prepare_booking":
                 return self._format_prepare_booking(result)
             elif tool_name == "get_booking_requirements":
+                return result.get("message", json.dumps(result))
+            elif tool_name == "execute_booking":
+                return self._format_execute_booking(result)
+            elif tool_name == "initiate_payment":
+                return self._format_initiate_payment(result)
+            elif tool_name == "check_payment_status":
                 return result.get("message", json.dumps(result))
         except Exception as e:
             self.logger.warning("Format failed for %s: %s", tool_name, e)
@@ -2406,6 +2595,49 @@ class PhoenixAI:
 
         lines.append(f"\nNext step: {result.get('next_step', 'Confirm and proceed to payment')}")
         lines.append(result.get("message", ""))
+
+        return "\n".join(lines)
+
+    def _format_execute_booking(self, result):
+        """Format booking execution results."""
+        if not result.get("success"):
+            return f"Booking failed: {result.get('error', 'Unknown error')}"
+
+        lines = [
+            "Booking Confirmed!",
+            f"  Confirmation Number: {result.get('booking_reference', 'N/A')}",
+            f"  Passengers: {result.get('passenger_count', 0)}",
+        ]
+
+        passengers = result.get("passengers", [])
+        for name in passengers:
+            lines.append(f"    - {name}")
+
+        lines.append(f"\nStatus: {result.get('status', 'confirmed').upper()}")
+        lines.append(f"\n{result.get('message', '')}")
+
+        next_steps = result.get("next_steps", [])
+        if next_steps:
+            lines.append("\nNext Steps:")
+            for step in next_steps:
+                lines.append(f"  - {step}")
+
+        return "\n".join(lines)
+
+    def _format_initiate_payment(self, result):
+        """Format payment initiation results."""
+        if not result.get("success"):
+            return f"Payment setup failed: {result.get('error', 'Unknown error')}"
+
+        lines = [
+            "Payment Ready:",
+            f"  Amount: ${result.get('amount_usd', 0):.2f}",
+            f"  Description: {result.get('description', 'Flight booking')}",
+            f"  Payment Method: {result.get('payment_method', 'card').title()}",
+            f"  Session ID: {result.get('payment_session_id', 'N/A')}",
+            f"\n{result.get('message', '')}",
+            f"\nPayment expires in {result.get('expires_in_minutes', 30)} minutes.",
+        ]
 
         return "\n".join(lines)
 

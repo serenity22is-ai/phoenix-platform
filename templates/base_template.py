@@ -1654,6 +1654,7 @@ BASE_TEMPLATE = '''
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
                     <div class="nav-more-menu" id="navMoreMenu">
                         <a href="/dashboard" class="nav-more-link">Dashboard</a>
+                        <a href="/travelers" class="nav-more-link">Travelers</a>
                         {% if current_user.is_admin %}<a href="/admin/nodes" class="nav-more-link" style="color: var(--phoenix-glow);">Nodes</a>{% endif %}
                         {% if current_user.is_admin %}<a href="/portal" class="nav-more-link" style="color: var(--phoenix-glow);">Proxy Portal</a>{% endif %}
                         {% if current_user.is_admin %}<a href="/helper" class="nav-more-link" style="color: var(--phoenix-glow);">Helper</a>{% endif %}
