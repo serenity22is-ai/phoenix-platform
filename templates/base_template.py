@@ -1647,8 +1647,7 @@ BASE_TEMPLATE = '''
 
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
-                <a href="/ai" class="nav-link">Chat</a>
-                <a href="/search" class="nav-link">Flights</a>
+                <a href="/ai" class="nav-link">Phoenix AI</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/wallet" class="nav-link">Wallet</a>
                 <div class="nav-more-wrapper">
@@ -1665,7 +1664,6 @@ BASE_TEMPLATE = '''
                 </div>
                 <a href="/logout" class="nav-link nav-cta">Logout</a>
             {% else %}
-                <a href="/search" class="nav-link">Flights</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/login" class="nav-link">Login</a>
                 <a href="/register" class="nav-link nav-cta">Get Started</a>
@@ -2142,8 +2140,8 @@ HOME_HERO = '''
     </p>
 
     <div class="hero-ctas">
-        <a href="/search" class="btn btn-primary btn-large">Search Flights</a>
-        <a href="/register" class="btn btn-secondary btn-large">Start Your Journey</a>
+        <a href="/register" class="btn btn-primary btn-large">Get Started</a>
+        <a href="/login" class="btn btn-secondary btn-large">Sign In</a>
     </div>
 
     <div class="hero-stats">

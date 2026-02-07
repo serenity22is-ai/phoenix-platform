@@ -1605,9 +1605,9 @@ DEALS_CONTENT = """
         <h2 style="color: #f5f5f5; margin-bottom: 10px;">No Active Deals Right Now</h2>
         <p style="color: #fff; max-width: 500px; margin: 0 auto 20px;">
             Deals are generated when our system finds price differences across global markets.
-            Try searching for a specific route, or check back soon.
+            Try asking Phoenix AI for a specific route, or check back soon.
         </p>
-        <a href="/search" class="btn">Search Flights</a>
+        <a href="/ai" class="btn">Try Phoenix AI</a>
     </div>
 {% endif %}
 """
@@ -6396,7 +6396,7 @@ ABOUT_CONTENT = """
     </div>
 
     <div style="text-align: center; margin-top: 30px;">
-        <a href="/search" class="btn" style="padding: 14px 40px; font-size: 18px;">Start Searching Flights</a>
+        <a href="/ai" class="btn" style="padding: 14px 40px; font-size: 18px;">Search with Phoenix AI</a>
     </div>
 </div>
 """
