@@ -41,3 +41,16 @@ android/local.properties
 
 # macOS
 .DS_Store
+
+# SQLite databases
+*.db
+instance/
+
+# Temporary/test files
+.build_mid.sh
+.srv_middle.py
+.mid.py
+font_samples.html
+
+# Build output
+build/
