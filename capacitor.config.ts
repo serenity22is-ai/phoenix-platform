@@ -7,9 +7,9 @@ const config: CapacitorConfig = {
   // For development, we use the server URL directly.
   webDir: 'static',
   server: {
-    // Development: point to Mac's local IP (Samsung hotspot network)
-    url: 'http://10.165.35.202:5001',
-    cleartext: true,
+    // Production: Render cloud deployment
+    url: 'https://phoenix-web-nj67.onrender.com',
+    cleartext: false,
   },
   plugins: {
     SplashScreen: {
