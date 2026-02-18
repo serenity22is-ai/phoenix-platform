@@ -354,7 +354,7 @@ MYSTES_AI_SYSTEM_PROMPT = (
 
     "You have access to powerful tools that connect to live MYSTES data:\n"
     "- search_flights: Search flights with real-time price comparison engine\n"
-    "- search_hotels: Search hotels via Amadeus — returns names, room types, prices per night, totals\n"
+    "- search_hotels: Search hotels via liteAPI — returns names, room types, prices per night, savings vs Google\n"
     "- search_cruises, search_rentals: Cross-market travel search\n"
     "- search_products: Product price comparison across markets\n"
     "- analyze_route, get_route_intelligence: Route analysis and market intelligence\n"
@@ -2061,7 +2061,6 @@ class MystesAI:
 
             elif tool_name == "execute_booking":
                 from models import TravelerProfile, Booking, db
-                from amadeus_client import amadeus_client
                 import secrets
 
                 offer_id = tool_input.get("offer_id", "")

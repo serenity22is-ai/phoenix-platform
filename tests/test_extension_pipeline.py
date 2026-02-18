@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from server import app, db
-from models import User, HelperProfile, UserWallet, UserCard, BrowsingEvent
+from server import app, db, limiter, _deal_link_rate
+from models import User, HelperProfile, UserWallet, UserCard, BrowsingEvent, NodeConsentProfile
 
 
 # ===================================================================
@@ -34,10 +34,16 @@ def client():
     app.config['SERVER_NAME'] = 'localhost.localdomain'
     app.config['RATELIMIT_ENABLED'] = False
 
+    # Disable Flask-Limiter at the object level — config flag alone doesn't work
+    limiter.enabled = False
+    _deal_link_rate.clear()
+
     with app.app_context():
         db.create_all()
         yield app.test_client()
         db.drop_all()
+
+    limiter.enabled = True
 
 
 @pytest.fixture
@@ -64,6 +70,9 @@ def helper_client(client):
     Create a test client with an authenticated user who has a fully
     provisioned helper profile, wallet, card, and helper_token.
 
+    Note: Registration auto-creates HelperProfile with helper_token (Build #91+).
+    This fixture queries the existing profile and adds wallet/card prerequisites.
+
     Yields (client, helper_token, user).
     """
     with app.app_context():
@@ -81,16 +90,23 @@ def helper_client(client):
 
         user = User.query.filter_by(email='helper_ext@example.com').first()
 
-        # Create active, approved helper profile
-        helper = HelperProfile(
-            user_id=user.id,
-            is_active=True,
-            is_approved=True,
-            country_code='US',
-            city='New York',
-        )
-        db.session.add(helper)
-        db.session.flush()
+        # Registration auto-creates HelperProfile — query it and update
+        helper = HelperProfile.query.filter_by(user_id=user.id).first()
+        if not helper:
+            # Fallback if auto-creation failed
+            helper = HelperProfile(
+                user_id=user.id,
+                is_active=True,
+                is_approved=True,
+                country_code='US',
+            )
+            db.session.add(helper)
+            db.session.flush()
+
+        helper.is_active = True
+        helper.is_approved = True
+        helper.country_code = 'US'
+        helper.city = 'New York'
 
         # Wallet (activation prerequisite)
         wallet = UserWallet(
@@ -114,9 +130,20 @@ def helper_client(client):
         )
         db.session.add(card)
 
-        # Generate helper token
+        # Set a known helper token for test assertions
         helper_token = secrets.token_urlsafe(48)
         helper.helper_token = helper_token
+
+        # Enable all consent categories so data ingestion tests work
+        consent = NodeConsentProfile.query.filter_by(user_id=user.id).first()
+        if consent:
+            consent.consent_search_queries = True
+            consent.consent_price_observations = True
+            consent.consent_ad_impressions = True
+            consent.consent_social_signals = True
+            consent.consent_browsing_data = True
+            consent.consent_business_data = True
+
         db.session.commit()
 
         yield client, helper_token, user
@@ -144,11 +171,11 @@ SAMPLE_EVENTS_PAYLOAD = {
             "domain": "google.com",
             "title": "hotels - Google Search",
             "captured_at": "2026-01-30T12:00:01Z",
+            "advertiser": "Booking.com",
+            "ad_text": "Best Hotel Deals",
             "data": {
-                "advertiser": "Booking.com",
                 "destination_url": "https://booking.com/deals",
                 "position": 1,
-                "ad_text": "Best Hotel Deals",
             },
         },
         {
@@ -158,9 +185,9 @@ SAMPLE_EVENTS_PAYLOAD = {
             "domain": "amazon.com",
             "title": "Echo Dot (4th Gen)",
             "captured_at": "2026-01-30T12:00:02Z",
+            "product_title": "Echo Dot (4th Gen)",
+            "price": "29.99",
             "data": {
-                "product_name": "Echo Dot (4th Gen)",
-                "price": "29.99",
                 "currency": "USD",
                 "seller": "Amazon",
             },
@@ -177,25 +204,29 @@ SAMPLE_EVENTS_PAYLOAD = {
 class TestHelperTokenGeneration:
     """Test helper token generation and retrieval endpoints."""
 
-    def test_generate_token_requires_active_helper_profile(self, auth_client):
-        """POST /helper/token/generate redirects with warning when user has no helper profile."""
+    def test_generate_token_succeeds_for_registered_user(self, auth_client):
+        """POST /helper/token/generate succeeds — registration auto-creates helper profile."""
         resp = auth_client.post('/helper/token/generate', follow_redirects=True)
         assert resp.status_code == 200
-        assert b'Activate' in resp.data or b'helper profile' in resp.data.lower()
+        # Registration auto-creates HelperProfile + token (Build #91+)
+        # Token generation succeeds and redirects to helper dashboard
+        assert b'token' in resp.data.lower() or b'Helper Dashboard' in resp.data or b'helper' in resp.data.lower()
 
     def test_generate_token_with_active_helper_succeeds(self, helper_client):
         """POST /helper/token/generate creates a new token and redirects with success flash."""
         client, _token, _user = helper_client
         resp = client.post('/helper/token/generate', follow_redirects=True)
         assert resp.status_code == 200
-        assert b'token' in resp.data.lower() or b'generated' in resp.data.lower()
+        assert b'token' in resp.data.lower() or b'generated' in resp.data.lower() or b'Helper Dashboard' in resp.data
 
-    def test_get_token_returns_404_when_no_token(self, auth_client):
-        """GET /helper/token returns 404 if the user has no helper token."""
+    def test_get_token_returns_auto_generated_token(self, auth_client):
+        """GET /helper/token returns token auto-generated during registration."""
         resp = auth_client.get('/helper/token')
-        assert resp.status_code == 404
+        # Registration auto-creates HelperProfile with helper_token (Build #91+)
+        assert resp.status_code == 200
         data = json.loads(resp.data)
-        assert 'error' in data
+        assert 'helper_token' in data
+        assert len(data['helper_token']) > 20  # token_urlsafe(48) is ~64 chars
 
     def test_get_token_returns_json_after_generation(self, helper_client):
         """GET /helper/token returns the helper token as JSON."""

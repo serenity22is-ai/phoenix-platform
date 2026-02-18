@@ -159,9 +159,9 @@ Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test 
 - Authenticated users → redirect to /ai (MYSTES AI chat interface)
 - Navigation: MYSTES AI | Deals | Wallet | More dropdown | Logout
 - Hotels, flights, cruises, products — all queried via conversational AI tools
-- Amadeus hotel client: search_hotels_by_city() → search_hotel_offers() → two-step process
+- Hotel search: `liteapi_client.py` → single-call POST /hotels/rates (replaced Amadeus two-step)
+- Hotel pricing: margin filter removes inverted margins, 25% of savings fee (min $3, max $50)
 - Deal model: `deal_type` discriminator ('flight' or 'hotel') reuses entire payment/booking infrastructure
-- Hotel deals: $15 flat platform fee, no proxy needed (unlike flights)
 
 ---
 
@@ -178,21 +178,19 @@ Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test 
 
 ## ARCHITECTURAL DECISIONS (DO NOT REVERSE)
 
-### 1. SerpAPI is DEPRECATED — Use Amadeus + Proxies
-- **Decision date:** ~2026-01-28
-- **Reason:** SerpAPI rate limits (429 errors) made it unreliable. We hit the limit repeatedly and it blocked searches.
-- **What replaced it:** Amadeus API (flight details) + Residential proxies via Playwright (regional pricing)
-- **Current state:** SerpAPI code still exists in main.py (`fetch_flights()`, `SERPAPI_URL`, `API_KEY`) but is NOT called by any active search path. It is dead code.
-- **DO NOT:** Re-add SerpAPI as a fallback, add rate limiting for SerpAPI, or reference it in new code.
+### 1. API Provider Evolution (Updated Build #104)
+- **SerpAPI**: DEPRECATED (Build ~#28). Rate limits made it unreliable. Dead code in main.py.
+- **Amadeus Self-Service**: DISCONTINUED (Build #101). Portal shut down, Enterprise only. `amadeus_client.py` and `amadeus_hotel_client.py` are dead code — kept as reference only.
+- **Current hotel provider**: **liteAPI** — `liteapi_client.py` (Build #102). Self-serve, no IATA needed, 2M+ hotels. Sandbox key active, prod key pending.
+- **Current flight provider**: **Pending** — waiting on Picasso Travel (102-country POS consolidator). Backup: Kiwi Tequila (self-service, 750+ carriers). Duffel application also submitted.
+- **DO NOT:** Re-add SerpAPI or Amadeus Self-Service. Both are permanently dead paths.
 
-### 2. Search Priority Chain
-```
-1. Amadeus + Proxy (best) → search_amadeus_with_proxy_prices()
-2. Proxy-only (if no Amadeus) → search_proxy_only()
-3. Return error with config guidance (NO silent fallback)
-```
-- Defined in `search.py:search_global()` and `main.py:search_hybrid()`
-- `search_hybrid()` uses Amadeus for flight details (not SerpAPI)
+### 2. Search Priority Chain (Updated Build #104)
+- **Hotels**: `liteapi_client.py` → liteAPI `/v3.0/hotels/rates` (single-call, no two-step)
+- **Flights**: Pending API provider. Currently no live flight search API connected.
+  - When Picasso/Kiwi is integrated: consolidator API for multi-market pricing
+  - Proxy-based price discovery remains as supplementary data source
+- Legacy chain (`search_amadeus_with_proxy_prices()`, `search_proxy_only()`) in `search.py`/`main.py` is stale — Amadeus credentials no longer work
 
 ### 3. Proxy Strategy: Paid Residential + P2P Node Network
 - **P2P goal**: Node network replaces paid proxies market-by-market as user density scales in each region

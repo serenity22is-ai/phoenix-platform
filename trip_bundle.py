@@ -45,9 +45,21 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from amadeus_client import AmadeusClient
+try:
+    from amadeus_client import AmadeusClient
+    AMADEUS_AVAILABLE = True
+except ImportError:
+    AmadeusClient = None
+    AMADEUS_AVAILABLE = False
+
 from liteapi_client import LiteAPIHotelClient
-from amadeus_transfer_client import AmadeusTransferClient
+
+try:
+    from amadeus_transfer_client import AmadeusTransferClient
+    TRANSFER_AVAILABLE = True
+except ImportError:
+    AmadeusTransferClient = None
+    TRANSFER_AVAILABLE = False
 from vertical_pipelines import calculate_bundle_fee, CONSOLIDATOR_FEE_PER_TICKET
 
 logger = logging.getLogger(__name__)
@@ -61,9 +73,9 @@ class TripBundleManager:
     """
 
     def __init__(self):
-        self._flight_client = AmadeusClient()
+        self._flight_client = AmadeusClient() if AmadeusClient else None
         self._hotel_client = LiteAPIHotelClient()
-        self._transfer_client = AmadeusTransferClient()
+        self._transfer_client = AmadeusTransferClient() if AmadeusTransferClient else None
 
     # -----------------------------------------------------------------
     # Search — all three verticals at once

@@ -94,6 +94,14 @@ jobs:
         run: |
           pytest tests/test_p2p.py -v --tb=short -x
 
+      - name: Run extension pipeline tests
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "test-secret-key-ci"
+        run: |
+          pytest tests/test_extension_pipeline.py -v --tb=short -x
+
   # ============================================================
   # Docker Build
   # ============================================================
