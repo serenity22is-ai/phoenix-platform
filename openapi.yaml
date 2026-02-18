@@ -1,19 +1,19 @@
 openapi: 3.1.0
 info:
-  title: PHOENIX Flight Arbitrage API
+  title: MYSTES Flight Arbitrage API
   version: 0.1.0
   description: |
-    API for the PHOENIX flight price arbitrage platform.
+    API for the MYSTES flight price arbitrage platform.
     Detects geographic pricing differences and enables P2P purchasing
     through a helper network with XRPL/RLUSD escrow.
   contact:
-    name: Phoenix Support
-    email: support@phoenix.flights
+    name: Mystes Support
+    email: support@mystes.flights
 
 servers:
   - url: http://localhost:5001
     description: Development
-  - url: https://phoenix.flights
+  - url: https://mystes.flights
     description: Production
 
 tags:

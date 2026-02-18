@@ -1,5 +1,5 @@
 """
-PHOENIX Booking Fulfillment System
+MYSTES Booking Fulfillment System
 
 Handles the complete flow from customer payment to ticket delivery:
 1. Customer pays us (Card, XRP, RLUSD, Crypto)
@@ -58,7 +58,7 @@ FULFILLMENT_CONFIG = {
 
     # Email settings
     "send_booking_emails": True,
-    "support_email": os.getenv("SUPPORT_EMAIL", "support@phoenix.com"),
+    "support_email": os.getenv("SUPPORT_EMAIL", "support@mystes.com"),
 
     # Booking timeout (how long to wait for self-service completion)
     "self_service_timeout_hours": 24,
@@ -271,15 +271,19 @@ class BookingFulfillmentManager:
         """
         Check if automated booking is available for this deal.
         """
-        # Check if platform payment credentials are configured
         import os
         has_payment_config = bool(os.getenv("PLATFORM_CARD_NUMBER"))
 
-        # Check if proxy is configured for the target market
+        # Hotels: can be booked via Amadeus API directly (no proxy needed)
+        if getattr(deal, 'deal_type', 'flight') == 'hotel':
+            has_offer_id = bool(getattr(deal, 'hotel_offer_id', None))
+            logger.info(f"Hotel automation check - payment: {has_payment_config}, offer_id: {has_offer_id}")
+            return has_payment_config and has_offer_id
+
+        # Flights: need proxy + payment config
         from proxy_manager import is_proxy_configured
         has_proxy = is_proxy_configured()
 
-        # Check if the airline is supported
         supported_airlines = [
             "jal", "japan airlines", "ana", "all nippon airways",
             "iberia", "air france", "klm", "lufthansa",
@@ -638,7 +642,7 @@ def update_booking_with_confirmation(booking_id: int, confirmation_code: str,
 # --- CLI FOR TESTING ---
 
 if __name__ == "__main__":
-    print("PHOENIX Booking Fulfillment System")
+    print("MYSTES Booking Fulfillment System")
     print("=" * 50)
     print(f"Default fulfillment type: {FULFILLMENT_CONFIG['default_type']}")
     print(f"Self-service timeout: {FULFILLMENT_CONFIG['self_service_timeout_hours']} hours")

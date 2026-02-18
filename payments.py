@@ -1,5 +1,5 @@
 """
-PHOENIX Multi-Payment Gateway
+MYSTES Multi-Payment Gateway
 
 Accepts payments via:
 - Credit/Debit Card (Stripe)
@@ -151,7 +151,7 @@ def generate_payment_options(deal_id, fee_usd, user_id=None):
             "amount_usd": round(fee_usd, 2),
             "amount_cents": int(fee_usd * 100),
             "publishable_key": PAYMENT_CONFIG["stripe_publishable_key"],
-            "description": f"PHOENIX Deal Access - {deal_id}",
+            "description": f"MYSTES Deal Access - {deal_id}",
         }
     else:
         options["methods"]["card"] = {
@@ -201,7 +201,7 @@ def generate_payment_options(deal_id, fee_usd, user_id=None):
             "provider": "coinbase_commerce",
             "amount_usd": round(fee_usd, 2),
             "supported_coins": ["BTC", "ETH", "LTC", "DOGE", "BCH", "USDC", "DAI", "SHIB"],
-            "description": f"PHOENIX Deal Access - {deal_id}",
+            "description": f"MYSTES Deal Access - {deal_id}",
         }
     else:
         options["methods"]["crypto"] = {
@@ -214,9 +214,17 @@ def generate_payment_options(deal_id, fee_usd, user_id=None):
 
 # --- STRIPE CARD PAYMENTS ---
 
-def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, cancel_url):
+def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, cancel_url, user_id=None):
     """
     Create a Stripe Checkout session for card payment.
+
+    Args:
+        deal_id: Deal identifier
+        fee_usd: Amount in USD
+        user_email: Customer email
+        success_url: Redirect URL after payment
+        cancel_url: Redirect URL on cancel
+        user_id: User ID (stored in metadata for webhook attribution)
 
     Returns:
         dict with session_id and checkout_url
@@ -225,6 +233,13 @@ def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, ca
         return {"error": "Card payments not configured"}
 
     try:
+        metadata = {
+            "deal_id": deal_id,
+            "fee_usd": str(fee_usd),
+        }
+        if user_id is not None:
+            metadata["user_id"] = str(user_id)
+
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
             line_items=[{
@@ -232,7 +247,7 @@ def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, ca
                     "currency": "usd",
                     "unit_amount": int(fee_usd * 100),  # Stripe uses cents
                     "product_data": {
-                        "name": "PHOENIX Deal Access",
+                        "name": "MYSTES Deal Access",
                         "description": f"Unlock flight savings - Deal {deal_id}",
                     },
                 },
@@ -242,10 +257,7 @@ def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, ca
             success_url=success_url + f"?session_id={{CHECKOUT_SESSION_ID}}&deal_id={deal_id}",
             cancel_url=cancel_url,
             customer_email=user_email,
-            metadata={
-                "deal_id": deal_id,
-                "fee_usd": str(fee_usd),
-            },
+            metadata=metadata,
             expires_at=int((datetime.utcnow() + timedelta(minutes=30)).timestamp()),
         )
 
@@ -293,7 +305,7 @@ def handle_stripe_webhook(payload, signature):
     Handle Stripe webhook events.
 
     Returns:
-        dict with event details
+        dict with event details including user-identifying data
     """
     if not STRIPE_AVAILABLE:
         return {"error": "Stripe not available"}
@@ -311,13 +323,61 @@ def handle_stripe_webhook(payload, signature):
                 "event": "payment_completed",
                 "deal_id": session.metadata.get("deal_id"),
                 "amount_usd": float(session.metadata.get("fee_usd", 0)),
+                "user_id": session.metadata.get("user_id"),
                 "session_id": session.id,
+                "payment_intent": session.payment_intent,
+                "customer_email": session.customer_email,
+            }
+
+        elif event.type == "checkout.session.expired":
+            session = event.data.object
+            return {
+                "event": "payment_expired",
+                "deal_id": session.metadata.get("deal_id"),
+                "session_id": session.id,
+                "customer_email": session.customer_email,
             }
 
         return {"event": event.type}
 
     except stripe.error.SignatureVerificationError:
         return {"error": "Invalid signature"}
+
+
+def create_stripe_refund(payment_intent_id, amount_cents=None, reason="requested_by_customer"):
+    """
+    Create a Stripe refund for a payment.
+
+    Args:
+        payment_intent_id: The Stripe payment intent ID (pi_xxx)
+        amount_cents: Amount to refund in cents. None = full refund.
+        reason: One of 'duplicate', 'fraudulent', 'requested_by_customer'
+
+    Returns:
+        dict with refund result
+    """
+    if not STRIPE_AVAILABLE or not PAYMENT_CONFIG["stripe_secret_key"]:
+        return {"error": "Stripe not configured"}
+
+    try:
+        refund_params = {
+            "payment_intent": payment_intent_id,
+            "reason": reason,
+        }
+        if amount_cents is not None:
+            refund_params["amount"] = amount_cents
+
+        refund = stripe.Refund.create(**refund_params)
+
+        return {
+            "success": True,
+            "refund_id": refund.id,
+            "amount": refund.amount,
+            "status": refund.status,
+            "currency": refund.currency,
+        }
+    except stripe.error.StripeError as e:
+        return {"error": str(e)}
 
 
 # --- COINBASE COMMERCE (Any Cryptocurrency) ---
@@ -354,7 +414,7 @@ def create_coinbase_charge(deal_id, fee_usd, user_email, redirect_url, cancel_ur
     }
 
     payload = {
-        "name": "PHOENIX Deal Access",
+        "name": "MYSTES Deal Access",
         "description": f"Unlock flight savings - Deal {deal_id}",
         "pricing_type": "fixed_price",
         "local_price": {

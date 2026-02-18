@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PHOENIX</string>
-    <string name="title_activity_main">PHOENIX</string>
-    <string name="package_name">com.phoenix.app</string>
-    <string name="custom_url_scheme">com.phoenix.app</string>
+    <string name="app_name">MYSTES</string>
+    <string name="title_activity_main">MYSTES</string>
+    <string name="package_name">com.mystes.app</string>
+    <string name="custom_url_scheme">com.mystes.app</string>
 </resources>

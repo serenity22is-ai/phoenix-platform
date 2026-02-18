@@ -1,5 +1,5 @@
 """
-PHOENIX Structured JSON Logging Configuration
+MYSTES Structured JSON Logging Configuration
 
 Provides:
 - JSON formatted log output for production (machine-parseable)
@@ -117,7 +117,7 @@ def init_logging(app):
 
         # File handler — all logs (rotating, 10MB x 5 files)
         file_handler = RotatingFileHandler(
-            os.path.join(log_dir, "phoenix.log"),
+            os.path.join(log_dir, "mystes.log"),
             maxBytes=10 * 1024 * 1024,
             backupCount=5,
         )
@@ -127,7 +127,7 @@ def init_logging(app):
 
         # Error file handler — errors only
         error_handler = RotatingFileHandler(
-            os.path.join(log_dir, "phoenix-errors.log"),
+            os.path.join(log_dir, "mystes-errors.log"),
             maxBytes=10 * 1024 * 1024,
             backupCount=3,
         )
@@ -168,7 +168,7 @@ def init_logging(app):
         if hasattr(g, "request_start"):
             duration_ms = round((time.time() - g.request_start) * 1000, 1)
 
-        logger = logging.getLogger("phoenix.access")
+        logger = logging.getLogger("mystes.access")
         extra = {
             "duration_ms": duration_ms,
             "status_code": response.status_code,

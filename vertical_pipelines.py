@@ -1,5 +1,5 @@
 """
-PHOENIX Multi-Vertical Processing Pipelines
+MYSTES Multi-Vertical Processing Pipelines
 
 Processes CitizenSERP task results into structured arbitrage data for
 each vertical: flights, hotels, products, and marketplace.
@@ -390,7 +390,7 @@ def _next_tier_info(current_tier: str, completed: int) -> Optional[dict]:
 def calculate_arbitrage_fee(savings_amount: float, deal_amount: float,
                             completed_transactions: int = 0,
                             consolidator_cost: float = 0.0) -> dict:
-    """Calculate Phoenix fee for an arbitrage transaction.
+    """Calculate Mystes fee for an arbitrage transaction.
 
     Fee = tier_rate * savings_amount, with a minimum floor of $1.50 + 1%.
     If savings_amount is 0 (no arbitrage found, user books anyway),
@@ -402,7 +402,7 @@ def calculate_arbitrage_fee(savings_amount: float, deal_amount: float,
     baked into the price the user sees.
 
     Args:
-        savings_amount: USD savings Phoenix found for the user.
+        savings_amount: USD savings Mystes found for the user.
         deal_amount: Total deal/booking value in RLUSD (includes consolidator cost).
         completed_transactions: User's total completed transactions (for tier).
         consolidator_cost: Consolidator fee included in deal_amount (for breakdown only).
@@ -434,7 +434,7 @@ def calculate_arbitrage_fee(savings_amount: float, deal_amount: float,
 
 
 def calculate_private_market_fee(deal_amount: float) -> dict:
-    """Calculate Phoenix fee for a private market transaction.
+    """Calculate Mystes fee for a private market transaction.
 
     Flat $1.50 + 1% of deal value. No tier discounts (no savings to measure).
 
@@ -471,7 +471,7 @@ def calculate_bundle_fee(
     completed_transactions: int = 0,
     consolidator_cost: float = 0.0,
 ) -> dict:
-    """Calculate Phoenix fee for a trip bundle (2+ verticals booked together).
+    """Calculate Mystes fee for a trip bundle (2+ verticals booked together).
 
     Bundle discount: savings rate reduced by 40% vs individual booking.
     Single flat fee for the entire bundle ($3.00 vs $1.50 × N items).
@@ -741,13 +741,13 @@ class HotelPipeline:
         start = time.monotonic()
 
         try:
-            from amadeus_hotel_client import AmadeusHotelClient
-            client = AmadeusHotelClient()
+            from liteapi_client import LiteAPIHotelClient
+            client = LiteAPIHotelClient()
         except ImportError:
-            logger.error("HotelPipeline: amadeus_hotel_client not available")
+            logger.error("HotelPipeline: liteapi_client not available")
             return {
                 "vertical": "hotels",
-                "source": "amadeus",
+                "source": "liteapi",
                 "cheapest_market": None,
                 "matched_hotels": [],
                 "all_results_by_market": {},
@@ -760,14 +760,14 @@ class HotelPipeline:
         if not client.is_configured():
             return {
                 "vertical": "hotels",
-                "source": "amadeus",
+                "source": "liteapi",
                 "cheapest_market": None,
                 "matched_hotels": [],
                 "all_results_by_market": {},
                 "markets_searched": 0,
                 "total_results": 0,
                 "processing_time_s": 0,
-                "error": "Amadeus credentials not configured",
+                "error": "liteAPI key not configured (LITEAPI_KEY)",
             }
 
         result = client.search_hotels(

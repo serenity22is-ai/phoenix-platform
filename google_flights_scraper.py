@@ -1,5 +1,5 @@
 """
-PHOENIX Direct Google Flights Scraper
+MYSTES Direct Google Flights Scraper
 
 Bypasses SerpAPI to get REAL regional pricing using residential proxies.
 Uses Playwright for headless browser automation.

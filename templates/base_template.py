@@ -1,17 +1,17 @@
 """
-PHOENIX World-Class UI Template
+MYSTES World-Class UI Template
 Planet Earth Documentary Inspired - Adventure & Higher Calling
 
 Features:
 - Aurora/cosmic background imagery
-- Phoenix silhouette logo
+- Mystes silhouette logo
 - Cinematic, documentary feel
 - Highly readable typography
 - Inspiring adventure aesthetic
 """
 
 # Sacred Geometry SVG - Metatron's Cube with animated paths
-PHOENIX_LOGO_SVG = '''
+MYSTES_LOGO_SVG = '''
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="sacred-geo">
   <defs>
     <linearGradient id="geoGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -67,14 +67,14 @@ BASE_TEMPLATE = '''
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ title }} | PHOENIX</title>
+    <title>{{ title }} | MYSTES</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="PHOENIX - AI-powered search engine for geographic price arbitrage. Compare flights, hotels, products, rentals and more across 195 markets. Pay with crypto. Powered by XRPL.">
+    <meta name="description" content="MYSTES - AI-powered search engine for geographic price arbitrage. Compare flights, hotels, products, rentals and more across 195 markets. Pay with crypto. Powered by XRPL.">
     <!-- PWA Meta -->
     <meta name="theme-color" content="#ff6b35">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Phoenix">
+    <meta name="apple-mobile-web-app-title" content="Mystes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="msapplication-TileColor" content="#0a0612">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -83,11 +83,11 @@ BASE_TEMPLATE = '''
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Google OAuth handled via server-side redirect, no JS library needed -->
     <style>
         /* ============================================
-           PHOENIX DESIGN SYSTEM
+           MYSTES DESIGN SYSTEM
            Planet Earth Documentary Inspired
            ============================================ */
 
@@ -108,11 +108,11 @@ BASE_TEMPLATE = '''
             --text-on-light: #1a1a2e;
             --text-on-card: #ffffff;
 
-            /* Accent colors - Phoenix fire theme */
-            --phoenix-glow: #ff6b35;
-            --phoenix-silver: #ffc107;
-            --phoenix-cyan: #ff8c00;
-            --phoenix-aurora: #ff4d00;
+            /* Accent colors - Mystes fire theme */
+            --mystes-glow: #ff6b35;
+            --mystes-silver: #ffc107;
+            --mystes-cyan: #ff8c00;
+            --mystes-aurora: #ff4d00;
             --success-green: #4ade80;
             --ocean-blue: #ff8c00;
 
@@ -135,6 +135,7 @@ BASE_TEMPLATE = '''
             --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'SF Mono', 'Fira Code', monospace;
+            --font-brand: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', serif;
 
             /* Transitions */
             --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -164,8 +165,19 @@ BASE_TEMPLATE = '''
 
         /* Selection */
         ::selection {
-            background: var(--phoenix-cyan);
+            background: var(--mystes-cyan);
             color: var(--deep-space);
+        }
+
+        /* MYSTES brand typography — Pythagorean initiate aesthetic */
+        .mystes-brand {
+            font-family: var(--font-brand);
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            background: linear-gradient(135deg, #ffffff 0%, #e8d5b7 40%, #ffffff 60%, #c9a96e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         /* ============================================
@@ -408,12 +420,17 @@ BASE_TEMPLATE = '''
         }
 
         .nav-wordmark {
-            font-family: var(--font-display);
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: 6px;
+            font-family: var(--font-brand);
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 8px;
             color: var(--text-bright);
             text-transform: uppercase;
+            background: linear-gradient(135deg, #ffffff 0%, #e8d5b7 40%, #ffffff 60%, #c9a96e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 12px rgba(201, 169, 110, 0.3));
         }
 
         .nav-links {
@@ -746,7 +763,7 @@ BASE_TEMPLATE = '''
         .form-input:focus {
             outline: none;
             background: rgba(255, 255, 255, 0.12);
-            border-color: var(--phoenix-glow);
+            border-color: var(--mystes-glow);
             box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15);
         }
 
@@ -763,7 +780,7 @@ BASE_TEMPLATE = '''
 
         .card-light .form-input:focus {
             background: #ffffff;
-            border-color: var(--phoenix-glow);
+            border-color: var(--mystes-glow);
         }
 
         .card-light .form-input::placeholder {
@@ -800,7 +817,7 @@ BASE_TEMPLATE = '''
         .alert-info {
             background: rgba(0, 212, 255, 0.15);
             border: 1px solid rgba(0, 212, 255, 0.3);
-            color: var(--phoenix-glow);
+            color: var(--mystes-glow);
         }
 
         /* ============================================
@@ -826,7 +843,7 @@ BASE_TEMPLATE = '''
             left: 0;
             width: 4px;
             height: 100%;
-            background: linear-gradient(180deg, var(--phoenix-glow), var(--phoenix-aurora));
+            background: linear-gradient(180deg, var(--mystes-glow), var(--mystes-aurora));
         }
 
         .deal:hover {
@@ -891,7 +908,7 @@ BASE_TEMPLATE = '''
             border-radius: 8px;
             padding: var(--space-md);
             word-break: break-all;
-            color: var(--phoenix-glow);
+            color: var(--mystes-glow);
         }
 
         /* ============================================
@@ -918,13 +935,13 @@ BASE_TEMPLATE = '''
 
         .tag-warning {
             background: rgba(167, 139, 250, 0.15);
-            color: var(--phoenix-aurora);
+            color: var(--mystes-aurora);
             border: 1px solid rgba(167, 139, 250, 0.3);
         }
 
         .status-pending {
             background: rgba(167, 139, 250, 0.15);
-            color: var(--phoenix-aurora);
+            color: var(--mystes-aurora);
         }
 
         .status-verified {
@@ -1010,7 +1027,18 @@ BASE_TEMPLATE = '''
         .footer-logo {
             width: 32px;
             height: 32px;
-            color: var(--phoenix-glow);
+            color: var(--mystes-glow);
+        }
+
+        .footer-wordmark {
+            font-family: var(--font-brand);
+            font-weight: 600;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #ffffff 0%, #e8d5b7 50%, #c9a96e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .footer-links {
@@ -1040,7 +1068,7 @@ BASE_TEMPLATE = '''
         }
 
         .footer-tagline {
-            color: var(--phoenix-glow);
+            color: var(--mystes-glow);
             font-style: italic;
         }
 
@@ -1158,11 +1186,15 @@ BASE_TEMPLATE = '''
         .footer-logo .geo-center { opacity: 0.8; animation: none; }
 
         .loading-text {
-            font-family: var(--font-display);
+            font-family: var(--font-brand);
             margin-top: var(--space-xl);
-            font-size: 14px;
-            font-weight: 500;
-            letter-spacing: 6px;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 10px;
+            background: linear-gradient(135deg, #ffffff 0%, #e8d5b7 40%, #ffffff 60%, #c9a96e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             text-transform: uppercase;
             color: var(--text-muted);
         }
@@ -1509,7 +1541,7 @@ BASE_TEMPLATE = '''
         .step-icon {
             width: 72px;
             height: 72px;
-            background: linear-gradient(135deg, var(--phoenix-glow), var(--phoenix-cyan));
+            background: linear-gradient(135deg, var(--mystes-glow), var(--mystes-cyan));
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -1610,7 +1642,7 @@ BASE_TEMPLATE = '''
                 <circle cx="50" cy="50" r="3" class="geo-center" fill="currentColor"/>
             </g>
         </svg>
-        <div class="loading-text">PHOENIX</div>
+        <div class="loading-text">MYSTES</div>
     </div>
 
     <!-- Navigation -->
@@ -1638,7 +1670,7 @@ BASE_TEMPLATE = '''
                     <circle cx="50" cy="50" r="3" class="geo-center" fill="currentColor" opacity="0.8"/>
                 </g>
             </svg>
-            <span class="nav-wordmark">PHOENIX</span>
+            <span class="nav-wordmark">MYSTES</span>
         </a>
 
         <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
@@ -1647,24 +1679,25 @@ BASE_TEMPLATE = '''
 
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
-                <a href="/ai" class="nav-link">Phoenix AI</a>
+                <a href="/ai" class="nav-link"><span class="mystes-brand" style="letter-spacing:2px;font-size:12px;">MYSTES</span> AI</a>
+                <a href="/dashboard" class="nav-link">Dashboard</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/wallet" class="nav-link">Wallet</a>
                 <div class="nav-more-wrapper">
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
                     <div class="nav-more-menu" id="navMoreMenu">
-                        <a href="/dashboard" class="nav-more-link">Dashboard</a>
                         <a href="/travelers" class="nav-more-link">Travelers</a>
-                        {% if current_user.is_admin %}<a href="/admin/nodes" class="nav-more-link" style="color: var(--phoenix-glow);">Nodes</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/portal" class="nav-more-link" style="color: var(--phoenix-glow);">Proxy Portal</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/helper" class="nav-more-link" style="color: var(--phoenix-glow);">Helper</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/earn" class="nav-more-link" style="color: var(--phoenix-glow);">Earn</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/setup" class="nav-more-link" style="color: var(--phoenix-glow);">Setup Guides</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--phoenix-glow);">Admin</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/admin/nodes" class="nav-more-link" style="color: var(--mystes-glow);">Nodes</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/portal" class="nav-more-link" style="color: var(--mystes-glow);">Proxy Portal</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/helper" class="nav-more-link" style="color: var(--mystes-glow);">Helper</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/earn" class="nav-more-link" style="color: var(--mystes-glow);">Earn</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/setup" class="nav-more-link" style="color: var(--mystes-glow);">Setup Guides</a>{% endif %}
+                        {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--mystes-glow);">Admin</a>{% endif %}
                     </div>
                 </div>
                 <a href="/logout" class="nav-link nav-cta">Logout</a>
             {% else %}
+                <a href="/" class="nav-link">Search</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/login" class="nav-link">Login</a>
                 <a href="/register" class="nav-link nav-cta">Get Started</a>
@@ -1678,7 +1711,7 @@ BASE_TEMPLATE = '''
     <div class="onboard-banner" id="onboardBanner">
         <div class="onboard-banner-inner">
             <div class="onboard-banner-text">
-                <strong>Join the Phoenix Network</strong>
+                <strong>Join the Mystes Network</strong>
                 <span class="onboard-banner-sub">Sign in with Google. Your browser becomes a node. Earn while you search.</span>
             </div>
             <div class="onboard-banner-action">
@@ -1698,7 +1731,7 @@ BASE_TEMPLATE = '''
         <div class="onboard-banner-inner">
             <div class="onboard-banner-text">
                 <strong>Activate Your Node</strong>
-                <span class="onboard-banner-sub">One click to start earning. Your browser becomes part of the Phoenix search network.</span>
+                <span class="onboard-banner-sub">One click to start earning. Your browser becomes part of the Mystes search network.</span>
             </div>
             <div class="onboard-banner-action">
                 <button class="onboard-btn" id="onboardNodeBtn" onclick="onboardNode()">Become a Node</button>
@@ -1712,7 +1745,7 @@ BASE_TEMPLATE = '''
         btn.textContent='Activating...';btn.disabled=true;
         fetch('/api/node/onboard',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name=csrf-token]')?.content||''},body:JSON.stringify({country_code:'US'})})
         .then(r=>r.json()).then(d=>{
-            if(d.success){document.getElementById('onboardBanner').innerHTML='<div class=\"onboard-banner-inner\"><div class=\"onboard-banner-text\"><strong>Node Active!</strong> <span class=\"onboard-banner-sub\">You are now part of the Phoenix network. Node ID: '+d.node_id+'</span></div></div>';setTimeout(()=>{document.getElementById('onboardBanner').style.display='none';},4000);}
+            if(d.success){document.getElementById('onboardBanner').innerHTML='<div class=\"onboard-banner-inner\"><div class=\"onboard-banner-text\"><strong>Node Active!</strong> <span class=\"onboard-banner-sub\">You are now part of the Mystes network. Node ID: '+d.node_id+'</span></div></div>';setTimeout(()=>{document.getElementById('onboardBanner').style.display='none';},4000);}
             else{btn.textContent='Become a Node';btn.disabled=false;alert(d.error||'Onboarding failed');}
         }).catch(()=>{btn.textContent='Become a Node';btn.disabled=false;});
     }
@@ -1724,7 +1757,7 @@ BASE_TEMPLATE = '''
     @keyframes bannerSlide{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
     .onboard-banner-inner{max-width:1200px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
     .onboard-banner-text{flex:1;min-width:200px;font-family:'Rajdhani',sans-serif;}
-    .onboard-banner-text strong{color:var(--phoenix-glow,#ff6b35);font-size:1.05rem;display:block;line-height:1.2;}
+    .onboard-banner-text strong{color:var(--mystes-glow,#ff6b35);font-size:1.05rem;display:block;line-height:1.2;}
     .onboard-banner-sub{color:var(--text-secondary,#999);font-size:0.88rem;}
     .onboard-banner-action{flex-shrink:0;}
     .onboard-banner-close{background:none;border:none;color:var(--text-secondary,#999);font-size:1.4rem;cursor:pointer;padding:0 0 0 12px;line-height:1;opacity:0.7;}
@@ -1769,7 +1802,7 @@ BASE_TEMPLATE = '''
                             <circle cx="50" cy="50" r="3" fill="currentColor" opacity="0.8"/>
                         </g>
                     </svg>
-                    <span style="font-family: 'Cinzel', serif; font-weight: 600; letter-spacing: 4px;">PHOENIX</span>
+                    <span class="footer-wordmark">MYSTES</span>
                 </div>
                 <div class="footer-links">
                     <a href="/terms" class="footer-link">Terms</a>
@@ -1778,7 +1811,7 @@ BASE_TEMPLATE = '''
                 </div>
             </div>
             <div class="footer-copy">
-                &copy; 2026 PHOENIX &mdash; <span class="footer-tagline">Breaking borders. Connecting humanity.</span>
+                &copy; 2026 MYSTES &mdash; <span class="footer-tagline">Breaking borders. Connecting humanity.</span>
                 <br>Powered by XRP Ledger
             </div>
         </div>
@@ -1852,10 +1885,10 @@ BASE_TEMPLATE = '''
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/service-worker.js')
                     .then(function(reg) {
-                        console.log('Phoenix SW registered, scope:', reg.scope);
+                        console.log('Mystes SW registered, scope:', reg.scope);
                     })
                     .catch(function(err) {
-                        console.log('Phoenix SW registration failed:', err);
+                        console.log('Mystes SW registration failed:', err);
                     });
             });
         }
@@ -1866,20 +1899,20 @@ BASE_TEMPLATE = '''
         }
     </script>
 
-    <!-- Phoenix Node Client (Build #91) — auto-initializes node for all users -->
-    <script src="/static/js/phoenix-node-client.js"></script>
-    <script src="/static/js/phoenix-node-capture.js"></script>
-    <script src="/static/js/phoenix-node-bridge.js"></script>
+    <!-- Mystes Node Client (Build #91) — auto-initializes node for all users -->
+    <script src="/static/js/mystes-node-client.js"></script>
+    <script src="/static/js/mystes-node-capture.js"></script>
+    <script src="/static/js/mystes-node-bridge.js"></script>
     {% if current_user.is_authenticated and current_user.is_helper_node %}
     <script>
-        window.__PHOENIX_NODE_CONFIG__ = {
+        window.__MYSTES_NODE_CONFIG__ = {
             serverUrl: window.location.origin,
             helperToken: "{{ helper_token_for_node|default('') }}",
             consent: {{ node_consent_json|default('{}')|safe }}
         };
-        if (window.__PHOENIX_NODE_CONFIG__.helperToken) {
-            autoInitPhoenixNode().catch(function(e) {
-                console.warn('[PhoenixNode] Auto-init failed:', e.message);
+        if (window.__MYSTES_NODE_CONFIG__.helperToken) {
+            autoInitMystesNode().catch(function(e) {
+                console.warn('[MystesNode] Auto-init failed:', e.message);
             });
         }
     </script>
@@ -2163,7 +2196,7 @@ HOME_HERO = '''
 
 <section class="features-section">
     <div class="section-header">
-        <h2>Why PHOENIX?</h2>
+        <h2>Why <span class="mystes-brand">MYSTES</span>?</h2>
         <p>The future of travel is borderless</p>
     </div>
 

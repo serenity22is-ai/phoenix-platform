@@ -1,5 +1,5 @@
 """
-PHOENIX Node Data Processor (Build #67)
+MYSTES Node Data Processor (Build #67)
 
 Server-side processor for browser extension events.
 Classifies, deduplicates, quality-scores, and routes browsing events
@@ -175,7 +175,7 @@ EVENT_SCHEMA = {
 
 class NodeDataProcessor:
     """
-    Central processor for all browser extension data flowing into Phoenix.
+    Central processor for all browser extension data flowing into Mystes.
 
     Responsibilities:
     - Validate incoming events against schema

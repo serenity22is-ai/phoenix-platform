@@ -1,11 +1,11 @@
 """
-Phoenix Trip Bundle — Multi-Vertical Package Booking
+Mystes Trip Bundle — Multi-Vertical Package Booking
 
 Combines flights + hotels + transfers into a single trip package
 with a reduced platform fee. Each vertical is searched and booked
 through Amadeus Self-Service APIs.
 
-Consumer sees: "Book your complete trip and save on Phoenix fees."
+Consumer sees: "Book your complete trip and save on Mystes fees."
 
 Booking flow:
     1. search_bundle()  — Search all three verticals at once
@@ -46,7 +46,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from amadeus_client import AmadeusClient
-from amadeus_hotel_client import AmadeusHotelClient
+from liteapi_client import LiteAPIHotelClient
 from amadeus_transfer_client import AmadeusTransferClient
 from vertical_pipelines import calculate_bundle_fee, CONSOLIDATOR_FEE_PER_TICKET
 
@@ -57,12 +57,12 @@ class TripBundleManager:
     """
     Orchestrates multi-vertical trip searches and bookings.
 
-    Three Amadeus APIs, one Phoenix transaction.
+    Three Amadeus APIs, one Mystes transaction.
     """
 
     def __init__(self):
         self._flight_client = AmadeusClient()
-        self._hotel_client = AmadeusHotelClient()
+        self._hotel_client = LiteAPIHotelClient()
         self._transfer_client = AmadeusTransferClient()
 
     # -----------------------------------------------------------------
@@ -282,7 +282,7 @@ class TripBundleManager:
         Single-component bookings should use the individual booking flow.
 
         Args:
-            user_id: Phoenix user ID
+            user_id: Mystes user ID
             flight_offer: Raw Amadeus flight offer dict (for booking later)
             hotel_offer_id: Amadeus hotel offer ID
             transfer_offer_id: Amadeus transfer offer ID

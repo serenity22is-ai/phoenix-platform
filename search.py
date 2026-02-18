@@ -1,5 +1,5 @@
 """
-PHOENIX Global Search Engine
+MYSTES Global Search Engine
 
 Features:
 - Smart market/proxy auto-selection based on route
@@ -611,7 +611,7 @@ def search_global(
                     "is_round_trip": af.get("is_round_trip", bool(return_date)),
                     # Pre-computed prices from Amadeus search
                     "converted_prices": flight_converted_prices,
-                    "cheapest_market": "Phoenix",  # Never expose proxy market codes to frontend
+                    "cheapest_market": "Mystes",  # Never expose proxy market codes to frontend
                     "cheapest_price": af.get("cheapest_price_usd"),
                     # Raw Amadeus offer for booking
                     "raw_offer": af.get("raw_offer"),
@@ -736,14 +736,14 @@ def search_global(
                     flight_cheapest_price = us_proxy_price or 0
 
             # Calculate deal for this flight
-            # US = Amadeus booking price (what user actually pays through Phoenix)
+            # US = Amadeus booking price (what user actually pays through Mystes)
             # Proxy markets = Google Flights prices (what user would pay elsewhere)
-            # Savings = highest Google price minus Amadeus price (Phoenix advantage)
+            # Savings = highest Google price minus Amadeus price (Mystes advantage)
             amadeus_booking_price = flight_converted_prices.get("US", us_proxy_price or 0)
-            foreign_prices = {m: p for m, p in flight_converted_prices.items() if m != "US" and m != "Phoenix"}
+            foreign_prices = {m: p for m, p in flight_converted_prices.items() if m != "US" and m != "Mystes"}
 
             if foreign_prices:
-                # The comparison: what Google shows vs what Phoenix charges
+                # The comparison: what Google shows vs what Mystes charges
                 # Use the cheapest foreign Google price as the "market rate"
                 google_market_price = min(foreign_prices.values())
                 google_market_name = min(foreign_prices, key=foreign_prices.get)
@@ -761,7 +761,7 @@ def search_global(
 
             # For display: cheapest price is what user pays (Amadeus)
             flight_cheapest_price = amadeus_booking_price if amadeus_booking_price else flight_cheapest_price
-            flight_cheapest_market = "Phoenix" if amadeus_booking_price and (not google_market_price or amadeus_booking_price <= google_market_price) else flight_cheapest_market
+            flight_cheapest_market = "Mystes" if amadeus_booking_price and (not google_market_price or amadeus_booking_price <= google_market_price) else flight_cheapest_market
 
             flight_deal = None
             if flight_savings >= 10:
@@ -775,7 +775,7 @@ def search_global(
                     "user_savings": round(flight_savings - platform_fee, 2),
                     "platform_fee_usd": platform_fee,
                     "user_saves_pct": flight_savings_pct,
-                    "cheapest_market": "Phoenix",
+                    "cheapest_market": "Mystes",
                     "is_good_deal": True,
                     "proxy_verified": True,
                 }
@@ -799,7 +799,7 @@ def search_global(
 
                 # Price info - REAL prices from proxy scraping
                 "cheapest_price": flight_cheapest_price,
-                "cheapest_market": "Phoenix",  # Never expose proxy market codes
+                "cheapest_market": "Mystes",  # Never expose proxy market codes
                 "converted_prices": {},  # Scrubbed — internal data only
 
                 # Route info
@@ -892,7 +892,7 @@ def search_global(
                         "duration": mf.get("duration"),
                         "stops": mf.get("stops"),
                         "cheapest_price": mf_price_usd,
-                        "cheapest_market": "Phoenix",
+                        "cheapest_market": "Mystes",
                         "converted_prices": {},  # Scrubbed
                         "origin": origin,
                         "destination": destination,
@@ -900,7 +900,7 @@ def search_global(
                         "date": date,
                         "return_date": return_date,
                         "deal": {
-                            "deal_id": f"exclusive_phoenix_{origin}_{destination}_{date}_{mf.get('departure_time')}",
+                            "deal_id": f"exclusive_mystes_{origin}_{destination}_{date}_{mf.get('departure_time')}",
                             "home_price": cheapest_us_matched,
                             "arbitrage_price": mf_price_usd,
                             "gross_savings": savings_vs_cheapest_us,
@@ -909,7 +909,7 @@ def search_global(
                             "user_saves_pct": savings_pct_vs_us,
                             "is_good_deal": True,
                             "proxy_verified": True,
-                            "cheapest_market": "Phoenix",
+                            "cheapest_market": "Mystes",
                         },
                         "savings": savings_vs_cheapest_us,
                         "savings_pct": savings_pct_vs_us,
@@ -927,7 +927,7 @@ def search_global(
                 "duration": None,
                 "stops": None,
                 "cheapest_price": cheapest_price,
-                "cheapest_market": "Phoenix",
+                "cheapest_market": "Mystes",
                 "converted_prices": {},  # Scrubbed
                 "origin": origin,
                 "destination": destination,
@@ -975,7 +975,7 @@ def search_global(
             "all_flights": formatted_flights,
             "price_comparison": [],  # Scrubbed — was per-market breakdown
             "proxy_results": {
-                "cheapest_market": "Phoenix",
+                "cheapest_market": "Mystes",
                 "cheapest_price_usd": cheapest_price,
                 "savings_vs_us": savings_vs_us,
                 "savings_pct": savings_pct,

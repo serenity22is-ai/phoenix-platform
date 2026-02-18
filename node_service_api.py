@@ -1,5 +1,5 @@
 """
-PHOENIX Node Service API (Build #67)
+MYSTES Node Service API (Build #67)
 
 REST API routes for browser extension local node service.
 Handles authentication, heartbeat, data ingestion, configuration,

@@ -1,5 +1,5 @@
 """
-PHOENIX Translation Service
+MYSTES Translation Service
 
 Provides bidirectional translation capabilities for foreign web content.
 Supports automatic language detection and live form input translation.
@@ -698,7 +698,7 @@ def get_translation_script(site_lang: str, user_lang: str, api_endpoint: str = "
     `;
     document.head.appendChild(style);
 
-    console.log('[PHOENIX] Translation active: ' + USER_LANG + ' → ' + SITE_LANG);
+    console.log('[MYSTES] Translation active: ' + USER_LANG + ' → ' + SITE_LANG);
 }})();
 </script>
 '''

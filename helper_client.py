@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-PHOENIX Helper Client v1.0.0
+MYSTES Helper Client v1.0.0
 
 Standalone application that helpers run on their local machines.
-Connects to the Phoenix WebSocket server and allows Phoenix to remotely
+Connects to the Mystes WebSocket server and allows Mystes to remotely
 control a Playwright browser for flight booking arbitrage transactions.
 
 Usage:
     python helper_client.py --token <SESSION_TOKEN>
-    python helper_client.py --server ws://phoenix.example.com:8765 --token <TOKEN>
+    python helper_client.py --server ws://mystes.example.com:8765 --token <TOKEN>
     python helper_client.py --token <TOKEN> --headless --verbose
 
 Dependencies:
@@ -92,7 +92,7 @@ BANNER = r"""
   Flight Price Arbitrage Platform
 """
 
-logger = logging.getLogger("phoenix.helper")
+logger = logging.getLogger("mystes.helper")
 
 
 # ---------------------------------------------------------------------------
@@ -175,10 +175,10 @@ def status(msg: str) -> None:
 # Helper client
 # ---------------------------------------------------------------------------
 
-class PhoenixHelperClient:
+class MystesHelperClient:
     """
-    Connects to the Phoenix WebSocket server, launches a local Playwright
-    browser, and executes remote commands sent by the Phoenix orchestrator.
+    Connects to the Mystes WebSocket server, launches a local Playwright
+    browser, and executes remote commands sent by the Mystes orchestrator.
     """
 
     def __init__(
@@ -244,7 +244,7 @@ class PhoenixHelperClient:
                         args=["--disable-blink-features=AutomationControlled"],
                     )
                     self.page = await self.browser.new_page()
-                    status("Browser ready. Waiting for commands from Phoenix ...")
+                    status("Browser ready. Waiting for commands from Mystes ...")
 
                     try:
                         await self._command_loop(ws)
@@ -489,17 +489,17 @@ class PhoenixHelperClient:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Phoenix Helper Client -- run on your machine to participate in P2P flight bookings.",
+        description="Mystes Helper Client -- run on your machine to participate in P2P flight bookings.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example:\n  python helper_client.py --token abc123 --server ws://phoenix.example.com:8765",
+        epilog="Example:\n  python helper_client.py --token abc123 --server ws://mystes.example.com:8765",
     )
     parser.add_argument(
         "--server", default=DEFAULT_SERVER,
-        help=f"Phoenix WebSocket server URL (default: {DEFAULT_SERVER})",
+        help=f"Mystes WebSocket server URL (default: {DEFAULT_SERVER})",
     )
     parser.add_argument(
         "--token", required=True,
-        help="Session authentication token provided by Phoenix",
+        help="Session authentication token provided by Mystes",
     )
     parser.add_argument(
         "--headless", action="store_true", default=False,
@@ -536,7 +536,7 @@ def main() -> None:
 
     print()
 
-    client = PhoenixHelperClient(
+    client = MystesHelperClient(
         server_url=args.server,
         auth_token=args.token,
         headless=args.headless,
@@ -562,7 +562,7 @@ def main() -> None:
     finally:
         loop.close()
 
-    print("\nPhoenix Helper Client stopped. Goodbye.")
+    print("\nMystes Helper Client stopped. Goodbye.")
 
 
 if __name__ == "__main__":

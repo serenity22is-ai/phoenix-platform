@@ -1,4 +1,4 @@
-# PHOENIX Flight Arbitrage Platform - Docker Compose
+# MYSTES Flight Arbitrage Platform - Docker Compose
 # Full stack: Web + PostgreSQL + Redis + WebSocket
 
 version: "3.9"
@@ -9,7 +9,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: phoenix-web
+    container_name: mystes-web
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -17,7 +17,7 @@ services:
       - .env
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=postgresql://phoenix:${POSTGRES_PASSWORD:-phoenix_secret}@postgres:5432/phoenix_db
+      - DATABASE_URL=postgresql://mystes:${POSTGRES_PASSWORD:-mystes_secret}@postgres:5432/mystes_db
       - REDIS_URL=redis://redis:6379/0
       - RATELIMIT_STORAGE_URL=redis://redis:6379/1
     depends_on:
@@ -29,7 +29,7 @@ services:
       - app_logs:/app/logs
       - app_instance:/app/instance
     networks:
-      - phoenix-network
+      - mystes-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/"]
       interval: 30s
@@ -40,21 +40,21 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: phoenix-postgres
+    container_name: mystes-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: phoenix_db
-      POSTGRES_USER: phoenix
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-phoenix_secret}
+      POSTGRES_DB: mystes_db
+      POSTGRES_USER: mystes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mystes_secret}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     networks:
-      - phoenix-network
+      - mystes-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U phoenix -d phoenix_db"]
+      test: ["CMD-SHELL", "pg_isready -U mystes -d mystes_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,7 +63,7 @@ services:
   # Redis (Rate Limiting + Caching)
   redis:
     image: redis:7-alpine
-    container_name: phoenix-redis
+    container_name: mystes-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
@@ -71,7 +71,7 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - phoenix-network
+      - mystes-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -84,14 +84,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: phoenix-celery-worker
+    container_name: mystes-celery-worker
     restart: unless-stopped
     command: ["celery", "-A", "celery_app", "worker", "--loglevel=info", "--queues=payments,p2p,maintenance", "--concurrency=4"]
     env_file:
       - .env
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=postgresql://phoenix:${POSTGRES_PASSWORD:-phoenix_secret}@postgres:5432/phoenix_db
+      - DATABASE_URL=postgresql://mystes:${POSTGRES_PASSWORD:-mystes_secret}@postgres:5432/mystes_db
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/2
       - CELERY_RESULT_BACKEND=redis://redis:6379/3
@@ -103,21 +103,21 @@ services:
     volumes:
       - app_logs:/app/logs
     networks:
-      - phoenix-network
+      - mystes-network
 
   # Celery Beat (periodic task scheduler: heartbeats, payouts, alerts, reports)
   celery-beat:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: phoenix-celery-beat
+    container_name: mystes-celery-beat
     restart: unless-stopped
     command: ["celery", "-A", "celery_app", "beat", "--loglevel=info"]
     env_file:
       - .env
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=postgresql://phoenix:${POSTGRES_PASSWORD:-phoenix_secret}@postgres:5432/phoenix_db
+      - DATABASE_URL=postgresql://mystes:${POSTGRES_PASSWORD:-mystes_secret}@postgres:5432/mystes_db
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/2
       - CELERY_RESULT_BACKEND=redis://redis:6379/3
@@ -129,14 +129,14 @@ services:
     volumes:
       - app_logs:/app/logs
     networks:
-      - phoenix-network
+      - mystes-network
 
   # WebSocket Server (Browser Control Protocol)
   websocket:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: phoenix-websocket
+    container_name: mystes-websocket
     restart: unless-stopped
     command: ["python", "-m", "browser_control"]
     ports:
@@ -145,12 +145,12 @@ services:
       - .env
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=postgresql://phoenix:${POSTGRES_PASSWORD:-phoenix_secret}@postgres:5432/phoenix_db
+      - DATABASE_URL=postgresql://mystes:${POSTGRES_PASSWORD:-mystes_secret}@postgres:5432/mystes_db
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - phoenix-network
+      - mystes-network
 
 volumes:
   postgres_data:
@@ -163,5 +163,5 @@ volumes:
     driver: local
 
 networks:
-  phoenix-network:
+  mystes-network:
     driver: bridge

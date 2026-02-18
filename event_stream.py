@@ -1,5 +1,5 @@
 """
-PHOENIX Server-Sent Events (SSE) System
+MYSTES Server-Sent Events (SSE) System
 
 Delivers real-time updates to browser clients via SSE over Redis pub/sub.
 
@@ -7,10 +7,10 @@ Architecture:
     Celery task → Redis PUBLISH → SSE listener → HTTP stream → Browser EventSource
 
 Channels:
-    phoenix:events:user:{user_id}     — per-user events (payment, P2P status, alerts)
-    phoenix:events:admin              — admin dashboard updates
-    phoenix:events:global             — system-wide broadcasts
-    phoenix:events:nodes              — node network updates (registration, health)
+    mystes:events:user:{user_id}     — per-user events (payment, P2P status, alerts)
+    mystes:events:admin              — admin dashboard updates
+    mystes:events:global             — system-wide broadcasts
+    mystes:events:nodes              — node network updates (registration, health)
 
 Event Categories:
     P2P:        p2p_matched, p2p_escrow_locked, p2p_booking_confirmed, p2p_completed, p2p_failed
@@ -53,7 +53,7 @@ def publish_event(channel, event_type, data):
         import redis
         r = redis.from_url(REDIS_URL)
         payload = json.dumps({"event": event_type, "data": data})
-        r.publish(f"phoenix:events:{channel}", payload)
+        r.publish(f"mystes:events:{channel}", payload)
     except Exception as e:
         logger.error(f"Failed to publish event: {e}")
 
@@ -104,7 +104,7 @@ class SSEManager:
             try:
                 r = redis.from_url(REDIS_URL)
                 ps = r.pubsub()
-                ps.psubscribe("phoenix:events:*")
+                ps.psubscribe("mystes:events:*")
                 logger.info("SSE pub/sub listener started")
 
                 for message in ps.listen():
@@ -117,8 +117,8 @@ class SSEManager:
                     if isinstance(raw_channel, bytes):
                         raw_channel = raw_channel.decode("utf-8")
 
-                    # Strip prefix: "phoenix:events:user:123" -> "user:123"
-                    channel = raw_channel.replace("phoenix:events:", "", 1)
+                    # Strip prefix: "mystes:events:user:123" -> "user:123"
+                    channel = raw_channel.replace("mystes:events:", "", 1)
 
                     raw_data = message["data"]
                     if isinstance(raw_data, bytes):
@@ -353,7 +353,7 @@ def emit_deal_event(event_type, data, user_id=None):
 
 def emit_ai_response(user_id, chunk_data):
     """
-    Emit Phoenix AI response chunk for streaming chat (Build #72).
+    Emit MYSTES AI response chunk for streaming chat (Build #72).
 
     chunk_data should contain: conversation_id, chunk_type (text|tool_start|tool_result|done),
     content (text chunk or tool data)

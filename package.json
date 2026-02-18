@@ -1,10 +1,10 @@
 {
-  "name": "phoenix-app",
+  "name": "mystes-app",
   "version": "1.0.0",
-  "description": "PHOENIX — Break free from borders. Global flight prices, crypto payments, XRPL powered.",
+  "description": "MYSTES — Break free from borders. Global flight prices, crypto payments, XRPL powered.",
   "main": "server.py",
   "scripts": {
-    "cap:init": "npx cap init phoenix-app com.phoenix.app --web-dir static",
+    "cap:init": "npx cap init mystes-app com.mystes.app --web-dir static",
     "cap:add:ios": "npx cap add ios",
     "cap:add:android": "npx cap add android",
     "cap:sync": "npx cap sync",

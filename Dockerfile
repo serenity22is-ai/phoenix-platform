@@ -1,4 +1,4 @@
-# PHOENIX Flight Arbitrage Platform - Production Dockerfile
+# MYSTES Flight Arbitrage Platform - Production Dockerfile
 
 # Stage 1: Builder
 FROM python:3.11-slim AS builder
@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # Stage 2: Production
 FROM python:3.11-slim AS production
 
-LABEL maintainer="PHOENIX Team"
-LABEL description="PHOENIX Flight Arbitrage Platform"
+LABEL maintainer="MYSTES Team"
+LABEL description="MYSTES Flight Arbitrage Platform"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -37,14 +37,14 @@ COPY --from=builder /install /usr/local
 RUN playwright install --with-deps chromium
 
 # Non-root user
-RUN groupadd -r phoenix && useradd -r -g phoenix -d /app -s /sbin/nologin phoenix
+RUN groupadd -r mystes && useradd -r -g mystes -d /app -s /sbin/nologin mystes
 
 COPY . .
 
 RUN mkdir -p /app/instance /app/logs && \
-    chown -R phoenix:phoenix /app
+    chown -R mystes:mystes /app
 
-USER phoenix
+USER mystes
 
 EXPOSE 10000
 

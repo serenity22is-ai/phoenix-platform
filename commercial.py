@@ -1,12 +1,12 @@
 """
-PHOENIX Commercial Account System
+MYSTES Commercial Account System
 
 Manages travel agency / OTA onboarding, API key lifecycle, tiered fee
 calculation, and usage metering.
 
 Fee Model:
     - Fee = savings_usd × fee_percent / 100
-    - NO minimum fee — Phoenix only earns when it finds savings
+    - NO minimum fee — Mystes only earns when it finds savings
     - No savings = no charge (pure value alignment)
     - Only charged on COMPLETED bookings (searches are free within quota)
     - Rate tier determined by rolling 30-day ticket volume
@@ -96,10 +96,10 @@ DOWNGRADE_GRACE_PERIODS = 2
 
 def calculate_fee(savings_usd, fee_percent):
     """
-    Calculate the Phoenix fee for a completed transaction.
+    Calculate the Mystes fee for a completed transaction.
 
     No minimum fee — if savings are zero, fee is zero.
-    Phoenix only earns when it delivers value.
+    Mystes only earns when it delivers value.
 
     Returns fee_amount (float).
     """
@@ -549,7 +549,7 @@ class CommercialManager:
         # Extract alpha chars, uppercase, max 12 chars
         base = re.sub(r'[^A-Z]', '', company_name.upper())[:12]
         if not base:
-            base = "PHOENIX"
+            base = "MYSTES"
 
         code = base
         suffix = 1

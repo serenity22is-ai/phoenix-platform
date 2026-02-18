@@ -1,5 +1,5 @@
 """
-PHOENIX P2P System Tests
+MYSTES P2P System Tests
 
 Tests for the P2P orchestrator, escrow calculations, helper matching,
 and browser control protocol.
@@ -18,11 +18,17 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from payments import calculate_p2p_amounts, create_p2p_escrow, P2P_FEE_CONFIG
-from browser_control import (
-    BrowserControlServer, BrowserSession, BrowserCommand,
-    CommandResponse, MessageProtocol, CommandType, SessionStatus
-)
 from p2p_orchestrator import P2POrchestrator, P2PWorkflowStatus
+
+# browser_control was removed in Build #89 — import conditionally
+try:
+    from browser_control import (
+        BrowserControlServer, BrowserSession, BrowserCommand,
+        CommandResponse, MessageProtocol, CommandType, SessionStatus
+    )
+    HAS_BROWSER_CONTROL = True
+except ImportError:
+    HAS_BROWSER_CONTROL = False
 
 
 # ===================================================================
@@ -168,8 +174,8 @@ class TestP2POrchestrator:
         db = MagicMock()
         return P2POrchestrator(db), db
 
-    @patch("p2p_orchestrator.calculate_p2p_amounts")
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch("payments.calculate_p2p_amounts")
+    @patch("models.P2PTransaction")
     def test_initiate_creates_record(self, MockTxn, mock_calc):
         mock_calc.return_value = {
             "total_escrow_rlusd": 648.0,
@@ -177,7 +183,9 @@ class TestP2POrchestrator:
             "helper_earning": 30.0,
             "platform_fee": 18.0,
         }
-        MockTxn.return_value = MagicMock()
+        mock_instance = MagicMock()
+        mock_instance.savings_usd = 200.0
+        MockTxn.return_value = mock_instance
         orch, db = self._make_orchestrator()
         result = orch.initiate_transaction(
             buyer_id=10, origin="JFK", destination="LHR",
@@ -191,14 +199,14 @@ class TestP2POrchestrator:
         db.add.assert_called_once()
         db.commit.assert_called_once()
 
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch("models.P2PTransaction")
     def test_match_not_found(self, MockTxn):
         MockTxn.query.filter_by.return_value.first.return_value = None
         orch, _ = self._make_orchestrator()
         result = orch.match_helper("nonexistent")
         assert result["success"] is False
 
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch("models.P2PTransaction")
     def test_match_wrong_status(self, MockTxn):
         txn = _make_mock_transaction(status="completed")
         MockTxn.query.filter_by.return_value.first.return_value = txn
@@ -206,26 +214,25 @@ class TestP2POrchestrator:
         result = orch.match_helper("p2p_abc123")
         assert result["success"] is False
 
-    @patch("p2p_orchestrator.get_browser_control_server")
-    @patch("p2p_orchestrator.HelperProfile")
-    @patch("p2p_orchestrator.P2PEscrow")
-    @patch("p2p_orchestrator.P2PTransaction")
-    def test_fail_transaction(self, MockTxn, MockEscrow, MockHelper, mock_srv):
+    @patch.dict("sys.modules", {"browser_control": MagicMock()})
+    @patch("models.HelperProfile")
+    @patch("models.P2PEscrow")
+    @patch("models.P2PTransaction")
+    def test_fail_transaction(self, MockTxn, MockEscrow, MockHelper):
         txn = _make_mock_transaction(status="purchasing", helper_id=100,
                                      browser_session_id="bcs_test")
         MockTxn.query.filter_by.return_value.first.return_value = txn
         escrow = _make_mock_escrow(status="locked")
         MockEscrow.query.filter_by.return_value.first.return_value = escrow
         MockHelper.query.get.return_value = _make_mock_helper()
-        mock_srv.return_value = MagicMock()
         orch, db = self._make_orchestrator()
         result = orch.fail_transaction("p2p_abc123", "Browser disconnected")
         assert result["success"] is True
         assert txn.status == "failed"
         assert escrow.status == "cancelled"
 
-    @patch("p2p_orchestrator.P2PEscrow")
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch("models.P2PEscrow")
+    @patch("models.P2PTransaction")
     def test_cancel_before_purchase(self, MockTxn, MockEscrow):
         txn = _make_mock_transaction(status="matched")
         MockTxn.query.filter_by.return_value.first.return_value = txn
@@ -235,7 +242,7 @@ class TestP2POrchestrator:
         assert result["success"] is True
         assert txn.status == "cancelled"
 
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch("models.P2PTransaction")
     def test_cancel_after_purchase_fails(self, MockTxn):
         txn = _make_mock_transaction(status="purchasing")
         MockTxn.query.filter_by.return_value.first.return_value = txn
@@ -243,13 +250,14 @@ class TestP2POrchestrator:
         result = orch.cancel_transaction("p2p_abc123")
         assert result["success"] is False
 
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch("models.P2PTransaction")
     def test_cancel_nonexistent(self, MockTxn):
         MockTxn.query.filter_by.return_value.first.return_value = None
         orch, _ = self._make_orchestrator()
         assert orch.cancel_transaction("nope")["success"] is False
 
-    @patch("p2p_orchestrator.P2PTransaction")
+    @patch.dict("sys.modules", {"browser_control": MagicMock()})
+    @patch("models.P2PTransaction")
     def test_fail_nonexistent(self, MockTxn):
         MockTxn.query.filter_by.return_value.first.return_value = None
         orch, _ = self._make_orchestrator()
@@ -260,6 +268,7 @@ class TestP2POrchestrator:
 # 3. TestBrowserControl
 # ===================================================================
 
+@pytest.mark.skipif(not HAS_BROWSER_CONTROL, reason="browser_control module removed in Build #89")
 class TestBrowserControl:
 
     def test_create_session(self):
@@ -500,6 +509,7 @@ class TestWorkflowStatus:
         for st in expected:
             assert st in actual
 
+    @pytest.mark.skipif(not HAS_BROWSER_CONTROL, reason="browser_control module removed in Build #89")
     def test_command_types_exist(self):
         expected = [
             "navigate", "wait_for", "wait_timeout", "click", "type_text",
@@ -510,6 +520,7 @@ class TestWorkflowStatus:
         for ct in expected:
             assert ct in actual
 
+    @pytest.mark.skipif(not HAS_BROWSER_CONTROL, reason="browser_control module removed in Build #89")
     def test_session_statuses_exist(self):
         expected = ["pending", "connected", "active", "paused",
                     "completed", "failed", "timed_out", "cancelled"]

@@ -7,15 +7,15 @@
 
 ## Summary
 
-This session completed the end-to-end booking infrastructure for Phoenix, enabling users to search, select travelers, pay, and confirm flight bookings entirely through Phoenix AI.
+This session completed the end-to-end booking infrastructure for Mystes, enabling users to search, select travelers, pay, and confirm flight bookings entirely through Mystes AI.
 
 ---
 
 ## Changes by Category
 
-### 1. Phoenix AI Smart Prompting (Build #99-100)
+### 1. Mystes AI Smart Prompting (Build #99-100)
 
-**File:** `phoenix_ai.py`
+**File:** `mystes_ai.py`
 
 Added 6 new tools for booking workflow:
 
@@ -118,7 +118,7 @@ Key functions:
 
 | File | Changes |
 |------|---------|
-| `phoenix_ai.py` | +290 lines — 6 new tools, updated system prompt, formatters |
+| `mystes_ai.py` | +290 lines — 6 new tools, updated system prompt, formatters |
 | `server.py` | +220 lines — /travelers route, TRAVELERS_CONTENT template, TravelerProfile import |
 | `templates/base_template.py` | +1 line — Travelers nav link |
 | `node_antidilution.py` | +378 lines — new file |
@@ -129,7 +129,7 @@ Key functions:
 
 ## Commits
 
-1. `d9a77b8` — Add Phoenix AI smart prompting for traveler collection (Build #99)
+1. `d9a77b8` — Add Mystes AI smart prompting for traveler collection (Build #99)
 2. `f0bad30` — Add complete booking flow and traveler management UI (Build #100)
 3. `b2498fe` — Add TravelerProfile database migration
 
@@ -137,11 +137,11 @@ Key functions:
 
 ## What's Ready
 
-- Flight search via Phoenix AI
+- Flight search via Mystes AI
 - Multi-passenger booking support (up to 9 per PNR)
 - TravelerProfile storage with IATA/APIS compliance
 - Saved traveler management UI at /travelers
-- Complete booking flow in Phoenix AI
+- Complete booking flow in Mystes AI
 - Anti-dilution protection for node rewards
 - Payment infrastructure (Stripe, crypto)
 
@@ -170,4 +170,4 @@ flask db upgrade
 
 ---
 
-*Build #100 completes the booking infrastructure. Phoenix is ready for live testing once Amadeus credentials are obtained.*
+*Build #100 completes the booking infrastructure. Mystes is ready for live testing once Amadeus credentials are obtained.*

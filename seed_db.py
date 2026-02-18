@@ -1,5 +1,5 @@
 """
-PHOENIX Database Seed Script
+MYSTES Database Seed Script
 
 Populates the database with realistic demo data for development and testing.
 
@@ -112,7 +112,7 @@ def show_counts():
             ("UserWallets", UserWallet), ("UserCards", UserCard),
             ("P2PTransactions", P2PTransaction), ("P2PEscrows", P2PEscrow),
         ]
-        print("\n  PHOENIX Database Record Counts")
+        print("\n  MYSTES Database Record Counts")
         print("  " + "=" * 35)
         for name, model in models:
             count = model.query.count()
@@ -122,26 +122,26 @@ def show_counts():
 
 def seed():
     with app.app_context():
-        print("\n  Seeding PHOENIX database...\n")
+        print("\n  Seeding MYSTES database...\n")
 
         # --- 1. Admin user ---
         admin = User(
-            email="admin@phoenix.flights",
-            name="Phoenix Admin",
+            email="admin@mystes.flights",
+            name="Mystes Admin",
             is_admin=True,
             is_verified=True,
             is_active=True,
             home_market="US",
             created_at=datetime.utcnow() - timedelta(days=180),
         )
-        admin.set_password("PhoenixAdmin123!")
+        admin.set_password("MystesAdmin123!")
         db.session.add(admin)
         db.session.flush()
-        print("  [+] Admin user created (admin@phoenix.flights / PhoenixAdmin123!)")
+        print("  [+] Admin user created (admin@mystes.flights / MystesAdmin123!)")
 
         # --- 2. Demo buyer ---
         demo = User(
-            email="demo@phoenix.flights",
+            email="demo@mystes.flights",
             name="Demo Buyer",
             is_verified=True,
             is_active=True,
@@ -160,7 +160,7 @@ def seed():
             is_verified=True,
         )
         db.session.add(demo_wallet)
-        print("  [+] Demo buyer created (demo@phoenix.flights / DemoUser123!)")
+        print("  [+] Demo buyer created (demo@mystes.flights / DemoUser123!)")
 
         # --- 3. Regular users ---
         users = [admin, demo]
@@ -404,7 +404,7 @@ def seed():
                     p2p_transaction_id=tx.id,
                     buyer_address=random_xrpl_address(),
                     helper_address=random_xrpl_address() if status != "requested" else None,
-                    platform_address="rPHOENIXPlatformWallet123456789",
+                    platform_address="rMYSTESPlatformWallet123456789",
                     total_rlusd=escrow_total,
                     helper_amount_rlusd=target_price + helper_cut,
                     platform_amount_rlusd=platform_fee,
@@ -456,7 +456,7 @@ def reset_and_seed():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="PHOENIX Database Seed Script")
+    parser = argparse.ArgumentParser(description="MYSTES Database Seed Script")
     parser.add_argument("--reset", action="store_true", help="Drop all tables and re-seed")
     parser.add_argument("--count", action="store_true", help="Show current record counts")
     args = parser.parse_args()

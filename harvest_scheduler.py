@@ -1,7 +1,7 @@
 """
 harvest_scheduler.py — Autonomous Data Harvesting Scheduler (Build #79)
 
-Transforms Phoenix from reactive (responds to user searches) to proactive
+Transforms Mystes from reactive (responds to user searches) to proactive
 (continuously harvests pricing data to build a proprietary dataset).
 
 The scheduler:
@@ -134,7 +134,7 @@ ZONE_CITIES = {
     "US-SE": ["Miami", "Atlanta", "Orlando"],
     "US-SC": ["Dallas", "Houston", "Austin"],
     "US-NW": ["Seattle", "Portland", "San Francisco"],
-    "US-SW": ["Los Angeles", "San Diego", "Las Vegas", "Phoenix"],
+    "US-SW": ["Los Angeles", "San Diego", "Las Vegas", "Mystes"],
     "US-MW": ["Chicago", "Detroit", "Minneapolis"],
     "US-MT": ["Denver", "Salt Lake City"],
     "GB-LN": ["London"],
@@ -1293,7 +1293,7 @@ class HarvestScheduler:
         vertical: str = "flight", priority: float = 0.7
     ) -> dict:
         """
-        Build #80: Allow PhoenixAI to deploy a strategy by creating
+        Build #80: Allow MystesAI to deploy a strategy by creating
         targeted harvest tasks for specific destination+market combos.
 
         Args:

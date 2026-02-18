@@ -1,7 +1,7 @@
 """
 Strategy Learner Engine — Build #73
 Three-phase learning system: Record, Aggregate, Apply
-Plus competitive comparison (PhoenixAI vs BYOAI).
+Plus competitive comparison (MystesAI vs BYOAI).
 """
 
 import json
@@ -804,7 +804,7 @@ class StrategyLearner:
     # ------------------------------------------------------------------ #
 
     def run_comparison(self, user_id, byoai_results, query_params):
-        """Run PhoenixAI against BYOAI results and compare."""
+        """Run MystesAI against BYOAI results and compare."""
         try:
             from search import search_global
 
@@ -825,19 +825,19 @@ class StrategyLearner:
             if strategy_sites:
                 enhanced_params["strategy_sites"] = strategy_sites[:10]
 
-            phoenix_results = search_global(user_id=user_id, **enhanced_params)
-            if not isinstance(phoenix_results, list):
-                phoenix_results = phoenix_results.get("results", []) if isinstance(phoenix_results, dict) else []
+            mystes_results = search_global(user_id=user_id, **enhanced_params)
+            if not isinstance(mystes_results, list):
+                mystes_results = mystes_results.get("results", []) if isinstance(mystes_results, dict) else []
 
             byoai_list = byoai_results if isinstance(byoai_results, list) else (
                 byoai_results.get("results", []) if isinstance(byoai_results, dict) else []
             )
 
-            comparison = self._build_comparison(byoai_list, phoenix_results)
+            comparison = self._build_comparison(byoai_list, mystes_results)
 
             return {
                 "byoai_results": byoai_list,
-                "phoenix_results": phoenix_results,
+                "mystes_results": mystes_results,
                 "comparison": comparison,
             }
 
@@ -846,35 +846,35 @@ class StrategyLearner:
             return {
                 "error": str(exc),
                 "byoai_results": byoai_results if isinstance(byoai_results, list) else [],
-                "phoenix_results": [],
+                "mystes_results": [],
                 "comparison": {},
             }
 
-    def _build_comparison(self, byoai_list, phoenix_list):
+    def _build_comparison(self, byoai_list, mystes_list):
         """Compute comparison metrics."""
         byoai_prices = self._collect_prices(byoai_list)
-        phoenix_prices = self._collect_prices(phoenix_list)
+        mystes_prices = self._collect_prices(mystes_list)
 
         byoai_markets = self._collect_field(byoai_list, "market")
-        phoenix_markets = self._collect_field(phoenix_list, "market")
+        mystes_markets = self._collect_field(mystes_list, "market")
 
         byoai_best = min(byoai_prices) if byoai_prices else None
-        phoenix_best = min(phoenix_prices) if phoenix_prices else None
+        mystes_best = min(mystes_prices) if mystes_prices else None
 
         additional_savings = 0.0
-        if byoai_best and phoenix_best and phoenix_best < byoai_best:
-            additional_savings = round(byoai_best - phoenix_best, 2)
+        if byoai_best and mystes_best and mystes_best < byoai_best:
+            additional_savings = round(byoai_best - mystes_best, 2)
 
         return {
-            "phoenix_additional_results": max(0, len(phoenix_list) - len(byoai_list)),
+            "mystes_additional_results": max(0, len(mystes_list) - len(byoai_list)),
             "additional_savings_found": additional_savings,
-            "markets_covered_delta": len(phoenix_markets - byoai_markets),
-            "phoenix_best_price": phoenix_best,
+            "markets_covered_delta": len(mystes_markets - byoai_markets),
+            "mystes_best_price": mystes_best,
             "byoai_best_price": byoai_best,
-            "comparison_table": self._format_comparison_table(byoai_list, phoenix_list),
+            "comparison_table": self._format_comparison_table(byoai_list, mystes_list),
         }
 
-    def _format_comparison_table(self, byoai_results, phoenix_results):
+    def _format_comparison_table(self, byoai_results, mystes_results):
         """Build a unified comparison table sorted by price."""
         rows = []
         for r in (byoai_results if isinstance(byoai_results, list) else []):
@@ -889,12 +889,12 @@ class StrategyLearner:
                 "savings_pct": 0.0,
                 "is_best": False,
             })
-        for r in (phoenix_results if isinstance(phoenix_results, list) else []):
+        for r in (mystes_results if isinstance(mystes_results, list) else []):
             if not isinstance(r, dict):
                 continue
             price = self._get_price(r)
             rows.append({
-                "source": "PhoenixAI",
+                "source": "MystesAI",
                 "item": r.get("title", r.get("airline", r.get("name", "Unknown"))),
                 "price": price,
                 "market": r.get("market", r.get("country", "N/A")),

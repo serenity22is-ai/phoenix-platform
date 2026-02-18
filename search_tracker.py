@@ -1,5 +1,5 @@
 """
-PHOENIX Search History & Price Tracking
+MYSTES Search History & Price Tracking
 
 Records search results for analytics, re-search, and historical price trends.
 Integrates with the search pipeline to capture data automatically.

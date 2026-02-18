@@ -1,7 +1,7 @@
 {
-  "name": "PHOENIX",
-  "short_name": "Phoenix",
-  "description": "Break free from borders. Access global flight prices from anywhere. Pay with crypto. Powered by XRPL.",
+  "name": "MYSTES",
+  "short_name": "MYSTES",
+  "description": "Beat every price on flights and hotels. Geographic price arbitrage powered by multi-market intelligence.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",

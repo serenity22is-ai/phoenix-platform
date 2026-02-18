@@ -1,5 +1,5 @@
 """
-PHOENIX Airline Intelligence Manager
+MYSTES Airline Intelligence Manager
 
 Manages airline intelligence clients, competitive pricing reports,
 ancillary optimization data, demand signals, and real-time alerts.

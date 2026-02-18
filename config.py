@@ -1,5 +1,5 @@
 """
-PHOENIX Configuration
+MYSTES Configuration
 
 Centralized configuration management for different environments.
 """
@@ -12,10 +12,10 @@ class Config:
     """Base configuration."""
 
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    APP_NAME = 'PHOENIX'
+    APP_NAME = 'MYSTES'
 
     # Database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///phoenix.db'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///mystes.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
@@ -42,7 +42,7 @@ class Config:
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'PHOENIX <noreply@phoenix.app>')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'MYSTES <noreply@mystes.app>')
 
     # XRPL
     XRPL_NETWORK = os.environ.get('XRPL_NETWORK', 'testnet')
@@ -78,11 +78,19 @@ class Config:
     # Redis
     REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
+    # liteAPI (Hotel Search — replaces Amadeus Hotel Self-Service)
+    LITEAPI_KEY = os.environ.get('LITEAPI_KEY')
+
+    # Picasso Travel / AERTiCKET (Flight Search + Ticketing — replaces Amadeus)
+    PICASSO_API_KEY = os.environ.get('PICASSO_API_KEY')
+    PICASSO_API_SECRET = os.environ.get('PICASSO_API_SECRET')
+    PICASSO_API_URL = os.environ.get('PICASSO_API_URL', 'https://cockpit.picassotravel.com/api/v1')
+
 
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///phoenix_dev.db'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///mystes_dev.db'
     RATELIMIT_STORAGE_URL = 'memory://'
 
 
@@ -99,7 +107,7 @@ class ProductionConfig(Config):
 
     # PostgreSQL
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql://phoenix:phoenix_secret@localhost:5432/phoenix_db'
+        'postgresql://mystes:mystes_secret@localhost:5432/mystes_db'
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
@@ -121,7 +129,7 @@ class ProductionConfig(Config):
         from logging.handlers import RotatingFileHandler
 
         file_handler = RotatingFileHandler(
-            'logs/phoenix.log',
+            'logs/mystes.log',
             maxBytes=10 * 1024 * 1024,
             backupCount=10
         )

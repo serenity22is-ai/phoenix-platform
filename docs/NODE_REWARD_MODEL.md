@@ -1,8 +1,8 @@
-# Phoenix Node Reward Model (Internal Documentation)
+# Mystes Node Reward Model (Internal Documentation)
 
 ## Overview
 
-The Phoenix network uses a dual-value node system where different node types contribute different value to the ecosystem and are rewarded accordingly.
+The Mystes network uses a dual-value node system where different node types contribute different value to the ecosystem and are rewarded accordingly.
 
 ---
 
@@ -167,8 +167,8 @@ A well-funded adversary (big tech, VC-backed competitor, crypto whale) could att
 ```
 Attacker spins up 1M nodes
 ├── They pay: hardware, bandwidth, residential IPs ($1-5/IP/month)
-├── Phoenix gains: 1M more proxies to sell
-├── Phoenix revenue: increases (more capacity = more sales)
+├── Mystes gains: 1M more proxies to sell
+├── Mystes revenue: increases (more capacity = more sales)
 └── Attacker ROI: negative (paying to build OUR infrastructure)
 ```
 
@@ -270,15 +270,15 @@ POST /api/admin/antidilution/config  - Update thresholds
 
 ## Summary: Attack Economics
 
-**For an attacker to hurt Phoenix, they must:**
+**For an attacker to hurt Mystes, they must:**
 1. Spend millions on residential IPs
-2. Build infrastructure Phoenix sells
+2. Build infrastructure Mystes sells
 3. Sustain losses indefinitely
-4. Watch Phoenix grow from their investment
+4. Watch Mystes grow from their investment
 
 **The only viable attack path**: Short-term panic causing user exodus. Defense: Escrow period + transparency + spike detection.
 
-**Bottom line**: An attack on Phoenix is economically self-defeating. They pay to build what we sell.
+**Bottom line**: An attack on Mystes is economically self-defeating. They pay to build what we sell.
 
 ---
 

@@ -2,7 +2,7 @@
 Payment Ramp Network Integration (Build #86)
 
 Provides on-ramp/off-ramp provider registry, FX cost estimation,
-and virtual card pipeline for universal Phoenix payment infrastructure.
+and virtual card pipeline for universal Mystes payment infrastructure.
 Serves ALL proxy browsing — arbitrage, free shopping, and direct purchases.
 """
 

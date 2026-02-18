@@ -1,4 +1,4 @@
-name: PHOENIX CI/CD
+name: MYSTES CI/CD
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
-  DOCKER_IMAGE: phoenix-web
+  DOCKER_IMAGE: mystes-web
 
 jobs:
   # ============================================================
@@ -38,10 +38,15 @@ jobs:
           python -m py_compile monitoring.py
           python -m py_compile seed_db.py
           python -m py_compile helper_client.py
+          python -m py_compile payments.py
+          python -m py_compile liteapi_client.py
+          python -m py_compile picasso_client.py
+          python -m py_compile mystes_ai.py
 
       - name: Flake8 lint (errors only)
         run: |
           flake8 server.py models.py config.py monitoring.py seed_db.py \
+            payments.py liteapi_client.py picasso_client.py \
             --count --select=E9,F63,F7,F82 --show-source --statistics
 
   # ============================================================
@@ -65,14 +70,21 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run unit tests
+      - name: Run integration tests
         env:
           FLASK_ENV: testing
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret-key-ci"
         run: |
-          pytest tests/ -v --tb=short --co -q 2>/dev/null || true
           pytest tests/test_integration.py -v --tb=short -x
+
+      - name: Run API client tests
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "test-secret-key-ci"
+        run: |
+          pytest tests/test_api_clients.py -v --tb=short -x
 
       - name: Run P2P tests
         env:

@@ -1,11 +1,11 @@
 """
-Free Browse Portal — Node-based browsing for Phoenix users.
+Free Browse Portal — Node-based browsing for Mystes users.
 
 Build #90 — Replaces the deleted proxy_portal.py (Webshare-based).
 
-Users open their own browser through the Phoenix portal into a
+Users open their own browser through the Mystes portal into a
 CitizenSERP network node.  They browse using their own Google account.
-Phoenix acts as a monitoring window — passively observing data
+Mystes acts as a monitoring window — passively observing data
 (price observations, search queries, ad impressions) at zero cost.
 
 Browsing is unlimited.  No quota is consumed.
@@ -13,7 +13,7 @@ Browsing is unlimited.  No quota is consumed.
 Architecture:
     User → selects a zone/country → portal finds available node →
     creates BrowseSession → user's browser connects through the node →
-    Phoenix monitoring JS captures events → POST /api/browse/event →
+    Mystes monitoring JS captures events → POST /api/browse/event →
     BrowsingEvent records → data marketplace.
 """
 
@@ -64,8 +64,8 @@ class FreeBrowsePortalManager:
     """Manages Free Browse sessions through CitizenSERP nodes.
 
     Each session connects a user to a single node in a target zone.
-    The user browses freely; Phoenix monitors data passively.
-    Zero cost to Phoenix — the user provides the browser, the node
+    The user browses freely; Mystes monitors data passively.
+    Zero cost to Mystes — the user provides the browser, the node
     provides the connection.
     """
 

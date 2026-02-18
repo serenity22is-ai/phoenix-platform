@@ -5,7 +5,7 @@ Core engine for:
 - XRPL wallet auto-generation on signup
 - Data consent management (user toggles what data they share)
 - Tier assessment (0-100 scoring → Bronze/Silver/Gold/Platinum)
-- Platform activity tracking (server-side events from Phoenix usage)
+- Platform activity tracking (server-side events from Mystes usage)
 - Revenue allocation (arbitrage fee ledger — additional vertical)
 - Referral system (auto-generated codes, activation bonuses, revenue share)
 - Fleet management (commercial enrollment, bulk benefits)
@@ -37,28 +37,28 @@ TIER_THRESHOLDS = {
 
 # ---------------------------------------------------------------------------
 # Phase-aware tier benefits
-# Reads PHOENIX_ECONOMIC_PHASE from phoenix_ai.py to select active tier config.
+# Reads MYSTES_ECONOMIC_PHASE from mystes_ai.py to select active tier config.
 # Phase 1: lean caps, overage-funded. Phase 2: aggressive, node-subsidized.
 # ---------------------------------------------------------------------------
 
 PHASE1_TIER_BENEFITS = {
     'bronze':   {
-        'payout_multiplier': 1.0,  'arbitrage_discount': 0.0,  'phoenix_suite': False,
+        'payout_multiplier': 1.0,  'arbitrage_discount': 0.0,  'mystes_suite': False,
         'free_queries_per_day': 5,  'free_tools_per_query': 3,   # 3 markets
         'requires_data_sharing': False, 'requires_dedicated_mode': False,
     },
     'silver':   {
-        'payout_multiplier': 1.10, 'arbitrage_discount': 0.0,  'phoenix_suite': False,
+        'payout_multiplier': 1.10, 'arbitrage_discount': 0.0,  'mystes_suite': False,
         'free_queries_per_day': 10, 'free_tools_per_query': 5,   # 5 markets
         'requires_data_sharing': True, 'requires_dedicated_mode': False,
     },
     'gold':     {
-        'payout_multiplier': 1.25, 'arbitrage_discount': 0.05, 'phoenix_suite': False,
+        'payout_multiplier': 1.25, 'arbitrage_discount': 0.05, 'mystes_suite': False,
         'free_queries_per_day': 20, 'free_tools_per_query': 8,   # 8 markets
         'requires_data_sharing': True, 'requires_dedicated_mode': False,
     },
     'platinum': {
-        'payout_multiplier': 1.50, 'arbitrage_discount': 0.10, 'phoenix_suite': True,
+        'payout_multiplier': 1.50, 'arbitrage_discount': 0.10, 'mystes_suite': True,
         'free_queries_per_day': 40, 'free_tools_per_query': 12,  # 12 markets
         'requires_data_sharing': True, 'requires_dedicated_mode': True,
     },
@@ -66,22 +66,22 @@ PHASE1_TIER_BENEFITS = {
 
 PHASE2_TIER_BENEFITS = {
     'bronze':   {
-        'payout_multiplier': 1.0,  'arbitrage_discount': 0.0,  'phoenix_suite': False,
+        'payout_multiplier': 1.0,  'arbitrage_discount': 0.0,  'mystes_suite': False,
         'free_queries_per_day': 10, 'free_tools_per_query': 5,   # 5 markets
         'requires_data_sharing': False, 'requires_dedicated_mode': False,
     },
     'silver':   {
-        'payout_multiplier': 1.25, 'arbitrage_discount': 0.05, 'phoenix_suite': False,
+        'payout_multiplier': 1.25, 'arbitrage_discount': 0.05, 'mystes_suite': False,
         'free_queries_per_day': 20, 'free_tools_per_query': 8,   # 8 markets
         'requires_data_sharing': True, 'requires_dedicated_mode': False,
     },
     'gold':     {
-        'payout_multiplier': 1.50, 'arbitrage_discount': 0.10, 'phoenix_suite': False,
+        'payout_multiplier': 1.50, 'arbitrage_discount': 0.10, 'mystes_suite': False,
         'free_queries_per_day': 40, 'free_tools_per_query': 12,  # 12 markets
         'requires_data_sharing': True, 'requires_dedicated_mode': False,
     },
     'platinum': {
-        'payout_multiplier': 2.0,  'arbitrage_discount': 0.15, 'phoenix_suite': True,
+        'payout_multiplier': 2.0,  'arbitrage_discount': 0.15, 'mystes_suite': True,
         'free_queries_per_day': 999, 'free_tools_per_query': 15, # unlimited
         'requires_data_sharing': True, 'requires_dedicated_mode': True,
     },
@@ -89,42 +89,42 @@ PHASE2_TIER_BENEFITS = {
 
 PHASE3_TIER_BENEFITS = {
     'bronze':   {
-        'payout_multiplier': 1.0,  'arbitrage_discount': 0.0,  'phoenix_suite': False,
+        'payout_multiplier': 1.0,  'arbitrage_discount': 0.0,  'mystes_suite': False,
         'free_queries_per_day': 100, 'free_tools_per_query': 10,   # 10 markets — generous
         'requires_data_sharing': False, 'requires_dedicated_mode': False,
-        'query_cost_to_phoenix': 0.0,   # zero — we own the SERP
+        'query_cost_to_mystes': 0.0,   # zero — we own the SERP
         'arbitrage_reward_pct': 0.02,   # 2% of booking fee to discovering node
     },
     'silver':   {
-        'payout_multiplier': 1.25, 'arbitrage_discount': 0.05, 'phoenix_suite': False,
+        'payout_multiplier': 1.25, 'arbitrage_discount': 0.05, 'mystes_suite': False,
         'free_queries_per_day': 250, 'free_tools_per_query': 12,  # 12 markets
         'requires_data_sharing': True, 'requires_dedicated_mode': False,
-        'query_cost_to_phoenix': 0.0,
+        'query_cost_to_mystes': 0.0,
         'arbitrage_reward_pct': 0.05,   # 5% of booking fee
     },
     'gold':     {
-        'payout_multiplier': 1.50, 'arbitrage_discount': 0.10, 'phoenix_suite': True,
+        'payout_multiplier': 1.50, 'arbitrage_discount': 0.10, 'mystes_suite': True,
         'free_queries_per_day': 500, 'free_tools_per_query': 15,  # all markets
         'requires_data_sharing': True, 'requires_dedicated_mode': False,
-        'query_cost_to_phoenix': 0.0,
+        'query_cost_to_mystes': 0.0,
         'arbitrage_reward_pct': 0.10,   # 10% of booking fee
     },
     'platinum': {
-        'payout_multiplier': 2.0,  'arbitrage_discount': 0.15, 'phoenix_suite': True,
+        'payout_multiplier': 2.0,  'arbitrage_discount': 0.15, 'mystes_suite': True,
         'free_queries_per_day': 9999, 'free_tools_per_query': 15, # unlimited
         'requires_data_sharing': True, 'requires_dedicated_mode': True,
-        'query_cost_to_phoenix': 0.0,
+        'query_cost_to_mystes': 0.0,
         'arbitrage_reward_pct': 0.15,   # 15% of booking fee — max reward
     },
 }
 
 def _get_economic_phase():
-    """Read phase from phoenix_ai to stay in sync."""
+    """Read phase from mystes_ai to stay in sync."""
     try:
-        from phoenix_ai import PHOENIX_ECONOMIC_PHASE
-        return PHOENIX_ECONOMIC_PHASE
+        from mystes_ai import MYSTES_ECONOMIC_PHASE
+        return MYSTES_ECONOMIC_PHASE
     except ImportError:
-        return int(os.environ.get("PHOENIX_ECONOMIC_PHASE", "1"))
+        return int(os.environ.get("MYSTES_ECONOMIC_PHASE", "1"))
 
 def get_tier_benefits():
     """Return the active tier benefits dict for the current economic phase."""
@@ -220,7 +220,7 @@ PHASE2_FEE_ALLOCATION = {
     'platinum': {'node_share': 0.50, 'referral_share': 0.01, 'infra_share': 0.04, 'platform_fee_pct': 0.10},
 }
 
-# Phase 3: Phoenix owns GDS/SERP. No external API costs. Lower fees, higher node shares.
+# Phase 3: Mystes owns GDS/SERP. No external API costs. Lower fees, higher node shares.
 # Arbitrage reward pool is NEW: a % of booking fee goes to nodes whose searches
 # discovered the price arbitrage that led to a booking.
 PHASE3_FEE_ALLOCATION = {
@@ -410,7 +410,7 @@ class NodeConsentEconomy:
             tier_score=0.0,
             payout_multiplier=1.0,
             arbitrage_fee_discount=0.0,
-            phoenix_suite_access=False,
+            mystes_suite_access=False,
         )
         db.session.add(profile)
         db.session.commit()
@@ -511,7 +511,7 @@ class NodeConsentEconomy:
         profile.current_tier = new_tier
         profile.payout_multiplier = benefits['payout_multiplier']
         profile.arbitrage_fee_discount = benefits['arbitrage_discount']
-        profile.phoenix_suite_access = benefits['phoenix_suite']
+        profile.mystes_suite_access = benefits['mystes_suite']
         profile.last_tier_assessment = datetime.utcnow()
 
         # Calculate next threshold
@@ -673,7 +673,7 @@ class NodeConsentEconomy:
         """Record platform activity (search, comparison, booking, AI query, deal view).
 
         These events count toward the node's tier score and data extraction value.
-        Generated server-side when a logged-in node uses Phoenix — no extension needed.
+        Generated server-side when a logged-in node uses Mystes — no extension needed.
         """
         if activity_type not in PLATFORM_ACTIVITY_VALUES:
             logger.warning("Unknown platform activity type: %s", activity_type)
@@ -1078,7 +1078,7 @@ class NodeConsentEconomy:
             'source_currency': source_currency,
             'source_amount': source_amount,
             'convenience_fee_pct': CRYPTO_CONVENIENCE_FEE_PCT,
-            'instructions': f'Send {source_amount} {source_currency} to the Phoenix deposit address. '
+            'instructions': f'Send {source_amount} {source_currency} to the Mystes deposit address. '
                           f'A {CRYPTO_CONVENIENCE_FEE_PCT*100:.1f}% convenience fee will be applied.',
         }
 
@@ -1112,7 +1112,7 @@ class NodeConsentEconomy:
         }
 
     def pre_fund_conversion(self, conversion_id):
-        """Pre-fund a conversion from Phoenix seed account for speed."""
+        """Pre-fund a conversion from Mystes seed account for speed."""
         from models import db, CryptoConversion
 
         conversion = CryptoConversion.query.filter_by(conversion_id=conversion_id).first()

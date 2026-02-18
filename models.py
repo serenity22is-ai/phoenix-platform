@@ -1,5 +1,5 @@
 """
-PHOENIX Database Models
+MYSTES Database Models
 
 Tables:
 - User: User accounts with authentication
@@ -57,14 +57,14 @@ class User(UserMixin, db.Model):
     referral_code_used = db.Column(db.String(20))  # The referral code that brought them in
     is_helper_node = db.Column(db.Boolean, default=False)  # Opted in as residential proxy node
 
-    # Seller onboarding attribution (which deal link brought them to Phoenix)
+    # Seller onboarding attribution (which deal link brought them to Mystes)
     onboarded_from_deal_id = db.Column(db.Integer, nullable=True)
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
 
-    # Phoenix AI tier (Build #72)
+    # MYSTES AI tier (Build #72)
     ai_tier = db.Column(db.String(30), default='ai_free')
     ai_queries_used_this_month = db.Column(db.Integer, default=0)
     ai_month_reset_date = db.Column(db.DateTime, nullable=True)
@@ -154,13 +154,16 @@ class User(UserMixin, db.Model):
 
 
 class Deal(db.Model):
-    """Cached flight deal model."""
+    """Cached deal model — supports flights and hotels."""
     __tablename__ = 'deals'
 
     id = db.Column(db.Integer, primary_key=True)
     deal_id = db.Column(db.String(20), unique=True, nullable=False, index=True)
 
-    # Flight info
+    # Deal type discriminator
+    deal_type = db.Column(db.String(20), default='flight', index=True)  # 'flight' or 'hotel'
+
+    # Flight info (populated for flight deals)
     airline = db.Column(db.String(50))
     flight_number = db.Column(db.String(20))
     origin = db.Column(db.String(10), index=True)
@@ -210,6 +213,26 @@ class Deal(db.Model):
     # Payment compatibility (Build #85)
     payment_compatibility = db.Column(db.Text, nullable=True)  # JSON: accepted payment types for deal market
 
+    # Hotel-specific fields (nullable — only populated for hotel deals)
+    hotel_name = db.Column(db.String(300), nullable=True)
+    hotel_id = db.Column(db.String(50), nullable=True)
+    hotel_offer_id = db.Column(db.String(100), nullable=True)
+    city_code = db.Column(db.String(10), nullable=True, index=True)
+    city_name = db.Column(db.String(100), nullable=True)
+    check_in_date = db.Column(db.Date, nullable=True, index=True)
+    check_out_date = db.Column(db.Date, nullable=True)
+    nights = db.Column(db.Integer, nullable=True)
+    rooms = db.Column(db.Integer, nullable=True)
+    adults = db.Column(db.Integer, nullable=True)
+    room_type = db.Column(db.String(50), nullable=True)
+    bed_type = db.Column(db.String(50), nullable=True)
+    star_rating = db.Column(db.Integer, nullable=True)
+    price_per_night_usd = db.Column(db.Float, nullable=True)
+    price_total_usd = db.Column(db.Float, nullable=True)
+    amenities = db.Column(db.Text, nullable=True)  # JSON
+    cancellation_policy = db.Column(db.Text, nullable=True)
+    room_description = db.Column(db.Text, nullable=True)
+
     # Relationships
     payments = db.relationship('Payment', backref='deal', lazy='dynamic')
     bookings = db.relationship('Booking', backref='deal', lazy='dynamic')
@@ -227,6 +250,7 @@ class Deal(db.Model):
     def to_dict(self):
         result = {
             'deal_id': self.deal_id,
+            'deal_type': self.deal_type or 'flight',
             'airline': self.airline,
             'flight_number': self.flight_number,
             'route': f"{self.origin} → {self.destination}",
@@ -249,6 +273,25 @@ class Deal(db.Model):
         }
         if self.is_multi_leg:
             result['flight_legs'] = self.get_flight_legs()
+        if self.deal_type == 'hotel':
+            result.update({
+                'hotel_name': self.hotel_name,
+                'hotel_id': self.hotel_id,
+                'city_code': self.city_code,
+                'city_name': self.city_name,
+                'check_in_date': self.check_in_date.isoformat() if self.check_in_date else None,
+                'check_out_date': self.check_out_date.isoformat() if self.check_out_date else None,
+                'nights': self.nights,
+                'rooms': self.rooms,
+                'adults': self.adults,
+                'room_type': self.room_type,
+                'bed_type': self.bed_type,
+                'star_rating': self.star_rating,
+                'price_per_night_usd': self.price_per_night_usd,
+                'price_total_usd': self.price_total_usd,
+                'cancellation_policy': self.cancellation_policy,
+                'room_description': self.room_description,
+            })
         return result
 
 
@@ -351,6 +394,14 @@ class Booking(db.Model):
     eticket_sent = db.Column(db.Boolean, default=False)
     eticket_sent_at = db.Column(db.DateTime)
 
+    # Hotel-specific booking fields
+    guest_title = db.Column(db.String(10), nullable=True)  # MR/MS/MRS
+    check_in_date = db.Column(db.Date, nullable=True)
+    check_out_date = db.Column(db.Date, nullable=True)
+    special_requests = db.Column(db.Text, nullable=True)
+    hotel_confirmation_id = db.Column(db.String(100), nullable=True)
+    provider_reference = db.Column(db.String(100), nullable=True)
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -423,7 +474,7 @@ class Escrow(db.Model):
 
     Flow:
     1. Customer creates escrow with crypto-condition
-    2. PHOENIX books the flight
+    2. MYSTES books the flight
     3. On success: Release escrow with fulfillment
     4. On failure: Cancel escrow after timeout
     """
@@ -496,7 +547,7 @@ class Escrow(db.Model):
 
 class HelperProfile(db.Model):
     """
-    P2P helper profile — users who earn by granting Phoenix browser access.
+    P2P helper profile — users who earn by granting Mystes browser access.
     Extends the base User model with helper-specific fields.
     """
     __tablename__ = 'helper_profiles'
@@ -848,7 +899,7 @@ class P2PTransaction(db.Model):
     2. Helper matched → status: matched
     3. Buyer RLUSD locked in escrow → status: escrow_locked
     4. Helper verifies escrow on-chain → status: helper_accepted
-    5. Phoenix automates purchase on helper's browser → status: purchasing
+    5. Mystes automates purchase on helper's browser → status: purchasing
     6. Booking confirmed → status: confirmed
     7. Escrow releases to helper + platform → status: completed
     """
@@ -880,7 +931,7 @@ class P2PTransaction(db.Model):
     escrow_amount_rlusd = db.Column(db.Float)  # Total locked in escrow
     helper_reimbursement_rlusd = db.Column(db.Float)  # Ticket cost reimbursed to helper
     helper_earning_rlusd = db.Column(db.Float)  # Helper's cut
-    platform_fee_rlusd = db.Column(db.Float)  # Phoenix fee
+    platform_fee_rlusd = db.Column(db.Float)  # Mystes fee
     escrow_tx_hash = db.Column(db.String(100))  # XRPL escrow create tx
     escrow_release_tx_hash = db.Column(db.String(100))  # XRPL escrow finish tx
     escrow_sequence = db.Column(db.Integer)  # XRPL escrow sequence
@@ -958,7 +1009,7 @@ class P2PEscrow(db.Model):
     # Participants
     buyer_address = db.Column(db.String(100), nullable=False)  # Buyer's XRPL wallet
     helper_address = db.Column(db.String(100))  # Helper's XRPL wallet (set on match)
-    platform_address = db.Column(db.String(100), nullable=False)  # Phoenix wallet
+    platform_address = db.Column(db.String(100), nullable=False)  # Mystes wallet
 
     # Amounts
     total_rlusd = db.Column(db.Float, nullable=False)  # Total locked
@@ -1187,7 +1238,7 @@ class PriceHistory(db.Model):
 
 class CommercialAccount(db.Model):
     """
-    Commercial entity onboarded to Phoenix (travel agency, OTA, corporate travel desk).
+    Commercial entity onboarded to Mystes (travel agency, OTA, corporate travel desk).
 
     Fee model:
     - Fee = savings × fee_percent — no minimum fee, no charge if no savings found
@@ -1376,7 +1427,7 @@ class CommercialTransaction(db.Model):
 
 class AirlineClient(db.Model):
     """
-    Airline subscriber to Phoenix intelligence platform.
+    Airline subscriber to Mystes intelligence platform.
 
     SEPARATE from CommercialAccount — different customer type, pricing model.
     Airlines pay flat monthly subscription ($100K-500K/mo) for competitive
@@ -2330,8 +2381,8 @@ class ProxySession(db.Model):
 class BrowseSession(db.Model):
     """User browse session through a CitizenSERP node.
 
-    The user opens their own browser through the Phoenix portal into a
-    network node.  Phoenix acts as a monitoring window — passively observing
+    The user opens their own browser through the Mystes portal into a
+    network node.  Mystes acts as a monitoring window — passively observing
     data (price observations, search queries, ad impressions) at zero cost.
     Browsing is unlimited; no quota is consumed.
     """
@@ -2463,7 +2514,7 @@ class UserAIProvider(db.Model):
 
 
 class AIConversation(db.Model):
-    """Multi-turn Phoenix AI conversation session (Build #72)."""
+    """Multi-turn MYSTES AI conversation session (Build #72)."""
     __tablename__ = 'ai_conversations'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -2495,7 +2546,7 @@ class AIConversation(db.Model):
 
 
 class AIMessage(db.Model):
-    """Individual message in a Phoenix AI conversation (Build #72)."""
+    """Individual message in a MYSTES AI conversation (Build #72)."""
     __tablename__ = 'ai_messages'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -2533,13 +2584,13 @@ class AIMessage(db.Model):
 # ============================================================
 
 class StrategyObservation(db.Model):
-    """Records anonymized metadata from every search — ensemble, BYOAI, PhoenixAI, SERP.
+    """Records anonymized metadata from every search — ensemble, BYOAI, MystesAI, SERP.
     Never stores raw user content; only structural patterns and quality signals."""
     __tablename__ = 'strategy_observations'
 
     id = db.Column(db.Integer, primary_key=True)
     observation_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    source_type = db.Column(db.String(30), nullable=False)  # 'ensemble', 'phoenix_ai', 'byoai', 'serp'
+    source_type = db.Column(db.String(30), nullable=False)  # 'ensemble', 'mystes_ai', 'byoai', 'serp'
     provider_key = db.Column(db.String(50), nullable=True)  # which LLM provider
     query_category = db.Column(db.String(50), nullable=False)  # 'flights', 'hotels', 'products', 'serp', 'general'
     query_structure = db.Column(db.Text, nullable=True)  # JSON: anonymized query pattern
@@ -2623,7 +2674,7 @@ class PrivateMarketDeal(db.Model):
     market = db.Column(db.String(5), nullable=True)
     deal_type = db.Column(db.String(20), default='goods')  # goods, services, vehicle, other
 
-    # Deal link (shareable P2P link for sellers without Phoenix accounts)
+    # Deal link (shareable P2P link for sellers without Mystes accounts)
     link_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
     seller_email = db.Column(db.String(256), nullable=True)
     seller_name = db.Column(db.String(200), nullable=True)
@@ -2993,7 +3044,7 @@ class NodeConsentProfile(db.Model):
     # Tier benefits (cached from last assessment)
     payout_multiplier = db.Column(db.Float, default=1.0)
     arbitrage_fee_discount = db.Column(db.Float, default=0.0)
-    phoenix_suite_access = db.Column(db.Boolean, default=False)
+    mystes_suite_access = db.Column(db.Boolean, default=False)
 
     # Background service
     background_service_enabled = db.Column(db.Boolean, default=False)
@@ -3036,7 +3087,7 @@ class NodeConsentProfile(db.Model):
             'benefits': {
                 'payout_multiplier': self.payout_multiplier,
                 'arbitrage_fee_discount': self.arbitrage_fee_discount,
-                'phoenix_suite_access': self.phoenix_suite_access,
+                'mystes_suite_access': self.mystes_suite_access,
             },
             'last_assessment': self.last_tier_assessment.isoformat() if self.last_tier_assessment else None,
         }
@@ -4023,7 +4074,7 @@ class FeatureFlag(db.Model):
             ('vertical_flights', 'Flights Vertical', 'Search and book flights via Amadeus', 1, True),
             ('vertical_hotels', 'Hotels Vertical', 'Search and book hotels via Amadeus', 1, True),
             ('tier_system', 'Tier System', 'Bronze/Silver/Gold/Platinum user tiers', 1, True),
-            ('node_onboarding', 'Node Onboarding', 'Allow users to join the Phoenix Network', 1, True),
+            ('node_onboarding', 'Node Onboarding', 'Allow users to join the Mystes Network', 1, True),
             ('proxy_b2b_sales', 'Proxy B2B Sales', 'Sell proxy access to enterprise customers', 1, True),
 
             # Layer 2 - Funded

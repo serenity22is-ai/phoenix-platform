@@ -1,5 +1,5 @@
 """
-PHOENIX Build #67 — Browser Extension Data Pipeline Tests
+MYSTES Build #67 — Browser Extension Data Pipeline Tests
 
 Tests the full node service API pipeline used by the browser extension:
 helper token generation, node authentication, data ingestion, session

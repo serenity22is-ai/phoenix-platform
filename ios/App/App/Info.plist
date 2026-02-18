@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>PHOENIX</string>
+        <string>MYSTES</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -52,8 +52,8 @@
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.phoenix.app.nodeHeartbeat</string>
-		<string>com.phoenix.app.nodeFlush</string>
+		<string>com.mystes.app.nodeHeartbeat</string>
+		<string>com.mystes.app.nodeFlush</string>
 	</array>
 </dict>
 </plist>

@@ -630,7 +630,7 @@ if __name__ == "__main__":
         scan_dates = _generate_scan_dates()
 
         print(f"\n{'=' * 60}")
-        print("PHOENIX Arbitrage Deal Generator")
+        print("MYSTES Arbitrage Deal Generator")
         print(f"{'=' * 60}")
         print(f"Vertical: {vertical or 'ALL'}")
         if vertical == "hotels":

@@ -25,7 +25,7 @@
         </activity>
 
         <service
-            android:name=".PhoenixNodeForegroundService"
+            android:name=".MystesNodeForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 

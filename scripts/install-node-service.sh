@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ===========================================================================
-# PHOENIX Node Service Installer (Build #91)
+# MYSTES Node Service Installer (Build #91)
 #
 # Installs node_service.py as a persistent background service.
 # Supports macOS (LaunchAgent) and Linux (systemd user service).
 #
 # Usage:
-#   ./install-node-service.sh --token YOUR_TOKEN --server https://phoenix.example.com
+#   ./install-node-service.sh --token YOUR_TOKEN --server https://mystes.example.com
 #   ./install-node-service.sh --token YOUR_TOKEN                # defaults to http://localhost:5000
 #   ./install-node-service.sh --uninstall                       # remove the service
 #   ./install-node-service.sh --status                          # check service status
@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Phoenix Node Service Installer"
+            echo "Mystes Node Service Installer"
             echo ""
             echo "Usage:"
             echo "  $0 --token TOKEN [--server URL]   Install the service"
@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --token TOKEN    Helper token for node authentication (required for install)"
-            echo "  --server URL     Phoenix backend URL (default: $DEFAULT_SERVER)"
+            echo "  --server URL     Mystes backend URL (default: $DEFAULT_SERVER)"
             exit 0
             ;;
         *)
@@ -107,7 +107,7 @@ find_python() {
 # macOS LaunchAgent
 # ---------------------------------------------------------------------------
 
-PLIST_NAME="com.phoenix.node-service"
+PLIST_NAME="com.mystes.node-service"
 PLIST_PATH="$HOME/Library/LaunchAgents/$PLIST_NAME.plist"
 LOG_DIR_MACOS="$HOME/Library/Logs"
 
@@ -115,11 +115,11 @@ install_macos() {
     local python_path
     python_path="$(find_python)" || { echo "ERROR: Python 3 not found"; exit 1; }
 
-    echo "Installing Phoenix Node Service (macOS LaunchAgent)..."
+    echo "Installing Mystes Node Service (macOS LaunchAgent)..."
     echo "  Python: $python_path"
     echo "  Service: $NODE_SERVICE_PATH"
     echo "  Server: $SERVER_URL"
-    echo "  Log: $LOG_DIR_MACOS/phoenix-node-service.log"
+    echo "  Log: $LOG_DIR_MACOS/mystes-node-service.log"
 
     # Check aiohttp
     "$python_path" -c "import aiohttp" 2>/dev/null || {
@@ -137,21 +137,21 @@ install_macos() {
         -e "s|__HELPER_TOKEN__|$HELPER_TOKEN|g" \
         -e "s|__SERVER_URL__|$SERVER_URL|g" \
         -e "s|__LOG_DIR__|$LOG_DIR_MACOS|g" \
-        "$TEMPLATES_DIR/com.phoenix.node-service.plist" > "$PLIST_PATH"
+        "$TEMPLATES_DIR/com.mystes.node-service.plist" > "$PLIST_PATH"
 
     # Load the service
     launchctl unload "$PLIST_PATH" 2>/dev/null || true
     launchctl load "$PLIST_PATH"
 
     echo ""
-    echo "Phoenix Node Service installed and started."
-    echo "  To check status:  launchctl list | grep phoenix"
-    echo "  To view logs:     tail -f $LOG_DIR_MACOS/phoenix-node-service.log"
+    echo "Mystes Node Service installed and started."
+    echo "  To check status:  launchctl list | grep mystes"
+    echo "  To view logs:     tail -f $LOG_DIR_MACOS/mystes-node-service.log"
     echo "  To uninstall:     $0 --uninstall"
 }
 
 uninstall_macos() {
-    echo "Uninstalling Phoenix Node Service (macOS)..."
+    echo "Uninstalling Mystes Node Service (macOS)..."
     if [[ -f "$PLIST_PATH" ]]; then
         launchctl unload "$PLIST_PATH" 2>/dev/null || true
         rm -f "$PLIST_PATH"
@@ -163,10 +163,10 @@ uninstall_macos() {
 
 status_macos() {
     if launchctl list 2>/dev/null | grep -q "$PLIST_NAME"; then
-        echo "Phoenix Node Service: RUNNING"
+        echo "Mystes Node Service: RUNNING"
         launchctl list "$PLIST_NAME" 2>/dev/null || true
     else
-        echo "Phoenix Node Service: NOT RUNNING"
+        echo "Mystes Node Service: NOT RUNNING"
     fi
 }
 
@@ -174,16 +174,16 @@ status_macos() {
 # Linux systemd user service
 # ---------------------------------------------------------------------------
 
-SERVICE_NAME="phoenix-node"
+SERVICE_NAME="mystes-node"
 SERVICE_DIR="$HOME/.config/systemd/user"
 SERVICE_PATH="$SERVICE_DIR/$SERVICE_NAME.service"
-LOG_DIR_LINUX="$HOME/.local/share/phoenix"
+LOG_DIR_LINUX="$HOME/.local/share/mystes"
 
 install_linux() {
     local python_path
     python_path="$(find_python)" || { echo "ERROR: Python 3 not found"; exit 1; }
 
-    echo "Installing Phoenix Node Service (Linux systemd user service)..."
+    echo "Installing Mystes Node Service (Linux systemd user service)..."
     echo "  Python: $python_path"
     echo "  Service: $NODE_SERVICE_PATH"
     echo "  Server: $SERVER_URL"
@@ -206,7 +206,7 @@ install_linux() {
         -e "s|__HELPER_TOKEN__|$HELPER_TOKEN|g" \
         -e "s|__SERVER_URL__|$SERVER_URL|g" \
         -e "s|__LOG_DIR__|$LOG_DIR_LINUX|g" \
-        "$TEMPLATES_DIR/phoenix-node.service" > "$SERVICE_PATH"
+        "$TEMPLATES_DIR/mystes-node.service" > "$SERVICE_PATH"
 
     # Enable and start
     systemctl --user daemon-reload
@@ -214,14 +214,14 @@ install_linux() {
     systemctl --user start "$SERVICE_NAME"
 
     echo ""
-    echo "Phoenix Node Service installed and started."
+    echo "Mystes Node Service installed and started."
     echo "  To check status:  systemctl --user status $SERVICE_NAME"
     echo "  To view logs:     journalctl --user -u $SERVICE_NAME -f"
     echo "  To uninstall:     $0 --uninstall"
 }
 
 uninstall_linux() {
-    echo "Uninstalling Phoenix Node Service (Linux)..."
+    echo "Uninstalling Mystes Node Service (Linux)..."
     if [[ -f "$SERVICE_PATH" ]]; then
         systemctl --user stop "$SERVICE_NAME" 2>/dev/null || true
         systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true
@@ -235,10 +235,10 @@ uninstall_linux() {
 
 status_linux() {
     if systemctl --user is-active "$SERVICE_NAME" &>/dev/null; then
-        echo "Phoenix Node Service: RUNNING"
+        echo "Mystes Node Service: RUNNING"
         systemctl --user status "$SERVICE_NAME" --no-pager
     else
-        echo "Phoenix Node Service: NOT RUNNING"
+        echo "Mystes Node Service: NOT RUNNING"
     fi
 }
 
@@ -250,7 +250,7 @@ case "$ACTION" in
     install)
         if [[ -z "$HELPER_TOKEN" ]]; then
             echo "ERROR: --token is required for installation"
-            echo "  Get your token from: https://your-phoenix-server/helper/dashboard"
+            echo "  Get your token from: https://your-mystes-server/helper/dashboard"
             exit 1
         fi
 

@@ -1,5 +1,5 @@
 """
-Phoenix Node Anti-Dilution System (Build #97)
+Mystes Node Anti-Dilution System (Build #97)
 
 Protects the node reward pool from Sybil attacks and pool dilution by
 implementing ratio caps and demand-based throttling.

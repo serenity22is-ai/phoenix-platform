@@ -1,7 +1,7 @@
 """
-Ad Intelligence Pipeline — Phoenix Platform
+Ad Intelligence Pipeline — Mystes Platform
 
-Highest-value data extraction pipeline for the Phoenix proxy arbitrage engine.
+Highest-value data extraction pipeline for the Mystes proxy arbitrage engine.
 Processes AD_INTELLIGENCE and COMPETITOR_AD_TRACK task results from CitizenSERP
 nodes, normalizes ad data, aggregates across nodes for market-level intelligence,
 and feeds into a commercial API for data buyers.
@@ -109,7 +109,7 @@ class AdIntelligenceEngine:
     """
 
     def __init__(self):
-        self.logger = logging.getLogger("phoenix.ad_intelligence")
+        self.logger = logging.getLogger("mystes.ad_intelligence")
         self.logger.info("AdIntelligenceEngine initialized")
 
     # ------------------------------------------------------------------

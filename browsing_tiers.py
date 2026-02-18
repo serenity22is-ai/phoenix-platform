@@ -1,5 +1,5 @@
 """
-Phoenix Browsing Data Tier System (Build #70)
+Mystes Browsing Data Tier System (Build #70)
 
 Defines buyer access tiers for browsing intelligence data.
 Free tier gets aggregated trends only; paid tiers unlock raw events,

@@ -1,14 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.phoenix.app',
-  appName: 'PHOENIX',
+  appId: 'com.mystes.app',
+  appName: 'MYSTES',
   // In production, point webDir to a static build.
   // For development, we use the server URL directly.
   webDir: 'static',
   server: {
     // Production: Render cloud deployment
-    url: 'https://phoenix-web-nj67.onrender.com',
+    url: 'https://mystes-web-nj67.onrender.com',
     cleartext: false,
   },
   plugins: {
@@ -30,7 +30,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     preferredContentMode: 'mobile',
-    scheme: 'Phoenix',
+    scheme: 'Mystes',
   },
   android: {
     allowMixedContent: true,

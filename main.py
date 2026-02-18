@@ -722,7 +722,7 @@ def search_hybrid(origin, destination, date, cabin_class="economy", return_date=
     # Add price comparison from proxy scraping
     if proxy_result and proxy_result.get("price_comparison"):
         result["price_comparison"] = proxy_result["price_comparison"]
-        result["cheapest_market"] = "Phoenix"  # Never expose proxy market codes
+        result["cheapest_market"] = "Mystes"  # Never expose proxy market codes
         result["cheapest_price_usd"] = proxy_result.get("cheapest_price_usd")
         result["savings_vs_us"] = proxy_result.get("savings_vs_us", 0)
         result["savings_pct"] = proxy_result.get("savings_pct", 0)
@@ -755,7 +755,7 @@ def search_hybrid(origin, destination, date, cabin_class="economy", return_date=
             # Add regional price info
             flight["regional_prices"] = {
                 "us_price": us_price,
-                "cheapest_market": "Phoenix",
+                "cheapest_market": "Mystes",
                 "cheapest_price": cheapest_price,
                 "savings": round(us_price - cheapest_price, 2) if us_price and cheapest_price else 0
             }
@@ -969,27 +969,27 @@ def search_amadeus_with_proxy_prices(origin, destination, date, cabin_class="eco
                     result["us_price_usd"] = amadeus_cheapest
 
                     # The real savings: cheapest proxy market vs Amadeus booking price
-                    # If Amadeus is cheaper, the savings come from Phoenix's booking engine
+                    # If Amadeus is cheaper, the savings come from Mystes's booking engine
                     # If proxy is cheaper, there's geographic arbitrage on top
                     if proxy_cheapest_price and proxy_cheapest_price > 0:
                         if amadeus_cheapest < proxy_cheapest_price:
-                            # Amadeus beats all markets — Phoenix is the best deal
+                            # Amadeus beats all markets — Mystes is the best deal
                             # Show savings vs cheapest Google market
-                            result["cheapest_market"] = "Phoenix"
+                            result["cheapest_market"] = "Mystes"
                             result["cheapest_price_usd"] = amadeus_cheapest
                             savings = proxy_cheapest_price - amadeus_cheapest
                             result["savings_vs_us"] = round(savings, 2)
                             result["savings_pct"] = round((savings / proxy_cheapest_price) * 100, 1)
                         else:
-                            # Foreign market is cheaper — still brand as Phoenix
-                            result["cheapest_market"] = "Phoenix"
+                            # Foreign market is cheaper — still brand as Mystes
+                            result["cheapest_market"] = "Mystes"
                             result["cheapest_price_usd"] = proxy_cheapest_price
                             result["_internal_cheapest_market"] = proxy_cheapest_market
                             savings = amadeus_cheapest - proxy_cheapest_price
                             result["savings_vs_us"] = round(savings, 2)
                             result["savings_pct"] = round((savings / amadeus_cheapest) * 100, 1)
                     else:
-                        result["cheapest_market"] = "Phoenix"
+                        result["cheapest_market"] = "Mystes"
                         result["cheapest_price_usd"] = amadeus_cheapest
                         result["savings_vs_us"] = 0
                         result["savings_pct"] = 0
@@ -1051,7 +1051,7 @@ def search_amadeus_with_proxy_prices(origin, destination, date, cabin_class="eco
                 "raw_offer": flight.get("raw_offer"),
             }
 
-            # Amadeus price = actual booking price (what user pays through Phoenix)
+            # Amadeus price = actual booking price (what user pays through Mystes)
             # This is separate from Google Flights prices used for arbitrage comparison
             amadeus_price = flight.get("price", 0)
             merged_flight["us_price_usd"] = amadeus_price
@@ -1072,12 +1072,12 @@ def search_amadeus_with_proxy_prices(origin, destination, date, cabin_class="eco
                     # Use Amadeus as booking price — it's the actual cost to user
                     # Compare: Amadeus (booking) vs cheapest proxy market
                     if amadeus_price and amadeus_price < cheapest_proxy_usd:
-                        # Amadeus is cheapest — user gets the best deal through Phoenix directly
-                        merged_flight["cheapest_market"] = "Phoenix"
+                        # Amadeus is cheapest — user gets the best deal through Mystes directly
+                        merged_flight["cheapest_market"] = "Mystes"
                         merged_flight["cheapest_price_usd"] = amadeus_price
                     else:
-                        # Foreign market is cheaper than Amadeus — still brand as Phoenix
-                        merged_flight["cheapest_market"] = "Phoenix"
+                        # Foreign market is cheaper than Amadeus — still brand as Mystes
+                        merged_flight["cheapest_market"] = "Mystes"
                         merged_flight["cheapest_price_usd"] = cheapest_proxy_usd
                         merged_flight["_internal_market"] = cheapest[0]  # Internal only, never sent to frontend
 
@@ -1094,7 +1094,7 @@ def search_amadeus_with_proxy_prices(origin, destination, date, cabin_class="eco
             # Fallback if no proxy matches
             if not merged_flight["cheapest_price_usd"] and amadeus_price:
                 merged_flight["cheapest_price_usd"] = amadeus_price
-                merged_flight["cheapest_market"] = "Phoenix"
+                merged_flight["cheapest_market"] = "Mystes"
 
             result["flights"].append(merged_flight)
 
@@ -1151,7 +1151,7 @@ def search_amadeus_with_proxy_prices(origin, destination, date, cabin_class="eco
 
             if matched_prices:
                 cheapest = min(matched_prices.items(), key=lambda x: x[1].get("price_usd", 9999))
-                merged_flight["cheapest_market"] = "Phoenix"  # Never expose market codes
+                merged_flight["cheapest_market"] = "Mystes"  # Never expose market codes
                 merged_flight["cheapest_price_usd"] = cheapest[1].get("price_usd")
                 merged_flight["_internal_market"] = cheapest[0]
 
@@ -1489,7 +1489,7 @@ def generate_payment_request(deal_id, fee_usd, user_id=None):
 
     # Create a unique memo/tag for this transaction
     # This helps identify which payment is for which deal
-    memo_data = f"PHOENIX:{deal_id}"
+    memo_data = f"MYSTES:{deal_id}"
     if user_id:
         memo_data += f":{user_id}"
 
@@ -1945,7 +1945,7 @@ def search_flight_number(flight_number, origin, destination, date, markets=None)
                 'flight': flight_details,
                 'market_prices': market_prices,
                 'comparison': {
-                    'cheapest_market': 'Phoenix',
+                    'cheapest_market': 'Mystes',
                     'cheapest_price_usd': cheapest_price,
                     'most_expensive_market': 'Standard',
                     'most_expensive_price_usd': most_expensive_price,
@@ -2093,7 +2093,7 @@ def search_all_deals(fast_mode=True, include_domestic=True, include_internationa
         dict with categorized deals
     """
     print("\n" + "="*70)
-    print("PHOENIX - COMPREHENSIVE PRICE COMPARISON")
+    print("MYSTES - COMPREHENSIVE PRICE COMPARISON")
     print("="*70)
     print(f"Mode: {'Fast (priority markets)' if fast_mode else 'Full (all markets)'}")
     print(f"Searching: {', '.join(filter(None, ['Domestic' if include_domestic else '', 'International' if include_international else '']))}")

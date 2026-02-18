@@ -1,5 +1,5 @@
 """
-PHOENIX Redis Caching Layer
+MYSTES Redis Caching Layer
 
 Provides application-level caching backed by Redis for expensive operations:
 search results, exchange rates, airport lookups, and market data.
@@ -58,9 +58,9 @@ def _get_redis():
 
 
 class CacheService:
-    """Centralized Redis cache with typed helpers for Phoenix data."""
+    """Centralized Redis cache with typed helpers for Mystes data."""
 
-    PREFIX = "phoenix:cache:"
+    PREFIX = "mystes:cache:"
 
     def __init__(self):
         self._redis = None
@@ -281,27 +281,27 @@ class CacheService:
             db_info = info.get("db0", {})
             keys_count = db_info.get("keys", 0) if isinstance(db_info, dict) else 0
 
-            # Count phoenix cache keys specifically
-            cursor, phoenix_keys = 0, 0
+            # Count mystes cache keys specifically
+            cursor, mystes_keys = 0, 0
             while True:
                 cursor, keys = self.redis.scan(
                     cursor, match=f"{self.PREFIX}*", count=500
                 )
-                phoenix_keys += len(keys)
+                mystes_keys += len(keys)
                 if cursor == 0:
                     break
 
             return {
                 "enabled": True,
                 "total_db0_keys": keys_count,
-                "phoenix_cache_keys": phoenix_keys,
+                "mystes_cache_keys": mystes_keys,
                 "redis_url": REDIS_URL.split("@")[-1] if "@" in REDIS_URL else REDIS_URL,
             }
         except Exception as e:
             return {"enabled": True, "error": str(e)}
 
     def flush(self):
-        """Remove ALL phoenix cache keys (not other Redis data)."""
+        """Remove ALL mystes cache keys (not other Redis data)."""
         self.delete_pattern("*")
 
 

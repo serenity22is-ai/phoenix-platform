@@ -1,5 +1,5 @@
 """
-PHOENIX Chrome Extension Build & Packaging Script (Build #69)
+MYSTES Chrome Extension Build & Packaging Script (Build #69)
 
 Packages the Chrome extension for distribution:
 - Validates manifest.json
@@ -11,7 +11,7 @@ Usage:
     python build_extension.py                    # Build zip
     python build_extension.py --version 1.0.1    # Set version
     python build_extension.py --output dist/     # Custom output dir
-    python build_extension.py --update-url https://phoenix.app/ext/  # Set update URL
+    python build_extension.py --update-url https://mystes.app/ext/  # Set update URL
 """
 
 import argparse
@@ -125,7 +125,7 @@ def build_zip(ext_dir, output_dir, version=None):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    zip_name = f"phoenix_extension_v{version}.zip"
+    zip_name = f"mystes_extension_v{version}.zip"
     zip_path = os.path.join(output_dir, zip_name)
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -165,7 +165,7 @@ def generate_update_xml(version, update_url, output_dir, manifest_path=None):
             extension_id = "".join(chr(ord("a") + int(c, 16)) for c in raw)
 
     update_url = update_url.rstrip("/")
-    codebase = f"{update_url}/phoenix_extension_v{version}.zip"
+    codebase = f"{update_url}/mystes_extension_v{version}.zip"
 
     gupdate = Element("gupdate")
     gupdate.set("xmlns", "http://www.google.com/update2/response")
@@ -254,12 +254,12 @@ def _format_size(size_bytes):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PHOENIX Chrome Extension Build & Packaging Script"
+        description="MYSTES Chrome Extension Build & Packaging Script"
     )
     parser.add_argument(
         "--ext-dir",
-        default="phoenix_extension",
-        help="Path to the extension source directory (default: phoenix_extension/)",
+        default="mystes_extension",
+        help="Path to the extension source directory (default: mystes_extension/)",
     )
     parser.add_argument(
         "--output",
@@ -287,7 +287,7 @@ def main():
     ext_dir = os.path.abspath(args.ext_dir)
     output_dir = os.path.abspath(args.output)
 
-    print("Phoenix Extension Builder")
+    print("Mystes Extension Builder")
     print("=" * 24)
 
     # --- Validate -----------------------------------------------------------

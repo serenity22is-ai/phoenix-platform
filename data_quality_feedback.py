@@ -1,5 +1,5 @@
 """
-PHOENIX Data Quality Feedback Engine (Build #69)
+MYSTES Data Quality Feedback Engine (Build #69)
 
 Allows commercial data buyers to rate the quality of browsing data records.
 Feedback adjusts node-level quality baselines so future events from nodes

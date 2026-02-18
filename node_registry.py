@@ -1,12 +1,12 @@
 """
-PHOENIX CitizenSERP Node Registry
+MYSTES CitizenSERP Node Registry
 
 Handles node registration, capability announcement, health monitoring,
 and discovery for the CitizenSERP distributed network.
 
 A node is a helper's device running helper_client.py. When it comes online,
-it registers with Phoenix, announces its capabilities (country, zone, bandwidth,
-browser availability), and maintains a heartbeat. Phoenix uses this registry
+it registers with Mystes, announces its capabilities (country, zone, bandwidth,
+browser availability), and maintains a heartbeat. Mystes uses this registry
 to find optimal nodes for task dispatch.
 
 This module bridges:
@@ -1081,7 +1081,7 @@ class NodeRegistry:
 # ---------------------------------------------------------------------------
 # Monitors node network growth against commercialization thresholds.
 # When the network hits the "commercially viable" milestone, the system
-# can auto-flip PHOENIX_ECONOMIC_PHASE from 1 → 2 (or flag for manual flip).
+# can auto-flip MYSTES_ECONOMIC_PHASE from 1 → 2 (or flag for manual flip).
 #
 # Three milestones:
 #   pilot_ready (100 nodes)     — internal testing, validate API at scale
@@ -1144,10 +1144,10 @@ def check_citizenserp_readiness(registry: "NodeRegistry" = None) -> dict:
 
     # Get current phase
     try:
-        from phoenix_ai import PHOENIX_ECONOMIC_PHASE
-        current_phase = PHOENIX_ECONOMIC_PHASE
+        from mystes_ai import MYSTES_ECONOMIC_PHASE
+        current_phase = MYSTES_ECONOMIC_PHASE
     except ImportError:
-        current_phase = int(os.environ.get("PHOENIX_ECONOMIC_PHASE", "1"))
+        current_phase = int(os.environ.get("MYSTES_ECONOMIC_PHASE", "1"))
 
     milestones = {}
     current_milestone = "pre_pilot"
@@ -1283,8 +1283,8 @@ def maybe_auto_flip_phase() -> Optional[int]:
         if os.path.exists(env_path):
             with open(env_path, "r") as f:
                 content = f.read()
-            old_val = f"PHOENIX_ECONOMIC_PHASE={current}"
-            new_val = f"PHOENIX_ECONOMIC_PHASE={new_phase}"
+            old_val = f"MYSTES_ECONOMIC_PHASE={current}"
+            new_val = f"MYSTES_ECONOMIC_PHASE={new_phase}"
             if old_val in content:
                 content = content.replace(old_val, new_val)
                 with open(env_path, "w") as f:
@@ -1292,7 +1292,7 @@ def maybe_auto_flip_phase() -> Optional[int]:
                 logger.info("Updated .env: %s -> %s", old_val, new_val)
 
         # Also set in environment for current process
-        os.environ["PHOENIX_ECONOMIC_PHASE"] = str(new_phase)
+        os.environ["MYSTES_ECONOMIC_PHASE"] = str(new_phase)
 
     except Exception as e:
         logger.error("Failed to update .env for phase flip: %s", e)

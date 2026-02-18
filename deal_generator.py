@@ -232,7 +232,7 @@ if __name__ == "__main__":
         max_routes = 3 if quick else None
 
         print(f"\n{'='*60}")
-        print(f"PHOENIX Deal Generator")
+        print(f"MYSTES Deal Generator")
         print(f"{'='*60}")
         print(f"Routes: {len(SCAN_ROUTES) if not max_routes else max_routes}")
         print(f"Dates: {len(_generate_scan_dates())}")

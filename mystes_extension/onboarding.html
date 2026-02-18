@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mystes Node — Setup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 16px;
+    }
+    .container {
+      max-width: 560px;
+      width: 100%;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 40px 32px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .logo img {
+      width: 64px;
+      height: 64px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+      color: #1a73e8;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    .step { display: none; }
+    .step.active { display: block; }
+
+    /* Step indicator */
+    .steps-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #e0e0e0;
+      transition: background 0.3s;
+    }
+    .step-dot.active { background: #1a73e8; }
+    .step-dot.completed { background: #4CAF50; }
+
+    /* Commitment bullets */
+    .commitments {
+      list-style: none;
+      margin: 20px 0;
+    }
+    .commitments li {
+      padding: 10px 0 10px 28px;
+      position: relative;
+      font-size: 14px;
+      color: #444;
+      line-height: 1.4;
+      border-bottom: 1px solid #f1f3f4;
+    }
+    .commitments li:last-child { border-bottom: none; }
+    .commitments li::before {
+      content: "\2713";
+      position: absolute;
+      left: 0;
+      color: #4CAF50;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    /* OAuth provider buttons (Build #83) */
+    .oauth-buttons { display: flex; flex-direction: column; gap: 0; }
+    .oauth-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 24px;
+      background: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-top: 8px;
+    }
+    .oauth-btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .oauth-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .oauth-btn.google:hover { border-color: #4285F4; }
+    .oauth-btn.microsoft:hover { border-color: #00a4ef; }
+    .oauth-btn.apple { background: #000; color: #fff; border-color: #000; }
+    .oauth-btn.apple:hover { background: #1a1a1a; }
+
+    /* Loading spinner */
+    .loading-state {
+      display: none;
+      text-align: center;
+      padding: 24px 0;
+    }
+    .loading-state.visible { display: block; }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #1a73e8;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-state p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    /* Auth error */
+    .auth-error {
+      display: none;
+      background: #fbe9e7;
+      color: #c62828;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 12px;
+      text-align: center;
+    }
+    .auth-error.visible { display: block; }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      margin: 24px 0;
+      color: #999;
+      font-size: 13px;
+    }
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .divider span {
+      padding: 0 12px;
+    }
+
+    /* Manual auth (collapsed) */
+    .manual-toggle {
+      color: #1a73e8;
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 13px;
+      display: block;
+      text-align: center;
+    }
+    .manual-toggle:hover { text-decoration: underline; }
+    .manual-auth {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    .manual-auth.visible { display: block; }
+
+    /* Consent cards */
+    .consent-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .consent-card.enabled {
+      border-color: #1a73e8;
+      background: #f0f7ff;
+    }
+    .consent-card.required {
+      border-color: #e0e0e0;
+      background: #f9f9f9;
+    }
+    .consent-info { flex: 1; }
+    .consent-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    .consent-desc {
+      font-size: 12px;
+      color: #666;
+      margin-top: 2px;
+    }
+    .consent-pts {
+      font-size: 11px;
+      color: #1a73e8;
+      font-weight: 600;
+      margin-left: 12px;
+      white-space: nowrap;
+    }
+    .consent-pts.required-label { color: #999; }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      margin-left: 12px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #ccc;
+      border-radius: 24px;
+      transition: 0.3s;
+    }
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+    .toggle input:checked + .toggle-slider { background: #1a73e8; }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .toggle input:disabled + .toggle-slider { background: #e0e0e0; cursor: default; }
+
+    /* Earnings preview */
+    .earnings-preview {
+      text-align: center;
+      margin: 20px 0;
+      padding: 16px;
+      background: #f0f7ff;
+      border-radius: 8px;
+    }
+    .earnings-label { font-size: 12px; color: #666; }
+    .earnings-value { font-size: 20px; font-weight: 700; color: #1a73e8; margin: 4px 0; }
+    .earnings-note { font-size: 11px; color: #999; }
+
+    /* Form inputs */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: #1a73e8; }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 12px 32px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .btn-primary { background: #1a73e8; color: white; }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-secondary { background: #f1f3f4; color: #333; }
+    .btn-secondary:hover { background: #e0e0e0; }
+    .btn-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+    }
+    .btn-back {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn-back:hover { color: #333; }
+
+    .privacy-link {
+      display: block;
+      text-align: center;
+      margin-top: 24px;
+      font-size: 12px;
+      color: #999;
+    }
+    .privacy-link a { color: #1a73e8; text-decoration: none; }
+    .privacy-link a:hover { text-decoration: underline; }
+
+    /* Success state */
+    .success-icon {
+      text-align: center;
+      font-size: 48px;
+      margin-bottom: 16px;
+      color: #4CAF50;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="icons/icon128.png" alt="Mystes">
+    </div>
+
+    <div class="steps-indicator">
+      <div class="step-dot active" id="dot1"></div>
+      <div class="step-dot" id="dot2"></div>
+    </div>
+
+    <!-- STEP 1: Welcome + Auth -->
+    <div class="step active" id="step1">
+      <h1>Welcome to Mystes Node</h1>
+      <p class="subtitle">
+        Get paid for browsing data you choose to share.<br>
+        Set up your account in one click.
+      </p>
+
+      <ul class="commitments">
+        <li>You choose exactly which data categories to share</li>
+        <li>All data is anonymized before transmission</li>
+        <li>You can change or revoke consent at any time</li>
+        <li>Earn RLUSD rewards based on what you share</li>
+      </ul>
+
+      <!-- OAuth provider buttons (Build #83) -->
+      <div class="oauth-buttons">
+        <button class="oauth-btn google" id="googleSignInBtn">
+          <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          <span>Continue with Google</span>
+        </button>
+
+        <button class="oauth-btn microsoft" id="microsoftSignInBtn">
+          <svg viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+          <span>Continue with Microsoft</span>
+        </button>
+
+        <button class="oauth-btn apple" id="appleSignInBtn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+          <span>Continue with Apple</span>
+        </button>
+      </div>
+
+      <!-- Loading state -->
+      <div class="loading-state" id="loadingState">
+        <div class="spinner"></div>
+        <p>Setting up your account...</p>
+      </div>
+
+      <!-- Auth error -->
+      <div class="auth-error" id="authError"></div>
+
+      <!-- Divider + manual fallback -->
+      <div class="divider"><span>or</span></div>
+      <a class="manual-toggle" id="toggleManual">Use manual token instead</a>
+
+      <div class="manual-auth" id="manualAuth">
+        <div class="form-group">
+          <label for="serverUrl">Server URL</label>
+          <input type="text" id="serverUrl" placeholder="https://mystes.example.com">
+        </div>
+        <div class="form-group">
+          <label for="helperToken">Helper Token</label>
+          <input type="text" id="helperToken" placeholder="Paste your helper token here">
+        </div>
+        <button class="btn btn-secondary" id="manualContinue" style="width:100%;">Continue with Token</button>
+      </div>
+
+      <div class="privacy-link">
+        <a href="https://mystes.example.com/privacy" target="_blank">Privacy Policy</a>
+      </div>
+    </div>
+
+    <!-- STEP 2: Data Selection -->
+    <div class="step" id="step2">
+      <h1>Choose What to Share</h1>
+      <p class="subtitle">
+        All categories are off by default. Enable what you're comfortable sharing.
+      </p>
+
+      <!-- Location (required) -->
+      <div class="consent-card required">
+        <div class="consent-info">
+          <div class="consent-name">Location</div>
+          <div class="consent-desc">Approximate geographic region for market relevance</div>
+        </div>
+        <span class="consent-pts required-label">Required</span>
+        <label class="toggle">
+          <input type="checkbox" checked disabled>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Search Queries -->
+      <div class="consent-card" data-category="search_queries">
+        <div class="consent-info">
+          <div class="consent-name">Search Queries</div>
+          <div class="consent-desc">What you search for on Google, Bing, etc.</div>
+        </div>
+        <span class="consent-pts">+5 pts</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle_search_queries" data-pts="5">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Price Observations -->
+      <div class="consent-card" data-category="price_observations">
+        <div class="consent-info">
+          <div class="consent-name">Price Observations</div>
+          <div class="consent-desc">Product prices you encounter while shopping online</div>
+        </div>
+        <span class="consent-pts">+6 pts</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle_price_observations" data-pts="6">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Ad Impressions -->
+      <div class="consent-card" data-category="ad_impressions">
+        <div class="consent-info">
+          <div class="consent-name">Ad Impressions</div>
+          <div class="consent-desc">Which advertisements appear on pages you visit</div>
+        </div>
+        <span class="consent-pts">+8 pts</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle_ad_impressions" data-pts="8">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Social Signals -->
+      <div class="consent-card" data-category="social_signals">
+        <div class="consent-info">
+          <div class="consent-name">Social Signals</div>
+          <div class="consent-desc">Engagement patterns on social media platforms</div>
+        </div>
+        <span class="consent-pts">+7 pts</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle_social_signals" data-pts="7">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Browsing Data -->
+      <div class="consent-card" data-category="browsing_data">
+        <div class="consent-info">
+          <div class="consent-name">Browsing Data</div>
+          <div class="consent-desc">Pages you visit (URLs and page titles)</div>
+        </div>
+        <span class="consent-pts">+4 pts</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle_browsing_data" data-pts="4">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Business Data -->
+      <div class="consent-card" data-category="business_data">
+        <div class="consent-info">
+          <div class="consent-name">Business Data</div>
+          <div class="consent-desc">Business listings and local search results</div>
+        </div>
+        <span class="consent-pts">+10 pts</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle_business_data" data-pts="10">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="earnings-preview">
+        <div class="earnings-label">Estimated Daily Earnings</div>
+        <div class="earnings-value" id="earningsPreview">$0.00</div>
+        <div class="earnings-note">Based on selected categories (actual earnings vary)</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-back" id="backToStep1">&larr; Back</button>
+        <button class="btn btn-primary" id="finishSetup">Finish Setup</button>
+      </div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="step" id="stepSuccess">
+      <div class="success-icon">&#10003;</div>
+      <h1>You're All Set!</h1>
+      <p class="subtitle" id="successMessage">
+        Mystes Node is ready. You can adjust your data sharing preferences<br>
+        anytime from the extension settings.
+      </p>
+      <div style="text-align:center;margin-top:24px;">
+        <button class="btn btn-primary" id="closeSetup">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

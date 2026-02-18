@@ -1,12 +1,12 @@
 """
-PHOENIX Local Node Service (Build #67)
+MYSTES Local Node Service (Build #67)
 
-Standalone daemon that bridges the Chrome extension to the Phoenix backend.
+Standalone daemon that bridges the Chrome extension to the Mystes backend.
 Runs a localhost HTTP server for the extension to POST events to,
 and manages heartbeat, session lifecycle, and batch data upload.
 
 Usage:
-    python node_service.py --token YOUR_HELPER_TOKEN --server https://phoenix.example.com
+    python node_service.py --token YOUR_HELPER_TOKEN --server https://mystes.example.com
     python node_service.py --token YOUR_HELPER_TOKEN --port 19750 --verbose
 """
 
@@ -30,7 +30,7 @@ try:
 except ImportError:
     HAS_AIOHTTP = False
 
-logger = logging.getLogger("phoenix.node_service")
+logger = logging.getLogger("mystes.node_service")
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ if HAS_AIOHTTP:
 # Main service class
 # ---------------------------------------------------------------------------
 
-class PhoenixNodeService:
+class MystesNodeService:
     """
     Local node service daemon.
 
@@ -168,14 +168,14 @@ class PhoenixNodeService:
         """Main entry point — authenticate, start session, run loops."""
         self._running = True
         self._start_time = time.time()
-        logger.info("Starting Phoenix Node Service on port %d", self.port)
+        logger.info("Starting Mystes Node Service on port %d", self.port)
         logger.info("Backend: %s", self.server_url)
 
         # Create HTTP client session
         headers = {
             "X-Helper-Token": self.helper_token,
             "Content-Type": "application/json",
-            "User-Agent": f"PhoenixNodeService/{VERSION}",
+            "User-Agent": f"MystesNodeService/{VERSION}",
         }
         self._http_session = aiohttp.ClientSession(headers=headers)
 
@@ -220,7 +220,7 @@ class PhoenixNodeService:
         """Graceful shutdown."""
         if not self._running:
             return
-        logger.info("Stopping Phoenix Node Service...")
+        logger.info("Stopping Mystes Node Service...")
         self._running = False
 
         # Flush remaining buffer
@@ -536,7 +536,7 @@ class PhoenixNodeService:
         if self.proxy_mode == "pac":
             pac_script = """
 function FindProxyForURL(url, host) {
-    // Route through Phoenix proxy for data collection
+    // Route through Mystes proxy for data collection
     if (shExpMatch(host, "*.google.com") ||
         shExpMatch(host, "*.bing.com") ||
         shExpMatch(host, "*.amazon.com") ||
@@ -649,7 +649,7 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser(
-        description="Phoenix Node Service — local daemon for browser extension",
+        description="Mystes Node Service — local daemon for browser extension",
     )
     parser.add_argument(
         "--token",
@@ -657,7 +657,7 @@ def main():
     )
     parser.add_argument(
         "--server", default=DEFAULT_SERVER,
-        help=f"Phoenix backend URL (default: {DEFAULT_SERVER})",
+        help=f"Mystes backend URL (default: {DEFAULT_SERVER})",
     )
     parser.add_argument(
         "--port", type=int, default=DEFAULT_PORT,
@@ -705,7 +705,7 @@ def main():
 
     print(BANNER.format(version=VERSION))
 
-    service = PhoenixNodeService(
+    service = MystesNodeService(
         server_url=args.server,
         helper_token=args.token,
         port=args.port,

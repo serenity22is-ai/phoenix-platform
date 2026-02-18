@@ -1,8 +1,8 @@
 """
-PHOENIX Geographic Zone System
+MYSTES Geographic Zone System
 
 Breaks the world into sub-regional zones for precision geographic arbitrage.
-Instead of country-level only (US vs JP), Phoenix can target US-NE (Northeast)
+Instead of country-level only (US vs JP), Mystes can target US-NE (Northeast)
 vs US-SW (Southwest) to capture intra-country price discrimination.
 
 Hierarchy:
@@ -88,7 +88,7 @@ def _register(zone_code: str, country: str, name: str, cities: List[str],
 _register("US-NE", "US", "Northeast", ["new york", "nyc", "boston", "philadelphia", "hartford", "newark", "jersey city", "providence", "stamford", "new haven"], 40.7, -74.0, "America/New_York", "major")
 _register("US-SE", "US", "Southeast", ["atlanta", "miami", "charlotte", "nashville", "orlando", "tampa", "jacksonville", "raleigh", "richmond", "savannah"], 33.7, -84.4, "America/New_York", "major")
 _register("US-MW", "US", "Midwest", ["chicago", "detroit", "minneapolis", "indianapolis", "milwaukee", "kansas city", "st louis", "omaha", "des moines"], 41.9, -87.6, "America/Chicago", "major")
-_register("US-SW", "US", "Southwest", ["dallas", "houston", "san antonio", "austin", "phoenix", "tucson", "el paso", "oklahoma city", "tulsa", "fort worth"], 32.8, -96.8, "America/Chicago", "major")
+_register("US-SW", "US", "Southwest", ["dallas", "houston", "san antonio", "austin", "mystes", "tucson", "el paso", "oklahoma city", "tulsa", "fort worth"], 32.8, -96.8, "America/Chicago", "major")
 _register("US-NW", "US", "Northwest", ["seattle", "portland", "boise", "spokane", "tacoma", "eugene", "salem", "olympia", "anchorage"], 47.6, -122.3, "America/Los_Angeles", "medium")
 _register("US-SC", "US", "Southern California", ["los angeles", "san diego", "long beach", "anaheim", "irvine", "riverside", "santa barbara", "pasadena", "burbank"], 34.1, -118.2, "America/Los_Angeles", "major")
 _register("US-NC", "US", "Northern California", ["san francisco", "san jose", "sacramento", "oakland", "fremont", "palo alto", "berkeley", "santa cruz", "fresno", "stockton"], 37.8, -122.4, "America/Los_Angeles", "major")

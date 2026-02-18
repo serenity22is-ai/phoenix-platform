@@ -1,5 +1,5 @@
 """
-PHOENIX Commercial API Authentication Middleware
+MYSTES Commercial API Authentication Middleware
 
 Authenticates commercial API requests via API key in the Authorization header
 or X-API-Key header. Enforces rate limits, scope checks, and account status.
@@ -582,7 +582,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_route(origin, destination):
         """Route intelligence profile via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         data = intelligence.get_route_intelligence(
             origin.upper(), destination.upper(),
             days_back=int(request.args.get("days", 30)),
@@ -593,7 +593,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_market(market):
         """Market briefing via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         data = intelligence.get_market_briefing(
             market.upper(),
             days_back=int(request.args.get("days", 7)),
@@ -604,7 +604,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_trending():
         """Trending routes and anomalies via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         anomalies = intelligence.detect_anomalies(
             days=int(request.args.get("days", 7)),
         )
@@ -617,7 +617,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_p2p_network():
         """P2P network health via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         return jsonify(intelligence.get_p2p_network(days_back=days))
 
@@ -625,7 +625,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_p2p_savings():
         """Top P2P savings routes via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         limit = int(request.args.get("limit", 10))
         return jsonify(intelligence.get_p2p_savings(days_back=days, limit=limit))
@@ -634,14 +634,14 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_nodes():
         """CitizenSERP node network via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         return jsonify(intelligence.get_node_network())
 
     @app.route("/api/v1/intelligence/proxy")
     @require_api_key(scope="analytics")
     def commercial_intelligence_proxy():
         """Proxy portal usage via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 7))
         return jsonify(intelligence.get_proxy_usage(days_back=days))
 
@@ -649,7 +649,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_ai():
         """AI analytics via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         return jsonify(intelligence.get_ai_analytics(days_back=days))
 
@@ -657,7 +657,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_price_history(origin, dest):
         """Price timeline via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         return jsonify(intelligence.get_price_timeline(origin.upper(), dest.upper(), days_back=days))
 
@@ -665,7 +665,7 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_intelligence_airlines(origin, dest):
         """Airline competitive pricing via commercial API."""
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 7))
         return jsonify(intelligence.get_airline_comparison(origin.upper(), dest.upper(), days_back=days))
 
@@ -675,14 +675,14 @@ def register_commercial_routes(app):
     @require_api_key(scope="search")
     def commercial_agent_search():
         """Agent-orchestrated search via commercial API."""
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         data = request.get_json() or {}
         query = data.get("query", "")
         if not query:
             return jsonify({"error": "query is required"}), 400
         task_type = data.get("task_type", "flight_search")
         user_market = data.get("market", "US")
-        result = phoenix_agent.handle_search(
+        result = mystes_agent.handle_search(
             query=query,
             user_id=None,
             task_type=task_type,
@@ -695,9 +695,9 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_agent_analyze(origin, destination):
         """Agent route analysis via commercial API."""
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         user_market = request.args.get("market", "US")
-        return jsonify(phoenix_agent.analyze_route(
+        return jsonify(mystes_agent.analyze_route(
             origin.upper(), destination.upper(), user_market=user_market
         ))
 
@@ -705,16 +705,16 @@ def register_commercial_routes(app):
     @require_api_key(scope="analytics")
     def commercial_agent_discover():
         """Agent opportunity discovery via commercial API."""
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         force = request.args.get("force", "false").lower() == "true"
-        return jsonify(phoenix_agent.discover_opportunities(force=force))
+        return jsonify(mystes_agent.discover_opportunities(force=force))
 
     @app.route("/api/v1/agent/status")
     @require_api_key(scope="analytics")
     def commercial_agent_status():
         """Agent status via commercial API."""
-        from phoenix_agent import phoenix_agent
-        return jsonify(phoenix_agent.get_agent_status())
+        from mystes_agent import mystes_agent
+        return jsonify(mystes_agent.get_agent_status())
 
     @app.route("/api/v1/tasks/types")
     @require_api_key(scope="analytics")

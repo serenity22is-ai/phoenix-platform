@@ -1,5 +1,5 @@
 # =============================================================================
-# PHOENIX Flight Arbitrage Platform - Gunicorn Configuration
+# MYSTES Flight Arbitrage Platform - Gunicorn Configuration
 # =============================================================================
 
 import multiprocessing
@@ -36,7 +36,7 @@ access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"
 capture_output = True
 
 # Process Naming
-proc_name = "phoenix"
+proc_name = "mystes"
 
 # Security
 limit_request_line = 8190
@@ -46,7 +46,7 @@ limit_request_field_size = 8190
 
 # Server Hooks
 def on_starting(server):
-    server.log.info("PHOENIX is starting...")
+    server.log.info("MYSTES is starting...")
 
 
 def post_fork(server, worker):
@@ -54,7 +54,7 @@ def post_fork(server, worker):
 
 
 def when_ready(server):
-    server.log.info("PHOENIX is ready. Spawning workers...")
+    server.log.info("MYSTES is ready. Spawning workers...")
 
 
 def worker_abort(worker):

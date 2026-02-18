@@ -1,5 +1,5 @@
 """
-PHOENIX Monitoring & Alerting Module
+MYSTES Monitoring & Alerting Module
 
 Provides:
 - Sentry error tracking integration
@@ -108,14 +108,14 @@ class PrometheusMetrics:
     def export(self):
         """Export metrics in Prometheus text exposition format."""
         lines = []
-        lines.append(f"# PHOENIX Metrics")
+        lines.append(f"# MYSTES Metrics")
         lines.append(f"# Generated at {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}")
         lines.append("")
 
         # Uptime
-        lines.append("# HELP phoenix_uptime_seconds Application uptime in seconds")
-        lines.append("# TYPE phoenix_uptime_seconds gauge")
-        lines.append(f"phoenix_uptime_seconds {time.time() - self._start_time:.1f}")
+        lines.append("# HELP mystes_uptime_seconds Application uptime in seconds")
+        lines.append("# TYPE mystes_uptime_seconds gauge")
+        lines.append(f"mystes_uptime_seconds {time.time() - self._start_time:.1f}")
         lines.append("")
 
         # Counters
@@ -171,18 +171,18 @@ def init_request_tracking(app):
             method = request.method
             status = response.status_code
 
-            metrics.inc("phoenix_http_requests_total", labels={
+            metrics.inc("mystes_http_requests_total", labels={
                 "method": method,
                 "endpoint": endpoint,
                 "status": str(status),
             })
-            metrics.observe("phoenix_http_request_duration_seconds", duration, labels={
+            metrics.observe("mystes_http_request_duration_seconds", duration, labels={
                 "method": method,
                 "endpoint": endpoint,
             })
 
             if status >= 500:
-                metrics.inc("phoenix_http_errors_total", labels={
+                metrics.inc("mystes_http_errors_total", labels={
                     "method": method,
                     "endpoint": endpoint,
                     "status": str(status),
@@ -196,36 +196,36 @@ def init_request_tracking(app):
 # ============================================================
 
 def track_search(origin, destination, market):
-    metrics.inc("phoenix_searches_total", labels={
+    metrics.inc("mystes_searches_total", labels={
         "origin": origin, "destination": destination, "market": market,
     })
 
 
 def track_p2p_event(event, market="unknown"):
-    metrics.inc("phoenix_p2p_events_total", labels={
+    metrics.inc("mystes_p2p_events_total", labels={
         "event": event, "market": market,
     })
 
 
 def track_payment(method, amount_usd, status):
-    metrics.inc("phoenix_payments_total", labels={
+    metrics.inc("mystes_payments_total", labels={
         "method": method, "status": status,
     })
     if status == "verified":
-        metrics.inc("phoenix_revenue_usd_total", value=amount_usd, labels={
+        metrics.inc("mystes_revenue_usd_total", value=amount_usd, labels={
             "method": method,
         })
 
 
 def track_helper_online(country_code, online_count):
-    metrics.set_gauge("phoenix_helpers_online", online_count, labels={
+    metrics.set_gauge("mystes_helpers_online", online_count, labels={
         "country": country_code,
     })
 
 
 def track_escrow(action, amount_rlusd):
-    metrics.inc("phoenix_escrow_events_total", labels={"action": action})
-    metrics.inc("phoenix_escrow_volume_rlusd_total", value=amount_rlusd, labels={
+    metrics.inc("mystes_escrow_events_total", labels={"action": action})
+    metrics.inc("mystes_escrow_volume_rlusd_total", value=amount_rlusd, labels={
         "action": action,
     })
 
@@ -240,22 +240,22 @@ def collect_db_metrics(app):
         from models import User, Deal, HelperProfile, P2PTransaction, P2PEscrow
 
         with app.app_context():
-            metrics.set_gauge("phoenix_users_total", User.query.count())
-            metrics.set_gauge("phoenix_users_verified",
+            metrics.set_gauge("mystes_users_total", User.query.count())
+            metrics.set_gauge("mystes_users_verified",
                               User.query.filter_by(is_verified=True).count())
-            metrics.set_gauge("phoenix_deals_active",
+            metrics.set_gauge("mystes_deals_active",
                               Deal.query.filter_by(is_active=True).count())
-            metrics.set_gauge("phoenix_helpers_total",
+            metrics.set_gauge("mystes_helpers_total",
                               HelperProfile.query.count())
-            metrics.set_gauge("phoenix_helpers_approved",
+            metrics.set_gauge("mystes_helpers_approved",
                               HelperProfile.query.filter_by(is_approved=True).count())
-            metrics.set_gauge("phoenix_helpers_online_total",
+            metrics.set_gauge("mystes_helpers_online_total",
                               HelperProfile.query.filter_by(is_online=True).count())
-            metrics.set_gauge("phoenix_p2p_transactions_total",
+            metrics.set_gauge("mystes_p2p_transactions_total",
                               P2PTransaction.query.count())
             for status in ["requested", "matched", "escrow_locked", "purchasing",
                            "confirmed", "completed", "failed", "cancelled"]:
-                metrics.set_gauge("phoenix_p2p_by_status",
+                metrics.set_gauge("mystes_p2p_by_status",
                                   P2PTransaction.query.filter_by(status=status).count(),
                                   labels={"status": status})
     except Exception as e:

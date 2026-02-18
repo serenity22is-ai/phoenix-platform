@@ -1,5 +1,5 @@
 """
-PHOENIX Celery Application
+MYSTES Celery Application
 
 Distributed task queue for background processing:
 - Payment verification polling
@@ -35,7 +35,7 @@ CELERY_BROKER = os.environ.get("CELERY_BROKER_URL", f"{REDIS_URL}/2")
 CELERY_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", f"{REDIS_URL}/3")
 
 celery = Celery(
-    "phoenix",
+    "mystes",
     broker=CELERY_BROKER,
     backend=CELERY_BACKEND,
 )
@@ -50,7 +50,7 @@ celery.conf.update(
     task_time_limit=300,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    task_default_queue="phoenix",
+    task_default_queue="mystes",
     task_routes={
         "celery_app.verify_payments": {"queue": "payments"},
         "celery_app.monitor_p2p_escrows": {"queue": "payments"},
@@ -495,7 +495,7 @@ def emit_event(channel, event_type, data):
     try:
         r = redis_lib.from_url(REDIS_URL)
         payload = json.dumps({"event": event_type, "data": data})
-        r.publish(f"phoenix:events:{channel}", payload)
+        r.publish(f"mystes:events:{channel}", payload)
     except Exception as e:
         logger.error(f"Failed to emit event {event_type} to {channel}: {e}")
 

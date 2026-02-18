@@ -1,5 +1,5 @@
 """
-PHOENIX XRPL Ledger Subscription Monitor
+MYSTES XRPL Ledger Subscription Monitor
 
 Subscribes to the XRPL WebSocket API for real-time escrow events instead
 of polling. Detects EscrowCreate, EscrowFinish, and EscrowCancel transactions

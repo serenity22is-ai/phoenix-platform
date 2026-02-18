@@ -1,13 +1,13 @@
 #!/bin/bash
 # =============================================================
-# PHOENIX Mobile Setup Script
+# MYSTES Mobile Setup Script
 # Sets up Capacitor for iOS and Android builds
 # =============================================================
 
 set -e
 
 echo "=========================================="
-echo "  PHOENIX Mobile Build Setup"
+echo "  MYSTES Mobile Build Setup"
 echo "=========================================="
 
 # Check prerequisites

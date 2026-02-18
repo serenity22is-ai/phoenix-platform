@@ -1,4 +1,4 @@
-# PHOENIX Flight Arbitrage Platform - Python Dependencies
+# MYSTES Flight Arbitrage Platform - Python Dependencies
 
 # Web Framework
 Flask>=3.0,<4.0

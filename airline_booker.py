@@ -1,5 +1,5 @@
 """
-PHOENIX Automated Airline Booking System
+MYSTES Automated Airline Booking System
 
 Uses Playwright browser automation through regional proxies to:
 1. Navigate to airline websites with regional pricing
@@ -120,7 +120,7 @@ class AirlineBooker:
         self.payment_info = self._load_platform_payment()
 
         # Screenshot directory for debugging
-        self.screenshot_dir = os.getenv("BOOKING_SCREENSHOT_DIR", "/tmp/phoenix_bookings")
+        self.screenshot_dir = os.getenv("BOOKING_SCREENSHOT_DIR", "/tmp/mystes_bookings")
         os.makedirs(self.screenshot_dir, exist_ok=True)
 
         # Booking timeout (seconds)
@@ -153,7 +153,7 @@ class AirlineBooker:
             expiry_month=os.getenv("PLATFORM_CARD_EXPIRY_MONTH", ""),
             expiry_year=os.getenv("PLATFORM_CARD_EXPIRY_YEAR", ""),
             cvv=os.getenv("PLATFORM_CARD_CVV", ""),
-            cardholder_name=os.getenv("PLATFORM_CARD_NAME", "PHOENIX Inc"),
+            cardholder_name=os.getenv("PLATFORM_CARD_NAME", "MYSTES Inc"),
             billing_address=os.getenv("PLATFORM_BILLING_ADDRESS", ""),
             billing_city=os.getenv("PLATFORM_BILLING_CITY", ""),
             billing_state=os.getenv("PLATFORM_BILLING_STATE", ""),
@@ -1088,7 +1088,7 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    print("PHOENIX Automated Booking System")
+    print("MYSTES Automated Booking System")
     print("=" * 50)
 
     # Check configuration

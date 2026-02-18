@@ -1,11 +1,11 @@
 /**
- * PHOENIX Service Worker
+ * MYSTES Service Worker
  * Provides offline caching, background sync, and PWA installability.
  */
 
-const CACHE_NAME = 'phoenix-v1';
-const STATIC_CACHE = 'phoenix-static-v1';
-const API_CACHE = 'phoenix-api-v1';
+const CACHE_NAME = 'mystes-v2';
+const STATIC_CACHE = 'mystes-static-v2';
+const API_CACHE = 'mystes-api-v2';
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [

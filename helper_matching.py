@@ -1,5 +1,5 @@
 """
-PHOENIX Smart Helper Matching Algorithm
+MYSTES Smart Helper Matching Algorithm
 
 Scores and ranks available helpers for P2P purchase requests using a
 weighted multi-factor algorithm instead of simple rating sort.

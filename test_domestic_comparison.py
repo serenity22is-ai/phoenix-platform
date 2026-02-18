@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PHOENIX Domestic Flight Price Comparison Test
+MYSTES Domestic Flight Price Comparison Test
 
 Compares US domestic flight prices between US market and international markets
 to detect price discrimination and arbitrage opportunities.
@@ -50,7 +50,7 @@ def run_domestic_comparison(routes, date_str):
     results = []
 
     print("\n" + "=" * 70)
-    print("PHOENIX DOMESTIC FLIGHT PRICE COMPARISON TEST")
+    print("MYSTES DOMESTIC FLIGHT PRICE COMPARISON TEST")
     print("=" * 70)
     print(f"Date: {date_str}")
     print(f"Routes: {len(routes)} domestic US routes")
@@ -238,7 +238,7 @@ def main():
     # Use date 3 weeks out for better availability
     test_date = (datetime.now() + timedelta(days=21)).strftime("%Y-%m-%d")
 
-    print("\n🔥 PHOENIX FLIGHT PRICE ARBITRAGE TEST 🔥")
+    print("\n🔥 MYSTES FLIGHT PRICE ARBITRAGE TEST 🔥")
     print("Testing domestic US flights for geographic price discrimination\n")
 
     # Check available search providers

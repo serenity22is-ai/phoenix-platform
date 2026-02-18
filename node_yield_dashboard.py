@@ -1,5 +1,5 @@
 """
-Node Yield Dashboard — Phoenix Platform
+Node Yield Dashboard — Mystes Platform
 ========================================
 
 Provides per-node earnings visibility for CitizenSERP residential node operators.
@@ -93,7 +93,7 @@ class NodeYieldDashboard:
     optimisation suggestions."""
 
     def __init__(self):
-        self.logger = logging.getLogger("phoenix.node_yield_dashboard")
+        self.logger = logging.getLogger("mystes.node_yield_dashboard")
 
     # ------------------------------------------------------------------
     # 1. Yield Summary
@@ -1182,12 +1182,12 @@ def project_node_earnings(
 
     # --- 4. Arbitrage rewards ---
     # Phase 1-2: static tier-dependent bonus.
-    # Phase 3: DYNAMIC — nodes earn a % of Phoenix's booking fee cut
+    # Phase 3: DYNAMIC — nodes earn a % of Mystes's booking fee cut
     #   when their search activity discovers arbitrage leading to bookings.
     #   Formula: avg_booking_value × fee_pct × arbitrage_reward_pct × bookings_per_node
     #   Zero external query costs in Phase 3 (we own the SERP).
 
-    phase = int(os.environ.get("PHOENIX_ECONOMIC_PHASE", "1"))
+    phase = int(os.environ.get("MYSTES_ECONOMIC_PHASE", "1"))
 
     if phase >= 3:
         # Phase 3 dynamic arbitrage rewards
@@ -1335,17 +1335,17 @@ def project_all_scales(tier: str = "platinum") -> List[Dict]:
 def project_all_phases(network_nodes: int = 10000, tier: str = "platinum") -> Dict:
     """Compare per-node earnings across all 3 economic phases at a given scale.
 
-    Temporarily sets PHOENIX_ECONOMIC_PHASE to simulate each phase.
+    Temporarily sets MYSTES_ECONOMIC_PHASE to simulate each phase.
     Restores original phase when done.
 
     Returns:
         Dict with phase1, phase2, phase3 projections side by side.
     """
-    original_phase = os.environ.get("PHOENIX_ECONOMIC_PHASE", "1")
+    original_phase = os.environ.get("MYSTES_ECONOMIC_PHASE", "1")
     results = {}
 
     for phase in [1, 2, 3]:
-        os.environ["PHOENIX_ECONOMIC_PHASE"] = str(phase)
+        os.environ["MYSTES_ECONOMIC_PHASE"] = str(phase)
         proj = project_node_earnings(network_nodes, tier, _include_comparison=False)
         results[f"phase{phase}"] = {
             "phase": phase,
@@ -1362,7 +1362,7 @@ def project_all_phases(network_nodes: int = 10000, tier: str = "platinum") -> Di
         }
 
     # Restore
-    os.environ["PHOENIX_ECONOMIC_PHASE"] = original_phase
+    os.environ["MYSTES_ECONOMIC_PHASE"] = original_phase
     return results
 
 
@@ -1372,20 +1372,20 @@ def project_all_scales_all_phases(tier: str = "platinum") -> List[Dict]:
     Returns list of rows, each with phase1/phase2/phase3 monthly earnings.
     """
     scales = [100, 500, 2000, 10000, 100000, 1000000, 10000000, 72000000, 1000000000]
-    original_phase = os.environ.get("PHOENIX_ECONOMIC_PHASE", "1")
+    original_phase = os.environ.get("MYSTES_ECONOMIC_PHASE", "1")
     results = []
 
     for n in scales:
         row = {"network_nodes": n, "tier": tier}
         for phase in [1, 2, 3]:
-            os.environ["PHOENIX_ECONOMIC_PHASE"] = str(phase)
+            os.environ["MYSTES_ECONOMIC_PHASE"] = str(phase)
             proj = project_node_earnings(n, tier, _include_comparison=False)
             row[f"phase{phase}_monthly"] = proj["earnings"]["total_monthly_usd"]
             row[f"phase{phase}_arbitrage"] = proj["earnings"]["arbitrage_rewards_monthly_usd"]
             row[f"phase{phase}_annual"] = proj["earnings"]["total_annual_usd"]
         results.append(row)
 
-    os.environ["PHOENIX_ECONOMIC_PHASE"] = original_phase
+    os.environ["MYSTES_ECONOMIC_PHASE"] = original_phase
     return results
 
 

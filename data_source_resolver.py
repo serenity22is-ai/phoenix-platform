@@ -1,5 +1,5 @@
 """
-PHOENIX Data Source Resolution Layer (Build #77)
+MYSTES Data Source Resolution Layer (Build #77)
 
 Three-tier priority chain for arbitrage scraping:
 
@@ -531,9 +531,9 @@ class DataSourceResolver:
     ) -> Optional[ResolutionResult]:
         """Tier 3 hotel search via Amadeus Hotel Search v3 API."""
         try:
-            from amadeus_hotel_client import AmadeusHotelClient
+            from liteapi_client import LiteAPIHotelClient
 
-            client = AmadeusHotelClient()
+            client = LiteAPIHotelClient()
             if not client.is_configured():
                 return None
 
@@ -566,7 +566,7 @@ class DataSourceResolver:
                     success=False, tier_used=3, tier_name="external_api",
                     market=market, vertical="hotel", results=[],
                     execution_time_ms=elapsed,
-                    error=result.get("error", "Amadeus hotel search failed"),
+                    error=result.get("error", "liteAPI hotel search failed"),
                 )
 
             normalised = []
@@ -596,7 +596,7 @@ class DataSourceResolver:
             )
 
         except ImportError:
-            logger.debug("amadeus_hotel_client not available for Tier 3 hotels")
+            logger.debug("liteapi_client not available for Tier 3 hotels")
             return None
         except Exception as e:
             logger.exception("Amadeus hotel search error: %s", e)

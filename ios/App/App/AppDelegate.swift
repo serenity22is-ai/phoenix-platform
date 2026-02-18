@@ -8,8 +8,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Register Phoenix background tasks for node heartbeat and data flush
-        PhoenixBackgroundTasks.registerBackgroundTasks()
+        // Register Mystes background tasks for node heartbeat and data flush
+        MystesBackgroundTasks.registerBackgroundTasks()
         return true
     }
 
@@ -19,9 +19,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
-        // Schedule Phoenix node background tasks when app is backgrounded
-        PhoenixBackgroundTasks.scheduleHeartbeat()
-        PhoenixBackgroundTasks.scheduleFlush()
+        // Schedule Mystes node background tasks when app is backgrounded
+        MystesBackgroundTasks.scheduleHeartbeat()
+        MystesBackgroundTasks.scheduleFlush()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {

@@ -1,5 +1,5 @@
 """
-Amadeus Transfer (Cars & Transfers) API Client for PHOENIX
+Amadeus Transfer (Cars & Transfers) API Client for MYSTES
 
 Covers ground transportation: private transfers, taxis, shared shuttles,
 airport express, limos, and car services.
@@ -349,7 +349,7 @@ class AmadeusTransferClient:
             "data": {
                 "type": "transfer-order",
                 "passengers": passengers_list,
-                "note": "Booked via Phoenix",
+                "note": "Booked via Mystes",
             }
         }
 

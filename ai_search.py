@@ -1,5 +1,5 @@
 """
-PHOENIX AI Search Engine — Multi-Provider Ensemble + Private Market Escrow
+MYSTES AI Search Engine — Multi-Provider Ensemble + Private Market Escrow
 
 Queries multiple LLM providers in parallel (Claude, Grok, DeepSeek, ChatGPT,
 Gemini, Mistral, Cohere, HuggingFace, Ollama), ranks responses, and returns
@@ -7,27 +7,27 @@ the best combined answer. Also builds real-time XRPL escrow contracts for
 private market transactions discovered through the proxy portal.
 
 Architecture:
-    User query → PhoenixAI.search() → ThreadPoolExecutor fans out to N providers
+    User query → MystesAI.search() → ThreadPoolExecutor fans out to N providers
     → responses collected → ranked by relevance/specificity/agreement → best returned
 
 BYOAI (Bring Your Own AI) — Two paths:
     1. Proxy Portal (primary): User logs into their own AI subscription (ChatGPT,
        Claude, etc.) through the proxy portal. Their AI sees market data from the
        proxy's geographic location. No API key needed — user's existing subscription
-       handles billing. Phoenix just provides the geographic tunnel.
-    2. API Key (advanced): User adds their provider API key to Phoenix's ensemble.
-       Their provider is included in parallel queries. No Phoenix credit cost.
+       handles billing. Mystes just provides the geographic tunnel.
+    2. API Key (advanced): User adds their provider API key to Mystes's ensemble.
+       Their provider is included in parallel queries. No Mystes credit cost.
 
 Payment:
     Platform API keys: 0.001 RLUSD per query (free tier: 10/day)
-    User's own API keys in ensemble: no Phoenix credit cost
-    User's own AI via proxy: no Phoenix credit cost (proxy session cost only)
+    User's own API keys in ensemble: no Mystes credit cost
+    User's own AI via proxy: no Mystes credit cost (proxy session cost only)
     Private market escrow: tiered fee 1.5-3% of transaction value
 
 Usage:
-    from ai_search import phoenix_ai
-    result = phoenix_ai.search(user_id=1, query="cheapest flights Tokyo March", market="JP")
-    deal = phoenix_ai.build_deal_contract(user_id=1, deal_details={...})
+    from ai_search import mystes_ai
+    result = mystes_ai.search(user_id=1, query="cheapest flights Tokyo March", market="JP")
+    deal = mystes_ai.build_deal_contract(user_id=1, deal_details={...})
 """
 
 import hashlib
@@ -136,8 +136,8 @@ AI_PROVIDERS = {
 # ---------------------------------------------------------------------------
 
 SEARCH_PROMPT = (
-    "You are Phoenix AI, a data-driven geographic market intelligence assistant. "
-    "You have access to Phoenix's proprietary cross-market pricing data, demand signals, "
+    "You are MYSTES AI, a data-driven geographic market intelligence assistant. "
+    "You have access to Mystes's proprietary cross-market pricing data, demand signals, "
     "and historical price trends gathered from proxy-based arbitrage across global markets. "
     "Use the market intelligence provided in your context to give precise, data-backed answers. "
     "Cite specific prices, savings percentages, and market comparisons from the data. "
@@ -145,19 +145,19 @@ SEARCH_PROMPT = (
 )
 
 ANALYSIS_PROMPT = (
-    "You are Phoenix AI analyzing a marketplace listing. "
+    "You are MYSTES AI analyzing a marketplace listing. "
     "Assess the item's fair market value, identify red flags, "
     "and compare pricing across markets. Be specific with numbers."
 )
 
 COMPARISON_PROMPT = (
-    "You are Phoenix AI comparing prices across geographic markets. "
+    "You are MYSTES AI comparing prices across geographic markets. "
     "Calculate landed cost (price + shipping + customs duties + tax) for physical goods. "
     "Show the true delivered cost, not just sticker price."
 )
 
 DEAL_ASSESSMENT_PROMPT = (
-    "You are Phoenix AI assessing a private market transaction. "
+    "You are MYSTES AI assessing a private market transaction. "
     "Evaluate the fair market value of the item described, "
     "identify risk factors (price vs market value, item category, cross-border complexity), "
     "and recommend escrow terms. Return a JSON object with: "
@@ -192,11 +192,11 @@ ESCROW_FEE_CAP = 500.0
 
 def _get_encryption_key():
     """Get or generate encryption key for API key storage."""
-    key = os.environ.get("PHOENIX_ENCRYPTION_KEY")
+    key = os.environ.get("MYSTES_ENCRYPTION_KEY")
     if key:
         return key.encode() if isinstance(key, str) else key
     # Fallback: derive from SECRET_KEY
-    secret = os.environ.get("SECRET_KEY", "phoenix-dev-key")
+    secret = os.environ.get("SECRET_KEY", "mystes-dev-key")
     import base64
     raw = hashlib.sha256(secret.encode()).digest()
     return base64.urlsafe_b64encode(raw)
@@ -226,14 +226,14 @@ def decrypt_api_key(encrypted_key):
 
 
 # ---------------------------------------------------------------------------
-# PhoenixAI — Main Class
+# MystesAI — Main Class
 # ---------------------------------------------------------------------------
 
-class PhoenixAI:
+class MystesAI:
     """Multi-provider AI ensemble search engine + private market escrow builder."""
 
     def __init__(self):
-        self._executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="phoenix_ai")
+        self._executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="mystes_ai")
 
     # ----- Provider Management -----
 
@@ -362,13 +362,13 @@ class PhoenixAI:
         if all(k in user_providers for k in available):
             uses_own_keys = True
 
-        # Build messages with Phoenix intelligence context
+        # Build messages with Mystes intelligence context
         system_content = SEARCH_PROMPT
         try:
-            from phoenix_intelligence import intelligence
-            phoenix_context = intelligence.build_ai_context(query, market=market)
-            if phoenix_context:
-                system_content += f"\n\n{phoenix_context}"
+            from mystes_intelligence import intelligence
+            mystes_context = intelligence.build_ai_context(query, market=market)
+            if mystes_context:
+                system_content += f"\n\n{mystes_context}"
         except Exception as e:
             logger.warning(f"Intelligence context failed (non-blocking): {e}")
             if market:
@@ -1046,7 +1046,7 @@ class PhoenixAI:
             from xrpl.utils import datetime_to_ripple_time
             import xrpl
 
-            wallet_seed = os.environ.get("PHOENIX_XRPL_SEED")
+            wallet_seed = os.environ.get("MYSTES_XRPL_SEED")
             if not wallet_seed:
                 return {"error": "XRPL wallet not configured"}
 
@@ -1106,7 +1106,7 @@ class PhoenixAI:
             from xrpl.models.transactions import EscrowFinish
             import xrpl
 
-            wallet_seed = os.environ.get("PHOENIX_XRPL_SEED")
+            wallet_seed = os.environ.get("MYSTES_XRPL_SEED")
             if not wallet_seed:
                 return {"error": "XRPL wallet not configured"}
 
@@ -1243,7 +1243,7 @@ class PhoenixAI:
             <h2 style="color: #4361ee;">You've Received a Deal Proposal</h2>
             <p>Hi {deal.seller_name or 'there'},</p>
             <p><strong>{buyer.name or buyer.email}</strong> has proposed a transaction through
-            PHOENIX and would like to use XRPL escrow for secure payment.</p>
+            MYSTES and would like to use XRPL escrow for secure payment.</p>
 
             <div style="background: #f0f4ff; padding: 20px; border-radius: 8px; margin: 20px 0;
                         border-left: 4px solid #4361ee;">
@@ -1275,9 +1275,9 @@ class PhoenixAI:
             <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px;
                         border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 0; color: #856404; font-size: 13px;">
-                    PHOENIX uses XRPL (XRP Ledger) smart contract escrow for secure, trustless
+                    MYSTES uses XRPL (XRP Ledger) smart contract escrow for secure, trustless
                     transactions. Funds are locked on-chain and only release when both parties
-                    fulfill the agreement. Phoenix is NOT liable for physical goods execution.
+                    fulfill the agreement. Mystes is NOT liable for physical goods execution.
                 </p>
             </div>
         </div>
@@ -1329,7 +1329,7 @@ class PhoenixAI:
                 "market": deal.market,
                 "deal_type": deal.deal_type,
                 "delivery_deadline_days": (deal.delivery_deadline - datetime.utcnow()).days if deal.delivery_deadline else None,
-                "buyer_name": buyer.name if buyer and buyer.name else "PHOENIX User",
+                "buyer_name": buyer.name if buyer and buyer.name else "MYSTES User",
                 "status": deal.status,
                 "seller_accepted_at": deal.seller_accepted_at.isoformat() if deal.seller_accepted_at else None,
                 "link_expires_at": deal.link_expires_at.isoformat() if deal.link_expires_at else None,
@@ -1427,7 +1427,7 @@ class PhoenixAI:
                          departure_date=None, market=None):
         """
         Combined search: pull real flight prices then ask AI to analyse them
-        with full Phoenix intelligence context.
+        with full Mystes intelligence context.
         """
         flights_context = ""
         flights = []
@@ -1465,7 +1465,7 @@ class PhoenixAI:
         if flights_context:
             enhanced_query += (
                 f"\n\nAnalyse these live flight options and recommend the best value. "
-                f"Factor in Phoenix's historical pricing data from the context below."
+                f"Factor in Mystes's historical pricing data from the context below."
                 f"{flights_context}"
             )
 
@@ -1484,4 +1484,4 @@ class PhoenixAI:
 # Global instance
 # ---------------------------------------------------------------------------
 
-phoenix_ai = PhoenixAI()
+mystes_ai = MystesAI()

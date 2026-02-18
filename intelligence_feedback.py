@@ -1,8 +1,8 @@
 """
-PHOENIX Intelligence Feedback Loop
+MYSTES Intelligence Feedback Loop
 
 Closes the data loop: search results and task outcomes feed back into
-Phoenix's intelligence layer for pattern detection, price trend updates,
+Mystes's intelligence layer for pattern detection, price trend updates,
 and autonomous opportunity creation.
 
 Data Flow:
@@ -818,7 +818,7 @@ class FeedbackEngine:
         """
         Update in-memory route intelligence cache.
 
-        Used by phoenix_intelligence.get_route_intelligence() for fast
+        Used by mystes_intelligence.get_route_intelligence() for fast
         lookups without hitting the database.
         """
         try:

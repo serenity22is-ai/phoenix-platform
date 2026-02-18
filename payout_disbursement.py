@@ -1,5 +1,5 @@
 """
-PHOENIX Automated RLUSD Disbursement (Build #69)
+MYSTES Automated RLUSD Disbursement (Build #69)
 
 Processes pending NodePayout records by submitting XRPL Payment transactions.
 Runs as a background task via tasks.py.
@@ -397,8 +397,8 @@ class PayoutDisbursementWorker:
 
 # Module-level singleton
 disbursement_worker = PayoutDisbursementWorker(
-    treasury_address=os.environ.get("PHOENIX_TREASURY_WALLET", "rTreasurySimulated"),
-    treasury_secret=os.environ.get("PHOENIX_TREASURY_SECRET", "SIMULATED"),
+    treasury_address=os.environ.get("MYSTES_TREASURY_WALLET", "rTreasurySimulated"),
+    treasury_secret=os.environ.get("MYSTES_TREASURY_SECRET", "SIMULATED"),
     rlusd_issuer=os.environ.get("RLUSD_ISSUER", "rRLUSDIssuerSimulated"),
     xrpl_url=os.environ.get("XRPL_URL", "https://s1.ripple.com:51234/"),
 )

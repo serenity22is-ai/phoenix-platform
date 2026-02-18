@@ -1,8 +1,8 @@
 """
-PHOENIX Data Marketplace Engine (Build #74)
+MYSTES Data Marketplace Engine (Build #74)
 
-Core engine for the Phoenix Data Marketplace — a tiered API that exposes
-aggregated, privacy-safe data products derived from the Phoenix network.
+Core engine for the Mystes Data Marketplace — a tiered API that exposes
+aggregated, privacy-safe data products derived from the Mystes network.
 
 Products span six categories:
     - AI Benchmarking (provider win rates, model comparisons, strategy insights)
@@ -125,7 +125,7 @@ PRODUCT_CATALOG = {
     # --- AI Benchmarking (requires ai_benchmarking addon) ---
     "ai_provider_benchmark": {
         "name": "AI Provider Benchmark",
-        "description": "Provider win rates, response times, and quality scores aggregated across the Phoenix AI ensemble.",
+        "description": "Provider win rates, response times, and quality scores aggregated across the MYSTES AI ensemble.",
         "category": "ai_benchmarking",
         "min_tier": "data_starter",
         "credit_cost": 2.0,
@@ -143,7 +143,7 @@ PRODUCT_CATALOG = {
     },
     "ai_strategy_effectiveness": {
         "name": "AI Strategy Effectiveness",
-        "description": "Strategy type effectiveness scores derived from the Phoenix Strategy Learner.",
+        "description": "Strategy type effectiveness scores derived from the Mystes Strategy Learner.",
         "category": "ai_benchmarking",
         "min_tier": "data_starter",
         "credit_cost": 2.0,
@@ -161,7 +161,7 @@ PRODUCT_CATALOG = {
     },
     "ai_provider_adoption": {
         "name": "AI Provider Adoption",
-        "description": "Aggregated provider usage shares across the Phoenix network (no individual user data).",
+        "description": "Aggregated provider usage shares across the Mystes network (no individual user data).",
         "category": "ai_benchmarking",
         "min_tier": "data_starter",
         "credit_cost": 1.0,
@@ -171,7 +171,7 @@ PRODUCT_CATALOG = {
     # --- Geographic Pricing ---
     "route_pricing": {
         "name": "Route Pricing",
-        "description": "Current route pricing across global markets from active Phoenix deals.",
+        "description": "Current route pricing across global markets from active Mystes deals.",
         "category": "geographic_pricing",
         "min_tier": "data_starter",
         "credit_cost": 1.0,
@@ -263,7 +263,7 @@ PRODUCT_CATALOG = {
     # --- Ad Intelligence ---
     "ad_inventory_feed": {
         "name": "Ad Inventory Feed",
-        "description": "Ad inventory data captured across the Phoenix node network.",
+        "description": "Ad inventory data captured across the Mystes node network.",
         "category": "ad_intelligence",
         "min_tier": "data_professional",
         "credit_cost": 2.0,
@@ -354,10 +354,10 @@ def _tier_index(tier_key):
 # ===========================================================================
 
 class DataMarketplaceEngine:
-    """Core engine for the Phoenix Data Marketplace.
+    """Core engine for the Mystes Data Marketplace.
 
     Provides catalog browsing, access control, product queries,
-    bulk exports, webhook subscriptions, and the Phoenix AI Benchmark report.
+    bulk exports, webhook subscriptions, and the MYSTES AI Benchmark report.
     """
 
     def __init__(self):
@@ -1603,7 +1603,7 @@ class DataMarketplaceEngine:
             data = result.get("data", [])
 
             # Generate file
-            export_dir = os.path.join(tempfile.gettempdir(), "phoenix_exports")
+            export_dir = os.path.join(tempfile.gettempdir(), "mystes_exports")
             os.makedirs(export_dir, exist_ok=True)
 
             if export.format == "csv" and data:
@@ -1726,8 +1726,8 @@ class DataMarketplaceEngine:
 
         headers = {
             "Content-Type": "application/json",
-            "X-Phoenix-Signature": signature,
-            "X-Phoenix-Webhook-Id": webhook_id,
+            "X-Mystes-Signature": signature,
+            "X-Mystes-Webhook-Id": webhook_id,
         }
 
         try:
@@ -1769,11 +1769,11 @@ class DataMarketplaceEngine:
     # ------------------------------------------------------------------
 
     def generate_ai_benchmark_report(self, period_days=30):
-        """Generate the Phoenix AI Index monthly report.
+        """Generate the MYSTES AI Index monthly report.
 
         Includes provider rankings, category breakdown, response time
         distributions, quality scores, strategy effectiveness, monthly
-        trends, and a composite Phoenix AI Index score.
+        trends, and a composite MYSTES AI Index score.
         """
         cutoff = datetime.utcnow() - timedelta(days=period_days)
 
@@ -1847,7 +1847,7 @@ class DataMarketplaceEngine:
                     "avg_response_time_ms": round(r[2], 1) if r[2] else None,
                 })
 
-            # --- Composite Phoenix AI Index ---
+            # --- Composite MYSTES AI Index ---
             # Weighted score: 40% win-rate spread, 30% response time, 30% strategy effectiveness
             top_win_rate = provider_rankings[0]["win_rate"] if provider_rankings else 0
             avg_rt = rt_distribution.get("mean", 5000)
@@ -1861,12 +1861,12 @@ class DataMarketplaceEngine:
             rt_component = max(0, 100 - (avg_rt / 100))  # 0ms=100, 10000ms=0
             eff_component = min(avg_effectiveness * 100, 100)
 
-            phoenix_ai_index = round(
+            mystes_ai_index = round(
                 0.4 * win_component + 0.3 * rt_component + 0.3 * eff_component, 2
             )
 
             return {
-                "report_type": "phoenix_ai_index",
+                "report_type": "mystes_ai_index",
                 "period_days": period_days,
                 "generated_at": datetime.utcnow().isoformat(),
                 "total_queries_analyzed": total_queries,
@@ -1874,12 +1874,12 @@ class DataMarketplaceEngine:
                 "response_time_distribution": rt_distribution,
                 "strategy_effectiveness": strategy_rankings,
                 "monthly_trends": monthly_trends,
-                "phoenix_ai_index": phoenix_ai_index,
+                "mystes_ai_index": mystes_ai_index,
             }
         except Exception:
             logger.exception("generate_ai_benchmark_report failed")
             return {
-                "report_type": "phoenix_ai_index",
+                "report_type": "mystes_ai_index",
                 "error": "Report generation failed",
                 "generated_at": datetime.utcnow().isoformat(),
             }
@@ -2159,7 +2159,7 @@ def register_data_marketplace_routes(app):
     @app.route("/api/v1/data/ai-benchmark-report", methods=["GET"])
     @require_api_key(scope="data_marketplace")
     def data_marketplace_ai_benchmark_report():
-        """Generate the Phoenix AI Index benchmark report.
+        """Generate the MYSTES AI Index benchmark report.
 
         Requires the ai_benchmarking addon on the account's subscription.
         """

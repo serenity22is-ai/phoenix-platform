@@ -1,5 +1,5 @@
 """
-PHOENIX Email Service
+MYSTES Email Service
 
 Handles all email functionality:
 - Email verification
@@ -30,7 +30,7 @@ EMAIL_CONFIG = {
     "use_tls": os.environ.get("MAIL_USE_TLS", "true").lower() == "true",
     "username": os.environ.get("MAIL_USERNAME"),
     "password": os.environ.get("MAIL_PASSWORD"),
-    "sender": os.environ.get("MAIL_DEFAULT_SENDER", "PHOENIX <noreply@phoenix.app>"),
+    "sender": os.environ.get("MAIL_DEFAULT_SENDER", "MYSTES <noreply@mystes.app>"),
     "base_url": os.environ.get("BASE_URL", "http://localhost:5001"),
 }
 
@@ -118,7 +118,7 @@ def send_verification_email(to: str, token: str, name: str = None) -> bool:
     </head>
     <body>
         <div class="container">
-            <div class="logo">PHOENIX</div>
+            <div class="logo">MYSTES</div>
             <p>{greeting}</p>
             <p>Thanks for signing up! Please verify your email address to complete your registration.</p>
             <a href="{verify_url}" class="button">Verify Email</a>
@@ -126,7 +126,7 @@ def send_verification_email(to: str, token: str, name: str = None) -> bool:
             <p>This link expires in 24 hours.</p>
             <div class="footer">
                 <p>If you didn't create an account, you can safely ignore this email.</p>
-                <p>PHOENIX - Save money on international flights</p>
+                <p>MYSTES - Save money on international flights</p>
             </div>
         </div>
     </body>
@@ -136,7 +136,7 @@ def send_verification_email(to: str, token: str, name: str = None) -> bool:
     text = f"""
     {greeting}
 
-    Thanks for signing up for PHOENIX!
+    Thanks for signing up for MYSTES!
 
     Please verify your email by clicking this link:
     {verify_url}
@@ -146,7 +146,7 @@ def send_verification_email(to: str, token: str, name: str = None) -> bool:
     If you didn't create an account, you can safely ignore this email.
     """
 
-    return send_email_smtp(to, "Verify your PHOENIX account", html, text)
+    return send_email_smtp(to, "Verify your MYSTES account", html, text)
 
 
 def send_password_reset_email(to: str, token: str, name: str = None) -> bool:
@@ -168,7 +168,7 @@ def send_password_reset_email(to: str, token: str, name: str = None) -> bool:
     </head>
     <body>
         <div class="container">
-            <div class="logo">PHOENIX</div>
+            <div class="logo">MYSTES</div>
             <p>{greeting}</p>
             <p>We received a request to reset your password. Click the button below to choose a new password.</p>
             <a href="{reset_url}" class="button">Reset Password</a>
@@ -176,7 +176,7 @@ def send_password_reset_email(to: str, token: str, name: str = None) -> bool:
             <p>This link expires in 1 hour.</p>
             <div class="footer">
                 <p>If you didn't request a password reset, you can safely ignore this email.</p>
-                <p>PHOENIX - Save money on international flights</p>
+                <p>MYSTES - Save money on international flights</p>
             </div>
         </div>
     </body>
@@ -186,7 +186,7 @@ def send_password_reset_email(to: str, token: str, name: str = None) -> bool:
     text = f"""
     {greeting}
 
-    We received a request to reset your PHOENIX password.
+    We received a request to reset your MYSTES password.
 
     Click this link to reset your password:
     {reset_url}
@@ -196,7 +196,7 @@ def send_password_reset_email(to: str, token: str, name: str = None) -> bool:
     If you didn't request this, you can safely ignore this email.
     """
 
-    return send_email_smtp(to, "Reset your PHOENIX password", html, text)
+    return send_email_smtp(to, "Reset your MYSTES password", html, text)
 
 
 def send_price_alert_email(to: str, deals: list, name: str = None) -> bool:
@@ -227,7 +227,7 @@ def send_price_alert_email(to: str, deals: list, name: str = None) -> bool:
     </head>
     <body>
         <div class="container">
-            <div class="logo">PHOENIX</div>
+            <div class="logo">MYSTES</div>
             <p>{greeting}</p>
             <p>Great news! We found some deals matching your price alerts:</p>
             {deals_html}
@@ -258,7 +258,7 @@ def send_booking_confirmation_email(to: str, booking: dict, name: str = None) ->
     </head>
     <body>
         <div class="container">
-            <div class="logo">PHOENIX</div>
+            <div class="logo">MYSTES</div>
             <p>{greeting}</p>
             <p>Your payment has been verified! Here are your booking details:</p>
             <div class="details">
@@ -275,7 +275,7 @@ def send_booking_confirmation_email(to: str, booking: dict, name: str = None) ->
     </html>
     """
 
-    return send_email_smtp(to, "PHOENIX - Payment Verified!", html)
+    return send_email_smtp(to, "MYSTES - Payment Verified!", html)
 
 
 def send_email(to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
@@ -305,11 +305,11 @@ def send_email(to_email: str, subject: str, html_content: str, text_content: str
     </head>
     <body>
         <div class="container">
-            <div class="logo">PHOENIX</div>
+            <div class="logo">MYSTES</div>
             {html_content}
             <div class="footer">
-                <p>PHOENIX - Save money on international flights</p>
-                <p><a href="{EMAIL_CONFIG['base_url']}">Visit PHOENIX</a></p>
+                <p>MYSTES - Save money on international flights</p>
+                <p><a href="{EMAIL_CONFIG['base_url']}">Visit MYSTES</a></p>
             </div>
         </div>
     </body>
@@ -485,7 +485,7 @@ def send_ticket_confirmation(user_email: str, deal, booking, confirmation_code: 
 
     <div style="margin-top: 20px;">
         <p style="color: #28a745; font-size: 18px;">
-            <strong>You saved ${deal.gross_savings_usd or deal.user_savings_usd or 0:.2f} with PHOENIX!</strong>
+            <strong>You saved ${deal.gross_savings_usd or deal.user_savings_usd or 0:.2f} with MYSTES!</strong>
         </p>
     </div>
 
@@ -497,7 +497,7 @@ def send_ticket_confirmation(user_email: str, deal, booking, confirmation_code: 
     </ul>
 
     <p style="color: #666; font-size: 14px;">
-        Have a great flight! Thank you for using PHOENIX.
+        Have a great flight! Thank you for using MYSTES.
     </p>
     """
 
@@ -531,7 +531,7 @@ def send_p2p_escrow_locked(to: str, name: str = None, transaction: dict = None) 
     <h3>What Happens Next</h3>
     <ol>
         <li>A helper in {transaction.get('target_market', 'the target market')} will verify the escrow on-chain</li>
-        <li>Phoenix will automate the purchase through the helper's browser</li>
+        <li>Mystes will automate the purchase through the helper's browser</li>
         <li>Once confirmed, your escrow releases to the helper and platform</li>
         <li>You receive your booking confirmation</li>
     </ol>
@@ -567,9 +567,9 @@ def send_p2p_helper_matched(to: str, name: str = None, transaction: dict = None)
     <h3>Next Steps</h3>
     <ol>
         <li>Verify the escrow is locked on-chain (check the XRPL explorer)</li>
-        <li>Accept the transaction in your Phoenix dashboard</li>
-        <li>Launch the Phoenix Helper app to connect your browser</li>
-        <li>Phoenix will automate the purchase - you just watch</li>
+        <li>Accept the transaction in your Mystes dashboard</li>
+        <li>Launch the Mystes Helper app to connect your browser</li>
+        <li>Mystes will automate the purchase - you just watch</li>
         <li>Escrow releases to your wallet on confirmation</li>
     </ol>
 
@@ -589,7 +589,7 @@ def send_p2p_booking_confirmed(to: str, name: str = None, transaction: dict = No
     html_content = f"""
     <h2 style="color: #2e7d32;">P2P Booking Confirmed!</h2>
     <p>{greeting}</p>
-    <p>Your flight has been booked through the Phoenix P2P network!</p>
+    <p>Your flight has been booked through the Mystes P2P network!</p>
 
     <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
         <p style="margin: 0; font-size: 14px; color: #2e7d32;">Confirmation Code</p>
@@ -604,7 +604,7 @@ def send_p2p_booking_confirmed(to: str, name: str = None, transaction: dict = No
         <p><strong>Date:</strong> {transaction.get('departure_date', '')}</p>
         <p><strong>Airline:</strong> {transaction.get('airline', '')}</p>
         <p style="color: #2e7d32; font-size: 18px; font-weight: bold;">
-            You saved ${transaction.get('savings_usd', 0):.2f} with Phoenix P2P!
+            You saved ${transaction.get('savings_usd', 0):.2f} with Mystes P2P!
         </p>
     </div>
 
@@ -651,7 +651,7 @@ def send_p2p_helper_payment(to: str, name: str = None, transaction: dict = None)
 
     <p>Your RLUSD is now in your connected wallet. You can:</p>
     <ul>
-        <li>Use RLUSD for your own Phoenix flights</li>
+        <li>Use RLUSD for your own Mystes flights</li>
         <li>Convert to XRP on the XRPL DEX</li>
         <li>Cash out via Coinbase Commerce</li>
     </ul>

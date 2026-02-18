@@ -1,5 +1,5 @@
 """
-Airport Database for PHOENIX
+Airport Database for MYSTES
 
 Comprehensive airport data with city names, countries, and search functionality.
 """
@@ -22,7 +22,7 @@ AIRPORTS = {
     "SEA": {"name": "Seattle-Tacoma International", "city": "Seattle", "country": "United States", "country_code": "US"},
     "BOS": {"name": "Boston Logan International", "city": "Boston", "country": "United States", "country_code": "US"},
     "LAS": {"name": "Harry Reid International", "city": "Las Vegas", "country": "United States", "country_code": "US"},
-    "PHX": {"name": "Phoenix Sky Harbor International", "city": "Phoenix", "country": "United States", "country_code": "US"},
+    "PHX": {"name": "Mystes Sky Harbor International", "city": "Mystes", "country": "United States", "country_code": "US"},
     "IAH": {"name": "George Bush Intercontinental", "city": "Houston", "country": "United States", "country_code": "US"},
     "EWR": {"name": "Newark Liberty International", "city": "Newark", "country": "United States", "country_code": "US"},
     "MCO": {"name": "Orlando International", "city": "Orlando", "country": "United States", "country_code": "US"},
@@ -402,7 +402,7 @@ AIRPORTS = {
 
     # Arizona Regional
     "TUS": {"name": "Tucson International", "city": "Tucson", "country": "United States", "country_code": "US"},
-    "AZA": {"name": "Phoenix-Mesa Gateway", "city": "Mesa", "country": "United States", "country_code": "US"},
+    "AZA": {"name": "Mystes-Mesa Gateway", "city": "Mesa", "country": "United States", "country_code": "US"},
     "FLG": {"name": "Flagstaff Pulliam", "city": "Flagstaff", "country": "United States", "country_code": "US"},
     "YUM": {"name": "Yuma International", "city": "Yuma", "country": "United States", "country_code": "US"},
 
@@ -671,7 +671,7 @@ AIRPORTS = {
     "TSN": {"name": "Tianjin Binhai International", "city": "Tianjin", "country": "China", "country_code": "CN"},
     "DLC": {"name": "Dalian Zhoushuizi International", "city": "Dalian", "country": "China", "country_code": "CN"},
     "TAO": {"name": "Qingdao Jiaodong International", "city": "Qingdao", "country": "China", "country_code": "CN"},
-    "SYX": {"name": "Sanya Phoenix International", "city": "Sanya", "country": "China", "country_code": "CN"},
+    "SYX": {"name": "Sanya Mystes International", "city": "Sanya", "country": "China", "country_code": "CN"},
     "HAK": {"name": "Haikou Meilan International", "city": "Haikou", "country": "China", "country_code": "CN"},
     "CGQ": {"name": "Changchun Longjia International", "city": "Changchun", "country": "China", "country_code": "CN"},
     "SHE": {"name": "Shenyang Taoxian International", "city": "Shenyang", "country": "China", "country_code": "CN"},
@@ -1125,7 +1125,7 @@ AIRPORTS = {
     "FOC": {"name": "Fuzhou Changle", "city": "Fuzhou", "country": "China", "country_code": "CN"},
     "NNG": {"name": "Nanning Wuxu", "city": "Nanning", "country": "China", "country_code": "CN"},
     "HAK": {"name": "Haikou Meilan", "city": "Haikou", "country": "China", "country_code": "CN"},
-    "SYX": {"name": "Sanya Phoenix", "city": "Sanya", "country": "China", "country_code": "CN"},
+    "SYX": {"name": "Sanya Mystes", "city": "Sanya", "country": "China", "country_code": "CN"},
     "LXA": {"name": "Lhasa Gonggar", "city": "Lhasa", "country": "China", "country_code": "CN"},
     "URC": {"name": "Ürümqi Diwopu", "city": "Ürümqi", "country": "China", "country_code": "CN"},
     "KWE": {"name": "Guiyang Longdongbao", "city": "Guiyang", "country": "China", "country_code": "CN"},
@@ -1554,7 +1554,7 @@ CITY_ALIASES = {
     "DENVER": ["DEN"],
     "SEATTLE": ["SEA"],
     "PORTLAND": ["PDX"],
-    "PHOENIX": ["PHX", "AZA"],
+    "MYSTES": ["PHX", "AZA"],
     "MINNEAPOLIS": ["MSP"],
     "MIAMI": ["MIA", "FLL"],
     "SO FLA": ["MIA", "FLL", "PBI"],

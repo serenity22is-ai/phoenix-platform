@@ -1,8 +1,8 @@
 """
-PHOENIX Multi-Platform Share Links & Contract Templates
+MYSTES Multi-Platform Share Links & Contract Templates
 
 Generates platform-specific share URLs for deal links (P2P escrow contracts)
-and referral links (app signup). Wraps any Phoenix URL into deep links for
+and referral links (app signup). Wraps any Mystes URL into deep links for
 WhatsApp, Telegram, Signal, Facebook, Messenger, X/Twitter, Instagram,
 TikTok, Gmail, SMS, and generic clipboard copy.
 
@@ -12,8 +12,8 @@ Usage:
     from share_links import generate_deal_share_links, generate_referral_share_links
     from share_links import get_contract_templates, get_template, apply_template
 
-    links = generate_deal_share_links(deal_dict, "https://phoenix.app")
-    links = generate_referral_share_links("MYCODE", "John", "https://phoenix.app")
+    links = generate_deal_share_links(deal_dict, "https://mystes.app")
+    links = generate_referral_share_links("MYCODE", "John", "https://mystes.app")
     templates = get_contract_templates()
     details = apply_template("goods_standard", {"item_description": "...", "agreed_price": 500})
 """
@@ -123,7 +123,7 @@ class ShareContext:
 
 
 def generate_share_links(ctx: ShareContext) -> dict:
-    """Generate platform-specific share URLs for any Phoenix URL.
+    """Generate platform-specific share URLs for any Mystes URL.
 
     Returns a dict with 'platforms' (per-platform URLs), 'raw_url', and 'raw_message'.
     """
@@ -188,12 +188,12 @@ def generate_deal_share_links(deal: dict, base_url: str = None) -> dict:
     price = deal.get("agreed_price_rlusd", 0)
 
     message = (
-        f"I'm sending you a secure escrow deal through PHOENIX:\n\n"
+        f"I'm sending you a secure escrow deal through MYSTES:\n\n"
         f"{item}\n"
         f"{price:.2f} RLUSD\n"
         f"Protected by XRPL smart contract escrow\n\n"
         f"Click to review and accept: {full_url}\n\n"
-        f"PHOENIX — Trustless P2P transactions powered by XRPL"
+        f"MYSTES — Trustless P2P transactions powered by XRPL"
     )
 
     ctx = ShareContext(
@@ -201,7 +201,7 @@ def generate_deal_share_links(deal: dict, base_url: str = None) -> dict:
         title=f"Deal Proposal: {item[:50]}",
         description=f"Secure escrow deal for {item[:50]} — {price:.2f} RLUSD",
         message=message,
-        subject=f"PHOENIX Deal Proposal: {item[:50]}",
+        subject=f"MYSTES Deal Proposal: {item[:50]}",
     )
 
     return generate_share_links(ctx)
@@ -225,7 +225,7 @@ def generate_referral_share_links(referral_code: str, user_name: str = "",
     inviter = user_name or "A friend"
 
     message = (
-        f"{inviter} invited you to join PHOENIX — the geographic proxy arbitrage engine.\n\n"
+        f"{inviter} invited you to join MYSTES — the geographic proxy arbitrage engine.\n\n"
         f"Browse any market worldwide through proxy nodes\n"
         f"Save on flights, hotels, and products across borders\n"
         f"All transactions secured by XRPL escrow\n\n"
@@ -234,10 +234,10 @@ def generate_referral_share_links(referral_code: str, user_name: str = "",
 
     ctx = ShareContext(
         url=referral_url,
-        title="Join PHOENIX",
-        description=f"{inviter} invited you to PHOENIX — geographic arbitrage engine",
+        title="Join MYSTES",
+        description=f"{inviter} invited you to MYSTES — geographic arbitrage engine",
         message=message,
-        subject=f"{inviter} invited you to PHOENIX",
+        subject=f"{inviter} invited you to MYSTES",
     )
 
     return generate_share_links(ctx)
@@ -276,7 +276,7 @@ CONTRACT_TEMPLATES = {
             "Funds locked until buyer confirms delivery. "
             "Dispute window: 7 days after delivery confirmation."
         ),
-        "disclaimer": "PHOENIX is not liable for physical goods condition or delivery.",
+        "disclaimer": "MYSTES is not liable for physical goods condition or delivery.",
     },
     "goods_high_value": {
         "template_id": "goods_high_value",
@@ -293,7 +293,7 @@ CONTRACT_TEMPLATES = {
             "Funds locked until buyer confirms delivery AND 3-day inspection period passes. "
             "Buyer may dispute during inspection. Dispute window: 10 days total."
         ),
-        "disclaimer": "PHOENIX is not liable for physical goods condition, authenticity, or delivery.",
+        "disclaimer": "MYSTES is not liable for physical goods condition, authenticity, or delivery.",
     },
     "services_standard": {
         "template_id": "services_standard",
@@ -310,7 +310,7 @@ CONTRACT_TEMPLATES = {
             "Funds locked until buyer confirms service completion. "
             "Dispute window: 5 days after confirmation."
         ),
-        "disclaimer": "PHOENIX is not liable for service quality or completion.",
+        "disclaimer": "MYSTES is not liable for service quality or completion.",
     },
     "services_milestone": {
         "template_id": "services_milestone",
@@ -329,7 +329,7 @@ CONTRACT_TEMPLATES = {
             "Each milestone release requires buyer confirmation. "
             "Dispute window: 7 days per milestone."
         ),
-        "disclaimer": "PHOENIX is not liable for service quality or milestone completion.",
+        "disclaimer": "MYSTES is not liable for service quality or milestone completion.",
     },
     "digital_instant": {
         "template_id": "digital_instant",
@@ -346,7 +346,7 @@ CONTRACT_TEMPLATES = {
             "Funds auto-release 24 hours after seller marks delivered, "
             "unless buyer opens dispute. Dispute window: 3 days."
         ),
-        "disclaimer": "PHOENIX is not liable for digital goods functionality or licensing.",
+        "disclaimer": "MYSTES is not liable for digital goods functionality or licensing.",
     },
     "vehicle_purchase": {
         "template_id": "vehicle_purchase",
@@ -365,7 +365,7 @@ CONTRACT_TEMPLATES = {
             "Dispute window: 14 days total."
         ),
         "disclaimer": (
-            "PHOENIX is not liable for vehicle condition, title status, or delivery. "
+            "MYSTES is not liable for vehicle condition, title status, or delivery. "
             "Buyer should conduct independent inspection."
         ),
     },
@@ -385,7 +385,7 @@ CONTRACT_TEMPLATES = {
             "in agreed condition, or to owner if condition not met. "
             "Dispute window: 7 days after return."
         ),
-        "disclaimer": "PHOENIX is not liable for rental property condition or return logistics.",
+        "disclaimer": "MYSTES is not liable for rental property condition or return logistics.",
     },
     "custom": {
         "template_id": "custom",
@@ -399,7 +399,7 @@ CONTRACT_TEMPLATES = {
             "inspection_days": 0,
         },
         "escrow_terms": "Custom terms defined by the parties.",
-        "disclaimer": "PHOENIX is not liable for transaction execution. Terms are between the parties.",
+        "disclaimer": "MYSTES is not liable for transaction execution. Terms are between the parties.",
     },
 }
 

@@ -1,5 +1,5 @@
 """
-PHOENIX Background Tasks
+MYSTES Background Tasks
 
 Handles scheduled tasks:
 - Payment verification polling

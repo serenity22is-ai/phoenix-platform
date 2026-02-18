@@ -1,5 +1,5 @@
 """
-PHOENIX CitizenSERP Task Type System
+MYSTES CitizenSERP Task Type System
 
 Defines typed tasks that CitizenSERP nodes can execute. Every search, browse,
 or price check that goes through the network is a typed task. Task types tell
@@ -18,7 +18,7 @@ Task types:
   - price_monitor:       Recurring price check for alerts
   - general_search:      Open-ended proxy browsing (portal sessions)
 
-Every task pays the node. Every task feeds Phoenix's data layer.
+Every task pays the node. Every task feeds Mystes's data layer.
 
 Usage:
     from citizenserp_tasks import task_registry, task_dispatcher
@@ -202,7 +202,7 @@ class TaskRegistry:
     """
     Central registry of task type definitions.
     Each task type has navigation steps + extraction rules.
-    PhoenixAI can register new task types dynamically.
+    MystesAI can register new task types dynamically.
     """
 
     def __init__(self):

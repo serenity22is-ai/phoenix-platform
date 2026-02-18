@@ -1,5 +1,5 @@
 """
-PHOENIX Airline Intelligence API Authentication Middleware
+MYSTES Airline Intelligence API Authentication Middleware
 
 Authenticates airline intelligence API requests via API key.
 Separate from commercial_auth.py — airlines are a different customer type.

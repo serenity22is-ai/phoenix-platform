@@ -1,13 +1,13 @@
 """
-PHOENIX XRPL Escrow Integration
+MYSTES XRPL Escrow Integration
 
 This module integrates the reusable xrpl_contracts escrow library
-with PHOENIX's booking system.
+with MYSTES's booking system.
 
 Flow:
 1. Customer creates escrow with crypto-condition
-2. PHOENIX books the flight
-3. On success: PHOENIX provides fulfillment to release escrow
+2. MYSTES books the flight
+3. On success: MYSTES provides fulfillment to release escrow
 4. On failure: Escrow auto-cancels after timeout, funds return to customer
 
 This provides:
@@ -43,7 +43,7 @@ EscrowStatus = EscrowStatus
 @dataclass
 class EscrowPayment:
     """
-    PHOENIX-specific escrow payment record.
+    MYSTES-specific escrow payment record.
 
     Extends the base escrow with booking-specific fields.
     """
@@ -53,7 +53,7 @@ class EscrowPayment:
 
     # XRPL details
     sender_address: str         # Customer's XRP address
-    destination_address: str    # PHOENIX's address
+    destination_address: str    # MYSTES's address
     amount_xrp: float           # Amount in XRP
     amount_drops: str           # Amount in drops
 
@@ -95,9 +95,9 @@ class EscrowPayment:
 
 class XRPLEscrowManager:
     """
-    PHOENIX-specific escrow manager.
+    MYSTES-specific escrow manager.
 
-    Wraps the reusable XRPLEscrow library with PHOENIX-specific
+    Wraps the reusable XRPLEscrow library with MYSTES-specific
     business logic and database integration.
 
     Provides trustless booking payments:
@@ -123,7 +123,7 @@ class XRPLEscrowManager:
         # Escrow settings
         self.default_timeout_hours = int(os.getenv("ESCROW_TIMEOUT_HOURS", "24"))
 
-        # PHOENIX-specific escrow storage (maps to database in production)
+        # MYSTES-specific escrow storage (maps to database in production)
         self._escrows: Dict[str, EscrowPayment] = {}
 
         # Register callbacks for escrow events
@@ -169,7 +169,7 @@ class XRPLEscrowManager:
 
         timeout_hours = timeout_hours or self.default_timeout_hours
 
-        # Generate PHOENIX-specific escrow ID
+        # Generate MYSTES-specific escrow ID
         escrow_id = f"ESC-{booking_id}-{secrets.token_hex(4).upper()}"
 
         # Use the reusable library to create the escrow
@@ -179,11 +179,11 @@ class XRPLEscrowManager:
             amount_xrp=amount_xrp,
             cancel_after_hours=timeout_hours,
             escrow_id=escrow_id,
-            memo=f"PHOENIX booking: {deal_id}",
+            memo=f"MYSTES booking: {deal_id}",
         )
 
         if result.get("success"):
-            # Create PHOENIX-specific escrow record
+            # Create MYSTES-specific escrow record
             now = datetime.utcnow()
             cancel_after = datetime.fromisoformat(result.get("cancel_after"))
 
@@ -227,8 +227,8 @@ class XRPLEscrowManager:
                     "step1": "Sign and submit the EscrowCreate transaction using your XRPL wallet",
                     "step2": "Save the transaction hash and sequence number",
                     "step3": "Call /api/escrow/confirm with the transaction details",
-                    "step4": "PHOENIX will book your flight automatically",
-                    "step5": "On success, escrow releases to PHOENIX",
+                    "step4": "MYSTES will book your flight automatically",
+                    "step5": "On success, escrow releases to MYSTES",
                     "step6": "On failure, cancel escrow after timeout to get full refund",
                 }
             }
@@ -292,7 +292,7 @@ class XRPLEscrowManager:
         Release escrow funds after successful booking.
 
         This submits an EscrowFinish transaction with the fulfillment
-        to release the funds to PHOENIX.
+        to release the funds to MYSTES.
 
         Args:
             escrow_id: The escrow to release
@@ -430,7 +430,7 @@ class XRPLEscrowManager:
 
 class EscrowBookingFlow:
     """
-    Integrates escrow payments with the PHOENIX booking flow.
+    Integrates escrow payments with the MYSTES booking flow.
 
     Flow:
     1. Customer initiates booking
@@ -573,7 +573,7 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
 
-    print("PHOENIX XRPL Escrow System")
+    print("MYSTES XRPL Escrow System")
     print("=" * 50)
     print("Using xrpl_contracts library v1.0.0")
     print()

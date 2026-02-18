@@ -1,5 +1,5 @@
 """
-PHOENIX Proxy Server with Database & Authentication
+MYSTES Proxy Server with Database & Authentication
 
 Features:
 - User registration and login with email verification
@@ -68,6 +68,7 @@ from payments import (
     generate_payment_options,
     create_stripe_checkout_session,
     verify_stripe_session,
+    create_stripe_refund,
     create_coinbase_charge,
     verify_coinbase_charge,
     handle_coinbase_webhook,
@@ -97,12 +98,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.FileHandler('phoenix.log'),
+        logging.FileHandler('mystes.log'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
-audit_logger = logging.getLogger("phoenix.audit")
+audit_logger = logging.getLogger("mystes.audit")
 
 
 def audit_log(action, user_id=None, **details):
@@ -119,7 +120,7 @@ app = Flask(__name__)
 
 # Core config
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-_db_url = os.environ.get('DATABASE_URL', 'sqlite:///phoenix.db')
+_db_url = os.environ.get('DATABASE_URL', 'sqlite:///mystes.db')
 if _db_url.startswith('postgres://'):
     _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
@@ -137,7 +138,7 @@ app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@phoenix.app')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@mystes.app')
 
 # CSRF config
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
@@ -256,7 +257,7 @@ ALLOWED_PROXY_DOMAINS = [
 # Import world-class SpaceX/Porsche-inspired template
 try:
     from templates.base_template import BASE_TEMPLATE, HOME_HERO
-    print("Loaded world-class PHOENIX template")
+    print("Loaded world-class MYSTES template")
     # Inject google_client_id into all template renders (Build #91)
     app.jinja_env.globals['google_client_id'] = os.environ.get("GOOGLE_CLIENT_ID", "")
 except ImportError:
@@ -269,17 +270,17 @@ _FALLBACK_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ title }} - PHOENIX</title>
+    <title>{{ title }} - MYSTES</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="PHOENIX - Borderless flight booking powered by XRPL.">
+    <meta name="description" content="MYSTES - Borderless flight booking powered by XRPL.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --black: #000000;
             --white: #ffffff;
-            --phoenix-orange: #ff4d00;
-            --phoenix-amber: #ff8c00;
-            --phoenix-gold: #ffc107;
+            --mystes-orange: #ff4d00;
+            --mystes-amber: #ff8c00;
+            --mystes-gold: #ffc107;
             --success: #00c853;
             --warning: #ff9100;
             --error: #ff1744;
@@ -358,7 +359,7 @@ _FALLBACK_TEMPLATE = """
             50% { opacity: 1; transform: scaleX(1); }
         }
 
-        /* Phoenix flame particles */
+        /* MYSTES flame particles */
         .particles {
             position: fixed;
             top: 0;
@@ -373,17 +374,17 @@ _FALLBACK_TEMPLATE = """
             position: absolute;
             width: 4px;
             height: 4px;
-            background: var(--phoenix-orange);
+            background: var(--mystes-orange);
             border-radius: 50%;
             filter: blur(1px);
             animation: rise 8s ease-in infinite;
         }
         .particle:nth-child(1) { left: 10%; animation-delay: 0s; }
-        .particle:nth-child(2) { left: 25%; animation-delay: 1.5s; background: var(--phoenix-amber); }
+        .particle:nth-child(2) { left: 25%; animation-delay: 1.5s; background: var(--mystes-amber); }
         .particle:nth-child(3) { left: 40%; animation-delay: 3s; }
-        .particle:nth-child(4) { left: 55%; animation-delay: 0.5s; background: var(--phoenix-gold); }
+        .particle:nth-child(4) { left: 55%; animation-delay: 0.5s; background: var(--mystes-gold); }
         .particle:nth-child(5) { left: 70%; animation-delay: 2s; }
-        .particle:nth-child(6) { left: 85%; animation-delay: 4s; background: var(--phoenix-amber); }
+        .particle:nth-child(6) { left: 85%; animation-delay: 4s; background: var(--mystes-amber); }
         @keyframes rise {
             0% { bottom: -10px; opacity: 0; }
             10% { opacity: 0.8; }
@@ -421,7 +422,7 @@ _FALLBACK_TEMPLATE = """
             color: var(--text-primary);
             background: var(--glass-bg);
         }
-        nav a.active { color: var(--phoenix-orange); }
+        nav a.active { color: var(--mystes-orange); }
 
         /* Brand logo */
         .brand {
@@ -429,11 +430,14 @@ _FALLBACK_TEMPLATE = """
             align-items: center;
             gap: 12px;
             text-decoration: none;
+            font-family: 'Cinzel', 'Trajan Pro', serif;
+            letter-spacing: 6px;
+            text-transform: uppercase;
         }
         .brand-icon {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, var(--phoenix-orange), var(--phoenix-amber));
+            background: linear-gradient(135deg, var(--mystes-orange), var(--mystes-amber));
             border-radius: 10px;
             display: flex;
             align-items: center;
@@ -445,7 +449,7 @@ _FALLBACK_TEMPLATE = """
             font-family: 'Space Grotesk', sans-serif;
             font-size: 24px;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--phoenix-orange), var(--phoenix-gold));
+            background: linear-gradient(135deg, var(--mystes-orange), var(--mystes-gold));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -946,7 +950,7 @@ _FALLBACK_TEMPLATE = """
     </div>
 
     <nav>
-        <span class="brand">PHOENIX</span>
+        <span class="brand">MYSTES</span>
         <div>
             <a href="/search">Search</a>
             <a href="/deals">Deals</a>
@@ -974,7 +978,7 @@ _FALLBACK_TEMPLATE = """
         {{ content | safe }}
     </div>
     <footer>
-        <p>&copy; 2026 PHOENIX. All rights reserved.</p>
+        <p>&copy; 2026 MYSTES. All rights reserved.</p>
         <p>
             <a href="/terms">Terms of Service</a> |
             <a href="/privacy">Privacy Policy</a>
@@ -1030,10 +1034,10 @@ _FALLBACK_TEMPLATE = """
 HOME_CONTENT = """
 <style>
     /* ================================================
-       PHOENIX HOME - Search Engine Landing
+       MYSTES HOME - Search Engine Landing
        ================================================ */
 
-    .phoenix-landing {
+    .mystes-landing {
         min-height: calc(100vh - 100px);
         display: flex;
         flex-direction: column;
@@ -1045,7 +1049,7 @@ HOME_CONTENT = """
         overflow: hidden;
     }
 
-    .phoenix-landing::before {
+    .mystes-landing::before {
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
@@ -1055,21 +1059,24 @@ HOME_CONTENT = """
         pointer-events: none;
     }
 
-    .phoenix-logo-mark {
-        font-size: clamp(48px, 12vw, 120px);
-        font-weight: 900;
-        letter-spacing: -3px;
+    .mystes-logo-mark {
+        font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', serif;
+        font-size: clamp(42px, 10vw, 100px);
+        font-weight: 800;
+        letter-spacing: 12px;
         line-height: 1;
         margin: 0 0 8px;
-        background: linear-gradient(135deg, #ff4d00 0%, #ff8c00 50%, #ffc107 100%);
+        text-transform: uppercase;
+        background: linear-gradient(135deg, #ffffff 0%, #e8d5b7 35%, #ffffff 55%, #c9a96e 80%, #ffffff 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        filter: drop-shadow(0 0 20px rgba(201, 169, 110, 0.3));
         opacity: 0;
         animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
-    .phoenix-tagline {
+    .mystes-tagline {
         font-size: clamp(16px, 2.5vw, 20px);
         color: rgba(255, 255, 255, 0.7);
         font-weight: 400;
@@ -1080,7 +1087,7 @@ HOME_CONTENT = """
     }
 
     /* Search bar */
-    .phoenix-search-bar {
+    .mystes-search-bar {
         width: 100%;
         max-width: 640px;
         position: relative;
@@ -1088,7 +1095,7 @@ HOME_CONTENT = """
         animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
     }
 
-    .phoenix-search-bar input {
+    .mystes-search-bar input {
         width: 100%;
         padding: 18px 60px 18px 24px;
         font-size: 16px;
@@ -1102,14 +1109,14 @@ HOME_CONTENT = """
         transition: all 0.3s ease;
     }
 
-    .phoenix-search-bar input::placeholder { color: rgba(255,255,255,0.35); }
-    .phoenix-search-bar input:focus {
+    .mystes-search-bar input::placeholder { color: rgba(255,255,255,0.35); }
+    .mystes-search-bar input:focus {
         border-color: rgba(255, 107, 53, 0.5);
         background: rgba(255, 255, 255, 0.08);
         box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
     }
 
-    .phoenix-search-btn {
+    .mystes-search-btn {
         position: absolute;
         right: 6px; top: 6px; bottom: 6px;
         width: 48px;
@@ -1120,10 +1127,10 @@ HOME_CONTENT = """
         display: flex; align-items: center; justify-content: center;
         transition: opacity 0.2s;
     }
-    .phoenix-search-btn:hover { opacity: 0.9; }
+    .mystes-search-btn:hover { opacity: 0.9; }
 
     /* Quick action chips */
-    .phoenix-chips {
+    .mystes-chips {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
@@ -1133,7 +1140,7 @@ HOME_CONTENT = """
         animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
     }
 
-    .phoenix-chip {
+    .mystes-chip {
         padding: 8px 18px;
         background: rgba(255, 255, 255, 0.04);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1145,14 +1152,14 @@ HOME_CONTENT = """
         text-decoration: none;
         transition: all 0.25s ease;
     }
-    .phoenix-chip:hover {
+    .mystes-chip:hover {
         background: rgba(255, 107, 53, 0.1);
         border-color: rgba(255, 107, 53, 0.3);
         color: #fff;
     }
 
     /* Verticals grid */
-    .phoenix-verticals {
+    .mystes-verticals {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 16px;
@@ -1163,7 +1170,7 @@ HOME_CONTENT = """
         animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
     }
 
-    .phoenix-vertical {
+    .mystes-vertical {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -1177,24 +1184,24 @@ HOME_CONTENT = """
         color: inherit;
         transition: all 0.3s ease;
     }
-    .phoenix-vertical:hover {
+    .mystes-vertical:hover {
         background: rgba(255, 255, 255, 0.05);
         border-color: rgba(255, 107, 53, 0.3);
         transform: translateY(-4px);
     }
-    .phoenix-vertical .v-icon { font-size: 28px; }
-    .phoenix-vertical .v-label { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); }
+    .mystes-vertical .v-icon { font-size: 28px; }
+    .mystes-vertical .v-label { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); }
 
     /* Bottom note */
-    .phoenix-note {
+    .mystes-note {
         margin-top: 48px;
         font-size: 12px;
         color: rgba(255, 255, 255, 0.35);
         opacity: 0;
         animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
     }
-    .phoenix-note a { color: rgba(255,107,53,0.7); text-decoration: none; }
-    .phoenix-note a:hover { color: #ff6b35; }
+    .mystes-note a { color: rgba(255,107,53,0.7); text-decoration: none; }
+    .mystes-note a:hover { color: #ff6b35; }
 
     @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(30px); }
@@ -1202,59 +1209,59 @@ HOME_CONTENT = """
     }
 
     @media (max-width: 768px) {
-        .phoenix-landing { padding: 40px 16px 30px; }
-        .phoenix-verticals { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .phoenix-vertical { padding: 14px 8px; }
+        .mystes-landing { padding: 40px 16px 30px; }
+        .mystes-verticals { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .mystes-vertical { padding: 14px 8px; }
     }
 </style>
 
-<section class="phoenix-landing">
-    <div class="phoenix-logo-mark">PHOENIX</div>
-    <p class="phoenix-tagline">Find flights and hotels at the best prices across 195 markets.</p>
+<section class="mystes-landing">
+    <div class="mystes-logo-mark">MYSTES</div>
+    <p class="mystes-tagline">Find flights and hotels at the best prices across 195 markets.</p>
 
-    <div class="phoenix-search-bar">
+    <div class="mystes-search-bar">
         <input type="text" id="homeSearchInput" placeholder="Search flights and hotels..." autocomplete="off">
-        <button class="phoenix-search-btn" onclick="homeSearch()" aria-label="Search">&#10132;</button>
+        <button class="mystes-search-btn" onclick="homeSearch()" aria-label="Search">&#10132;</button>
     </div>
 
-    <div class="phoenix-chips">
+    <div class="mystes-chips">
         {% if feature_flights %}
-        <a class="phoenix-chip" onclick="homeQuick('Cheap flights from NYC to Tokyo next month')">NYC → Tokyo</a>
-        <a class="phoenix-chip" onclick="homeQuick('Flights from LA to London')">LA → London</a>
+        <a class="mystes-chip" onclick="homeQuick('Cheap flights from NYC to Tokyo next month')">NYC → Tokyo</a>
+        <a class="mystes-chip" onclick="homeQuick('Flights from LA to London')">LA → London</a>
         {% endif %}
         {% if feature_hotels %}
-        <a class="phoenix-chip" onclick="homeQuick('Best hotel deals in Bali')">Hotels in Bali</a>
-        <a class="phoenix-chip" onclick="homeQuick('Cheap hotels in Paris')">Hotels in Paris</a>
+        <a class="mystes-chip" onclick="homeQuick('Best hotel deals in Bali')">Hotels in Bali</a>
+        <a class="mystes-chip" onclick="homeQuick('Cheap hotels in Paris')">Hotels in Paris</a>
         {% endif %}
     </div>
 
-    <div class="phoenix-verticals">
+    <div class="mystes-verticals">
         {% if feature_flights %}
-        <a class="phoenix-vertical" onclick="homeQuick('Search flights')">
+        <a class="mystes-vertical" onclick="homeQuick('Search flights')">
             <span class="v-icon">&#9992;</span>
             <span class="v-label">Flights</span>
         </a>
         {% endif %}
         {% if feature_hotels %}
-        <a class="phoenix-vertical" onclick="homeQuick('Search hotels')">
+        <a class="mystes-vertical" onclick="homeQuick('Search hotels')">
             <span class="v-icon">&#127976;</span>
             <span class="v-label">Hotels</span>
         </a>
         {% endif %}
         {% if feature_products %}
-        <a class="phoenix-vertical" onclick="homeQuick('Search products')">
+        <a class="mystes-vertical" onclick="homeQuick('Search products')">
             <span class="v-icon">&#128722;</span>
             <span class="v-label">Products</span>
         </a>
         {% endif %}
         {% if feature_rentals %}
-        <a class="phoenix-vertical" onclick="homeQuick('Search car rentals')">
+        <a class="mystes-vertical" onclick="homeQuick('Search car rentals')">
             <span class="v-icon">&#128663;</span>
             <span class="v-label">Rentals</span>
         </a>
         {% endif %}
         {% if feature_cruises %}
-        <a class="phoenix-vertical" onclick="homeQuick('Search cruises')">
+        <a class="mystes-vertical" onclick="homeQuick('Search cruises')">
             <span class="v-icon">&#128674;</span>
             <span class="v-label">Cruises</span>
         </a>
@@ -1264,7 +1271,7 @@ HOME_CONTENT = """
     <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; opacity: 0; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;">
         <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
         {% if feature_node_onboarding %}
-        <a href="/helper" style="padding: 14px 32px; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the Phoenix Network</a>
+        <a href="/helper" style="padding: 14px 32px; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the MYSTES Network</a>
         {% endif %}
         <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Sign In</a>
     </div>
@@ -1401,7 +1408,7 @@ DASHBOARD_CONTENT = """
     <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
         <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">
             {% if tier_info.current_tier == 'bronze' %}
-            <strong>Upgrade to Silver:</strong> <a href="/helper" style="color: #ff6b35;">Join the Phoenix Network</a> to get 10 searches/day and 5 markets.
+            <strong>Upgrade to Silver:</strong> <a href="/helper" style="color: #ff6b35;">Join the MYSTES Network</a> to get 10 searches/day and 5 markets.
             {% elif tier_info.current_tier == 'silver' %}
             <strong>Upgrade to Gold:</strong> Enable data sharing in your node settings for 20 searches/day and 8 markets.
             {% elif tier_info.current_tier == 'gold' %}
@@ -1798,32 +1805,50 @@ DEALS_CONTENT = """
     <div class="card" style="border-left: 4px solid #ff6b35;">
         <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
             <div>
-                <h3 style="margin: 0 0 5px 0; color: #f5f5f5;">
-                    {{ d.airline or 'Flight' }} {{ d.flight_number or '' }}
-                </h3>
-                <div style="color: #fff; font-size: 14px;">
-                    {{ d.origin }} &rarr; {{ d.destination }} &bull;
-                    {{ d.departure_date.strftime('%b %d, %Y') if d.departure_date else 'TBD' }}
-                    {% if d.stops %} &bull; {{ d.stops }} stop{{ 's' if d.stops > 1 else '' }}{% endif %}
-                </div>
+                {% if d.deal_type == 'hotel' %}
+                    <span style="background: #ff8c00; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px;">HOTEL</span>
+                    <h3 style="margin: 5px 0 5px 0; color: #f5f5f5;">{{ d.hotel_name }}</h3>
+                    <div style="color: #fff; font-size: 14px;">
+                        {{ d.city_code }} &bull;
+                        {{ d.check_in_date.strftime('%b %d') if d.check_in_date else '' }} - {{ d.check_out_date.strftime('%b %d, %Y') if d.check_out_date else '' }}
+                        ({{ d.nights }} night{{ 's' if d.nights != 1 else '' }})
+                    </div>
+                {% else %}
+                    <h3 style="margin: 0 0 5px 0; color: #f5f5f5;">
+                        {{ d.airline or 'Flight' }} {{ d.flight_number or '' }}
+                    </h3>
+                    <div style="color: #fff; font-size: 14px;">
+                        {{ d.origin }} &rarr; {{ d.destination }} &bull;
+                        {{ d.departure_date.strftime('%b %d, %Y') if d.departure_date else 'TBD' }}
+                        {% if d.stops %} &bull; {{ d.stops }} stop{{ 's' if d.stops > 1 else '' }}{% endif %}
+                    </div>
+                {% endif %}
             </div>
             <div style="text-align: right;">
-                <div style="font-size: 24px; font-weight: bold; color: #4caf50;">
-                    Save ${{ "%.0f"|format(d.gross_savings_usd or d.user_savings_usd or 0) }}
-                </div>
-                <div style="color: #81c784; font-size: 14px;">
-                    {{ "%.0f"|format(d.savings_percent or 0) }}% off
-                </div>
+                {% if d.deal_type == 'hotel' %}
+                    <div style="font-size: 24px; font-weight: bold; color: #ff6b35;">
+                        ${{ "%.0f"|format(d.price_per_night_usd or 0) }}<span style="font-size: 14px; font-weight: normal; color: #ccc;">/night</span>
+                    </div>
+                    <div style="color: #ccc; font-size: 14px;">${{ "%.0f"|format(d.price_total_usd or 0) }} total</div>
+                {% else %}
+                    <div style="font-size: 24px; font-weight: bold; color: #4caf50;">
+                        Save ${{ "%.0f"|format(d.gross_savings_usd or d.user_savings_usd or 0) }}
+                    </div>
+                    <div style="color: #81c784; font-size: 14px;">
+                        {{ "%.0f"|format(d.savings_percent or 0) }}% off
+                    </div>
+                {% endif %}
             </div>
         </div>
 
+        {% if d.deal_type != 'hotel' %}
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
             <div>
                 <div style="color: #fff; font-size: 12px; text-transform: uppercase;">{{ d.home_market or 'US' }} Price</div>
                 <div style="color: #e57373; font-size: 18px; text-decoration: line-through;">${{ "%.0f"|format(d.home_price_usd or 0) }}</div>
             </div>
             <div>
-                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">Phoenix Price</div>
+                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">MYSTES Price</div>
                 <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.arbitrage_price_usd or 0) }}</div>
             </div>
             <div>
@@ -1831,12 +1856,13 @@ DEALS_CONTENT = """
                 <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.gross_savings_usd or d.user_savings_usd or 0) }}</div>
             </div>
         </div>
+        {% endif %}
 
         <div style="margin-top: 15px;">
             {% if current_user.is_authenticated %}
-                <a href="/book/{{ d.deal_id }}" class="btn" style="display: inline-block;">Book This Deal</a>
+                <a href="/book/{{ d.deal_id }}" class="btn" style="display: inline-block;">{{ 'Book Hotel' if d.deal_type == 'hotel' else 'Book This Deal' }}</a>
             {% else %}
-                <a href="/save-deal/{{ d.deal_id }}" class="btn" style="display: inline-block;">Sign Up to Book</a>
+                <a href="/save-deal/{{ d.deal_id }}" class="btn" style="display: inline-block;">{{ 'Book Hotel' if d.deal_type == 'hotel' else 'Sign Up to Book' }}</a>
             {% endif %}
             <span style="color: #fff; font-size: 12px; margin-left: 10px;">
                 Expires {{ d.expires_at.strftime('%b %d %H:%M UTC') if d.expires_at else 'in 24h' }}
@@ -1850,9 +1876,9 @@ DEALS_CONTENT = """
         <h2 style="color: #f5f5f5; margin-bottom: 10px;">No Active Deals Right Now</h2>
         <p style="color: #fff; max-width: 500px; margin: 0 auto 20px;">
             Deals are generated when our system finds price differences across global markets.
-            Try asking Phoenix AI for a specific route, or check back soon.
+            Try asking MYSTES AI for a specific route, or check back soon.
         </p>
-        <a href="/ai" class="btn">Try Phoenix AI</a>
+        <a href="/ai" class="btn">Try MYSTES AI</a>
     </div>
 {% endif %}
 """
@@ -1863,14 +1889,24 @@ GUEST_CHECKOUT_CONTENT = """
     <p style="color: #666; margin-bottom: 30px;">Your deal has been saved. Choose how you'd like to proceed:</p>
 
     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-        <h3 style="margin-bottom: 10px; color: #1a1a2e;">{{ deal.airline }} {{ deal.flight_number }}</h3>
-        <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.origin }} → {{ deal.destination }}</p>
-        <p style="margin: 5px 0; color: #666;">{{ deal.departure_date }}</p>
-        <p style="margin-top: 15px; font-size: 1.2em;">
-            <span style="text-decoration: line-through; color: #fff;">${{ "%.2f"|format(deal.home_price_usd or 0) }}</span>
-            <span style="color: #28a745; font-weight: bold; margin-left: 10px;">${{ "%.2f"|format(deal.arbitrage_price_usd or 0) }}</span>
-            <span class="tag" style="margin-left: 10px;">Save ${{ "%.2f"|format(deal.user_savings_usd or 0) }}</span>
-        </p>
+        {% if deal.deal_type == 'hotel' %}
+            <span style="background: #ff8c00; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px;">HOTEL</span>
+            <h3 style="margin: 10px 0 5px; color: #1a1a2e;">{{ deal.hotel_name }}</h3>
+            <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.city_code }} / {{ deal.check_in_date }} - {{ deal.check_out_date }}</p>
+            <p style="margin-top: 15px; font-size: 1.2em;">
+                <span style="color: #28a745; font-weight: bold;">${{ "%.2f"|format(deal.price_total_usd or 0) }}</span>
+                <span style="color: #666; font-size: 0.8em;"> + ${{ "%.2f"|format(deal.platform_fee_usd or 0) }} fee</span>
+            </p>
+        {% else %}
+            <h3 style="margin-bottom: 10px; color: #1a1a2e;">{{ deal.airline }} {{ deal.flight_number }}</h3>
+            <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.origin }} → {{ deal.destination }}</p>
+            <p style="margin: 5px 0; color: #666;">{{ deal.departure_date }}</p>
+            <p style="margin-top: 15px; font-size: 1.2em;">
+                <span style="text-decoration: line-through; color: #fff;">${{ "%.2f"|format(deal.home_price_usd or 0) }}</span>
+                <span style="color: #28a745; font-weight: bold; margin-left: 10px;">${{ "%.2f"|format(deal.arbitrage_price_usd or 0) }}</span>
+                <span class="tag" style="margin-left: 10px;">Save ${{ "%.2f"|format(deal.user_savings_usd or 0) }}</span>
+            </p>
+        {% endif %}
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -2065,7 +2101,7 @@ BOOK_CONTENT = """
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(leg.cheapest_price or 0) }}</span>
-                        <br><small style="color: #ffc107;">via Phoenix</small>
+                        <br><small style="color: #ffc107;">via MYSTES</small>
                     </div>
                 </div>
             </div>
@@ -2080,7 +2116,7 @@ BOOK_CONTENT = """
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.arbitrage_price_usd or 0) }}</span>
-                        <br><small style="color: #ffc107;">via Phoenix</small>
+                        <br><small style="color: #ffc107;">via MYSTES</small>
                     </div>
                 </div>
             </div>
@@ -2609,12 +2645,12 @@ def favicon():
 
 @app.route("/")
 def home():
-    """Homepage IS Phoenix AI for everyone."""
+    """Homepage IS MYSTES AI for everyone."""
     is_auth = "true" if current_user.is_authenticated else "false"
-    content = PHOENIX_AI_CONTENT.replace("__IS_AUTHENTICATED__", is_auth)
+    content = MYSTES_AI_CONTENT.replace("__IS_AUTHENTICATED__", is_auth)
     return render_template_string(
         BASE_TEMPLATE,
-        title="Phoenix AI",
+        title="MYSTES AI",
         content=content,
         current_user=current_user
     )
@@ -3044,7 +3080,7 @@ def auth_google_landing():
     and redirects the user to the home page on success.
     """
     return '''<!DOCTYPE html>
-<html><head><title>Signing in to Phoenix...</title>
+<html><head><title>Signing in to MYSTES...</title>
 <style>
 body{background:#0a0612;color:#f5f5f5;font-family:'Rajdhani',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
 .box{text-align:center;max-width:500px;padding:20px;}
@@ -3060,7 +3096,7 @@ a{color:#ff6b35;}
 <div id="errBox" style="display:none;">
     <p class="err" id="err"></p>
     <div class="debug" id="debug"></div>
-    <p style="margin-top:16px;"><a href="/">Back to Phoenix</a></p>
+    <p style="margin-top:16px;"><a href="/">Back to MYSTES</a></p>
 </div>
 </div>
 <script>
@@ -3113,7 +3149,7 @@ a{color:#ff6b35;}
     }
 
     // POST the access token to our server
-    document.getElementById('status').textContent = 'Verifying with Phoenix...';
+    document.getElementById('status').textContent = 'Verifying with MYSTES...';
 
     fetch('/auth/google/token', {
         method: 'POST',
@@ -3131,7 +3167,7 @@ a{color:#ff6b35;}
     })
     .catch(function(err) {
         showError('Network error: ' + err.message,
-                  'Could not reach the Phoenix server.');
+                  'Could not reach the MYSTES server.');
     });
 })();
 </script>
@@ -3171,7 +3207,7 @@ a{color:#ff6b35;}
 <div id="errBox" style="display:none;">
     <p class="err" id="err"></p>
     <div class="debug" id="debug"></div>
-    <p style="margin-top:16px;"><a href="/">Back to Phoenix</a></p>
+    <p style="margin-top:16px;"><a href="/">Back to MYSTES</a></p>
 </div>
 </div>
 <script>
@@ -3446,7 +3482,7 @@ def dashboard():
     )
 
     # Get tier info
-    from phoenix_ai import get_combined_quota, check_ai_quota, ARBITRAGE_FREE_QUERIES
+    from mystes_ai import get_combined_quota, check_ai_quota, ARBITRAGE_FREE_QUERIES
     tier_quota = get_combined_quota(current_user)
     ai_quota = check_ai_quota(current_user)
     node_tier = tier_quota.get("node_tier", "bronze")
@@ -3903,6 +3939,171 @@ def api_travelers_set_primary(traveler_id):
     return jsonify({"success": True, "traveler": traveler.to_dict()})
 
 
+@app.route("/hotels")
+def hotels():
+    """Hotel search page."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Hotels",
+        content=render_template_string(HOTELS_SEARCH_CONTENT, current_user=current_user),
+        current_user=current_user
+    )
+
+
+@app.route("/api/hotels/search", methods=["POST"])
+@csrf.exempt
+def api_hotel_search():
+    """Search hotels via Amadeus API."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    city_code = data.get("city_code", "").upper()
+    check_in = data.get("check_in")
+    check_out = data.get("check_out")
+    adults = data.get("adults", 1)
+    rooms = data.get("rooms", 1)
+    ratings = data.get("ratings")
+
+    if not city_code or len(city_code) != 3:
+        return jsonify({"success": False, "error": "Valid 3-letter city code required"}), 400
+    if not check_in or not check_out:
+        return jsonify({"success": False, "error": "Check-in and check-out dates required"}), 400
+
+    try:
+        from liteapi_client import LiteAPIHotelClient
+        client = LiteAPIHotelClient()
+
+        result = client.search_hotels(
+            city_code=city_code,
+            check_in=check_in,
+            check_out=check_out,
+            adults=adults,
+            rooms=rooms,
+            currency="USD",
+            ratings=ratings,
+            max_hotels=20,
+        )
+
+        if not result.get("success"):
+            return jsonify({"success": False, "error": result.get("error", "No hotels found"), "hotels": []})
+
+        hotels = []
+        for h in result.get("hotels", []):
+            hotels.append({
+                "hotel_id": h.get("hotel_id"),
+                "hotel_name": h.get("hotel_name", "Unknown Hotel"),
+                "offer_id": h.get("offer_id"),
+                "city_code": h.get("city_code"),
+                "check_in": h.get("check_in"),
+                "check_out": h.get("check_out"),
+                "nights": h.get("nights", 1),
+                "price_total": h.get("price_total", 0),
+                "price_per_night": h.get("price_per_night", 0),
+                "currency": h.get("currency", "USD"),
+                "room_type": h.get("room_type"),
+                "bed_type": h.get("bed_type"),
+                "room_description": h.get("room_description", ""),
+                "cancellation_deadline": h.get("cancellation_deadline"),
+                "cancellation_description": h.get("cancellation_description"),
+                "adults": h.get("adults"),
+                "rooms": h.get("rooms"),
+            })
+
+        # Cache full results in session for hotel selection
+        session['hotel_search_results'] = {h.get("offer_id"): h for h in result.get("hotels", []) if h.get("offer_id")}
+
+        hotels.sort(key=lambda x: x["price_per_night"])
+
+        return jsonify({
+            "success": True,
+            "hotels": hotels,
+            "count": len(hotels),
+            "city_code": city_code,
+            "check_in": check_in,
+            "check_out": check_out,
+        })
+
+    except Exception as e:
+        logger.error(f"Hotel search error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/hotels/select", methods=["POST"])
+@csrf.exempt
+def api_hotel_select():
+    """Create a Deal record from a selected hotel offer for checkout."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    offer_id = data.get("offer_id")
+    if not offer_id:
+        return jsonify({"success": False, "error": "Offer ID required"}), 400
+
+    try:
+        cached = session.get('hotel_search_results', {})
+        hotel_data = cached.get(offer_id)
+
+        if not hotel_data:
+            return jsonify({"success": False, "error": "Offer expired. Please search again."}), 400
+
+        import secrets as _secrets
+        deal_id = _secrets.token_hex(8)
+        destination_tag = abs(hash(deal_id)) % 2147483647
+
+        HOTEL_PLATFORM_FEE = 15.00
+        total_price = float(hotel_data.get("price_total", 0))
+        nights = hotel_data.get("nights", 1)
+        price_per_night = float(hotel_data.get("price_per_night", 0))
+
+        deal = Deal(
+            deal_id=deal_id,
+            deal_type="hotel",
+            hotel_name=hotel_data.get("hotel_name", "Unknown Hotel"),
+            hotel_id=hotel_data.get("hotel_id"),
+            hotel_offer_id=offer_id,
+            city_code=hotel_data.get("city_code"),
+            check_in_date=datetime.strptime(hotel_data["check_in"], "%Y-%m-%d").date() if hotel_data.get("check_in") else None,
+            check_out_date=datetime.strptime(hotel_data["check_out"], "%Y-%m-%d").date() if hotel_data.get("check_out") else None,
+            nights=nights,
+            rooms=hotel_data.get("rooms", 1),
+            adults=hotel_data.get("adults", 1),
+            room_type=hotel_data.get("room_type"),
+            bed_type=hotel_data.get("bed_type"),
+            room_description=hotel_data.get("room_description"),
+            price_per_night_usd=price_per_night,
+            price_total_usd=total_price,
+            cancellation_policy=hotel_data.get("cancellation_description"),
+            home_price_usd=total_price,
+            arbitrage_price_usd=total_price,
+            platform_fee_usd=HOTEL_PLATFORM_FEE,
+            user_savings_usd=0,
+            gross_savings_usd=0,
+            savings_percent=0,
+            destination_tag=destination_tag,
+            amadeus_offer_data=json.dumps(hotel_data.get("raw_offer")) if hotel_data.get("raw_offer") else None,
+            is_active=True,
+            expires_at=datetime.utcnow() + timedelta(hours=1),
+            created_at=datetime.utcnow(),
+        )
+
+        db.session.add(deal)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "deal_id": deal_id,
+            "hotel_name": deal.hotel_name,
+            "total_price": total_price + HOTEL_PLATFORM_FEE,
+            "redirect_url": f"/save-deal/{deal_id}",
+        })
+
+    except Exception as e:
+        logger.error(f"Hotel select error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/deals")
 def deals():
     """Browse available deals from the database."""
@@ -4027,8 +4228,11 @@ def book(deal_id):
         deal.destination_tag = abs(hash(deal_id)) % 2147483647
         db.session.commit()
 
-    # Calculate total amount (flight + service fee)
-    total_amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
+    # Calculate total amount
+    if deal.deal_type == 'hotel':
+        total_amount = (deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)
+    else:
+        total_amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
 
     # Generate payment options for all methods
     payment_options = generate_payment_options(
@@ -4143,11 +4347,16 @@ def book(deal_id):
     if not passenger_email and current_user.is_authenticated:
         passenger_email = current_user.email
 
+    # Select template based on deal type
+    is_hotel = (deal.deal_type == 'hotel')
+    book_template = HOTEL_BOOK_CONTENT if is_hotel else BOOK_CONTENT
+    page_title = "Book Hotel" if is_hotel else "Book Flight"
+
     return render_template_string(
         BASE_TEMPLATE,
-        title="Book Flight",
+        title=page_title,
         content=render_template_string(
-            BOOK_CONTENT,
+            book_template,
             deal=deal.to_dict(),
             payment_verified=payment_verified,
             passenger_email=passenger_email,
@@ -4286,23 +4495,36 @@ def complete_booking(deal_id):
         flash("Payment not verified. Please complete payment first.", "error")
         return redirect(f"/book/{deal_id}")
 
-    # Collect passenger details from form
-    passenger_data = {
-        "first_name": request.form.get("first_name", "").strip(),
-        "last_name": request.form.get("last_name", "").strip(),
-        "email": request.form.get("email", "").strip(),
-        "phone": request.form.get("phone", "").strip(),
-        "date_of_birth": request.form.get("date_of_birth", ""),
-        "gender": request.form.get("gender", ""),
-        "passport_number": request.form.get("passport_number", "").strip(),
-        "passport_expiry": request.form.get("passport_expiry", ""),
-        "passport_country": request.form.get("passport_country", "").strip(),
-        "nationality": request.form.get("nationality", "").strip(),
-        "known_traveler_number": request.form.get("known_traveler_number", "").strip(),
-    }
+    # Collect details from form — hotel vs flight have different required fields
+    is_hotel = (deal.deal_type == 'hotel')
+
+    if is_hotel:
+        passenger_data = {
+            "title": request.form.get("title", "MR").strip(),
+            "first_name": request.form.get("first_name", "").strip(),
+            "last_name": request.form.get("last_name", "").strip(),
+            "email": request.form.get("email", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+            "special_requests": request.form.get("special_requests", "").strip(),
+        }
+        required_fields = ["first_name", "last_name", "email"]
+    else:
+        passenger_data = {
+            "first_name": request.form.get("first_name", "").strip(),
+            "last_name": request.form.get("last_name", "").strip(),
+            "email": request.form.get("email", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+            "date_of_birth": request.form.get("date_of_birth", ""),
+            "gender": request.form.get("gender", ""),
+            "passport_number": request.form.get("passport_number", "").strip(),
+            "passport_expiry": request.form.get("passport_expiry", ""),
+            "passport_country": request.form.get("passport_country", "").strip(),
+            "nationality": request.form.get("nationality", "").strip(),
+            "known_traveler_number": request.form.get("known_traveler_number", "").strip(),
+        }
+        required_fields = ["first_name", "last_name", "email", "phone", "date_of_birth", "gender"]
 
     # Validate required fields
-    required_fields = ["first_name", "last_name", "email", "phone", "date_of_birth", "gender"]
     missing = [f for f in required_fields if not passenger_data.get(f)]
     if missing:
         flash(f"Please fill in required fields: {', '.join(missing)}", "error")
@@ -4327,10 +4549,15 @@ def complete_booking(deal_id):
         )
         db.session.add(booking)
 
-    # Update booking with passenger details
+    # Update booking with passenger/guest details
     booking.passenger_name = f"{passenger_data['first_name']} {passenger_data['last_name']}"
     booking.passenger_email = passenger_data['email']
     booking.fulfillment_type = fulfillment_type
+    if is_hotel:
+        booking.guest_title = passenger_data.get('title', 'MR')
+        booking.special_requests = passenger_data.get('special_requests')
+        booking.check_in_date = deal.check_in_date
+        booking.check_out_date = deal.check_out_date
     db.session.commit()
 
     # Store passenger data in session for the fulfillment process
@@ -4338,9 +4565,12 @@ def complete_booking(deal_id):
     session['booking_id'] = booking.id
 
     if fulfillment_type == "automated":
-        # Trigger automated booking
+        # Trigger automated booking — hotel vs flight
         try:
-            result = execute_automated_booking(booking, deal, passenger_data)
+            if is_hotel:
+                result = execute_automated_hotel_booking(booking, deal, passenger_data)
+            else:
+                result = execute_automated_booking(booking, deal, passenger_data)
 
             if result.get("success"):
                 booking.status = "booked"
@@ -4456,12 +4686,91 @@ def complete_booking(deal_id):
         return redirect(f"/booking-status/{booking.id}")
 
 
+def execute_automated_hotel_booking(booking, deal, guest_data):
+    """
+    Execute automated hotel booking via liteAPI.
+
+    Flow: validate_offer (prebook) → create_booking → confirmation
+    """
+    try:
+        from liteapi_client import LiteAPIHotelClient
+
+        client = LiteAPIHotelClient()
+
+        offer_id = deal.hotel_offer_id
+        if not offer_id:
+            return {"success": False, "error": "No hotel offer ID on this deal"}
+
+        # Step 1: Validate offer (real-time price/availability check)
+        logger.info(f"Validating hotel offer {offer_id}...")
+        validation = client.validate_offer(offer_id)
+        if validation.get("success") and validation.get("available"):
+            logger.info(f"Offer valid, price: ${validation.get('price')} {validation.get('currency')}")
+        else:
+            logger.warning(f"Hotel offer expired or invalid: {validation.get('error')}")
+            return {"success": False, "error": "Hotel offer has expired. Please search again."}
+
+        # Step 2: Build guest info
+        guest = {
+            "title": guest_data.get("title", "MR"),
+            "first_name": guest_data.get("first_name", ""),
+            "last_name": guest_data.get("last_name", ""),
+            "email": guest_data.get("email", booking.passenger_email or ""),
+            "phone": guest_data.get("phone", ""),
+        }
+
+        # Step 3: Capture prebookId from validation (required by liteAPI)
+        prebook_id = validation.get("prebook_id")
+
+        # Step 4: Payment — liteAPI booking requires credit card
+        import os
+        payment = {
+            "vendor_code": os.getenv("PLATFORM_CARD_VENDOR", "VI"),
+            "card_number": os.getenv("PLATFORM_CARD_NUMBER", ""),
+            "expiry_date": os.getenv("PLATFORM_CARD_EXPIRY", ""),
+            "cvc": os.getenv("PLATFORM_CARD_CVC", ""),
+        }
+
+        if not payment["card_number"]:
+            logger.warning("No platform card configured for hotel booking")
+            return {"success": False, "error": "Automated hotel booking not yet configured. Manual agent will process."}
+
+        # Step 5: Create booking
+        logger.info(f"Creating hotel booking for {deal.hotel_name}...")
+        book_result = client.create_booking(
+            offer_id=offer_id,
+            guest=guest,
+            payment=payment,
+            prebook_id=prebook_id,
+        )
+
+        if book_result.get("success"):
+            confirmation = book_result.get("provider_confirmation") or book_result.get("booking_id")
+            logger.info(f"Hotel booking successful: ID={book_result['booking_id']}, ref={confirmation}")
+            # Store hotel-specific confirmation
+            booking.hotel_confirmation_id = book_result.get("booking_id")
+            booking.provider_reference = book_result.get("provider_confirmation")
+            db.session.commit()
+            return {
+                "success": True,
+                "confirmation_code": confirmation,
+                "booking_id": book_result.get("booking_id"),
+            }
+        else:
+            logger.warning(f"Hotel booking failed: {book_result.get('error')}")
+            return {"success": False, "error": book_result.get("error", "Hotel booking failed")}
+
+    except Exception as e:
+        logger.error(f"Automated hotel booking error: {e}")
+        return {"success": False, "error": str(e)}
+
+
 def execute_automated_booking(booking, deal, passenger_data):
     """
     Execute automated booking using Amadeus Flight Orders API.
 
     Flow: price_confirm → create_booking → PNR
-    The user never sees the source page. Phoenix handles everything server-side.
+    The user never sees the source page. MYSTES handles everything server-side.
 
     Returns dict with success status, confirmation code (PNR), and order details.
     """
@@ -4586,7 +4895,7 @@ def send_booking_confirmation_email(booking, deal, passenger_data):
             Please check your email (including spam) for confirmation from {deal.airline or 'the airline'}.
         </p>
 
-        <p>Thank you for using PHOENIX!</p>
+        <p>Thank you for using MYSTES!</p>
         """
 
         send_email(
@@ -4622,7 +4931,7 @@ def send_self_service_instructions(booking, deal, passenger_data):
             <h3>Your Flight Details</h3>
             <p><strong>Route:</strong> {deal.origin} to {deal.destination}</p>
             <p><strong>Date:</strong> {deal.departure_date}</p>
-            <p><strong>Booked via:</strong> Phoenix</p>
+            <p><strong>Booked via:</strong> MYSTES</p>
         </div>
 
         <p>Click the button below to open the booking page through our regional proxy:</p>
@@ -4634,7 +4943,7 @@ def send_self_service_instructions(booking, deal, passenger_data):
         <h3>Booking Instructions</h3>
         <ol>
             <li>Click the link above to access the airline site via our proxy</li>
-            <li>The prices shown reflect Phoenix's optimized pricing</li>
+            <li>The prices shown reflect MYSTES's optimized pricing</li>
             <li>Complete your booking with your own credit card</li>
             <li>Save your confirmation number</li>
         </ol>
@@ -4670,7 +4979,7 @@ def notify_agents_for_booking(booking, deal, passenger_data):
 
 BOOKING_CONFIRMATION_CONTENT = """
 <div class="card" style="max-width: 600px; margin: 40px auto; text-align: center;">
-    <span style="font-size: 64px;">🎉</span>
+    <span style="font-size: 64px;">&#127881;</span>
     <h2 style="color: #28a745; margin: 20px 0;">Booking Confirmed!</h2>
 
     <div style="background: #d4edda; padding: 25px; border-radius: 12px; margin: 25px 0;">
@@ -4681,12 +4990,22 @@ BOOKING_CONFIRMATION_CONTENT = """
     </div>
 
     <div style="text-align: left; background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
-        <p><strong>Route:</strong> {{ deal.origin }} → {{ deal.destination }}</p>
-        <p><strong>Date:</strong> {{ deal.departure_date }}</p>
-        <p><strong>Airline:</strong> {{ deal.airline or 'N/A' }}</p>
-        {% if deal.user_savings_usd %}
-        <p style="color: #28a745;"><strong>You saved:</strong> ${{ "%.2f"|format(deal.user_savings_usd) }}</p>
+        {% if is_hotel %}
+            <p><strong>Guest:</strong> {{ booking.passenger_name }}</p>
+            <p><strong>Hotel:</strong> {{ deal.hotel_name }}</p>
+            <p><strong>Location:</strong> {{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }}</p>
+            <p><strong>Check-in:</strong> {{ deal.check_in_date }}</p>
+            <p><strong>Check-out:</strong> {{ deal.check_out_date }}</p>
+            <p><strong>Room:</strong> {{ deal.room_type or 'Standard' }}</p>
+            <p><strong>Nights:</strong> {{ deal.nights }}</p>
+        {% else %}
+            <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
+            <p><strong>Route:</strong> {{ deal.origin }} &rarr; {{ deal.destination }}</p>
+            <p><strong>Date:</strong> {{ deal.departure_date }}</p>
+            <p><strong>Airline:</strong> {{ deal.airline or 'N/A' }}</p>
+            {% if deal.user_savings_usd %}
+            <p style="color: #28a745;"><strong>You saved:</strong> ${{ "%.2f"|format(deal.user_savings_usd) }}</p>
+            {% endif %}
         {% endif %}
     </div>
 
@@ -4714,20 +5033,28 @@ BOOKING_STATUS_CONTENT = """
 
     <div style="text-align: left; background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <p><strong>Booking ID:</strong> #{{ booking.id }}</p>
-        <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
-        <p><strong>Route:</strong> {{ deal.origin }} → {{ deal.destination }}</p>
-        <p><strong>Date:</strong> {{ deal.departure_date }}</p>
+        {% if is_hotel %}
+            <p><strong>Guest:</strong> {{ booking.passenger_name }}</p>
+            <p><strong>Hotel:</strong> {{ deal.hotel_name }}</p>
+            <p><strong>Location:</strong> {{ deal.city_code }}</p>
+            <p><strong>Check-in:</strong> {{ deal.check_in_date }}</p>
+            <p><strong>Check-out:</strong> {{ deal.check_out_date }}</p>
+        {% else %}
+            <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
+            <p><strong>Route:</strong> {{ deal.origin }} &rarr; {{ deal.destination }}</p>
+            <p><strong>Date:</strong> {{ deal.departure_date }}</p>
+        {% endif %}
         <p><strong>Fulfillment:</strong> {{ booking.fulfillment_type|replace('_', ' ')|title }}</p>
     </div>
 
-    {% if booking.fulfillment_type == 'self_service' and not booking.confirmation_code %}
-    <!-- Self-Service: Proxy booking link -->
+    {% if booking.fulfillment_type == 'self_service' and not booking.confirmation_code and not is_hotel %}
+    <!-- Self-Service: Proxy booking link (flights only) -->
     <div style="background: #e8f5e9; padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left;">
         <h4 style="margin: 0 0 10px 0; color: #2e7d32;">Step 1: Book Your Flight</h4>
         <p style="color: #555; margin-bottom: 15px;">Click below to open the airline booking page through our regional proxy. Complete the booking with your own payment method.</p>
         <a href="/proxy/https://www.google.com/travel/flights?q=Flights+from+{{ deal.origin }}+to+{{ deal.destination }}+on+{{ deal.departure_date }}"
            class="btn btn-success" target="_blank" style="display: block; text-align: center; padding: 14px;">
-            Open Booking Page (Phoenix pricing)
+            Open Booking Page (MYSTES pricing)
         </a>
     </div>
 
@@ -4767,6 +5094,573 @@ BOOKING_STATUS_CONTENT = """
 """
 
 
+# ============================================================
+# HOTEL BOOKING FRONTEND (Build #101)
+# ============================================================
+
+HOTELS_SEARCH_CONTENT = """
+<style>
+    .hotel-search-form { max-width: 900px; margin: 0 auto 30px; }
+    .hotel-search-form label { font-weight: bold; color: #f5f5f5; display: block; margin-bottom: 5px; }
+    .hotel-search-form input, .hotel-search-form select {
+        width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 8px; font-size: 16px; color: #fff;
+        background: rgba(15, 10, 25, 0.6); backdrop-filter: blur(10px);
+    }
+    .hotel-search-form input::placeholder { color: #999; }
+    .hotel-search-form input:focus, .hotel-search-form select:focus {
+        border-color: #ff6b35; outline: none; box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2);
+    }
+    .rating-group { display: flex; gap: 15px; flex-wrap: wrap; }
+    .rating-group label { display: flex; align-items: center; cursor: pointer; font-weight: normal; color: #ccc; }
+    .rating-group input { width: auto; margin-right: 6px; }
+    .hotel-card { transition: all 0.3s ease; }
+    .hotel-card:hover { transform: translateX(4px); border-color: rgba(255, 107, 53, 0.5); }
+    .hotel-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px; }
+    .spinner-hotel { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #ff6b35; border-radius: 50%; animation: hotelspin 1s linear infinite; margin: 0 auto 20px; }
+    @keyframes hotelspin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="card hotel-search-form">
+    <h1 style="text-align: center; margin-bottom: 25px; color: #f5f5f5;">Search Hotels</h1>
+    <div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>City</label>
+                <input type="text" id="hotel-city" placeholder="Paris, New York, Tokyo..." list="city-suggestions">
+                <datalist id="city-suggestions">
+                    <option value="Paris (PAR)"><option value="New York (NYC)"><option value="London (LON)">
+                    <option value="Tokyo (TYO)"><option value="Rome (ROM)"><option value="Barcelona (BCN)">
+                    <option value="Bangkok (BKK)"><option value="Dubai (DXB)"><option value="Singapore (SIN)">
+                    <option value="Los Angeles (LAX)"><option value="San Francisco (SFO)"><option value="Miami (MIA)">
+                    <option value="Chicago (CHI)"><option value="Sydney (SYD)"><option value="Hong Kong (HKG)">
+                    <option value="Seoul (SEL)"><option value="Amsterdam (AMS)"><option value="Berlin (BER)">
+                    <option value="Madrid (MAD)"><option value="Lisbon (LIS)"><option value="Istanbul (IST)">
+                    <option value="Mexico City (MEX)"><option value="Toronto (YTO)"><option value="Osaka (OSA)">
+                    <option value="Munich (MUC)"><option value="Vienna (VIE)"><option value="Prague (PRG)">
+                    <option value="Dublin (DUB)"><option value="Athens (ATH)"><option value="Honolulu (HNL)">
+                </datalist>
+            </div>
+            <div class="form-group">
+                <label>Check-in</label>
+                <input type="date" id="hotel-checkin">
+            </div>
+            <div class="form-group">
+                <label>Check-out</label>
+                <input type="date" id="hotel-checkout">
+            </div>
+            <div class="form-group">
+                <label>Adults</label>
+                <select id="hotel-adults">
+                    <option value="1">1</option>
+                    <option value="2" selected>2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Rooms</label>
+                <select id="hotel-rooms">
+                    <option value="1" selected>1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Star Rating</label>
+                <div class="rating-group">
+                    <label><input type="checkbox" name="rating" value="3"> 3 Stars</label>
+                    <label><input type="checkbox" name="rating" value="4" checked> 4 Stars</label>
+                    <label><input type="checkbox" name="rating" value="5" checked> 5 Stars</label>
+                </div>
+            </div>
+        </div>
+        <button class="btn" onclick="searchHotels()" style="width: 100%; margin-top: 15px; padding: 15px; font-size: 16px;">
+            Search Hotels
+        </button>
+    </div>
+</div>
+
+<div id="hotel-loading" style="display: none; text-align: center; padding: 40px;">
+    <div class="spinner-hotel"></div>
+    <p style="color: #ccc;">Searching hotels via Amadeus...</p>
+</div>
+
+<div id="hotel-results" style="display: none; max-width: 900px; margin: 0 auto;">
+    <div id="hotel-results-header"></div>
+    <div id="hotel-results-list" style="display: grid; gap: 20px;"></div>
+</div>
+
+<script>
+const cityMap = {
+    'paris': 'PAR', 'new york': 'NYC', 'london': 'LON', 'tokyo': 'TYO',
+    'rome': 'ROM', 'barcelona': 'BCN', 'bangkok': 'BKK', 'dubai': 'DXB',
+    'singapore': 'SIN', 'los angeles': 'LAX', 'san francisco': 'SFO', 'miami': 'MIA',
+    'chicago': 'CHI', 'sydney': 'SYD', 'hong kong': 'HKG', 'seoul': 'SEL',
+    'amsterdam': 'AMS', 'berlin': 'BER', 'madrid': 'MAD', 'lisbon': 'LIS',
+    'istanbul': 'IST', 'mexico city': 'MEX', 'toronto': 'YTO', 'osaka': 'OSA',
+    'munich': 'MUC', 'vienna': 'VIE', 'prague': 'PRG', 'dublin': 'DUB',
+    'athens': 'ATH', 'honolulu': 'HNL'
+};
+
+function extractCityCode(input) {
+    const match = input.match(/\\(([A-Z]{3})\\)/);
+    if (match) return match[1];
+    const lower = input.toLowerCase().trim();
+    if (cityMap[lower]) return cityMap[lower];
+    if (/^[A-Z]{3}$/.test(input.trim())) return input.trim();
+    return null;
+}
+
+// Set default dates
+(function() {
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfter = new Date(); dayAfter.setDate(dayAfter.getDate() + 3);
+    document.getElementById('hotel-checkin').value = tomorrow.toISOString().split('T')[0];
+    document.getElementById('hotel-checkout').value = dayAfter.toISOString().split('T')[0];
+    document.getElementById('hotel-checkin').min = tomorrow.toISOString().split('T')[0];
+})();
+
+async function searchHotels() {
+    const cityInput = document.getElementById('hotel-city').value;
+    const cityCode = extractCityCode(cityInput);
+    if (!cityCode) { alert('Please enter a valid city or IATA code (e.g. Paris, PAR, NYC)'); return; }
+
+    const checkIn = document.getElementById('hotel-checkin').value;
+    const checkOut = document.getElementById('hotel-checkout').value;
+    if (!checkIn || !checkOut) { alert('Please select check-in and check-out dates'); return; }
+    if (checkIn >= checkOut) { alert('Check-out date must be after check-in date'); return; }
+
+    const adults = document.getElementById('hotel-adults').value;
+    const rooms = document.getElementById('hotel-rooms').value;
+    const ratings = [...document.querySelectorAll('input[name="rating"]:checked')].map(c => parseInt(c.value));
+
+    document.getElementById('hotel-loading').style.display = 'block';
+    document.getElementById('hotel-results').style.display = 'none';
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch('/api/hotels/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ city_code: cityCode, check_in: checkIn, check_out: checkOut, adults: parseInt(adults), rooms: parseInt(rooms), ratings: ratings.length > 0 ? ratings : null })
+        });
+        const data = await resp.json();
+        renderHotelResults(data, cityCode, checkIn, checkOut);
+    } catch (err) {
+        document.getElementById('hotel-loading').style.display = 'none';
+        alert('Search failed: ' + err.message);
+    }
+}
+
+function renderHotelResults(data, cityCode, checkIn, checkOut) {
+    document.getElementById('hotel-loading').style.display = 'none';
+    document.getElementById('hotel-results').style.display = 'block';
+
+    const header = document.getElementById('hotel-results-header');
+    const list = document.getElementById('hotel-results-list');
+
+    if (!data.success || !data.hotels || data.hotels.length === 0) {
+        header.innerHTML = '<div class="card" style="text-align: center; padding: 40px;"><h3 style="color: #f5f5f5;">No hotels found</h3><p style="color: #ccc;">' + (data.error || 'Try different dates or city') + '</p></div>';
+        list.innerHTML = '';
+        return;
+    }
+
+    header.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;"><h2 style="color: #f5f5f5; margin: 0;">' + data.hotels.length + ' Hotels in ' + cityCode + '</h2><span style="color: #ccc;">' + checkIn + ' to ' + checkOut + '</span></div>';
+
+    list.innerHTML = data.hotels.map(hotel => `
+        <div class="card hotel-card" style="border-left: 4px solid #ff6b35;">
+            <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
+                <div style="flex: 1; min-width: 200px;">
+                    <span class="hotel-badge" style="background: #ff8c00; color: white;">HOTEL</span>
+                    <h3 style="margin: 5px 0; color: #f5f5f5;">${hotel.hotel_name}</h3>
+                    <div style="font-size: 14px; color: #ccc;">
+                        ${hotel.room_type || 'Standard Room'}${hotel.bed_type ? ' / ' + hotel.bed_type : ''}
+                        ${hotel.nights ? ' / ' + hotel.nights + ' night' + (hotel.nights > 1 ? 's' : '') : ''}
+                    </div>
+                    ${hotel.room_description ? '<div style="font-size: 13px; color: #aaa; margin-top: 5px;">' + hotel.room_description.substring(0, 120) + '</div>' : ''}
+                    ${hotel.cancellation_deadline ? '<div style="font-size: 12px; color: #4caf50; margin-top: 5px;">Free cancellation until ' + hotel.cancellation_deadline.split('T')[0] + '</div>' : ''}
+                </div>
+                <div style="text-align: right; min-width: 140px;">
+                    <div style="font-size: 24px; font-weight: bold; color: #ff6b35;">
+                        $${hotel.price_per_night.toFixed(0)}<span style="font-size: 14px; font-weight: normal; color: #ccc;">/night</span>
+                    </div>
+                    <div style="color: #ccc; font-size: 14px;">$${hotel.price_total.toFixed(0)} total</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <span style="color: #666; font-size: 12px;">Amadeus</span>
+                <button class="btn" onclick="selectHotel('${hotel.offer_id}', '${hotel.hotel_id}', this)">
+                    Book This Hotel
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function selectHotel(offerId, hotelId, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Creating deal...';
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch('/api/hotels/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ offer_id: offerId, hotel_id: hotelId })
+        });
+        const data = await resp.json();
+        if (data.success && data.deal_id) {
+            window.location.href = '/save-deal/' + data.deal_id;
+        } else {
+            alert('Error: ' + (data.error || 'Failed to create hotel deal'));
+            btn.disabled = false;
+            btn.textContent = 'Book This Hotel';
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Book This Hotel';
+    }
+}
+</script>
+"""
+
+
+HOTEL_BOOK_CONTENT = """
+<style>
+    .payment-method-card { border: 2px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: white; }
+    .payment-method-card:hover { border-color: #ff6b35; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
+    .payment-method-card.selected { border-color: #ff6b35; background: #fff8f5; }
+    .payment-method-card .method-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+    .payment-method-card .method-icon { font-size: 32px; width: 50px; text-align: center; }
+    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: #16213e; }
+    .payment-method-card .method-subtitle { color: #666; font-size: 14px; }
+    .payment-details-panel { display: none; background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 15px; }
+    .payment-details-panel.active { display: block; }
+    .crypto-address-box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 14px; word-break: break-all; margin: 10px 0; }
+    .copy-btn { background: #ff6b35; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 10px; }
+    .copy-btn:hover { background: #ff8c00; }
+    .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
+    .order-summary h3 { margin: 0 0 20px 0; color: #ffc107; }
+    .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .order-row:last-child { border-bottom: none; }
+    .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.3); }
+    .flight-leg-item { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; }
+    .processing-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
+    .processing-overlay.active { display: flex; }
+    .processing-box { background: white; border-radius: 16px; padding: 40px; text-align: center; max-width: 400px; }
+    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #ff6b35; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="card card-light" style="max-width: 800px; margin: 40px auto;">
+    <h2 style="text-align: center; margin-bottom: 25px; color: #1a1a2e;">Complete Your Hotel Booking</h2>
+
+    <!-- Order Summary -->
+    <div class="order-summary">
+        <h3>Hotel Reservation</h3>
+        <div class="flight-leg-item">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{ deal.hotel_name }}</strong><br>
+                    <span style="color: #ffc107;">{{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }} / {{ deal.room_type or 'Standard Room' }}{{ ' / ' + deal.bed_type if deal.bed_type else '' }}</span><br>
+                    <small>{{ deal.check_in_date }} to {{ deal.check_out_date }} ({{ deal.nights }} night{{ 's' if deal.nights != 1 else '' }})</small>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.price_total_usd or 0) }}</span>
+                    <br><small style="color: #ffc107;">${{ "%.0f"|format(deal.price_per_night_usd or 0) }}/night</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-row">
+            <span>Hotel ({{ deal.nights }} night{{ 's' if deal.nights != 1 else '' }})</span>
+            <span>${{ "%.2f"|format(deal.price_total_usd or 0) }}</span>
+        </div>
+        <div class="order-row">
+            <span>Service Fee</span>
+            <span>${{ "%.2f"|format(deal.platform_fee_usd or 0) }}</span>
+        </div>
+        <div class="order-row total">
+            <span>Total Due</span>
+            <span>${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}</span>
+        </div>
+        {% if deal.cancellation_policy %}
+        <div style="margin-top: 10px; font-size: 13px; color: #4caf50;">
+            Cancellation: {{ deal.cancellation_policy }}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if payment_verified %}
+        <!-- Payment Complete - Collect Guest Details -->
+        <div class="alert alert-success" style="text-align: center; padding: 25px;">
+            <span style="font-size: 48px;">&#9989;</span>
+            <h3 style="margin: 15px 0;">Payment Verified!</h3>
+            <p>Your payment has been confirmed. Please provide guest details to complete your booking.</p>
+        </div>
+
+        <form id="guest-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" style="margin-top: 20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px;">
+                <h4 style="margin: 0 0 20px 0; color: #1a1a2e;">Guest Information</h4>
+                <p style="color: #666; margin-bottom: 20px;">Enter guest details as they will appear on the reservation.</p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Title *</label>
+                        <select name="title" required style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                            <option value="MR">Mr</option>
+                            <option value="MS">Ms</option>
+                            <option value="MRS">Mrs</option>
+                        </select>
+                    </div>
+                    <div></div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">First Name *</label>
+                        <input type="text" name="first_name" required placeholder="John" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Last Name *</label>
+                        <input type="text" name="last_name" required placeholder="Doe" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Email *</label>
+                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Phone *</label>
+                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Special Requests (optional)</label>
+                        <textarea name="special_requests" rows="3" placeholder="Late check-in, extra pillows, high floor..." style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e; resize: vertical;"></textarea>
+                    </div>
+                </div>
+
+                <div style="margin-top: 25px; padding: 20px; background: #fff5f0; border-radius: 8px;">
+                    <h5 style="margin: 0 0 10px 0;">Booking Method</h5>
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
+                        <span><strong>Automated Booking</strong> - We book for you (recommended)</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 25px; padding: 15px; font-size: 18px;">
+                    Complete Hotel Booking
+                </button>
+            </div>
+        </form>
+
+    {% else %}
+        <!-- Guest Email Collection (for non-authenticated users) -->
+        {% if not current_user.is_authenticated %}
+        <div style="background: #fff8f5; border: 2px solid #ff6b35; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+            <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
+            <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="guest_email" style="font-weight: bold; color: #16213e;">Email Address *</label>
+                <input type="email" id="guest_email" name="guest_email" required
+                       value="{{ session.get('guest_email', '') }}"
+                       placeholder="your@email.com"
+                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       onchange="saveGuestEmail(this.value)">
+            </div>
+            <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                <a href="/register?deal={{ deal.deal_id }}" style="color: #ff6b35;">Create an account</a> to track your bookings.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Payment Selection -->
+        <h3 style="margin-bottom: 20px;">Choose Payment Method</h3>
+
+        <!-- Credit Card -->
+        <div class="payment-method-card" onclick="selectPayment('card')" id="method-card">
+            <div class="method-header">
+                <span class="method-icon">&#128179;</span>
+                <div>
+                    <div class="method-title">Credit or Debit Card</div>
+                    <div class="method-subtitle">Visa, Mastercard, American Express</div>
+                </div>
+                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                    ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
+                </div>
+            </div>
+            <div class="payment-details-panel" id="details-card">
+                <p>Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
+                <button class="btn" onclick="payWithCard(event)" style="width: 100%; margin-top: 10px;">
+                    Pay ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} with Card
+                </button>
+            </div>
+        </div>
+
+        <!-- XRP Direct -->
+        <div class="payment-method-card" onclick="selectPayment('xrp')" id="method-xrp">
+            <div class="method-header">
+                <span class="method-icon">&#9889;</span>
+                <div>
+                    <div class="method-title">XRP (Direct)</div>
+                    <div class="method-subtitle">Pay directly on XRPL</div>
+                </div>
+                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                    {{ "%.4f"|format(payment_options.methods.xrp.amount_xrp or 0) }} XRP
+                </div>
+            </div>
+            <div class="payment-details-panel" id="details-xrp">
+                <p><strong>Send exactly:</strong></p>
+                <div class="crypto-address-box">{{ "%.6f"|format(payment_options.methods.xrp.amount_xrp or 0) }} XRP</div>
+                <p><strong>To address:</strong></p>
+                <div class="crypto-address-box" id="xrp-address">{{ payment_options.methods.xrp.destination or platform_wallet }}</div>
+                <button class="copy-btn" onclick="copyToClipboard('xrp-address', event)">Copy Address</button>
+                <p style="margin-top: 15px;"><strong>Destination Tag:</strong></p>
+                <div class="crypto-address-box" style="background: #fff3cd; border-color: #ffc107;" id="xrp-tag">{{ payment_options.methods.xrp.destination_tag or deal.destination_tag }}</div>
+                <button class="copy-btn" onclick="copyToClipboard('xrp-tag', event)">Copy Tag</button>
+                <div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                    <strong>Warning:</strong> You MUST include the destination tag.
+                </div>
+                <p style="margin-top: 15px; color: #666;">Network: {{ network }}</p>
+                <form method="POST" style="margin-top: 15px;" onsubmit="return validateGuestEmail()">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="payment_method" value="xrp">
+                    <input type="hidden" name="guest_email" id="xrp_guest_email" value="">
+                    <button type="submit" class="btn" style="width: 100%;" onclick="document.getElementById('xrp_guest_email').value = getGuestEmail();">
+                        I've Sent the Payment - Verify Now
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- RLUSD Stablecoin -->
+        <div class="payment-method-card" onclick="selectPayment('rlusd')" id="method-rlusd">
+            <div class="method-header">
+                <span class="method-icon">&#128181;</span>
+                <div>
+                    <div class="method-title">RLUSD Stablecoin</div>
+                    <div class="method-subtitle">Ripple's USD stablecoin on XRPL</div>
+                </div>
+                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                    ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} RLUSD
+                </div>
+            </div>
+            <div class="payment-details-panel" id="details-rlusd">
+                <p><strong>Send exactly:</strong></p>
+                <div class="crypto-address-box">{{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} RLUSD</div>
+                <p><strong>To address:</strong></p>
+                <div class="crypto-address-box" id="rlusd-address">{{ payment_options.methods.rlusd.destination or platform_wallet }}</div>
+                <button class="copy-btn" onclick="copyToClipboard('rlusd-address', event)">Copy Address</button>
+                <p style="margin-top: 15px;"><strong>Destination Tag:</strong></p>
+                <div class="crypto-address-box" style="background: #fff3cd;" id="rlusd-tag">{{ payment_options.methods.rlusd.destination_tag or deal.destination_tag }}</div>
+                <button class="copy-btn" onclick="copyToClipboard('rlusd-tag', event)">Copy Tag</button>
+                <form method="POST" style="margin-top: 15px;" onsubmit="return validateGuestEmail()">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="payment_method" value="rlusd">
+                    <input type="hidden" name="guest_email" id="rlusd_guest_email" value="">
+                    <button type="submit" class="btn" style="width: 100%;" onclick="document.getElementById('rlusd_guest_email').value = getGuestEmail();">
+                        I've Sent RLUSD - Verify Now
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Crypto -->
+        <div class="payment-method-card" onclick="selectPayment('crypto')" id="method-crypto">
+            <div class="method-header">
+                <span class="method-icon">&#129689;</span>
+                <div>
+                    <div class="method-title">Other Cryptocurrency</div>
+                    <div class="method-subtitle">Bitcoin, Ethereum, Litecoin, USDC & more</div>
+                </div>
+                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                    ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
+                </div>
+            </div>
+            <div class="payment-details-panel" id="details-crypto">
+                <p>Pay with any major cryptocurrency via Coinbase Commerce.</p>
+                <button class="btn" onclick="payWithCrypto(event)" style="width: 100%;">Pay with Cryptocurrency</button>
+            </div>
+        </div>
+
+        <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
+            All payments are secure and encrypted<br>
+            <small>By proceeding, you agree to our Terms of Service</small>
+        </p>
+    {% endif %}
+</div>
+
+<!-- Processing Overlay -->
+<div class="processing-overlay" id="processing-overlay">
+    <div class="processing-box">
+        <div class="spinner"></div>
+        <h3 id="processing-title">Processing Payment...</h3>
+        <p id="processing-message">Please wait while we verify your payment.</p>
+    </div>
+</div>
+
+<script>
+const dealId = "{{ deal.deal_id }}";
+const totalAmount = {{ (deal.price_total_usd or 0) + (deal.platform_fee_usd or 0) }};
+let guestEmail = "{{ session.get('guest_email', '') }}";
+
+function saveGuestEmail(email) {
+    guestEmail = email;
+    fetch('/api/save-guest-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) });
+}
+function getGuestEmail() { const el = document.getElementById('guest_email'); return el ? el.value : guestEmail; }
+function validateGuestEmail() { const el = document.getElementById('guest_email'); if (el && !el.value) { alert('Please enter your email address.'); el.focus(); return false; } return true; }
+
+function selectPayment(method) {
+    document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('.payment-details-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('method-' + method).classList.add('selected');
+    document.getElementById('details-' + method).classList.add('active');
+}
+function copyToClipboard(elementId, event) {
+    event.stopPropagation();
+    const text = document.getElementById(elementId).innerText.trim();
+    navigator.clipboard.writeText(text).then(() => { const btn = event.target; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); });
+}
+
+async function payWithCard(event) {
+    event.stopPropagation();
+    const overlay = document.getElementById('processing-overlay');
+    overlay.classList.add('active');
+    document.getElementById('processing-title').textContent = 'Redirecting to Stripe...';
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch('/api/payment/stripe/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ deal_id: dealId, amount: totalAmount })
+        });
+        const data = await resp.json();
+        if (data.checkout_url) { window.location.href = data.checkout_url; }
+        else { overlay.classList.remove('active'); alert('Error: ' + (data.error || 'Failed to create payment session')); }
+    } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
+}
+
+async function payWithCrypto(event) {
+    event.stopPropagation();
+    const overlay = document.getElementById('processing-overlay');
+    overlay.classList.add('active');
+    document.getElementById('processing-title').textContent = 'Creating crypto payment...';
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch('/api/payment/coinbase/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ deal_id: dealId, amount: totalAmount })
+        });
+        const data = await resp.json();
+        if (data.hosted_url) { window.location.href = data.hosted_url; }
+        else { overlay.classList.remove('active'); alert('Error: ' + (data.error || 'Failed to create crypto payment')); }
+    } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
+}
+</script>
+"""
+
+
 @app.route("/booking-confirmation/<int:booking_id>")
 def booking_confirmation(booking_id):
     """Show booking confirmation page."""
@@ -4788,13 +5682,17 @@ def booking_confirmation(booking_id):
 
     deal = Deal.query.get(booking.deal_id)
 
+    deal_dict = deal.to_dict() if deal else {}
+    is_hotel = (deal.deal_type == 'hotel') if deal else False
+
     return render_template_string(
         BASE_TEMPLATE,
-        title="Booking Confirmed",
+        title="Hotel Confirmed" if is_hotel else "Booking Confirmed",
         content=render_template_string(
             BOOKING_CONFIRMATION_CONTENT,
             booking=booking,
-            deal=deal.to_dict() if deal else {}
+            deal=deal_dict,
+            is_hotel=is_hotel
         ),
         current_user=current_user
     )
@@ -4823,14 +5721,17 @@ def booking_status(booking_id):
         return redirect(f"/booking-confirmation/{booking_id}")
 
     deal = Deal.query.get(booking.deal_id)
+    deal_dict = deal.to_dict() if deal else {}
+    is_hotel = (deal.deal_type == 'hotel') if deal else False
 
     return render_template_string(
         BASE_TEMPLATE,
-        title="Booking Status",
+        title="Hotel Status" if is_hotel else "Booking Status",
         content=render_template_string(
             BOOKING_STATUS_CONTENT,
             booking=booking,
-            deal=deal.to_dict() if deal else {}
+            deal=deal_dict,
+            is_hotel=is_hotel
         ),
         current_user=current_user
     )
@@ -5184,7 +6085,7 @@ def rewrite_urls(html_content, base_url, source_lang='ja', target_lang='en', tra
     # Add proxy banner with translation controls
     banner = f'''
     <div style="position:fixed;top:0;left:0;right:0;background:#ff6b35;color:white;padding:10px;text-align:center;z-index:99999;font-family:sans-serif;display:flex;justify-content:center;align-items:center;gap:20px;">
-        <span>PHOENIX - Booking via JP market</span>
+        <span>MYSTES - Booking via JP market</span>
         <span style="color:#ffc107;">|</span>
         <span style="font-size:12px;">{source_name} → {target_name}</span>
         <a href="?translate={translate_toggle}" style="color:white;background:#ff8c00;padding:4px 12px;border-radius:4px;text-decoration:none;font-size:12px;">{toggle_text}</a>
@@ -5247,7 +6148,7 @@ def api_deals():
             "departure_date": d.departure_date.isoformat() if d.departure_date else None,
             "home_market": d.home_market,
             "home_price_usd": d.home_price_usd,
-            "arbitrage_market": "Phoenix",  # Never expose proxy market codes
+            "arbitrage_market": MYSTES,  # Never expose proxy market codes
             "arbitrage_price_usd": d.arbitrage_price_usd,
             "gross_savings_usd": d.gross_savings_usd,
             "platform_fee_usd": d.platform_fee_usd,
@@ -5439,13 +6340,14 @@ def api_stripe_create():
         amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
 
     try:
-        # Create Stripe checkout session
+        # Create Stripe checkout session with user_id for webhook attribution
         result = create_stripe_checkout_session(
             deal_id=deal_id,
             fee_usd=amount,
             user_email=current_user.email,
             success_url=request.host_url.rstrip('/') + f"/payment/success?deal_id={deal_id}",
-            cancel_url=request.host_url.rstrip('/') + f"/book/{deal_id}"
+            cancel_url=request.host_url.rstrip('/') + f"/book/{deal_id}",
+            user_id=current_user.id
         )
 
         if "error" in result:
@@ -5638,14 +6540,23 @@ def payment_success_handler():
     verified = False
     payment_method = None
     tx_ref = None
+    stripe_intent = None
 
     if session_id:
-        # Stripe payment
+        # Stripe payment — verify and validate metadata
         result = verify_stripe_session(session_id)
         if result.get("verified"):
+            # Validate that Stripe metadata deal_id matches URL deal_id
+            metadata_deal_id = result.get("deal_id")
+            if metadata_deal_id and metadata_deal_id != deal_id:
+                logger.warning(f"Stripe metadata deal_id mismatch: URL={deal_id} metadata={metadata_deal_id}")
+                flash("Payment verification failed — deal mismatch.", "error")
+                return redirect(f"/book/{deal_id}")
+
             verified = True
             payment_method = "card"
             tx_ref = result.get("payment_intent")
+            stripe_intent = result.get("payment_intent")
 
     elif charge_code or session.get(f'coinbase_charge_{deal_id}'):
         # Coinbase payment
@@ -5657,21 +6568,35 @@ def payment_success_handler():
             tx_ref = result.get("charge_code")
 
     if verified:
-        # Create payment record
-        payment = Payment(
-            user_id=current_user.id,
-            deal_id=deal.id,
-            payment_method=payment_method,
-            amount_usd=total_amount,
-            tx_hash=tx_ref,
-            status='verified',
-            verified_at=datetime.utcnow()
-        )
-        db.session.add(payment)
-        db.session.commit()
+        # Check for duplicate by tx_hash (prevents double-creation from refresh)
+        existing_by_tx = None
+        if tx_ref:
+            existing_by_tx = Payment.query.filter_by(tx_hash=tx_ref, status='verified').first()
 
-        # Trigger booking fulfillment
-        trigger_booking_fulfillment(deal, payment)
+        if existing_by_tx:
+            logger.info(f"Payment already exists for tx_hash={tx_ref}, skipping duplicate")
+            payment = existing_by_tx
+        else:
+            # Create payment record with Stripe-specific fields
+            payment = Payment(
+                user_id=current_user.id,
+                deal_id=deal.id,
+                payment_method=payment_method,
+                amount_usd=total_amount,
+                tx_hash=tx_ref,
+                stripe_session_id=session_id if payment_method == 'card' else None,
+                stripe_payment_intent=stripe_intent,
+                status='verified',
+                verified_at=datetime.utcnow()
+            )
+            db.session.add(payment)
+            db.session.commit()
+
+            # Trigger booking fulfillment only for new payments
+            trigger_booking_fulfillment(deal, payment)
+
+            audit_log("payment_verified", user_id=current_user.id,
+                      deal_id=deal_id, method=payment_method, amount=total_amount)
 
         flash("Payment verified successfully! You can now book your flight.", "success")
     else:
@@ -6070,46 +6995,118 @@ def webhook_stripe():
     Handle Stripe webhook events for payment confirmations.
 
     Events handled:
-    - checkout.session.completed: Payment successful
-    - checkout.session.expired: Payment expired
+    - checkout.session.completed: Payment successful → create/update Payment record
+    - checkout.session.expired: Payment expired → mark pending payment as expired
     """
     payload = request.get_data()
     signature = request.headers.get("Stripe-Signature", "")
 
+    result = handle_stripe_webhook(payload, signature)
+
+    # Signature verification failure — return 400 to reject (not a valid Stripe event)
+    if "error" in result:
+        logger.error(f"Stripe webhook signature error: {result['error']}")
+        return jsonify({"error": result["error"]}), 400
+
     try:
-        result = handle_stripe_webhook(payload, signature)
-
-        if "error" in result:
-            logger.error(f"Stripe webhook error: {result['error']}")
-            return jsonify({"error": result["error"]}), 400
-
         if result.get("event") == "payment_completed":
             deal_id = result.get("deal_id")
             amount_usd = result.get("amount_usd", 0)
+            session_id = result.get("session_id")
+            payment_intent = result.get("payment_intent")
 
             if deal_id:
                 deal = Deal.query.filter_by(deal_id=deal_id).first()
                 if deal:
-                    # Find user from session metadata or create anonymous payment
-                    # For webhook, we may not have user context, so use deal owner
-                    payment = Payment(
-                        deal_id=deal.id,
-                        payment_method='card',
-                        amount_usd=amount_usd,
-                        tx_hash=result.get("session_id"),
-                        status='verified',
-                        verified_at=datetime.utcnow()
-                    )
-                    db.session.add(payment)
+                    # Duplicate prevention: check if payment already exists for this tx
+                    existing = None
+                    if payment_intent:
+                        existing = Payment.query.filter_by(
+                            stripe_payment_intent=payment_intent, status='verified'
+                        ).first()
+                    if not existing and session_id:
+                        existing = Payment.query.filter_by(
+                            stripe_session_id=session_id, status='verified'
+                        ).first()
+
+                    if existing:
+                        logger.info(f"Stripe webhook: payment already exists for deal {deal_id}, skipping")
+                    else:
+                        # Resolve user_id from metadata → email → deal owner (fallback chain)
+                        user_id = None
+                        meta_user_id = result.get("user_id")
+                        if meta_user_id:
+                            try:
+                                user_id = int(meta_user_id)
+                            except (ValueError, TypeError):
+                                pass
+
+                        if not user_id:
+                            customer_email = result.get("customer_email")
+                            if customer_email:
+                                user = User.query.filter_by(email=customer_email).first()
+                                if user:
+                                    user_id = user.id
+
+                        if not user_id:
+                            user_id = deal.user_id  # Last resort: deal owner
+
+                        # Check if a pending payment exists (created by /pay/card redirect)
+                        pending = Payment.query.filter_by(
+                            stripe_session_id=session_id, status='pending'
+                        ).first()
+
+                        if pending:
+                            # Update existing pending payment
+                            pending.status = 'verified'
+                            pending.verified_at = datetime.utcnow()
+                            pending.user_id = user_id
+                            pending.tx_hash = payment_intent
+                            pending.stripe_payment_intent = payment_intent
+                            db.session.commit()
+                            payment = pending
+                        else:
+                            # Create new verified payment
+                            payment = Payment(
+                                user_id=user_id,
+                                deal_id=deal.id,
+                                payment_method='card',
+                                amount_usd=amount_usd,
+                                tx_hash=payment_intent,
+                                stripe_session_id=session_id,
+                                stripe_payment_intent=payment_intent,
+                                status='verified',
+                                verified_at=datetime.utcnow()
+                            )
+                            db.session.add(payment)
+                            db.session.commit()
+
+                        # Trigger booking fulfillment
+                        trigger_booking_fulfillment(deal, payment)
+
+                        audit_log("payment_verified_webhook", user_id=user_id,
+                                  deal_id=deal_id, amount=amount_usd)
+                        logger.info(f"Stripe payment verified via webhook: deal={deal_id} user={user_id}")
+
+        elif result.get("event") == "payment_expired":
+            # Mark pending payments as expired
+            session_id = result.get("session_id")
+            if session_id:
+                pending = Payment.query.filter_by(
+                    stripe_session_id=session_id, status='pending'
+                ).first()
+                if pending:
+                    pending.status = 'expired'
                     db.session.commit()
+                    logger.info(f"Stripe session expired: {session_id}")
 
-                    logger.info(f"Stripe payment verified via webhook for deal {deal_id}")
-
+        # Always return 200 for successfully parsed events (even if processing had issues)
         return jsonify({"received": True})
 
     except Exception as e:
-        logger.error(f"Stripe webhook exception: {e}")
-        return jsonify({"error": str(e)}), 500
+        # Log the error but return 200 to prevent Stripe from retrying indefinitely
+        logger.error(f"Stripe webhook processing error: {e}", exc_info=True)
+        return jsonify({"received": True, "processing_error": True})
 
 
 @app.route("/webhooks/coinbase", methods=["POST"])
@@ -6402,16 +7399,16 @@ TERMS_CONTENT = """
     <p><em>Last updated: January 2026</em></p>
 
     <h2>1. Acceptance of Terms</h2>
-    <p>By accessing or using PHOENIX ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.</p>
+    <p>By accessing or using MYSTES ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.</p>
 
     <h2>2. Description of Service</h2>
-    <p>PHOENIX is a travel assistance platform that helps users find price differences for flights across different regional markets. We act as a facilitator to help you book directly with airlines at lower regional prices.</p>
+    <p>MYSTES is a travel assistance platform that helps users find price differences for flights across different regional markets. We act as a facilitator to help you book directly with airlines at lower regional prices.</p>
 
     <h2>3. How It Works</h2>
     <ul>
         <li><strong>Price Discovery:</strong> We scan airline pricing across different regional markets to identify price differences.</li>
         <li><strong>Platform Fee:</strong> When you find a deal, you pay a platform fee (25% of your savings, capped at $50) in XRP cryptocurrency to unlock access to the booking page.</li>
-        <li><strong>Direct Booking:</strong> You book directly with the airline through their regional website. PHOENIX does not sell tickets or act as a ticket reseller.</li>
+        <li><strong>Direct Booking:</strong> You book directly with the airline through their regional website. MYSTES does not sell tickets or act as a ticket reseller.</li>
     </ul>
 
     <h2>4. User Responsibilities</h2>
@@ -6436,7 +7433,7 @@ TERMS_CONTENT = """
     <p>Flight prices and availability are controlled by airlines and may change at any time. We do not guarantee that any deal will still be available when you attempt to book. Deals shown are based on cached data and may not reflect real-time pricing.</p>
 
     <h2>7. Limitation of Liability</h2>
-    <p>PHOENIX is not liable for:</p>
+    <p>MYSTES is not liable for:</p>
     <ul>
         <li>Price changes between deal display and booking</li>
         <li>Flight cancellations, delays, or changes by airlines</li>
@@ -6446,7 +7443,7 @@ TERMS_CONTENT = """
     </ul>
 
     <h2>8. Intellectual Property</h2>
-    <p>All content, trademarks, and intellectual property on PHOENIX are owned by us or our licensors. You may not copy, modify, or distribute our content without permission.</p>
+    <p>All content, trademarks, and intellectual property on MYSTES are owned by us or our licensors. You may not copy, modify, or distribute our content without permission.</p>
 
     <h2>9. Termination</h2>
     <p>We may terminate or suspend your account at any time for violation of these terms or for any other reason at our discretion.</p>
@@ -6455,7 +7452,7 @@ TERMS_CONTENT = """
     <p>We may update these Terms of Service at any time. Continued use of the Service after changes constitutes acceptance of the new terms.</p>
 
     <h2>11. Contact</h2>
-    <p>For questions about these Terms of Service, please contact us at legal@phoenix.app</p>
+    <p>For questions about these Terms of Service, please contact us at legal@mystes.app</p>
 </div>
 """
 
@@ -6465,7 +7462,7 @@ PRIVACY_CONTENT = """
     <p><em>Last updated: January 2026</em></p>
 
     <h2>1. Introduction</h2>
-    <p>PHOENIX ("we", "our", "us") respects your privacy and is committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information.</p>
+    <p>MYSTES ("we", "our", "us") respects your privacy and is committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information.</p>
 
     <h2>2. Information We Collect</h2>
 
@@ -6559,7 +7556,7 @@ PRIVACY_CONTENT = """
     <p>We may update this Privacy Policy periodically. We will notify you of significant changes via email or through the Service.</p>
 
     <h2>13. Contact</h2>
-    <p>For privacy inquiries, contact us at privacy@phoenix.app</p>
+    <p>For privacy inquiries, contact us at privacy@mystes.app</p>
 </div>
 """
 
@@ -6589,7 +7586,7 @@ def privacy():
 ABOUT_CONTENT = """
 <div style="max-width: 800px; margin: 40px auto;">
     <div class="card card-light" style="text-align: center; padding: 40px;">
-        <h1 style="color: #ff6b35; margin-bottom: 10px;">PHOENIX</h1>
+        <h1 style="font-family: 'Cinzel', serif; letter-spacing: 8px; margin-bottom: 10px; background: linear-gradient(135deg, #1a1a2e 0%, #4a3060 50%, #1a1a2e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">MYSTES</h1>
         <p style="font-size: 20px; color: #555; margin-bottom: 30px;">Flight Price Arbitrage Platform</p>
     </div>
 
@@ -6598,7 +7595,7 @@ ABOUT_CONTENT = """
         <p style="color: #555; line-height: 1.8;">
             Airlines display different prices depending on your geographic location.
             A flight from New York to Tokyo might cost $1,200 when viewed from the US,
-            but only $980 when viewed from Spain or Japan. PHOENIX detects these price
+            but only $980 when viewed from Spain or Japan. MYSTES detects these price
             differences in real-time and helps you book at the lowest available price.
         </p>
 
@@ -6663,7 +7660,7 @@ ABOUT_CONTENT = """
     </div>
 
     <div style="text-align: center; margin-top: 30px;">
-        <a href="/ai" class="btn" style="padding: 14px 40px; font-size: 18px;">Search with Phoenix AI</a>
+        <a href="/ai" class="btn" style="padding: 14px 40px; font-size: 18px;">Search with MYSTES AI</a>
     </div>
 </div>
 """
@@ -6674,13 +7671,13 @@ def about():
     """About page."""
     return render_template_string(
         BASE_TEMPLATE,
-        title="About PHOENIX",
+        title="About MYSTES",
         content=ABOUT_CONTENT,
         current_user=current_user
     )
 
 
-# --- EARN WITH PHOENIX (P2P Helper Network) ---
+# --- EARN WITH MYSTES (P2P Helper Network) ---
 
 EARN_CONTENT = """
 <div style="max-width: 900px; margin: 40px auto;">
@@ -6688,10 +7685,10 @@ EARN_CONTENT = """
     <!-- Hero Section -->
     <div class="card card-light" style="text-align: center; padding: 50px 40px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white; border: none;">
         <p style="font-size: 12px; color: #ff6b35; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">The Citizen SerpAPI</p>
-        <h1 style="color: #ff6b35; margin-bottom: 10px; font-size: 36px;">Earn With PHOENIX</h1>
+        <h1 style="color: #ff6b35; margin-bottom: 10px; font-size: 36px;">Earn With MYSTES</h1>
         <p style="font-size: 22px; color: #fff; margin-bottom: 20px;">Turn your Google account into passive income</p>
         <p style="font-size: 16px; color: #fff; max-width: 600px; margin: 0 auto; line-height: 1.7;">
-            Earn XRP every time Phoenix uses your account to find and book cheaper flights
+            Earn XRP every time MYSTES uses your account to find and book cheaper flights
             for travelers worldwide. You provide access. We handle everything else.
         </p>
     </div>
@@ -6711,7 +7708,7 @@ EARN_CONTENT = """
             through the same infrastructure you pay for, and they profit. You get nothing.
         </p>
         <p style="color: #ff6b35; line-height: 1.8; font-size: 16px; font-weight: bold; margin-top: 15px;">
-            Phoenix is the people's data network. We don't scrape data to sell to corporations.
+            MYSTES is the people's data network. We don't scrape data to sell to corporations.
             We use it to save travelers money &mdash; and we pay <em>you</em> for access instead of data farms.
         </p>
     </div>
@@ -6730,7 +7727,7 @@ EARN_CONTENT = """
             You never even know it happened.
         </p>
         <p style="color: #ff6b35; line-height: 1.8; font-size: 16px; font-weight: bold; margin-top: 15px;">
-            Phoenix flips this system. Instead of corporations profiting from your data, <em>you</em> profit from it.
+            MYSTES flips this system. Instead of corporations profiting from your data, <em>you</em> profit from it.
         </p>
     </div>
 
@@ -6743,14 +7740,14 @@ EARN_CONTENT = """
                 <div style="font-size: 36px; margin-bottom: 10px; color: #ff6b35;">1</div>
                 <h4 style="color: #1a1a2e; margin-bottom: 8px;">Sign Up as a Helper</h4>
                 <p style="color: #666; font-size: 14px; line-height: 1.6;">
-                    Connect your XRPL wallet and grant Phoenix temporary access to your browser session. Your Google account stays yours.
+                    Connect your XRPL wallet and grant MYSTES temporary access to your browser session. Your Google account stays yours.
                 </p>
             </div>
             <div style="text-align: center; padding: 25px 15px; background: #f8f9fa; border-radius: 12px;">
                 <div style="font-size: 36px; margin-bottom: 10px; color: #ff6b35;">2</div>
-                <h4 style="color: #1a1a2e; margin-bottom: 8px;">Phoenix Does the Work</h4>
+                <h4 style="color: #1a1a2e; margin-bottom: 8px;">MYSTES Does the Work</h4>
                 <p style="color: #666; font-size: 14px; line-height: 1.6;">
-                    When a traveler needs a flight booked through your region, Phoenix remotely handles the search and purchase through your browser. You don't lift a finger.
+                    When a traveler needs a flight booked through your region, MYSTES remotely handles the search and purchase through your browser. You don't lift a finger.
                 </p>
             </div>
             <div style="text-align: center; padding: 25px 15px; background: #f8f9fa; border-radius: 12px;">
@@ -6778,7 +7775,7 @@ EARN_CONTENT = """
                 </ul>
             </div>
             <div style="background: #f1f8e9; padding: 20px; border-radius: 12px;">
-                <h4 style="color: #2e7d32; margin-bottom: 8px;">The Phoenix Way</h4>
+                <h4 style="color: #2e7d32; margin-bottom: 8px;">The MYSTES Way</h4>
                 <ul style="color: #666; font-size: 14px; line-height: 2; list-style: none; padding: 0; margin: 0;">
                     <li>You control access to your account</li>
                     <li>You earn from every transaction through your region</li>
@@ -6789,15 +7786,15 @@ EARN_CONTENT = """
         </div>
 
         <p style="color: #555; line-height: 1.8; font-size: 15px; margin-top: 20px;">
-            Phoenix doesn't need data centers or proxy farms. <strong>You are the network.</strong>
+            MYSTES doesn't need data centers or proxy farms. <strong>You are the network.</strong>
             Every helper with a Google account in a different country is a real endpoint that corporations
             cannot distinguish from organic traffic. Instead of paying data infrastructure companies,
-            Phoenix pays <em>you</em> directly for access to networks that already exist &mdash; yours.
+            MYSTES pays <em>you</em> directly for access to networks that already exist &mdash; yours.
         </p>
         <p style="color: #555; line-height: 1.8; font-size: 15px;">
             When enough people join, this becomes a private, decentralized data network that no corporation
             can shut down. No proxy IPs to block. No data centers to subpoena. Just real people,
-            running Phoenix passively, proving every day that the prices you see are not the prices
+            running MYSTES passively, proving every day that the prices you see are not the prices
             that exist. <strong>Our data. Our profit.</strong>
         </p>
     </div>
@@ -6806,7 +7803,7 @@ EARN_CONTENT = """
     <div class="card card-light" style="margin-top: 20px;">
         <h2 style="color: #1a1a2e; margin-bottom: 15px;">Trustless Payments on XRPL</h2>
         <p style="color: #555; line-height: 1.8; font-size: 15px;">
-            You never have to trust Phoenix with your money &mdash; and we never have to trust you either.
+            You never have to trust MYSTES with your money &mdash; and we never have to trust you either.
             Everything runs through <strong>on-chain XRPL escrow</strong> that both parties can verify
             independently on the public ledger.
         </p>
@@ -6855,11 +7852,11 @@ EARN_CONTENT = """
             </div>
             <div style="background: linear-gradient(135deg, #e8f5e9, #c8e6c9); padding: 25px; border-radius: 12px; text-align: center;">
                 <div style="font-size: 32px; font-weight: bold; color: #2e7d32;">Flights</div>
-                <p style="color: #555; font-size: 13px; margin-top: 8px;">Spend your RLUSD directly on discounted flights through Phoenix</p>
+                <p style="color: #555; font-size: 13px; margin-top: 8px;">Spend your RLUSD directly on discounted flights through MYSTES</p>
             </div>
         </div>
         <p style="color: #555; line-height: 1.8; font-size: 15px; margin-top: 20px;">
-            Your earnings circulate in the Phoenix ecosystem. Use RLUSD to book your own flights at
+            Your earnings circulate in the MYSTES ecosystem. Use RLUSD to book your own flights at
             arbitrage prices, convert to XRP for other uses, or cash out to your local currency through
             Coinbase Commerce, Binance, Kraken, Uphold, or any major exchange.
         </p>
@@ -6880,14 +7877,14 @@ EARN_CONTENT = """
             The people whose connections make it possible earn nothing.
         </p>
         <p style="color: #555; line-height: 1.8; font-size: 15px;">
-            Phoenix is the honest alternative. We don't sell data to corporations &mdash; we use it to
+            MYSTES is the honest alternative. We don't sell data to corporations &mdash; we use it to
             save travelers money. And instead of routing through anonymous proxy farms,
             <strong>we pay real people directly</strong> for the access that data companies have
-            been taking for free. Phoenix is a citizen-powered API that proves what the institutions
+            been taking for free. MYSTES is a citizen-powered API that proves what the institutions
             won't admit: <strong>the prices you see are not the prices that exist.</strong>
         </p>
         <p style="color: #555; line-height: 1.8; font-size: 15px;">
-            Every Phoenix helper is proof that the system is rigged &mdash; and that it doesn't have to be.
+            Every MYSTES helper is proof that the system is rigged &mdash; and that it doesn't have to be.
             The more people join, the more transparent the market becomes, and the harder it is
             for anyone to stop. This isn't just an app. It's a decentralized data network
             controlled by the people who power it.
@@ -6903,7 +7900,7 @@ EARN_CONTENT = """
             how much they can charge you. The institutions profit. You don't.
         </p>
         <p style="color: #fff; line-height: 1.8; font-size: 15px;">
-            Phoenix changes the equation. By joining the network, your Google account and local market access
+            MYSTES changes the equation. By joining the network, your Google account and local market access
             become a tool for global price transparency. Instead of data farms and proxy infrastructure
             profiting from internet access, <strong style="color: #ff6b35;">real people earn real money</strong>
             by contributing what they already have &mdash; a browser, an internet connection, and a location.
@@ -6911,7 +7908,7 @@ EARN_CONTENT = """
         <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             This isn't just about saving money on flights. It's about building a network where
             <strong style="color: #ff6b35;">consumers benefit from their own data</strong> instead of handing it
-            to institutions for free. Every helper in the Phoenix network is a statement: our data, our profit.
+            to institutions for free. Every helper in the MYSTES network is a statement: our data, our profit.
         </p>
     </div>
 
@@ -6922,8 +7919,8 @@ EARN_CONTENT = """
         <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
             <h4 style="color: #1a1a2e; margin-bottom: 6px;">Do I have to do anything during a booking?</h4>
             <p style="color: #666; font-size: 14px; line-height: 1.7;">
-                No. Phoenix handles everything remotely. When you're matched with a booking request,
-                Phoenix takes temporary control of your browser session through the Phoenix app.
+                No. MYSTES handles everything remotely. When you're matched with a booking request,
+                MYSTES takes temporary control of your browser session through the MYSTES app.
                 The same automation that powers our proxy system runs on your device instead.
                 You just need the app open.
             </p>
@@ -6951,7 +7948,7 @@ EARN_CONTENT = """
             <h4 style="color: #1a1a2e; margin-bottom: 6px;">How do I cash out my earnings?</h4>
             <p style="color: #666; font-size: 14px; line-height: 1.7;">
                 Your earnings arrive as RLUSD in your XRPL wallet. You can spend RLUSD on your own
-                Phoenix flights, convert to XRP on-ledger, or cash out to local currency through
+                MYSTES flights, convert to XRP on-ledger, or cash out to local currency through
                 Coinbase, Binance, Kraken, Uphold, or other major exchanges.
             </p>
         </div>
@@ -6961,7 +7958,7 @@ EARN_CONTENT = """
             <p style="color: #666; font-size: 14px; line-height: 1.7;">
                 Proxy servers can be detected and blocked by airlines and Google. A real person with a
                 real Google account, real browsing history, and a real IP address is indistinguishable
-                from any other customer. Phoenix pays you directly for this access instead of paying
+                from any other customer. MYSTES pays you directly for this access instead of paying
                 data center companies for proxy infrastructure.
             </p>
         </div>
@@ -6970,7 +7967,7 @@ EARN_CONTENT = """
     <!-- CTA -->
     <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
         <a href="/register" class="btn" style="padding: 16px 50px; font-size: 18px; background: #ff6b35; color: white; border-radius: 8px; text-decoration: none; display: inline-block;">
-            Start Earning With Phoenix
+            Start Earning With MYSTES
         </a>
         <p style="color: #fff; font-size: 13px; margin-top: 12px;">
             Connect your wallet. Grant access. Get paid.
@@ -6982,10 +7979,10 @@ EARN_CONTENT = """
 
 @app.route("/earn")
 def earn():
-    """Earn with Phoenix - P2P helper network pitch page."""
+    """Earn with MYSTES - P2P helper network pitch page."""
     return render_template_string(
         BASE_TEMPLATE,
-        title="Earn With PHOENIX",
+        title="Earn With MYSTES",
         content=EARN_CONTENT,
         current_user=current_user
     )
@@ -7162,7 +8159,7 @@ PORTAL_CONTENT = """
 <div class="portal-hero">
     <h1>Access <span class="accent">Any Market</span> in the World</h1>
     <p>Browse foreign marketplaces through residential proxy gateways.
-    Stay logged into your own accounts — Phoenix just changes where the platform thinks you are.</p>
+    Stay logged into your own accounts — MYSTES just changes where the platform thinks you are.</p>
 </div>
 
 <!-- Active Sessions -->
@@ -7192,7 +8189,7 @@ PORTAL_CONTENT = """
         <h3>How to Use Your Proxy Session</h3>
         <div class="setup-step">
             <h4>1. Select a market above and click "Start Browsing"</h4>
-            <p>Phoenix allocates a sticky residential IP in your chosen country. You get proxy credentials valid for up to 4 hours.</p>
+            <p>MYSTES allocates a sticky residential IP in your chosen country. You get proxy credentials valid for up to 4 hours.</p>
         </div>
         <div class="setup-step">
             <h4>2. Configure your browser's proxy settings</h4>
@@ -7203,7 +8200,7 @@ PORTAL_CONTENT = """
         </div>
         <div class="setup-step">
             <h4>3. Browse any site as if you're local</h4>
-            <p>Your browser traffic routes through a residential IP in that country. Marketplaces see a local user. You stay logged into your own accounts (Facebook, Google, etc.) — Phoenix just changes the geographic routing.</p>
+            <p>Your browser traffic routes through a residential IP in that country. Marketplaces see a local user. You stay logged into your own accounts (Facebook, Google, etc.) — MYSTES just changes the geographic routing.</p>
         </div>
         <div class="setup-step">
             <h4>4. Contact sellers directly</h4>
@@ -7395,7 +8392,7 @@ def portal():
     """Proxy Portal - Universal market access gateway."""
     return render_template_string(
         BASE_TEMPLATE,
-        title="Proxy Portal — PHOENIX",
+        title="Proxy Portal — MYSTES",
         content=PORTAL_CONTENT,
         current_user=current_user
     )
@@ -7407,7 +8404,7 @@ def api_portal_create_session():
     """Create a Free Browse session through a CitizenSERP node.
 
     Build #90 — unmetered.  User's own browser through a node;
-    Phoenix monitors passively.
+    MYSTES monitors passively.
     """
     from free_browse_portal import browse_portal_manager
 
@@ -7627,13 +8624,169 @@ def api_earnings_all_scales():
         return jsonify({"error": "Projection unavailable"}), 500
 
 
-# --- PHOENIX AI SEARCH + PRIVATE MARKET ESCROW ---
+# --- CitizenSERP Node Yield Dashboard (Build #102) ---
+
+NODE_YIELD_DASHBOARD_CONTENT = """
+<style>
+    .yield-dashboard { max-width: 900px; margin: 0 auto; }
+    .yield-header { text-align: center; margin-bottom: 30px; }
+    .yield-header h1 { font-family: 'Cinzel', serif; letter-spacing: 5px; color: #c9a96e; font-size: 1.8rem; }
+    .yield-header p { color: rgba(255,255,255,0.6); margin-top: 8px; }
+
+    .yield-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
+    .yield-stat-card {
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px; padding: 20px; text-align: center;
+    }
+    .yield-stat-card .stat-value { font-size: 1.8rem; font-weight: 700; color: #00e676; }
+    .yield-stat-card .stat-label { color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-top: 4px; }
+    .yield-stat-card.offline .stat-value { color: #ff5252; }
+
+    .yield-section { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .yield-section h2 { color: #c9a96e; font-size: 1.1rem; margin-bottom: 16px; font-family: 'Cinzel', serif; letter-spacing: 2px; }
+
+    .category-row { display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .category-row:last-child { border-bottom: none; }
+    .category-name { color: rgba(255,255,255,0.8); font-size: 0.9rem; }
+    .category-value { color: #00e676; font-weight: 600; }
+    .category-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 4px; }
+    .category-bar-fill { height: 100%; background: linear-gradient(90deg, #00e676, #c9a96e); border-radius: 2px; }
+
+    .suggestion-card { background: rgba(0,230,118,0.05); border: 1px solid rgba(0,230,118,0.15);
+        border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+    .suggestion-card .est { color: #00e676; font-weight: 600; }
+
+    .yield-score-ring { width: 100px; height: 100px; margin: 0 auto 12px; position: relative; }
+    .yield-score-value { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-size: 1.6rem; font-weight: 700; color: #c9a96e; }
+
+    .yield-cta { text-align: center; margin-top: 30px; }
+    .yield-cta a { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #c9a96e, #e8d5b7);
+        color: #0a0612; font-weight: 700; border-radius: 8px; text-decoration: none; font-family: 'Cinzel', serif;
+        letter-spacing: 2px; }
+</style>
+
+<div class="yield-dashboard" id="yieldDash">
+    <div class="yield-header">
+        <h1>NODE YIELD DASHBOARD</h1>
+        <p>Your CitizenSERP earnings at a glance</p>
+    </div>
+
+    <div class="yield-stats" id="yieldStats">
+        <div class="yield-stat-card"><div class="stat-value" id="statStatus">--</div><div class="stat-label">Status</div></div>
+        <div class="yield-stat-card"><div class="stat-value" id="statToday">$0.00</div><div class="stat-label">Today</div></div>
+        <div class="yield-stat-card"><div class="stat-value" id="statWeek">$0.00</div><div class="stat-label">This Week</div></div>
+        <div class="yield-stat-card"><div class="stat-value" id="statTotal">$0.00</div><div class="stat-label">All Time</div></div>
+    </div>
+
+    <div class="yield-section">
+        <h2>EARNINGS BY CATEGORY</h2>
+        <div id="categoryBreakdown"><p style="color:rgba(255,255,255,0.4);">Loading...</p></div>
+    </div>
+
+    <div class="yield-section">
+        <h2>YIELD OPTIMIZER</h2>
+        <p style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-bottom:12px;">Enable more data categories to increase your earnings</p>
+        <div id="yieldSuggestions"><p style="color:rgba(255,255,255,0.4);">Loading...</p></div>
+    </div>
+
+    <div class="yield-section">
+        <h2>NETWORK PROJECTIONS</h2>
+        <p style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-bottom:12px;">Estimated monthly earnings by tier at current network size</p>
+        <div id="tierProjections"><p style="color:rgba(255,255,255,0.4);">Loading...</p></div>
+    </div>
+
+    <div class="yield-cta">
+        <a href="/earn">LEARN HOW TO EARN MORE</a>
+    </div>
+</div>
+
+<script>
+(function() {
+    async function loadDashboard() {
+        try {
+            // Load yield summary
+            const summaryResp = await fetch('/api/zones/leaderboard');
+            if (summaryResp.ok) {
+                const data = await summaryResp.json();
+                const net = data.network_totals || {};
+                document.getElementById('statStatus').textContent = net.total_nodes > 0 ? 'Online' : 'Offline';
+                document.getElementById('statStatus').parentElement.className = net.total_nodes > 0 ? 'yield-stat-card' : 'yield-stat-card offline';
+            }
+        } catch(e) { console.warn('Dashboard load error:', e); }
+
+        try {
+            // Load earnings projection for all tiers
+            const projResp = await fetch('/api/network/earnings-projection?nodes=500&tier=bronze');
+            if (projResp.ok) {
+                const proj = await projResp.json();
+                const comp = proj.comparison?.all_tiers || {};
+                let tierHtml = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">';
+                ['bronze','silver','gold','platinum'].forEach(t => {
+                    const monthly = comp[t] || 0;
+                    tierHtml += '<div style="text-align:center;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;">';
+                    tierHtml += '<div style="color:rgba(255,255,255,0.5);font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;">' + t + '</div>';
+                    tierHtml += '<div style="color:#00e676;font-size:1.2rem;font-weight:700;margin-top:4px;">$' + monthly.toFixed(2) + '/mo</div>';
+                    tierHtml += '</div>';
+                });
+                tierHtml += '</div>';
+                document.getElementById('tierProjections').innerHTML = tierHtml;
+
+                // Category breakdown from projection
+                const exclusive = proj.exclusive_products || [];
+                let catHtml = '';
+                exclusive.filter(p => p.unlocked).forEach(p => {
+                    const pct = proj.earnings.exclusive_monthly_usd > 0 ? (p.monthly_usd / proj.earnings.exclusive_monthly_usd * 100) : 0;
+                    catHtml += '<div class="category-row"><span class="category-name">' + p.display_name + '</span>';
+                    catHtml += '<span class="category-value">$' + p.monthly_usd.toFixed(2) + '/mo</span></div>';
+                    catHtml += '<div class="category-bar"><div class="category-bar-fill" style="width:' + Math.min(pct, 100) + '%"></div></div>';
+                });
+                if (catHtml) document.getElementById('categoryBreakdown').innerHTML = catHtml;
+
+                // Suggestions for locked products
+                const locked = exclusive.filter(p => !p.unlocked);
+                if (locked.length > 0) {
+                    let sugHtml = '';
+                    locked.slice(0, 3).forEach(p => {
+                        sugHtml += '<div class="suggestion-card">';
+                        sugHtml += '<strong>' + p.display_name + '</strong>';
+                        sugHtml += '<div style="color:rgba(255,255,255,0.5);font-size:0.85rem;margin-top:4px;">' + (p.description || 'Unlocks at ' + (p.unlocks_at_nodes || '?') + ' nodes') + '</div>';
+                        sugHtml += '</div>';
+                    });
+                    document.getElementById('yieldSuggestions').innerHTML = sugHtml;
+                } else {
+                    document.getElementById('yieldSuggestions').innerHTML = '<p style="color:#00e676;">All data categories unlocked!</p>';
+                }
+            }
+        } catch(e) { console.warn('Projection load error:', e); }
+    }
+    loadDashboard();
+})();
+</script>
+"""
+
+
+@app.route("/node/dashboard")
+@login_required
+def node_yield_dashboard_page():
+    """CitizenSERP node yield dashboard — shows earnings, categories, and optimization."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Node Yield Dashboard",
+        content=NODE_YIELD_DASHBOARD_CONTENT,
+        current_user=current_user,
+    )
+
+
+# --- MYSTES AI SEARCH + PRIVATE MARKET ESCROW ---
 
 AI_SEARCH_CONTENT = """
 <div style="max-width: 1100px; margin: 30px auto;">
     <!-- AI Search Section -->
     <div class="card card-light" style="padding: 30px; margin-bottom: 20px;">
-        <h1 style="color: #1a1a2e; margin-bottom: 5px;">Phoenix AI Search</h1>
+        <h1 style="margin-bottom: 5px;"><span style="font-family: 'Cinzel', serif; letter-spacing: 5px; background: linear-gradient(135deg, #1a1a2e 0%, #4a3060 50%, #1a1a2e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">MYSTES</span> <span style="color: #1a1a2e;">AI Search</span></h1>
         <p style="color: #666; margin-bottom: 20px;">Multi-provider ensemble — queries multiple AI models simultaneously for the best answer. Or <a href="/portal" style="color: #667eea;">use your own AI subscription</a> through the proxy portal — log in with your credentials and your AI accesses market data from any region.</p>
 
         <!-- Search Bar -->
@@ -7748,7 +8901,7 @@ AI_SEARCH_CONTENT = """
         <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
             <h3 style="margin-bottom: 15px;">Add API Key to Ensemble</h3>
             <p style="color: #666; font-size: 13px; margin-bottom: 10px;"><strong>Recommended:</strong> Use <a href="/portal" style="color: #667eea;">the Proxy Portal</a> to access your AI with your own subscription — just log in through the proxy and your AI sees the market data from that region. No API key needed.</p>
-            <p style="color: #666; font-size: 13px; margin-bottom: 15px;"><strong>Advanced:</strong> Or add an API key below to feed your provider into Phoenix's ensemble search engine. No Phoenix credit cost when using your own keys.</p>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;"><strong>Advanced:</strong> Or add an API key below to feed your provider into MYSTES's ensemble search engine. No MYSTES credit cost when using your own keys.</p>
             <select id="addProviderKey" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px;">
                 <option value="">Select provider...</option>
                 <option value="anthropic">Claude (Anthropic)</option>
@@ -8029,15 +9182,15 @@ else { loadAIPage(); }
 def ai_search_page():
     return render_template_string(
         BASE_TEMPLATE,
-        title="Phoenix AI",
+        title="MYSTES AI",
         content=AI_SEARCH_CONTENT,
         current_user=current_user
     )
 
 
-# --- PHOENIX AI CHAT INTERFACE ---
+# --- MYSTES AI CHAT INTERFACE ---
 
-PHOENIX_AI_CONTENT = """
+MYSTES_AI_CONTENT = """
 <style>
     /* Main layout - full viewport like ChatGPT/Claude */
     .ai-chat-container { display: flex; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
@@ -8172,7 +9325,7 @@ PHOENIX_AI_CONTENT = """
         <div class="ai-messages" id="messages">
             <div class="ai-messages-inner">
                 <div class="ai-welcome" id="welcomeScreen">
-                    <h2>Phoenix</h2>
+                    <h2 style="font-family: 'Cinzel', serif; letter-spacing: 8px; text-transform: uppercase;">MYSTES</h2>
                     <p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p>
                     <div class="ai-quick-actions">
                         <button class="ai-quick-btn" onclick="sendQuick('Find flights from NYC to Tokyo next month')">NYC → Tokyo</button>
@@ -8186,7 +9339,7 @@ PHOENIX_AI_CONTENT = """
 
         <div class="ai-input-area">
             <div class="ai-input-wrapper">
-                <textarea class="ai-input" id="chatInput" placeholder="Message Phoenix..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+                <textarea class="ai-input" id="chatInput" placeholder="Message MYSTES..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
                 <button class="ai-send-btn" id="sendBtn" onclick="sendMessage()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
@@ -8285,7 +9438,7 @@ function newConversation() {
     currentConvId = null;
     const msgs = document.getElementById('messages');
     const inner = msgs.querySelector('.ai-messages-inner') || msgs;
-    inner.innerHTML = '<div class="ai-welcome" id="welcomeScreen"><h2>Phoenix</h2><p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p><div class="ai-quick-actions"><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from NYC to Tokyo next month\')">NYC → Tokyo</button><button class="ai-quick-btn" onclick="sendQuick(\'Cheapest flights from LA to London in March\')">LA → London</button><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from Miami to Paris\')">Miami → Paris</button><button class="ai-quick-btn" onclick="sendQuick(\'Best deals on flights to Bali\')">Flights to Bali</button></div></div>';
+    inner.innerHTML = '<div class="ai-welcome" id="welcomeScreen"><h2>MYSTES</h2><p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p><div class="ai-quick-actions"><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from NYC to Tokyo next month\')">NYC → Tokyo</button><button class="ai-quick-btn" onclick="sendQuick(\'Cheapest flights from LA to London in March\')">LA → London</button><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from Miami to Paris\')">Miami → Paris</button><button class="ai-quick-btn" onclick="sendQuick(\'Best deals on flights to Bali\')">Flights to Bali</button></div></div>';
 }
 
 function sendQuick(text) {
@@ -8320,7 +9473,8 @@ function renderToolCard(tc) {
     const r = tc.result;
     try {
         if (tool === 'search_flights') return renderFlightCards(r);
-        if (tool === 'search_hotels' || tool === 'search_cruises' || tool === 'search_rentals') return renderArbitrageCards(r, tool);
+        if (tool === 'search_hotels') return renderHotelCards(r);
+        if (tool === 'search_cruises' || tool === 'search_rentals') return renderArbitrageCards(r, tool);
         if (tool === 'get_deals' || tool === 'discover_opportunities') return renderDealCards(r);
         if (tool === 'get_wallet_info') return renderWalletCard(r);
         if (tool === 'get_my_dashboard') return renderDashboardCard(r);
@@ -8353,7 +9507,7 @@ function dealActionButtons(dealData) {
 }
 
 async function bookFlight(dealData) {
-    // Save deal to DB and redirect to Phoenix booking page
+    // Save deal to DB and redirect to MYSTES booking page
     const btn = event.target;
     btn.disabled = true;
     btn.textContent = 'Preparing...';
@@ -8379,6 +9533,32 @@ async function bookFlight(dealData) {
     }
 }
 
+async function bookHotel(offerId, hotelId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Preparing...';
+    try {
+        const resp = await fetch('/api/hotels/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ offer_id: offerId, hotel_id: hotelId })
+        });
+        const data = await resp.json();
+        if (data.deal_id) {
+            window.location.href = '/book/' + data.deal_id;
+        } else {
+            btn.textContent = 'Book This Hotel';
+            btn.disabled = false;
+            alert(data.error || 'Could not prepare hotel booking.');
+        }
+    } catch(e) {
+        btn.textContent = 'Book This Hotel';
+        btn.disabled = false;
+        alert('Booking service unavailable. Please try again.');
+    }
+}
+
 function renderFlightCards(r) {
     const flights = r.flights || r.all_flights || r.results || [];
     if (!flights.length) return '';
@@ -8388,9 +9568,9 @@ function renderFlightCards(r) {
     const proxy = r.proxy_results || {};
     if (proxy.savings_vs_us > 0) {
         html += '<div class="ai-card" style="border-left:3px solid #00e676;margin-bottom:12px;">';
-        html += '<div class="ai-card-header"><span class="ai-card-title" style="color:#00e676;">Phoenix Deal Found</span>';
+        html += '<div class="ai-card-header"><span class="ai-card-title" style="color:#00e676;">MYSTES Deal Found</span>';
         html += '<span class="ai-card-badge green">Save $' + Math.round(proxy.savings_vs_us) + ' (' + Math.round(proxy.savings_pct) + '%)</span></div>';
-        html += '<div class="ai-card-row"><span class="label">Phoenix price</span><span class="value" style="color:#00e676;">$' + Math.round(proxy.cheapest_price_usd || 0) + '</span></div>';
+        html += '<div class="ai-card-row"><span class="label">MYSTES price</span><span class="value" style="color:#00e676;">$' + Math.round(proxy.cheapest_price_usd || 0) + '</span></div>';
         html += '<div class="ai-card-row"><span class="label">Regions compared</span><span class="value">' + (typeof proxy.markets_checked === 'number' ? proxy.markets_checked : (proxy.markets_checked || []).length || '5') + '</span></div>';
         html += '</div>';
     }
@@ -8412,7 +9592,7 @@ function renderFlightCards(r) {
     flights.forEach((f, idx) => {
         const airline = esc(f.airline || f.carrier || 'Unknown');
         const price = f.cheapest_price || f.price || f.amount || '';
-        const market = 'Phoenix';  // Never expose proxy market codes
+        const market = 'MYSTES';  // Never expose proxy market codes
         const stops = f.stops != null ? (f.stops === 0 ? 'Nonstop' : f.stops + ' stop' + (f.stops !== 1 ? 's' : '')) : '';
         const duration = esc(f.duration || '');
         const savings = f.savings_pct || f.savings_percent || 0;
@@ -8473,9 +9653,9 @@ function renderFlightCards(r) {
             html += '<div class="ai-card-row"><span class="label">Baggage</span><span class="value" style="color:#999;font-size:0.82rem;">' + esc(f.baggage_info) + '</span></div>';
         }
 
-        // Price — branded as Phoenix, no market codes exposed
+        // Price — branded as MYSTES, no market codes exposed
         html += '<div class="ai-card-row" style="margin-top:4px;"><span class="ai-card-price">$' + (typeof price === 'number' ? Math.round(price) : price) + '</span>';
-        html += '<span class="ai-card-badge" style="background:rgba(33,150,243,0.2);color:#42a5f5;">Phoenix</span>';
+        html += '<span class="ai-card-badge" style="background:rgba(33,150,243,0.2);color:#42a5f5;">MYSTES</span>';
         html += '</div>';
 
         // Deal info (arbitrage comparison)
@@ -8484,7 +9664,7 @@ function renderFlightCards(r) {
             html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.85rem;">';
             if (deal.home_price && deal.arbitrage_price) {
                 html += '<div class="ai-card-row"><span class="label" style="color:#999;">Normal price</span><span class="value" style="color:#999;text-decoration:line-through;">$' + Math.round(deal.home_price) + '</span></div>';
-                html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">Phoenix price</span><span class="value" style="color:#00e676;font-weight:600;">$' + Math.round(deal.arbitrage_price) + '</span></div>';
+                html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">MYSTES price</span><span class="value" style="color:#00e676;font-weight:600;">$' + Math.round(deal.arbitrage_price) + '</span></div>';
             }
             html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">You save</span><span class="value" style="color:#00e676;font-weight:700;">-$' + Math.round(deal.price_difference) + ' (' + Math.round(deal.user_saves_pct || savings) + '%)</span></div>';
             html += '</div>';
@@ -8495,7 +9675,7 @@ function renderFlightCards(r) {
             airline: f.airline || f.marketing_carrier || airline,
             flight_number: flightNum,
             price: price, currency: 'USD',
-            savings_pct: savings, market: 'Phoenix', vertical: 'flights',
+            savings_pct: savings, market: 'MYSTES', vertical: 'flights',
             origin: f.origin || f.departure_airport || r.origin || '',
             destination: f.destination || f.arrival_airport || r.destination || '',
             date: f.date || f.departure_date || r.date || '',
@@ -8506,11 +9686,74 @@ function renderFlightCards(r) {
             home_price: deal ? deal.home_price : price,
             arbitrage_price: deal ? deal.arbitrage_price : price,
             price_difference: deal ? deal.price_difference : 0,
-            cheapest_market: 'Phoenix',
+            cheapest_market: 'MYSTES',
             home_market: 'US',
             raw_offer: f.raw_offer || null,
         };
         html += dealActionButtons(dealPayload);
+        html += '</div>';
+    });
+    html += '</div>';
+    return html;
+}
+
+function renderHotelCards(r) {
+    const hotels = r.hotels || [];
+    if (!hotels.length) return '';
+    let html = '<div class="ai-cards">';
+    html += '<div style="color:rgba(255,255,255,0.5);font-size:0.8rem;margin-bottom:8px;">' + hotels.length + ' hotels found</div>';
+    hotels.slice(0, 8).forEach((h, idx) => {
+        const name = esc(h.hotel_name || h.name || 'Hotel');
+        const priceNight = h.price_per_night ? '$' + Math.round(h.price_per_night) : '';
+        const priceTotal = h.price_total ? '$' + Math.round(h.price_total) : '';
+        const nights = h.nights || 1;
+        const room = esc(h.room_type || '');
+        const bed = esc(h.bed_type || '');
+        const cancel = esc(h.cancellation_description || '');
+        const offerId = h.offer_id || '';
+        const hotelId = h.hotel_id || '';
+        const roomDesc = esc(h.room_description || '');
+        const googlePrice = h.google_price || 0;
+        const userSavings = h.user_savings || 0;
+        const savingsPct = h.savings_pct || 0;
+
+        html += '<div class="ai-card">';
+        html += '<div class="ai-card-header"><span class="ai-card-title">' + name + '</span>';
+        if (savingsPct > 0) {
+            html += '<span class="ai-card-badge green">Save ' + Math.round(savingsPct) + '%</span>';
+        } else if (priceNight) {
+            html += '<span class="ai-card-badge" style="background:rgba(255,107,53,0.15);color:#ff6b35;">' + priceNight + '/night</span>';
+        }
+        html += '</div>';
+        if (room || bed) {
+            const roomInfo = room + (bed && bed !== room ? ' (' + bed + ')' : '');
+            html += '<div class="ai-card-row"><span class="label">Room</span><span class="value">' + roomInfo + '</span></div>';
+        }
+        if (roomDesc) html += '<div class="ai-card-row"><span class="label">Description</span><span class="value" style="font-size:0.85rem;">' + roomDesc.substring(0, 80) + '</span></div>';
+        html += '<div class="ai-card-row"><span class="label">Stay</span><span class="value">' + nights + ' night' + (nights !== 1 ? 's' : '') + '</span></div>';
+
+        // Savings comparison: Google price vs MYSTES price
+        if (googlePrice > 0 && userSavings > 0) {
+            html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.85rem;">';
+            html += '<div class="ai-card-row"><span class="label" style="color:#999;">Google/Hotels.com</span><span class="value" style="color:#999;text-decoration:line-through;">$' + Math.round(googlePrice) + '</span></div>';
+            html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">MYSTES price</span><span class="value ai-card-price" style="color:#00e676;">$' + Math.round(h.price_total) + '</span></div>';
+            html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">You save</span><span class="value" style="color:#00e676;font-weight:700;">-$' + Math.round(userSavings) + '</span></div>';
+            html += '</div>';
+        } else if (priceTotal) {
+            html += '<div class="ai-card-row"><span class="label">Total</span><span class="value ai-card-price">' + priceTotal + '</span></div>';
+        }
+
+        if (priceNight && savingsPct > 0) {
+            html += '<div class="ai-card-row"><span class="label">Per night</span><span class="value" style="color:#00e676;">' + priceNight + '</span></div>';
+        }
+
+        if (cancel) html += '<div class="ai-card-row"><span class="label">Cancellation</span><span class="value" style="font-size:0.8rem;color:rgba(255,255,255,0.6);">' + cancel.substring(0, 60) + '</span></div>';
+
+        if (offerId && hotelId) {
+            html += '<div class="ai-card-actions">';
+            html += '<button class="ai-card-btn primary" onclick="bookHotel(\'' + esc(offerId) + '\',\'' + esc(hotelId) + '\')">Book This Hotel</button>';
+            html += '</div>';
+        }
         html += '</div>';
     });
     html += '</div>';
@@ -8550,7 +9793,7 @@ function renderDealCards(r) {
         if (savings > 0) html += '<span class="ai-card-badge green">' + Math.round(savings) + '% off</span>';
         html += '</div>';
         if (d.price) html += '<div class="ai-card-row"><span class="ai-card-price">' + esc(d.currency || 'USD') + ' ' + d.price + '</span></div>';
-        if (d.market) html += '<div class="ai-card-row"><span class="label">Source</span><span class="value">Phoenix</span></div>';
+        if (d.market) html += '<div class="ai-card-row"><span class="label">Source</span><span class="value">MYSTES</span></div>';
         if (d.vertical) html += '<div class="ai-card-row"><span class="label">Type</span><span class="value">' + esc(d.vertical) + '</span></div>';
         html += dealActionButtons({title: d.title || d.name || 'Deal', price: d.price, currency: d.currency || 'USD', savings_pct: savings, market: d.market || '', vertical: d.vertical || ''});
         html += '</div>';
@@ -8837,21 +10080,21 @@ document.getElementById('chatInput').addEventListener('input', function() {
 
 
 @app.route("/ai")
-def phoenix_ai_page():
-    """Phoenix AI conversational interface."""
+def mystes_ai_page():
+    """MYSTES AI conversational interface."""
     is_auth = "true" if current_user.is_authenticated else "false"
-    content = PHOENIX_AI_CONTENT.replace("__IS_AUTHENTICATED__", is_auth)
+    content = MYSTES_AI_CONTENT.replace("__IS_AUTHENTICATED__", is_auth)
     return render_template_string(
         BASE_TEMPLATE,
-        title="Phoenix AI",
+        title="MYSTES AI",
         content=content,
         current_user=current_user
     )
 
 
-# --- Phoenix OS Install Page (Build #88) ---
+# --- MYSTES OS Install Page (Build #88) ---
 
-PHOENIX_INSTALL_CONTENT = """
+MYSTES_INSTALL_CONTENT = """
 <style>
 .welcome-container {
     max-width: 640px;
@@ -9007,8 +10250,8 @@ PHOENIX_INSTALL_CONTENT = """
 
 <div class="welcome-container">
     <div class="welcome-hero">
-        <h1>Welcome to Phoenix</h1>
-        <p>Search flights across 195 markets. Phoenix finds price differences on the same flights across regions and passes the savings to you.</p>
+        <h1>Welcome to MYSTES</h1>
+        <p>Search flights across 195 markets. MYSTES finds price differences on the same flights across regions and passes the savings to you.</p>
     </div>
 
     <div class="welcome-card">
@@ -9016,22 +10259,22 @@ PHOENIX_INSTALL_CONTENT = """
         <div class="welcome-step">
             <div class="w-step-num">1</div>
             <div class="step-text">
-                <h3>Tell Phoenix Where You Want to Go</h3>
-                <p>Open the AI chat and describe your trip. Phoenix compares rates across markets to find the lowest price.</p>
+                <h3>Tell MYSTES Where You Want to Go</h3>
+                <p>Open the AI chat and describe your trip. MYSTES compares rates across markets to find the lowest price.</p>
             </div>
         </div>
         <div class="welcome-step">
             <div class="w-step-num">2</div>
             <div class="step-text">
-                <h3>Phoenix Finds the Best Price</h3>
-                <p>The same flight can cost 20-60% less depending on which market you book through. Phoenix checks them all and shows you the lowest.</p>
+                <h3>MYSTES Finds the Best Price</h3>
+                <p>The same flight can cost 20-60% less depending on which market you book through. MYSTES checks them all and shows you the lowest.</p>
             </div>
         </div>
         <div class="welcome-step">
             <div class="w-step-num">3</div>
             <div class="step-text">
                 <h3>Book &amp; Save</h3>
-                <p>Pay with card or crypto. Phoenix only charges a fee when it finds savings &mdash; if there is no arbitrage, there is no fee.</p>
+                <p>Pay with card or crypto. MYSTES only charges a fee when it finds savings &mdash; if there is no arbitrage, there is no fee.</p>
             </div>
         </div>
     </div>
@@ -9061,7 +10304,7 @@ PHOENIX_INSTALL_CONTENT = """
 
     <div class="tier-preview">
         <strong>Your Search Tier</strong>
-        <p style="margin:8px 0 12px 0;">Your account tier determines how many markets Phoenix checks and how many searches you get per day.</p>
+        <p style="margin:8px 0 12px 0;">Your account tier determines how many markets MYSTES checks and how many searches you get per day.</p>
         <div class="tier-row">
             <span class="tier-name" style="color:#cd7f32;">Bronze</span>
             <span>10 searches / day &middot; 5 markets</span>
@@ -9082,7 +10325,7 @@ PHOENIX_INSTALL_CONTENT = """
 
     <div class="welcome-actions">
         <a href="/ai" class="welcome-btn primary">Start Searching</a>
-        <button class="welcome-btn secondary" id="installBtn" onclick="installPhoenix()">
+        <button class="welcome-btn secondary" id="installBtn" onclick="installMYSTES()">
             Install App on This Device
         </button>
     </div>
@@ -9104,7 +10347,7 @@ PHOENIX_INSTALL_CONTENT = """
         installBtn.disabled = true;
     }
 
-    window.installPhoenix = function() {
+    window.installMYSTES = function() {
         if (deferredPrompt) {
             deferredPrompt.prompt();
             deferredPrompt.userChoice.then(function(result) {
@@ -9142,7 +10385,7 @@ test </b> end
 
 @app.route("/install")
 @login_required
-def phoenix_install_page():
+def mystes_install_page():
     """Welcome page shown after registration."""
     # Gate behind feature flag (Build #96)
     if not is_feature_enabled("node_onboarding"):
@@ -9150,8 +10393,8 @@ def phoenix_install_page():
         return redirect("/dashboard")
     return render_template_string(
         BASE_TEMPLATE,
-        title="Welcome to Phoenix",
-        content=PHOENIX_INSTALL_CONTENT,
+        title="Welcome to MYSTES",
+        content=MYSTES_INSTALL_CONTENT,
         current_user=current_user
     )
 
@@ -9185,8 +10428,8 @@ SETUP_GUIDES_CONTENT = """
 </style>
 
 <div class="setup-hero">
-    <h1>Get Started with Phoenix</h1>
-    <p>Install Phoenix on your devices to join the distributed network and start earning.</p>
+    <h1>Get Started with MYSTES</h1>
+    <p>Install MYSTES on your devices to join the distributed network and start earning.</p>
 </div>
 
 {% if helper_token %}
@@ -9214,7 +10457,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">1</div>
             <div class="step-content">
                 <p><strong>Get your Helper Token</strong></p>
-                <p>Sign in to Phoenix, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a> to find your token. Or copy it from the box above.</p>
+                <p>Sign in to MYSTES, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a> to find your token. Or copy it from the box above.</p>
             </div>
         </div>
 
@@ -9231,7 +10474,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">3</div>
             <div class="step-content">
                 <p><strong>Install the node service</strong></p>
-                <div class="code-block">pip3 install aiohttp &amp;&amp; curl -sL https://phoenix-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://phoenix-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip3 install aiohttp && curl -sL https://phoenix-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://phoenix-web-nj67.onrender.com');">Copy</button></div>
+                <div class="code-block">pip3 install aiohttp &amp;&amp; curl -sL https://mystes-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://mystes-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip3 install aiohttp && curl -sL https://mystes-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://mystes-web-nj67.onrender.com');">Copy</button></div>
                 <p style="color:#888; font-size:13px;">Replace <code>YOUR_TOKEN</code> with the token from step 1.</p>
             </div>
         </div>
@@ -9257,7 +10500,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">1</div>
             <div class="step-content">
                 <p><strong>Get your Helper Token</strong></p>
-                <p>Sign in to Phoenix, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a>.</p>
+                <p>Sign in to MYSTES, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a>.</p>
             </div>
         </div>
 
@@ -9273,7 +10516,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">3</div>
             <div class="step-content">
                 <p><strong>Open PowerShell as Administrator and run:</strong></p>
-                <div class="code-block">pip install aiohttp; Invoke-WebRequest -Uri "https://phoenix-web-nj67.onrender.com/static/install-node.ps1" -OutFile install-node.ps1; .\\install-node.ps1 -Token YOUR_TOKEN -Server https://phoenix-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip install aiohttp; Invoke-WebRequest -Uri &quot;https://phoenix-web-nj67.onrender.com/static/install-node.ps1&quot; -OutFile install-node.ps1; .\\\\install-node.ps1 -Token YOUR_TOKEN -Server https://phoenix-web-nj67.onrender.com');">Copy</button></div>
+                <div class="code-block">pip install aiohttp; Invoke-WebRequest -Uri "https://mystes-web-nj67.onrender.com/static/install-node.ps1" -OutFile install-node.ps1; .\\install-node.ps1 -Token YOUR_TOKEN -Server https://mystes-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip install aiohttp; Invoke-WebRequest -Uri &quot;https://mystes-web-nj67.onrender.com/static/install-node.ps1&quot; -OutFile install-node.ps1; .\\\\install-node.ps1 -Token YOUR_TOKEN -Server https://mystes-web-nj67.onrender.com');">Copy</button></div>
             </div>
         </div>
 
@@ -9304,7 +10547,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">2</div>
             <div class="step-content">
                 <p><strong>Load the extension</strong></p>
-                <p>Click "Load unpacked" and select the <code>phoenix_extension</code> folder from the project directory.</p>
+                <p>Click "Load unpacked" and select the <code>mystes_extension</code> folder from the project directory.</p>
             </div>
         </div>
 
@@ -9324,20 +10567,20 @@ SETUP_GUIDES_CONTENT = """
             </div>
         </div>
 
-        <div class="note">The extension badge shows "ON" when active, "D" for direct mode (no desktop node), and "OFF" when paused. Click the Phoenix icon to manage settings.</div>
+        <div class="note">The extension badge shows "ON" when active, "D" for direct mode (no desktop node), and "OFF" when paused. Click the MYSTES icon to manage settings.</div>
     </div>
 </div>
 
 <div id="mobile" class="tab-panel">
     <div class="guide-card">
         <h3>Mobile Apps</h3>
-        <p style="color:#aaa; margin-bottom: 24px;">Access Phoenix on your phone. Search flights, book deals, and run a background node.</p>
+        <p style="color:#aaa; margin-bottom: 24px;">Access MYSTES on your phone. Search flights, book deals, and run a background node.</p>
 
         <h4 style="color:#fff; margin-top:24px;">iPhone (iOS)</h4>
         <div class="step">
             <div class="step-num">1</div>
             <div class="step-content">
-                <p>Open Safari and visit <a href="https://phoenix-web-nj67.onrender.com" style="color:#4fc3f7;">phoenix-web-nj67.onrender.com</a></p>
+                <p>Open Safari and visit <a href="https://mystes-web-nj67.onrender.com" style="color:#4fc3f7;">mystes-web-nj67.onrender.com</a></p>
             </div>
         </div>
         <div class="step">
@@ -9349,7 +10592,7 @@ SETUP_GUIDES_CONTENT = """
         <div class="step">
             <div class="step-num">3</div>
             <div class="step-content">
-                <p>Open the Phoenix icon from your home screen — it runs as a full-screen PWA</p>
+                <p>Open the MYSTES icon from your home screen — it runs as a full-screen PWA</p>
             </div>
         </div>
 
@@ -9357,7 +10600,7 @@ SETUP_GUIDES_CONTENT = """
         <div class="step">
             <div class="step-num">1</div>
             <div class="step-content">
-                <p>Open Chrome and visit <a href="https://phoenix-web-nj67.onrender.com" style="color:#4fc3f7;">phoenix-web-nj67.onrender.com</a></p>
+                <p>Open Chrome and visit <a href="https://mystes-web-nj67.onrender.com" style="color:#4fc3f7;">mystes-web-nj67.onrender.com</a></p>
             </div>
         </div>
         <div class="step">
@@ -9390,7 +10633,7 @@ function showTab(id) {
 
 @app.route("/setup")
 def setup_guides():
-    """Quick-start setup guides for Phoenix components."""
+    """Quick-start setup guides for MYSTES components."""
     # Gate behind feature flag (Build #96)
     if not is_feature_enabled("node_onboarding"):
         flash("Node network coming soon.", "info")
@@ -9419,7 +10662,7 @@ def setup_guides():
 @limiter.limit("30/day")
 def api_ai_search():
     """Ensemble AI search — queries multiple providers in parallel."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
     data = request.get_json() or {}
     query = data.get("query", "").strip()
     if not query:
@@ -9430,7 +10673,7 @@ def api_ai_search():
     market = data.get("market")
     providers = data.get("providers")  # optional list of provider keys
 
-    result = phoenix_ai.search(
+    result = mystes_ai.search(
         user_id=current_user.id,
         query=query,
         market=market,
@@ -9445,9 +10688,9 @@ def api_ai_search():
 @login_required
 def api_ai_providers():
     """List available AI providers (platform + user's custom)."""
-    from ai_search import phoenix_ai, AI_PROVIDERS
-    platform = phoenix_ai.get_platform_providers()
-    user_provs = phoenix_ai.get_user_providers(current_user.id)
+    from ai_search import mystes_ai, AI_PROVIDERS
+    platform = mystes_ai.get_platform_providers()
+    user_provs = mystes_ai.get_user_providers(current_user.id)
 
     providers = {}
     for key, info in AI_PROVIDERS.items():
@@ -9464,7 +10707,7 @@ def api_ai_providers():
 @login_required
 def api_ai_add_provider():
     """User adds custom API key for an AI provider."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
     data = request.get_json() or {}
     provider = data.get("provider", "").strip()
     api_key = data.get("api_key")
@@ -9473,7 +10716,7 @@ def api_ai_add_provider():
     if not provider:
         return jsonify({"error": "Provider required"}), 400
 
-    result = phoenix_ai.add_user_provider(
+    result = mystes_ai.add_user_provider(
         user_id=current_user.id,
         provider_key=provider,
         api_key=api_key,
@@ -9488,8 +10731,8 @@ def api_ai_add_provider():
 @login_required
 def api_ai_remove_provider(provider):
     """User removes their custom API key for a provider."""
-    from ai_search import phoenix_ai
-    success = phoenix_ai.remove_user_provider(current_user.id, provider)
+    from ai_search import mystes_ai
+    success = mystes_ai.remove_user_provider(current_user.id, provider)
     if not success:
         return jsonify({"error": "Provider not found"}), 404
     return jsonify({"ok": True})
@@ -9510,9 +10753,9 @@ def api_ai_history():
 @login_required
 def api_ai_credits():
     """User's AI credit balance and free query count."""
-    from ai_search import phoenix_ai, FREE_QUERIES_PER_DAY
+    from ai_search import mystes_ai, FREE_QUERIES_PER_DAY
     from models import AISearchQuery
-    balance = phoenix_ai.get_user_credits(current_user.id)
+    balance = mystes_ai.get_user_credits(current_user.id)
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_count = AISearchQuery.query.filter(
         AISearchQuery.user_id == current_user.id,
@@ -9532,7 +10775,7 @@ def api_ai_credits():
 def api_intelligence_route(origin, destination):
     """Route intelligence profile: multi-market pricing, trends, demand."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         data = intelligence.get_route_intelligence(
             origin.upper(), destination.upper(),
             days_back=int(request.args.get("days", 30)),
@@ -9548,7 +10791,7 @@ def api_intelligence_route(origin, destination):
 def api_intelligence_market(market):
     """Market briefing: popular routes, savings, volatility."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         data = intelligence.get_market_briefing(
             market.upper(),
             days_back=int(request.args.get("days", 7)),
@@ -9564,7 +10807,7 @@ def api_intelligence_market(market):
 def api_intelligence_trending():
     """Trending routes and detected anomalies."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         anomalies = intelligence.detect_anomalies(
             days=int(request.args.get("days", 7)),
         )
@@ -9580,7 +10823,7 @@ def api_intelligence_trending():
 def api_intelligence_platform():
     """Platform-wide stats: searches, routes, markets, savings."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         data = intelligence.get_platform_stats()
         provider_perf = intelligence.get_provider_performance(
             days_back=int(request.args.get("days", 30)),
@@ -9599,7 +10842,7 @@ def api_intelligence_platform():
 def api_intelligence_p2p_network():
     """P2P network health: helpers, transactions, disputes."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         data = intelligence.get_p2p_network(days_back=days)
         return jsonify(data)
@@ -9613,7 +10856,7 @@ def api_intelligence_p2p_network():
 def api_intelligence_p2p_savings():
     """Top P2P savings routes."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         limit = int(request.args.get("limit", 10))
         data = intelligence.get_p2p_savings(days_back=days, limit=limit)
@@ -9628,7 +10871,7 @@ def api_intelligence_p2p_savings():
 def api_intelligence_nodes():
     """CitizenSERP node network stats."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         data = intelligence.get_node_network()
         return jsonify(data)
     except Exception as e:
@@ -9641,7 +10884,7 @@ def api_intelligence_nodes():
 def api_intelligence_proxy():
     """Proxy portal usage stats."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 7))
         data = intelligence.get_proxy_usage(days_back=days)
         return jsonify(data)
@@ -9655,7 +10898,7 @@ def api_intelligence_proxy():
 def api_intelligence_ai():
     """AI provider analytics and query trends."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         data = intelligence.get_ai_analytics(days_back=days)
         return jsonify(data)
@@ -9669,7 +10912,7 @@ def api_intelligence_ai():
 def api_intelligence_alerts():
     """Price alert demand signals."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         limit = int(request.args.get("limit", 20))
         data = intelligence.get_alert_demand(limit=limit)
         return jsonify(data)
@@ -9683,7 +10926,7 @@ def api_intelligence_alerts():
 def api_intelligence_deals():
     """Private market deal analytics."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         data = intelligence.get_private_market_stats(days_back=days)
         return jsonify(data)
@@ -9697,7 +10940,7 @@ def api_intelligence_deals():
 def api_intelligence_payments():
     """Payment method distribution and revenue."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         data = intelligence.get_payment_analytics(days_back=days)
         return jsonify(data)
@@ -9711,7 +10954,7 @@ def api_intelligence_payments():
 def api_intelligence_price_history(origin, dest):
     """Day-by-day price timeline for a route."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 30))
         data = intelligence.get_price_timeline(origin.upper(), dest.upper(), days_back=days)
         return jsonify(data)
@@ -9725,7 +10968,7 @@ def api_intelligence_price_history(origin, dest):
 def api_intelligence_airlines(origin, dest):
     """Airline competitive pricing for a route."""
     try:
-        from phoenix_intelligence import intelligence
+        from mystes_intelligence import intelligence
         days = int(request.args.get("days", 7))
         data = intelligence.get_airline_comparison(origin.upper(), dest.upper(), days_back=days)
         return jsonify(data)
@@ -9734,14 +10977,14 @@ def api_intelligence_airlines(origin, dest):
         return jsonify({"error": "Intelligence unavailable"}), 500
 
 
-# --- PhoenixAI Agent API Routes ---
+# --- MYSTESAI Agent API Routes ---
 
 @app.route("/api/agent/search", methods=["POST"])
 @login_required
 def api_agent_search():
-    """Agent-orchestrated search — PhoenixAI decides markets + strategy."""
+    """Agent-orchestrated search — MYSTESAI decides markets + strategy."""
     try:
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         data = request.get_json() or {}
         query = data.get("query", "")
         if not query:
@@ -9750,7 +10993,7 @@ def api_agent_search():
         task_type = data.get("task_type", "flight_search")
         user_market = data.get("market", "US")
 
-        result = phoenix_agent.handle_search(
+        result = mystes_agent.handle_search(
             query=query,
             user_id=current_user.id,
             task_type=task_type,
@@ -9766,11 +11009,11 @@ def api_agent_search():
 @app.route("/api/agent/analyze/<origin>/<destination>")
 @login_required
 def api_agent_analyze_route(origin, destination):
-    """Deep route analysis by PhoenixAI."""
+    """Deep route analysis by MYSTESAI."""
     try:
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         user_market = request.args.get("market", "US")
-        result = phoenix_agent.analyze_route(
+        result = mystes_agent.analyze_route(
             origin.upper(), destination.upper(), user_market=user_market
         )
         return jsonify(result)
@@ -9782,11 +11025,11 @@ def api_agent_analyze_route(origin, destination):
 @app.route("/api/agent/discover")
 @login_required
 def api_agent_discover():
-    """PhoenixAI opportunity discovery."""
+    """MYSTESAI opportunity discovery."""
     try:
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         force = request.args.get("force", "false").lower() == "true"
-        result = phoenix_agent.discover_opportunities(force=force)
+        result = mystes_agent.discover_opportunities(force=force)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Agent discovery error: {e}")
@@ -9798,7 +11041,7 @@ def api_agent_discover():
 def api_agent_select_markets():
     """Agent market selection for a search."""
     try:
-        from phoenix_agent import phoenix_agent
+        from mystes_agent import mystes_agent
         data = request.get_json() or {}
         origin = data.get("origin", "")
         destination = data.get("destination", "")
@@ -9806,7 +11049,7 @@ def api_agent_select_markets():
         user_market = data.get("market", "US")
         max_markets = int(data.get("max_markets", 8))
 
-        markets = phoenix_agent.market_selector.select_markets(
+        markets = mystes_agent.market_selector.select_markets(
             origin=origin.upper() if origin else None,
             destination=destination.upper() if destination else None,
             task_type=task_type,
@@ -9822,10 +11065,10 @@ def api_agent_select_markets():
 @app.route("/api/agent/status")
 @login_required
 def api_agent_status():
-    """PhoenixAI agent operational status."""
+    """MYSTESAI agent operational status."""
     try:
-        from phoenix_agent import phoenix_agent
-        return jsonify(phoenix_agent.get_agent_status())
+        from mystes_agent import mystes_agent
+        return jsonify(mystes_agent.get_agent_status())
     except Exception as e:
         logger.error(f"Agent status error: {e}")
         return jsonify({"error": "Agent status unavailable"}), 500
@@ -9985,7 +11228,7 @@ def api_tasks_stats():
 @login_required
 def api_deal_create():
     """Create a private market deal draft with AI assessment."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
     data = request.get_json() or {}
 
     required = ["item_description", "agreed_price"]
@@ -10001,10 +11244,10 @@ def api_deal_create():
         return jsonify({"error": "Invalid price"}), 400
 
     # Build contract terms via AI
-    contract = phoenix_ai.build_deal_contract(current_user.id, data)
+    contract = mystes_ai.build_deal_contract(current_user.id, data)
 
     # Create deal record
-    deal = phoenix_ai.create_private_deal(current_user.id, data, contract)
+    deal = mystes_ai.create_private_deal(current_user.id, data, contract)
 
     return jsonify({"deal": deal.to_dict(), "contract": contract})
 
@@ -10013,8 +11256,8 @@ def api_deal_create():
 @login_required
 def api_deal_fund(deal_id):
     """Fund XRPL escrow for a private market deal."""
-    from ai_search import phoenix_ai
-    result = phoenix_ai.fund_deal_escrow(deal_id, current_user.id)
+    from ai_search import mystes_ai
+    result = mystes_ai.fund_deal_escrow(deal_id, current_user.id)
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -10024,8 +11267,8 @@ def api_deal_fund(deal_id):
 @login_required
 def api_deal_confirm(deal_id):
     """Buyer confirms delivery — releases escrow."""
-    from ai_search import phoenix_ai
-    result = phoenix_ai.confirm_delivery(deal_id, current_user.id)
+    from ai_search import mystes_ai
+    result = mystes_ai.confirm_delivery(deal_id, current_user.id)
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -10035,9 +11278,9 @@ def api_deal_confirm(deal_id):
 @login_required
 def api_deal_dispute(deal_id):
     """Open dispute on a funded deal — escrow holds."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
     data = request.get_json() or {}
-    result = phoenix_ai.dispute_deal(deal_id, current_user.id, reason=data.get("reason", ""))
+    result = mystes_ai.dispute_deal(deal_id, current_user.id, reason=data.get("reason", ""))
     if result.get("error"):
         return jsonify(result), 400
     try:
@@ -10081,14 +11324,14 @@ def api_deal_detail(deal_id):
 @login_required
 def api_deal_generate_link(deal_id):
     """Generate a shareable link for a deal. Buyer sends this to the seller."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
     data = request.get_json() or {}
 
     expiration_days = int(data.get("expiration_days", 7))
     if expiration_days < 1 or expiration_days > 30:
         return jsonify({"error": "Expiration must be between 1 and 30 days"}), 400
 
-    result = phoenix_ai.generate_deal_link(deal_id, current_user.id, expiration_days)
+    result = mystes_ai.generate_deal_link(deal_id, current_user.id, expiration_days)
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -10098,8 +11341,8 @@ def api_deal_generate_link(deal_id):
 @login_required
 def api_deal_send_link(deal_id):
     """Send deal link to seller via email."""
-    from ai_search import phoenix_ai
-    result = phoenix_ai.send_deal_link_email(deal_id, current_user.id)
+    from ai_search import mystes_ai
+    result = mystes_ai.send_deal_link_email(deal_id, current_user.id)
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -10149,19 +11392,19 @@ def _check_rate_limit(key, max_requests=3, window=60):
 @app.route("/deal/link/<link_token>")
 def public_deal_link_view(link_token):
     """PUBLIC: Seller views deal terms via shareable link. No auth required."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
 
-    phoenix_ai.mark_deal_link_viewed(link_token)
-    result = phoenix_ai.get_deal_by_link_token(link_token)
+    mystes_ai.mark_deal_link_viewed(link_token)
+    result = mystes_ai.get_deal_by_link_token(link_token)
 
     if result.get("error"):
         return f"""<!DOCTYPE html>
-<html><head><title>Deal Link — PHOENIX</title>
+<html><head><title>Deal Link — MYSTES</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{{font-family:-apple-system,sans-serif;background:#f5f7fa;padding:40px}}
 .c{{max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)}}
 .e{{color:#d32f2f}}</style></head>
-<body><div class="c"><h1 style="color:#4361ee">PHOENIX</h1>
+<body><div class="c"><h1 style="color:#4361ee">MYSTES</h1>
 <p class="e">{result['error']}</p></div></body></html>""", 404
 
     d = result["deal"]
@@ -10171,7 +11414,7 @@ def public_deal_link_view(link_token):
     if not already_accepted:
         accept_form = f"""
         <div style="background:#fff3cd;border:1px solid #ffeaa7;padding:20px;border-radius:8px;margin:20px 0">
-            <h4 style="margin-top:0;color:#856404">How PHOENIX Escrow Works</h4>
+            <h4 style="margin-top:0;color:#856404">How MYSTES Escrow Works</h4>
             <ol style="padding-left:20px;color:#856404">
                 <li>You provide your XRPL wallet address below</li>
                 <li>The buyer creates an on-chain escrow with the funds</li>
@@ -10181,7 +11424,7 @@ def public_deal_link_view(link_token):
                 <li>Escrow releases payment to your wallet automatically</li>
             </ol>
             <p style="margin-bottom:0;color:#856404;font-weight:bold">
-                Phoenix takes a fee but is NOT liable for physical goods execution.
+                MYSTES takes a fee but is NOT liable for physical goods execution.
                 This is a peer-to-peer escrow service.</p>
         </div>
         <form id="af">
@@ -10216,7 +11459,7 @@ def public_deal_link_view(link_token):
                 if(data.ok){{
                     msg.innerHTML='<div style="color:#2e7d32;padding:10px;background:#e8f5e9;border-radius:8px;margin-bottom:20px"><strong>Deal accepted!</strong> The buyer will now fund the escrow.</div>'+
                     '<div style="background:#f0f4ff;padding:25px;border-radius:12px;border-left:4px solid #4361ee">'+
-                    '<h3 style="margin-top:0;color:#1a1a2e">Create a PHOENIX Account</h3>'+
+                    '<h3 style="margin-top:0;color:#1a1a2e">Create a MYSTES Account</h3>'+
                     '<p style="color:#666">Track this deal and future transactions. Your wallet is already linked.</p>'+
                     '<div style="margin:15px 0"><label style="display:block;margin-bottom:5px;font-weight:600">Email *</label>'+
                     '<input type="email" id="su_email" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:15px;box-sizing:border-box" required></div>'+
@@ -10261,7 +11504,7 @@ def public_deal_link_view(link_token):
         </div>"""
 
     return f"""<!DOCTYPE html>
-<html><head><title>Deal Proposal — PHOENIX</title>
+<html><head><title>Deal Proposal — MYSTES</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;
@@ -10270,7 +11513,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;
     box-shadow:0 10px 30px rgba(0,0,0,.2)}}
 </style></head>
 <body><div class="c">
-    <div style="color:#4361ee;font-size:28px;font-weight:bold;margin-bottom:30px">PHOENIX</div>
+    <div style="color:#4361ee;font-size:28px;font-weight:bold;margin-bottom:30px">MYSTES</div>
     <h1>Deal Proposal</h1>
     <p>You've received a secure escrow deal proposal from <strong>{d['buyer_name']}</strong>.</p>
 
@@ -10300,7 +11543,7 @@ def public_deal_link_accept(link_token):
     if not _check_rate_limit(request.remote_addr, max_requests=3, window=60):
         return jsonify({"error": "Rate limit exceeded. Please wait and try again."}), 429
 
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
 
     data = request.get_json() or {}
     seller_wallet = (data.get("seller_wallet") or "").strip()
@@ -10309,7 +11552,7 @@ def public_deal_link_accept(link_token):
     if not seller_wallet:
         return jsonify({"error": "Wallet address is required"}), 400
 
-    result = phoenix_ai.accept_deal_link(link_token, seller_wallet, seller_name)
+    result = mystes_ai.accept_deal_link(link_token, seller_wallet, seller_name)
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -10317,7 +11560,7 @@ def public_deal_link_accept(link_token):
 
 @app.route("/deal/link/<link_token>/signup", methods=["POST"])
 def public_deal_link_signup(link_token):
-    """PUBLIC: Seller creates a PHOENIX account from the deal acceptance page.
+    """PUBLIC: Seller creates a MYSTES account from the deal acceptance page.
 
     Onboards the seller with their wallet pre-linked. The deal brought them here.
     """
@@ -10437,7 +11680,7 @@ def api_referral_share_links():
 
     # Generate a personal referral code if none exists
     if not ref_code:
-        ref_code = f"PHOENIX_{current_user.id}"
+        ref_code = f"MYSTES_{current_user.id}"
 
     base_url = os.environ.get("BASE_URL", "http://localhost:5001")
     share = generate_referral_share_links(ref_code, user_name, base_url)
@@ -10596,7 +11839,7 @@ WALLET_CONTENT = """
                 <p style="color: #fff; font-style: italic;">Loading zone availability...</p>
             </div>
             <p id="zone-crypto-note" style="display: none; color: #2e7d32; font-size: 13px; margin-top: 12px;">
-                With a verified XRPL wallet, you get universal access via Phoenix virtual card to ALL zones.
+                With a verified XRPL wallet, you get universal access via MYSTES virtual card to ALL zones.
             </p>
         </div>
 
@@ -10607,7 +11850,7 @@ WALLET_CONTENT = """
             <h2 style="color: #1a1a2e; margin-bottom: 5px; font-size: 20px;">Buy USDC / XRP</h2>
             <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
                 On-ramp to crypto through verified providers. Funds go to your connected XRPL wallet.
-                Or bring your own payment method &mdash; Phoenix doesn't require you to use these.
+                Or bring your own payment method &mdash; MYSTES doesn't require you to use these.
             </p>
             <div id="ramp-providers" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
                 <p style="color: #fff; font-style: italic;">Loading ramp providers...</p>
@@ -10666,7 +11909,7 @@ WALLET_CONTENT = """
         <div>
             <h2 style="color: #1a1a2e; margin-bottom: 5px; font-size: 20px;">Virtual Card Pipeline</h2>
             <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                Phoenix can convert your crypto to a virtual Visa card for any merchant purchase &mdash; arbitrage deals or free browsing.
+                MYSTES can convert your crypto to a virtual Visa card for any merchant purchase &mdash; arbitrage deals or free browsing.
             </p>
             <div style="display: flex; gap: 0; align-items: center; flex-wrap: wrap;">
                 <div style="flex:1; min-width:100px; text-align:center; padding:14px 8px; background:#e3f2fd; border-radius:8px 0 0 8px;">
@@ -10955,9 +12198,9 @@ HELPER_DASHBOARD_CONTENT = """
         {% if not helper %}
         <!-- Sign up as helper -->
         <div style="text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 12px;">
-            <h2 style="color: #1a1a2e; margin-bottom: 10px;">Become a Phoenix Helper</h2>
+            <h2 style="color: #1a1a2e; margin-bottom: 10px;">Become a MYSTES Helper</h2>
             <p style="color: #666; margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto;">
-                Earn RLUSD by allowing Phoenix to use your browser session for flight bookings in your market.
+                Earn RLUSD by allowing MYSTES to use your browser session for flight bookings in your market.
                 You earn 5% of every ticket price booked through you.
             </p>
             <form method="POST" action="/helper/activate">
@@ -11073,7 +12316,7 @@ HELPER_DASHBOARD_CONTENT = """
             <div class="toggle-row">
                 <div class="label">
                     <strong>Accepting Requests</strong>
-                    <p>When active, Phoenix may use your browser session for bookings.</p>
+                    <p>When active, MYSTES may use your browser session for bookings.</p>
                 </div>
                 <form method="POST" action="/helper/toggle">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -11146,7 +12389,7 @@ HELPER_DASHBOARD_CONTENT = """
                 </div>
                 {% endfor %}
             {% else %}
-                <p style="color: #fff; font-style: italic; padding: 20px 0;">No transactions yet. Once Phoenix matches you with a booking request, it will appear here.</p>
+                <p style="color: #fff; font-style: italic; padding: 20px 0;">No transactions yet. Once MYSTES matches you with a booking request, it will appear here.</p>
             {% endif %}
         </div>
 
@@ -11359,7 +12602,7 @@ def helper_token_view():
 BROWSING_DASHBOARD_CONTENT = """
 <div style="max-width: 900px; margin: 0 auto; padding: 30px 20px;">
     <h2 style="color: #ff6b35; margin-bottom: 5px;">Browser Extension Dashboard</h2>
-    <p style="color: #fff; margin-bottom: 25px;">Passive browsing data earnings from the Phoenix Chrome extension.</p>
+    <p style="color: #fff; margin-bottom: 25px;">Passive browsing data earnings from the MYSTES Chrome extension.</p>
 
     <!-- Connection Status -->
     <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(255,107,53,0.2);">
@@ -11465,7 +12708,7 @@ BROWSING_DASHBOARD_CONTENT = """
         <div style="font-size: 15px; font-weight: 600; color: #ff6b35; margin-bottom: 12px;">Quick Setup</div>
         <ol style="color: #fff; line-height: 1.8; padding-left: 20px; margin: 0;">
             <li>Generate a helper token above (if you haven't already)</li>
-            <li>Install the Phoenix Chrome extension from <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">chrome://extensions</code> (load unpacked)</li>
+            <li>Install the MYSTES Chrome extension from <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">chrome://extensions</code> (load unpacked)</li>
             <li>Open extension options and paste your helper token</li>
             <li>Start the local node service: <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">python node_service.py --token YOUR_TOKEN</code></li>
             <li>Browse normally — data is captured passively and you earn micropayments</li>
@@ -12530,7 +13773,7 @@ function setupAutoSave() {
 // ===============================
 // AUTO-SAVE/RESTORE SEARCH PREFERENCES
 // ===============================
-const SEARCH_PREFS_KEY = 'phoenix_search_prefs';
+const SEARCH_PREFS_KEY = 'mystes_search_prefs';
 
 function saveSearchPreferences() {
     try {
@@ -13226,7 +14469,7 @@ function displayResults(data) {
                         <div style="font-size: 20px; font-weight: bold; text-decoration: line-through; opacity: 0.8;">$${(proxyResults.savings_vs_us + proxyResults.cheapest_price_usd)?.toFixed(0) || 'N/A'}</div>
                     </div>
                     <div style="flex: 1; text-align: center; min-width: 150px; background: rgba(255,255,255,0.2); border-radius: 8px; padding: 8px;">
-                        <div style="font-size: 11px; opacity: 0.8; text-transform: uppercase;">🔥 Phoenix Price</div>
+                        <div style="font-size: 11px; opacity: 0.8; text-transform: uppercase;">🔥 MYSTES Price</div>
                         <div style="font-size: 11px; opacity: 0.7;">Powered by global price intelligence</div>
                         <div style="font-size: 20px; font-weight: bold;">$${proxyResults.cheapest_price_usd?.toFixed(0) || 'N/A'}</div>
                     </div>
@@ -13280,7 +14523,7 @@ function displayResults(data) {
         html += `
                 </div>
                 <p style="text-align: center; margin-top: 15px; color: #666; font-size: 13px;">
-                    Prices shown are the lowest found by Phoenix's price engine
+                    Prices shown are the lowest found by MYSTES's price engine
                 </p>
             </div>
         `;
@@ -13347,7 +14590,7 @@ function displayResults(data) {
                 duration: f.duration,
                 stops: f.stops,
                 cheapest_price: f.cheapest_price,
-                cheapest_market: 'Phoenix',
+                cheapest_market: 'MYSTES',
                 converted_prices: {},  // Scrubbed
                 deal: f.deal
             })).sort((a, b) => (a.cheapest_price || 9999) - (b.cheapest_price || 9999));
@@ -13382,7 +14625,7 @@ function displayResults(data) {
                 const savingsPct = usPrice > 0 ? ((savings / usPrice) * 100).toFixed(0) : 0;
                 const hasSavings = savings > 5;
 
-                const isExclusive = flight.deal && flight.deal.cheapest_market === 'Phoenix';
+                const isExclusive = flight.deal && flight.deal.cheapest_market === 'MYSTES';
                 const flightData = encodeURIComponent(JSON.stringify({
                     airline: flight.airline,
                     flight_number: flight.flight_number,
@@ -13391,7 +14634,7 @@ function displayResults(data) {
                     duration: flight.duration,
                     stops: flight.stops,
                     cheapest_price: cheapestPrice,
-                    cheapest_market: 'Phoenix',
+                    cheapest_market: 'MYSTES',
                     us_price: usPrice,
                     savings: savings,
                     route: leg.route,
@@ -13409,13 +14652,13 @@ function displayResults(data) {
                         <td>
                             <strong>${flight.airline || 'Multiple'}</strong>
                             ${flight.flight_number ? `<br><span style="color: #666; font-size: 12px;">${flight.flight_number}</span>` : ''}
-                            ${isExclusive ? `<br><span style="background: #ff6b35; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px;">🔥 Phoenix Exclusive</span>` : ''}
+                            ${isExclusive ? `<br><span style="background: #ff6b35; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px;">🔥 MYSTES Exclusive</span>` : ''}
                         </td>
                         <td>${flight.departure_time || 'N/A'} - ${flight.arrival_time || 'N/A'}</td>
                         <td>${flight.duration || 'N/A'}</td>
                         <td>${flight.stops === 0 ? 'Nonstop' : (flight.stops !== undefined ? flight.stops + ' stop' + (flight.stops > 1 ? 's' : '') : 'N/A')}</td>
                         <td style="font-weight: bold; color: #28a745;">$${cheapestPrice?.toFixed(0) || 'N/A'}</td>
-                        <td><span class="market-tag">Phoenix</span></td>
+                        <td><span class="market-tag">MYSTES</span></td>
                         <td>${isExclusive ? '<span style="color: #fff; font-size: 11px;">Not available</span>' : `$${usPrice?.toFixed(0) || 'N/A'}`}</td>
                         <td>${hasSavings ? `<span style="color: #28a745; font-weight: bold;">$${savings.toFixed(0)} (${savingsPct}%)</span>` : (isExclusive ? `<span style="color: #ff6b35; font-weight: bold;">Exclusive Deal</span>` : '<span style="color: #fff;">-</span>')}</td>
                         <td>
@@ -13432,7 +14675,7 @@ function displayResults(data) {
                 </table>
             `;
 
-            // Market breakdown removed — Phoenix price intelligence is proprietary
+            // Market breakdown removed — MYSTES price intelligence is proprietary
 
         } else if (hasDeal) {
             // Fallback to old deal display if no all_flights data
@@ -13451,7 +14694,7 @@ function displayResults(data) {
                         <span style="color: #28a745; font-weight: bold;">$${deal.arbitrage_price?.toFixed(2) || 'N/A'}</span>
                     </div>
                 </div>
-                <span class="market-tag">Book via Phoenix</span>
+                <span class="market-tag">Book via MYSTES</span>
             `;
         } else {
             html += `
@@ -13673,7 +14916,7 @@ function updateCheckoutPanel() {
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 2px solid #e0e0e0;">
                         <div>
                             <span style="color: #555; font-size: 13px;">Total round-trip via</span>
-                            <span class="market-tag" style="margin-left: 8px;">Phoenix</span>
+                            <span class="market-tag" style="margin-left: 8px;">MYSTES</span>
                         </div>
                         <span style="font-size: 24px; font-weight: bold; color: #28a745;">$${flight.cheapest_price?.toFixed(2) || 'N/A'}</span>
                     </div>
@@ -13718,7 +14961,7 @@ function updateCheckoutPanel() {
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 2px solid #e0e0e0;">
                         <div>
                             <span style="color: #555; font-size: 13px;">Best price via</span>
-                            <span class="market-tag" style="margin-left: 8px;">Phoenix</span>
+                            <span class="market-tag" style="margin-left: 8px;">MYSTES</span>
                         </div>
                         <span style="font-size: 24px; font-weight: bold; color: #28a745;">$${flight.cheapest_price?.toFixed(2) || 'N/A'}</span>
                     </div>
@@ -13863,7 +15106,7 @@ function proceedToPayment() {
             flight_number: flight.flight_number,
             route: flight.route,
             date: flight.date,
-            cheapest_market: 'Phoenix',
+            cheapest_market: 'MYSTES',
             cheapest_price: flight.cheapest_price,
             us_price: flight.us_price,
             savings: flight.savings
@@ -13889,7 +15132,7 @@ function proceedToPayment() {
         flight_number: flights[0]?.flight_number,
         route: flights.map(f => f.route).join(' | '),
         date: flights.map(f => f.date).join(', '),
-        cheapest_market: 'Phoenix',
+        cheapest_market: 'MYSTES',
         cheapest_price: totalBestPrice,
         us_price: flights.reduce((sum, f) => sum + (f.us_price || f.cheapest_price), 0),
         savings: totalSavings
@@ -14233,7 +15476,7 @@ function displayImportResults(data) {
         <div class="card" style="margin-top: 20px;">
             <h2>Price Comparison Results</h2>
             <p style="color: #666; margin-bottom: 20px;">
-                Searched ${data.flights_compared} flights across ${typeof data.markets_checked === 'number' ? data.markets_checked : (data.markets_checked?.length || 5)} regions via Phoenix price engine
+                Searched ${data.flights_compared} flights across ${typeof data.markets_checked === 'number' ? data.markets_checked : (data.markets_checked?.length || 5)} regions via MYSTES price engine
             </p>
     `;
 
@@ -14283,7 +15526,7 @@ function displayImportResults(data) {
                         <td><span class="market-tag">Region ${market === 'US' ? '(Your area)' : ''}</span></td>
                         <td>$${priceData.price_usd?.toFixed(2) || 'N/A'}</td>
                         <td>$${priceData.price_usd?.toFixed(2) || 'N/A'}</td>
-                        <td>${isCheapest ? '<strong>PHOENIX PRICE</strong>' : `+$${diff.toFixed(2)}`}</td>
+                        <td>${isCheapest ? '<strong>MYSTES PRICE</strong>' : `+$${diff.toFixed(2)}`}</td>
                     </tr>
                 `;
             }
@@ -14293,10 +15536,10 @@ function displayImportResults(data) {
                 </table>
                 <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <p style="margin: 0; color: #155724;">
-                        <strong>Best option:</strong> Book via <span class="market-tag">Phoenix</span> for $${cheapestPrice.toFixed(2)}
+                        <strong>Best option:</strong> Book via <span class="market-tag">MYSTES</span> for $${cheapestPrice.toFixed(2)}
                     </p>
                     ${savings > 5 ? `
-                        <a href="/p2p/book?origin=${encodeURIComponent(flight.origin)}&destination=${encodeURIComponent(flight.destination)}&date=${encodeURIComponent(flight.date)}&flight=${encodeURIComponent(flight.flight_number)}&market=phoenix&price=${cheapestPrice.toFixed(2)}&us_price=${flight.market_prices['US']?.price_usd?.toFixed(2) || cheapestPrice.toFixed(2)}"
+                        <a href="/p2p/book?origin=${encodeURIComponent(flight.origin)}&destination=${encodeURIComponent(flight.destination)}&date=${encodeURIComponent(flight.date)}&flight=${encodeURIComponent(flight.flight_number)}&market=mystes&price=${cheapestPrice.toFixed(2)}&us_price=${flight.market_prices['US']?.price_usd?.toFixed(2) || cheapestPrice.toFixed(2)}"
                            class="btn" style="background: #ff6b35; border-color: #ff6b35; color: white; padding: 8px 16px; font-size: 13px; text-decoration: none; border-radius: 6px;">
                             Book via P2P Network — Save $${savings.toFixed(2)}
                         </a>
@@ -14315,7 +15558,7 @@ function displayImportResults(data) {
         html += `
             <div style="background: #d4edda; padding: 20px; border-radius: 12px; text-align: center;">
                 <h3 style="color: #155724; margin: 0;">Total Potential Savings: $${totalSavings.toFixed(2)}</h3>
-                <p style="color: #155724; margin: 10px 0 0 0;">by booking through Phoenix's price engine</p>
+                <p style="color: #155724; margin: 10px 0 0 0;">by booking through MYSTES's price engine</p>
             </div>
         `;
     }
@@ -14571,7 +15814,7 @@ function displayFlightComparison(data, flightNumber) {
             <div style="background: #d4edda; padding: 15px; border-radius: 8px; margin-top: 20px;">
                 <h3 style="margin: 0 0 10px 0; color: #155724;">Savings Available!</h3>
                 <div class="price-row">
-                    <span>Book via Phoenix instead of standard pricing:</span>
+                    <span>Book via MYSTES instead of standard pricing:</span>
                     <span style="font-size: 20px; font-weight: bold; color: #155724;">Save $${comparison.max_savings_usd.toFixed(2)} (${comparison.savings_percent}%)</span>
                 </div>
         `;
@@ -15217,7 +16460,7 @@ def api_compare_itinerary():
                     "date": date,
                     "airline": search_result.get("flight", {}).get("airline", ""),
                     "market_prices": {},  # Scrubbed
-                    "cheapest_market": "Phoenix",
+                    "cheapest_market": MYSTES,
                     "cheapest_price_usd": cheapest_price,
                     "us_price_usd": us_price,
                     "savings_usd": round(savings, 2)
@@ -15623,20 +16866,22 @@ def pay_with_card(deal_id):
         fee_usd=deal.platform_fee_usd,
         user_email=current_user.email,
         success_url=request.host_url + "pay/success",
-        cancel_url=request.host_url + f"pay/{deal_id}"
+        cancel_url=request.host_url + f"pay/{deal_id}",
+        user_id=current_user.id
     )
 
     if "error" in result:
         flash(f"Card payment error: {result['error']}", "error")
         return redirect(f"/pay/{deal_id}")
 
-    # Store pending payment
+    # Store pending payment with Stripe session reference
     payment = Payment(
         user_id=current_user.id,
         deal_id=deal.id,
-        expected_xrp=0,  # Card payment, no XRP
+        payment_method='card',
+        amount_usd=deal.platform_fee_usd,
+        stripe_session_id=result.get("session_id"),
         status='pending',
-        destination_tag=0
     )
     db.session.add(payment)
     db.session.commit()
@@ -15658,20 +16903,46 @@ def payment_success():
     result = verify_stripe_session(session_id)
 
     if result.get("verified"):
-        # Update payment record
         deal = Deal.query.filter_by(deal_id=deal_id).first()
         if deal:
-            payment = Payment.query.filter_by(
+            # Check for existing verified payment (prevent duplicates)
+            existing = Payment.query.filter_by(
                 user_id=current_user.id,
                 deal_id=deal.id,
-                status='pending'
+                status='verified'
             ).first()
 
-            if payment:
-                payment.status = 'verified'
-                payment.verified_at = datetime.utcnow()
-                payment.tx_hash = result.get("payment_intent", "stripe")
-                db.session.commit()
+            if not existing:
+                # Update pending payment or create new verified one
+                payment = Payment.query.filter_by(
+                    user_id=current_user.id,
+                    deal_id=deal.id,
+                    status='pending'
+                ).first()
+
+                if payment:
+                    payment.status = 'verified'
+                    payment.verified_at = datetime.utcnow()
+                    payment.payment_method = 'card'
+                    payment.tx_hash = result.get("payment_intent", "stripe")
+                    payment.stripe_session_id = session_id
+                    payment.stripe_payment_intent = result.get("payment_intent")
+                    db.session.commit()
+                else:
+                    # No pending record — create verified payment directly
+                    payment = Payment(
+                        user_id=current_user.id,
+                        deal_id=deal.id,
+                        payment_method='card',
+                        amount_usd=deal.platform_fee_usd,
+                        tx_hash=result.get("payment_intent"),
+                        stripe_session_id=session_id,
+                        stripe_payment_intent=result.get("payment_intent"),
+                        status='verified',
+                        verified_at=datetime.utcnow()
+                    )
+                    db.session.add(payment)
+                    db.session.commit()
 
         flash("Payment successful! Here's your deal.", "success")
         return redirect(f"/deal/{deal_id}/access")
@@ -15986,7 +17257,7 @@ P2P_BOOK_CONTENT = """
         <div class="p2p-step-number">2</div>
         <div class="p2p-step-content">
             <h3>Helper Books Your Flight</h3>
-            <p>A verified helper in the {{ market }} market grants Phoenix temporary browser access. Phoenix automates the booking on their device.</p>
+            <p>A verified helper in the {{ market }} market grants MYSTES temporary browser access. MYSTES automates the booking on their device.</p>
         </div>
     </div>
     <div class="p2p-step">
@@ -16937,7 +18208,7 @@ def admin_features():
                    style="width: 100%; accent-color: #00c864;"
                    oninput="document.getElementById('payoutValue').textContent = this.value + '%'">
             <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #666; margin-top: 4px;">
-                <span>0% (Phoenix keeps all)</span>
+                <span>0% (MYSTES keeps all)</span>
                 <span>100% (Nodes get all)</span>
             </div>
             <button onclick="updatePayoutPct()" style="margin-top: 12px; padding: 10px 24px; background: #00c864; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Save Payout %</button>
@@ -17467,6 +18738,57 @@ def admin_wallet():
     )
 
 
+class ProxyManager:
+    """Manage Webshare proxy configuration for multi-market scraping."""
+
+    def __init__(self):
+        self.username = os.environ.get("WEBSHARE_USERNAME", "")
+        self.password = os.environ.get("WEBSHARE_PASSWORD", "")
+        self.host = os.environ.get("WEBSHARE_HOST", "proxy.webshare.io")
+
+    def get_status(self):
+        configured = bool(self.username and self.password)
+        supported = ["US", "UK", "JP", "DE", "ES", "FR", "IT", "DK",
+                      "IN", "BR", "AU", "CA", "MX", "KR"]
+        return {
+            "configured": configured,
+            "provider": "Webshare" if configured else None,
+            "proxy_type": "residential" if configured else "none",
+            "host": self.host,
+            "username": self.username[:4] + "****" if self.username else "",
+            "supported_markets": supported,
+            "has_api_key": bool(self.username),
+            "has_credentials": configured,
+        }
+
+    def test_proxy(self, market):
+        import requests as _req
+        country_codes = {
+            "US": "US", "UK": "GB", "JP": "JP", "DE": "DE",
+            "ES": "ES", "FR": "FR", "IT": "IT", "DK": "DK",
+            "IN": "IN", "BR": "BR", "AU": "AU", "CA": "CA",
+            "MX": "MX", "KR": "KR",
+        }
+        cc = country_codes.get(market, market)
+        targeted_user = f"{self.username}-country-{cc}"
+        proxy_url = f"http://{targeted_user}:{self.password}@{self.host}:80"
+        try:
+            resp = _req.get(
+                "https://ipapi.co/json/",
+                proxies={"http": proxy_url, "https": proxy_url},
+                timeout=15,
+            )
+            data = resp.json()
+            return {
+                "market": market, "success": True,
+                "ip": data.get("ip", ""),
+                "detected_country": data.get("country_name", ""),
+                "detected_city": data.get("city", ""),
+            }
+        except Exception as e:
+            return {"market": market, "success": False, "error": str(e)}
+
+
 @app.route("/admin/proxies")
 @admin_required
 def admin_proxies():
@@ -17975,7 +19297,7 @@ def admin_tasks():
             interval = str(sched)
 
         task_name = entry["task"].replace("celery_app.", "")
-        queue = celery.conf.task_routes.get(entry["task"], {}).get("queue", "phoenix")
+        queue = celery.conf.task_routes.get(entry["task"], {}).get("queue", "mystes")
         schedule.append({
             "name": name,
             "task": task_name,
@@ -18059,7 +19381,7 @@ def admin_task_result(task_id):
 
 ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
 <h1 style="color: #ff6b35;">Node Fleet Dashboard</h1>
-<p style="color: #fff;">Real-time monitoring of the Phoenix node network and browsing data pipeline.</p>
+<p style="color: #fff;">Real-time monitoring of the MYSTES node network and browsing data pipeline.</p>
 
 <!-- Fleet Summary -->
 <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">
@@ -18961,16 +20283,16 @@ def api_dispute_analytics():
 def extension_updates_xml():
     """Serve Chrome extension update manifest for self-hosted auto-update."""
     import glob as glob_mod
-    update_file = os.path.join(app.root_path, "phoenix_extension", "dist", "update.xml")
+    update_file = os.path.join(app.root_path, "mystes_extension", "dist", "update.xml")
     if not os.path.exists(update_file):
         # Generate on-the-fly from manifest version
-        manifest_path = os.path.join(app.root_path, "phoenix_extension", "manifest.json")
+        manifest_path = os.path.join(app.root_path, "mystes_extension", "manifest.json")
         if not os.path.exists(manifest_path):
             return Response("Extension not built", status=404, content_type="text/plain")
         with open(manifest_path) as f:
             manifest = json.loads(f.read())
         version = manifest.get("version", "1.0.0")
-        ext_id = "phoenix-node-extension"
+        ext_id = "mystes-node-extension"
         base_url = request.host_url.rstrip("/")
         xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
@@ -18989,12 +20311,12 @@ def extension_download(version):
     import re
     if not re.match(r'^[\d.]+$', version):
         return jsonify({"error": "Invalid version format"}), 400
-    dist_dir = os.path.join(app.root_path, "phoenix_extension", "dist")
-    zip_name = f"phoenix_extension_v{version}.zip"
+    dist_dir = os.path.join(app.root_path, "mystes_extension", "dist")
+    zip_name = f"mystes_extension_v{version}.zip"
     zip_path = os.path.join(dist_dir, zip_name)
     if not os.path.exists(zip_path):
         # Try without v prefix
-        zip_name = f"phoenix_extension_{version}.zip"
+        zip_name = f"mystes_extension_{version}.zip"
         zip_path = os.path.join(dist_dir, zip_name)
     if not os.path.exists(zip_path):
         return jsonify({"error": f"Version {version} not found"}), 404
@@ -19021,8 +20343,8 @@ register_monitor_routes(app)
 from node_service_api import register_node_service_routes
 register_node_service_routes(app)
 
-from phoenix_ai_api import register_phoenix_ai_routes
-register_phoenix_ai_routes(app, csrf=csrf)
+from mystes_ai_api import register_mystes_ai_routes
+register_mystes_ai_routes(app, csrf=csrf)
 
 from data_marketplace import register_data_marketplace_routes
 register_data_marketplace_routes(app)
@@ -19074,24 +20396,24 @@ def node_installer_download():
     if target_os == "windows":
         # Return PowerShell one-liner
         script = (
-            f'# Phoenix Node Service Installer\n'
+            f'# MYSTES Node Service Installer\n'
             f'# Run this in PowerShell as Administrator\n'
             f'$Token = "{token}"\n'
             f'$Server = "{server_url}"\n'
             f'Invoke-WebRequest -Uri "$Server/static/scripts/install-node-service.ps1" '
-            f'-OutFile "$env:TEMP\\install-phoenix-node.ps1"\n'
-            f'& "$env:TEMP\\install-phoenix-node.ps1" -Token $Token -Server $Server\n'
+            f'-OutFile "$env:TEMP\\install-mystes-node.ps1"\n'
+            f'& "$env:TEMP\\install-mystes-node.ps1" -Token $Token -Server $Server\n'
         )
         return Response(
             script,
             mimetype="text/plain",
-            headers={"Content-Disposition": "attachment; filename=install-phoenix-node.ps1"},
+            headers={"Content-Disposition": "attachment; filename=install-mystes-node.ps1"},
         )
     else:
         # Return bash one-liner
         script = (
             f'#!/bin/bash\n'
-            f'# Phoenix Node Service Installer\n'
+            f'# MYSTES Node Service Installer\n'
             f'TOKEN="{token}"\n'
             f'SERVER="{server_url}"\n'
             f'curl -sSL "$SERVER/static/scripts/install-node-service.sh" | '
@@ -19100,7 +20422,7 @@ def node_installer_download():
         return Response(
             script,
             mimetype="text/plain",
-            headers={"Content-Disposition": f"attachment; filename=install-phoenix-node.sh"},
+            headers={"Content-Disposition": f"attachment; filename=install-mystes-node.sh"},
         )
 
 # Seed default payment compatibility rules if table is empty
@@ -19129,7 +20451,7 @@ BYOAI_SETTINGS_CONTENT = """
 <div style="max-width:900px;margin:0 auto;">
     <div style="margin-bottom:30px;">
         <h1 style="color:#fff;margin:0 0 8px 0;font-size:28px;">AI Provider Settings</h1>
-        <p style="color:#aaa;margin:0;font-size:15px;">Bring Your Own AI (BYOAI) — connect your personal AI provider keys for flight search intelligence, or use PhoenixAI for optimized results.</p>
+        <p style="color:#aaa;margin:0;font-size:15px;">Bring Your Own AI (BYOAI) — connect your personal AI provider keys for flight search intelligence, or use MYSTESAI for optimized results.</p>
     </div>
 
     <!-- Current Providers -->
@@ -19200,21 +20522,21 @@ BYOAI_SETTINGS_CONTENT = """
         </div>
     </div>
 
-    <!-- PhoenixAI Comparison -->
+    <!-- MYSTESAI Comparison -->
     <div style="background:#16213e;border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:24px;margin-bottom:24px;">
-        <h2 style="color:#00d4ff;margin:0 0 16px 0;font-size:20px;">PhoenixAI Comparison</h2>
+        <h2 style="color:#00d4ff;margin:0 0 16px 0;font-size:20px;">MYSTESAI Comparison</h2>
         {% if comparison_stats %}
         <div style="background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.15);border-radius:8px;padding:16px;margin-bottom:16px;">
             <p style="color:#fff;margin:0 0 8px 0;font-size:15px;font-weight:600;">Last Comparison Results</p>
-            <p style="color:#00e676;margin:0;font-size:14px;">PhoenixAI found {{ comparison_stats.additional_pct }}% more results</p>
+            <p style="color:#00e676;margin:0;font-size:14px;">MYSTESAI found {{ comparison_stats.additional_pct }}% more results</p>
             <div style="display:flex;gap:20px;margin-top:10px;">
                 <span style="color:#aaa;font-size:13px;">Your results: <strong style="color:#fff;">{{ comparison_stats.user_count }}</strong></span>
-                <span style="color:#aaa;font-size:13px;">PhoenixAI results: <strong style="color:#00d4ff;">{{ comparison_stats.phoenix_count }}</strong></span>
+                <span style="color:#aaa;font-size:13px;">MYSTESAI results: <strong style="color:#00d4ff;">{{ comparison_stats.mystes_count }}</strong></span>
             </div>
         </div>
         {% endif %}
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-            <button onclick="runComparison()" id="compareBtn" style="padding:12px 24px;background:#00d4ff;color:#1a1a2e;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;" {% if not can_compare %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>Compare with PhoenixAI</button>
+            <button onclick="runComparison()" id="compareBtn" style="padding:12px 24px;background:#00d4ff;color:#1a1a2e;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;" {% if not can_compare %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>Compare with MYSTESAI</button>
             <span style="color:#888;font-size:13px;">
                 {% if comparisons_remaining == -1 %}
                     Unlimited comparisons (Pro)
@@ -19229,9 +20551,9 @@ BYOAI_SETTINGS_CONTENT = """
         <div id="comparisonLoading" style="display:none;margin-top:16px;color:#aaa;font-size:14px;">Running comparison... this may take a moment.</div>
     </div>
 
-    <!-- Why PhoenixAI -->
+    <!-- Why MYSTESAI -->
     <div style="background:linear-gradient(135deg,#16213e 0%,#1a1a3e 100%);border:1px solid rgba(0,212,255,0.15);border-radius:12px;padding:24px;">
-        <h2 style="color:#fff;margin:0 0 16px 0;font-size:20px;">Why PhoenixAI?</h2>
+        <h2 style="color:#fff;margin:0 0 16px 0;font-size:20px;">Why MYSTESAI?</h2>
         <ul style="color:#ccc;font-size:14px;line-height:2;padding-left:20px;margin:0;">
             <li><strong style="color:#00d4ff;">Learned Strategies</strong> — Continuously learns the best search strategies from thousands of queries</li>
             <li><strong style="color:#00d4ff;">Multi-Market Proxy Access</strong> — Searches across multiple market proxies simultaneously for wider coverage</li>
@@ -19349,9 +20671,9 @@ async function runComparison() {
         let html = '<div style="background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.15);border-radius:8px;padding:16px;">';
         html += '<h3 style="color:#00d4ff;margin:0 0 12px 0;">Comparison Results</h3>';
         html += '<table style="width:100%;border-collapse:collapse;color:#fff;font-size:13px;">';
-        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);"><th style="text-align:left;padding:8px;color:#aaa;">Metric</th><th style="text-align:left;padding:8px;color:#aaa;">BYOAI</th><th style="text-align:left;padding:8px;color:#aaa;">PhoenixAI</th></tr>';
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);"><th style="text-align:left;padding:8px;color:#aaa;">Metric</th><th style="text-align:left;padding:8px;color:#aaa;">BYOAI</th><th style="text-align:left;padding:8px;color:#aaa;">MYSTESAI</th></tr>';
         if (data.user_count !== undefined) {
-            html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Results Found</td><td style="padding:8px;">' + (data.user_count || 0) + '</td><td style="padding:8px;color:#00d4ff;">' + (data.phoenix_count || 0) + '</td></tr>';
+            html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Results Found</td><td style="padding:8px;">' + (data.user_count || 0) + '</td><td style="padding:8px;color:#00d4ff;">' + (data.mystes_count || 0) + '</td></tr>';
         }
         if (data.additional_pct !== undefined) {
             html += '<tr><td style="padding:8px;">Additional Coverage</td><td style="padding:8px;">—</td><td style="padding:8px;color:#00e676;">+' + data.additional_pct + '%</td></tr>';
@@ -19415,7 +20737,7 @@ ADMIN_STRATEGY_CONTENT = """
             <span style="color:#aaa;font-size:13px;">{{ source_count }} ({{ "%.1f"|format(pct) }}%)</span>
         </div>
         <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:8px;overflow:hidden;">
-            <div style="height:100%;border-radius:4px;width:{{ pct }}%;background:{% if source_name == 'ensemble' %}#00d4ff{% elif source_name == 'byoai' %}#00e676{% elif source_name == 'phoenix_ai' %}#ff9800{% elif source_name == 'serp' %}#ba68c8{% else %}#888{% endif %};"></div>
+            <div style="height:100%;border-radius:4px;width:{{ pct }}%;background:{% if source_name == 'ensemble' %}#00d4ff{% elif source_name == 'byoai' %}#00e676{% elif source_name == 'mystes_ai' %}#ff9800{% elif source_name == 'serp' %}#ba68c8{% else %}#888{% endif %};"></div>
         </div>
     </div>
     {% endfor %}
@@ -19514,9 +20836,9 @@ ADMIN_STRATEGY_CONTENT = """
 @login_required
 def settings_ai_providers():
     """BYOAI settings page — manage personal AI provider keys."""
-    from ai_search import phoenix_ai, AI_PROVIDERS
-    platform = phoenix_ai.get_platform_providers()
-    user_provs = phoenix_ai.get_user_providers(current_user.id)
+    from ai_search import mystes_ai, AI_PROVIDERS
+    platform = mystes_ai.get_platform_providers()
+    user_provs = mystes_ai.get_user_providers(current_user.id)
 
     providers = {}
     for key, info in AI_PROVIDERS.items():
@@ -19553,7 +20875,7 @@ def settings_ai_providers():
 @login_required
 def api_ai_test_provider():
     """Test an AI provider API key before saving."""
-    from ai_search import phoenix_ai
+    from ai_search import mystes_ai
     data = request.get_json() or {}
     provider = data.get("provider", "").strip()
     api_key = data.get("api_key", "").strip()
@@ -19563,11 +20885,11 @@ def api_ai_test_provider():
 
     # Quick test: try a minimal API call
     try:
-        result = phoenix_ai._call_provider(
+        result = mystes_ai._call_provider(
             provider,
             [{"role": "system", "content": "Reply with OK"}, {"role": "user", "content": "Test"}],
             api_key=api_key,
-            provider_info=phoenix_ai.providers.get(provider, {})
+            provider_info=mystes_ai.providers.get(provider, {})
         )
         if result and result.get("response"):
             return jsonify({"ok": True, "message": f"{provider} is working correctly"})
@@ -19579,7 +20901,7 @@ def api_ai_test_provider():
 @app.route("/api/v1/ai/compare", methods=["POST"])
 @login_required
 def api_ai_compare():
-    """Run PhoenixAI comparison against BYOAI/user search results."""
+    """Run MYSTESAI comparison against BYOAI/user search results."""
     from strategy_learner import strategy_learner
 
     data = request.get_json() or {}
@@ -19592,7 +20914,7 @@ def api_ai_compare():
     # Check daily comparison quota
     today = datetime.utcnow().date()
     if current_user.ai_tier == 'ai_free' and current_user.last_comparison_date == today:
-        return jsonify({"error": "Daily comparison limit reached. Upgrade to PhoenixAI for unlimited comparisons."}), 429
+        return jsonify({"error": "Daily comparison limit reached. Upgrade to MYSTESAI for unlimited comparisons."}), 429
 
     # Run comparison
     result = strategy_learner.run_comparison(
@@ -20163,7 +21485,7 @@ if __name__ == "__main__":
     init_monitoring(app)
 
     print("="*60)
-    print("PHOENIX Server")
+    print("MYSTES Server")
     print("="*60)
     print(f"URL: http://localhost:{SERVER_PORT}/")
     print("="*60)

@@ -1,5 +1,5 @@
 """
-Amadeus API Client for PHOENIX
+Amadeus API Client for MYSTES
 
 Provides rich flight data (flight numbers, layovers, aircraft types) to complement
 proxy-based price scraping. Amadeus free tier: 2,000 requests/month.
@@ -582,7 +582,7 @@ class AmadeusClient:
                 "remarks": {
                     "general": [{
                         "subType": "GENERAL_MISCELLANEOUS",
-                        "text": f"PHOENIX BOOKING - {len(travelers)} PAX",
+                        "text": f"MYSTES BOOKING - {len(travelers)} PAX",
                     }]
                 },
                 "ticketingAgreement": {

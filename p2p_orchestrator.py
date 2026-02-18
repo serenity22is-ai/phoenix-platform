@@ -1,13 +1,13 @@
 """
-PHOENIX P2P Transaction Orchestrator
+MYSTES P2P Transaction Orchestrator
 
 Workflow engine that manages the complete lifecycle of a P2P booking:
 1. Buyer requests booking with arbitrage opportunity
 2. System matches buyer to available helper in target market
 3. Buyer's RLUSD locked in XRPL escrow
 4. Helper verifies escrow on-chain
-5. Phoenix creates browser control session
-6. Phoenix automates purchase on helper's browser
+5. Mystes creates browser control session
+6. Mystes automates purchase on helper's browser
 7. Booking confirmed → escrow releases to helper + platform
 8. On failure → escrow cancels → buyer refunded
 
@@ -417,8 +417,8 @@ class P2POrchestrator:
         """
         Step 5: Create a remote browser control session.
 
-        Phoenix generates a WebSocket session for the helper's client
-        to connect to. Once connected, Phoenix can drive Playwright
+        Mystes generates a WebSocket session for the helper's client
+        to connect to. Once connected, Mystes can drive Playwright
         on the helper's device.
         """
         from models import P2PTransaction, HelperProfile, UserWallet
@@ -927,7 +927,7 @@ class P2POrchestrator:
             "next_steps": [
                 "Helper verifies escrow on-chain",
                 "Helper connects browser client",
-                "Phoenix automates purchase",
+                "Mystes automates purchase",
                 "Booking confirmed → escrow releases",
             ],
         }
@@ -1106,7 +1106,7 @@ def start_p2p_booking(
 # --- CLI FOR TESTING ---
 
 if __name__ == "__main__":
-    print("PHOENIX P2P Transaction Orchestrator")
+    print("MYSTES P2P Transaction Orchestrator")
     print("=" * 50)
     print()
     print("Workflow Steps:")

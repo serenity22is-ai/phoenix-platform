@@ -1,5 +1,5 @@
 """
-Amadeus Hotel API Client for PHOENIX
+Amadeus Hotel API Client for MYSTES
 
 Two-step hotel search:
   1. Hotel List API → find hotels by city code → get Amadeus hotelIds

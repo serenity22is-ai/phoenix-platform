@@ -1,5 +1,5 @@
 """
-PHOENIX CitizenSERP Payout Manager
+MYSTES CitizenSERP Payout Manager
 
 Distributes airline SaaS subscription revenue to residential proxy node operators
 proportional to their verified uptime hours via XRPL micropayments.

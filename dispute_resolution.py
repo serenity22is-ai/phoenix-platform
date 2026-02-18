@@ -1,5 +1,5 @@
 """
-PHOENIX Dispute Resolution System
+MYSTES Dispute Resolution System
 
 Handles disputes for P2P transactions where buyer or helper contests the outcome.
 

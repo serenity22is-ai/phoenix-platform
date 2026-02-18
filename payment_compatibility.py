@@ -159,15 +159,15 @@ DEFAULT_RULES = [
     {'payment_type': 'discover', 'issuing_country': 'US', 'merchant_country': '*',
      'acceptance_level': 'low', 'notes': 'Discover rare outside US'},
 
-    # XRPL / RLUSD — universal via Phoenix intermediation
+    # XRPL / RLUSD — universal via Mystes intermediation
     {'payment_type': 'xrp', 'issuing_country': '*', 'merchant_country': '*',
-     'acceptance_level': 'high', 'notes': 'XRP via Phoenix virtual card intermediation'},
+     'acceptance_level': 'high', 'notes': 'XRP via Mystes virtual card intermediation'},
     {'payment_type': 'rlusd', 'issuing_country': '*', 'merchant_country': '*',
-     'acceptance_level': 'high', 'notes': 'RLUSD via Phoenix virtual card intermediation'},
+     'acceptance_level': 'high', 'notes': 'RLUSD via Mystes virtual card intermediation'},
 
-    # Virtual card — Phoenix's Stripe Issuing card for universal coverage
+    # Virtual card — Mystes's Stripe Issuing card for universal coverage
     {'payment_type': 'virtual_card', 'issuing_country': '*', 'merchant_country': '*',
-     'acceptance_level': 'high', 'notes': 'Phoenix virtual card service'},
+     'acceptance_level': 'high', 'notes': 'Mystes virtual card service'},
 
     # China — foreign cards mostly blocked on domestic sites
     {'payment_type': 'visa', 'issuing_country': '*', 'merchant_country': 'CN',
@@ -455,7 +455,7 @@ class PaymentCompatibilityEngine:
                         reachable[country] = {
                             'methods': crypto_methods,
                             'acceptance': 'high',
-                            'via_group': 'PHOENIX_VIRTUAL_CARD',
+                            'via_group': 'MYSTES_VIRTUAL_CARD',
                         }
 
         return reachable

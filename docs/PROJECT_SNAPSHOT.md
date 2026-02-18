@@ -1,4 +1,4 @@
-# Phoenix Platform — Project Snapshot
+# Mystes Platform — Project Snapshot
 
 **Snapshot Date:** February 9, 2026
 **Current Build:** #100
@@ -13,14 +13,14 @@ When returning to this project:
 1. **Read this file first**
 2. **Check `docs/BUILD_LOG_100.md`** for last session's work
 3. **Run the server:** `python server.py`
-4. **Production URL:** https://phoenix-web-nj67.onrender.com
+4. **Production URL:** https://mystes-web-nj67.onrender.com
 
 ---
 
 ## Project Stats
 
 - **~90,500 lines of Python** across 89 files
-- **Largest files:** server.py (20K), models.py (4K), phoenix_ai.py (3K)
+- **Largest files:** server.py (20K), models.py (4K), mystes_ai.py (3K)
 - **Git commits:** 100+ builds
 
 ---
@@ -33,7 +33,7 @@ When returning to this project:
 - [x] Settings page
 - [x] Wallet management (crypto + cards)
 
-### Phoenix AI
+### Mystes AI
 - [x] LLM-powered tool-calling engine (26+ tools)
 - [x] Flight search with multi-market comparison
 - [x] Hotel, cruise, rental, product search
@@ -85,7 +85,7 @@ When returning to this project:
 |------|---------|
 | `server.py` | Main Flask app (20K lines, all routes) |
 | `models.py` | SQLAlchemy models |
-| `phoenix_ai.py` | AI engine with tool definitions |
+| `mystes_ai.py` | AI engine with tool definitions |
 | `amadeus_client.py` | Amadeus GDS integration |
 | `node_antidilution.py` | Sybil attack protection |
 | `data_marketplace.py` | B2B data products |
@@ -98,8 +98,8 @@ When returning to this project:
 |-----|----------|
 | `docs/BUILD_LOG_100.md` | Last session's work (Feb 6, 2026) |
 | `docs/NODE_REWARD_MODEL.md` | Complete node economics + anti-dilution |
-| `docs/PHOENIX_MODEL.md` | Platform architecture reference |
-| `PHOENIX_MODEL_2.md` | Updated structural reference |
+| `docs/MYSTES_MODEL.md` | Platform architecture reference |
+| `MYSTES_MODEL_2.md` | Updated structural reference |
 
 ---
 
@@ -119,7 +119,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 ## Git Remote
 
 ```
-origin: https://github.com/serenity22is-ai/phoenix-platform.git
+origin: https://github.com/serenity22is-ai/mystes-platform.git
 ```
 
 All work is pushed. Nothing will be lost.
@@ -134,8 +134,8 @@ git pull origin main
 python server.py
 ```
 
-Then tell Claude: "Let's continue working on Phoenix. Read docs/PROJECT_SNAPSHOT.md first."
+Then tell Claude: "Let's continue working on Mystes. Read docs/PROJECT_SNAPSHOT.md first."
 
 ---
 
-*Phoenix is ready. Just waiting on the business side.*
+*Mystes is ready. Just waiting on the business side.*

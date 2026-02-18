@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-PHOENIX Platform - Code Presentation PDF Generator
+MYSTES Platform - Code Presentation PDF Generator
 
-Generates a terminal-style PDF showing the Phoenix codebase
+Generates a terminal-style PDF showing the Mystes codebase
 with line numbers, syntax highlighting appearance, and dark theme.
 """
 
@@ -29,7 +29,7 @@ TERMINAL_ORANGE = colors.HexColor("#CE9178")
 TERMINAL_PURPLE = colors.HexColor("#C586C0")
 TERMINAL_COMMENT = colors.HexColor("#6A9955")
 LINE_NUMBER_COLOR = colors.HexColor("#858585")
-PHOENIX_ORANGE = colors.HexColor("#FF6B35")
+MYSTES_ORANGE = colors.HexColor("#FF6B35")
 
 
 def create_styles():
@@ -40,7 +40,7 @@ def create_styles():
     styles.add(ParagraphStyle(
         name='FileHeader',
         fontSize=14,
-        textColor=PHOENIX_ORANGE,
+        textColor=MYSTES_ORANGE,
         fontName='Helvetica-Bold',
         spaceBefore=20,
         spaceAfter=10,
@@ -110,11 +110,11 @@ def create_cover_page(styles):
     elements.append(Spacer(1, 2*inch))
 
     elements.append(Paragraph(
-        "PHOENIX",
+        "MYSTES",
         ParagraphStyle(
             name='CodeCoverTitle',
             fontSize=48,
-            textColor=PHOENIX_ORANGE,
+            textColor=MYSTES_ORANGE,
             alignment=TA_CENTER,
             fontName='Helvetica-Bold'
         )
@@ -218,7 +218,7 @@ def read_file_section(filepath: str, start: int = 0, end: int = None) -> str:
 def generate_code_pdf():
     """Generate the code presentation PDF."""
 
-    output_path = "/Users/adramainjest/flightfinder2/PHOENIX_Source_Code.pdf"
+    output_path = "/Users/adramainjest/flightfinder2/MYSTES_Source_Code.pdf"
     base_path = "/Users/adramainjest/flightfinder2"
 
     doc = SimpleDocTemplate(
@@ -368,7 +368,7 @@ def generate_code_pdf():
     elements.append(Paragraph("4. MAIN MODULE", styles['SectionTitle']))
     elements.append(Paragraph(
         "Core configuration, currency conversion, market definitions, "
-        "and utility functions for the Phoenix platform.",
+        "and utility functions for the Mystes platform.",
         styles['Description']
     ))
 
@@ -406,7 +406,7 @@ def generate_code_pdf():
     doc.build(elements)
 
     print(f"\n{'='*60}")
-    print("PHOENIX Source Code PDF Generated Successfully!")
+    print("MYSTES Source Code PDF Generated Successfully!")
     print(f"{'='*60}")
     print(f"Output: {output_path}")
     print(f"\nFiles included:")
