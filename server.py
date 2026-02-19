@@ -219,8 +219,12 @@ def _inject_feature_flags():
         "feature_data_marketplace": is_feature_enabled("data_marketplace"),
     }
 
-# Initialize database
-init_db(app)
+# Initialize database (resilient — app starts even if DB is unreachable)
+try:
+    init_db(app)
+except Exception as _db_err:
+    logging.error(f"Database init failed (app will start without DB): {_db_err}")
+    db.init_app(app)
 
 # Initialize Flask-Migrate for database migrations
 migrate = Migrate(app, db)
