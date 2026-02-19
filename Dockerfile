@@ -49,7 +49,7 @@ USER mystes
 
 EXPOSE 5001
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5001/ || exit 1
+# Render provides its own health checks via healthCheckPath — no Docker HEALTHCHECK needed.
+# (The previous HEALTHCHECK was hardcoded to port 5001, but Render sets PORT dynamically.)
 
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "server:app"]
