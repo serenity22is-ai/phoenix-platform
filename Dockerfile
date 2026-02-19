@@ -33,8 +33,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /install /usr/local
 
-# Install Playwright Chromium + all its system deps
-RUN playwright install --with-deps chromium
+# NOTE: Playwright browser binary NOT installed in production container.
+# The web server doesn't need it — airline_booker/google_flights_scraper
+# degrade gracefully when Chromium is absent. This saves ~700MB.
 
 # Non-root user
 RUN groupadd -r mystes && useradd -r -g mystes -d /app -s /sbin/nologin mystes

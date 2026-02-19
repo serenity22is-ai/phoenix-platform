@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Node (not needed for Python server)
+node_modules/
+package-lock.json
+
+# Mobile apps (not needed for web server)
+ios/
+android/
+capacitor-native/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Python cache
+__pycache__/
+*.py[cod]
+venv/
+ENV/
+
+# Local databases
+instance/
+*.db
+
+# Build context / docs
+.context/
+docs/
+build/
+*.pdf
+*.log
+*.md
+
+# Extension source (built separately)
+mystes_extension/
+
+# Tests (not needed in production image)
+tests/
+
+# Environment (secrets)
+.env
