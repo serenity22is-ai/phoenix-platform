@@ -42,7 +42,7 @@ celery[redis]>=5.3,<6.0
 
 # Production Server
 gunicorn>=21.2,<23.0
-gevent>=23.9,<25.0
+# gevent removed — psycopg2 (C ext) corrupts under gevent monkey-patching; using gthread instead
 
 # Dev & Testing
 pytest>=7.4,<9.0

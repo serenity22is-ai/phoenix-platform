@@ -11,13 +11,15 @@ bind = os.environ.get("GUNICORN_BIND", f"0.0.0.0:{port}")
 backlog = 2048
 
 # Worker Processes
-_default_workers = min(multiprocessing.cpu_count() * 2 + 1, 8)
+# Default to 2 workers — safe for Render free tier (512MB RAM).
+# gevent is NOT used because psycopg2 (C extension) corrupts connections
+# under gevent's monkey-patched sockets. gthread uses real OS threads instead.
+_default_workers = int(os.environ.get("WEB_CONCURRENCY", 2))
 workers = int(os.environ.get("GUNICORN_WORKERS", _default_workers))
-worker_class = "gevent"
-worker_connections = 1000
-threads = 1
+worker_class = "gthread"
+threads = 4
 
-# Timeouts (120s for long proxy scrape requests)
+# Timeouts
 timeout = 120
 graceful_timeout = 30
 keepalive = 5
