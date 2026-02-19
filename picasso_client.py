@@ -385,16 +385,12 @@ class PicassoClient:
                 # === PRICING (the core arbitrage data) ===
                 "price": mystes_price,            # What the user pays
                 "mystes_price": mystes_price,     # Same — MYSTES price after fee
-                "cheapest_price": cheapest_price,  # Our cost (cheapest POS)
                 "us_price": us_price,             # Google benchmark (US POS)
                 "savings": round(user_savings, 2),
                 "savings_pct": round(savings_pct, 1),
                 "platform_fee": round(platform_fee, 2),
-                "cheapest_market": cheapest_pos,
+                "cheapest_market": "MYSTES",      # B2C safe — never expose real POS
                 "currency": "USD",
-
-                # POS data (all markets)
-                "pos_prices": pos_prices,
 
                 # Deal object (for renderFlightCards compatibility)
                 "deal": {
@@ -402,8 +398,13 @@ class PicassoClient:
                     "arbitrage_price": round(mystes_price, 2),
                     "price_difference": round(user_savings, 2),
                     "user_saves_pct": round(savings_pct, 1),
-                    "cheapest_market": cheapest_pos,
+                    "cheapest_market": "MYSTES",
                 } if user_savings > 0 else None,
+
+                # Internal — for booking engine only, NEVER sent to B2C
+                "_internal_pos_market": cheapest_pos,
+                "_internal_cheapest_price": cheapest_price,
+                "_internal_pos_prices": pos_prices,
 
                 # Raw offer for downstream booking
                 "raw_offer": offer,

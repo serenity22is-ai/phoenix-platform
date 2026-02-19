@@ -159,7 +159,7 @@ def run_deal_scan(routes=None, dates=None, max_routes=None):
                             departure_date=departure_date,
                             home_market=deal_info.get("home_market", "US"),
                             home_price_usd=deal_info.get("home_price"),
-                            arbitrage_market=deal_data.get("cheapest_market"),
+                            arbitrage_market="MYSTES",
                             arbitrage_price_usd=deal_info.get("arbitrage_price"),
                             gross_savings_usd=deal_info.get("gross_savings"),
                             platform_fee_usd=deal_info.get("platform_fee_usd"),

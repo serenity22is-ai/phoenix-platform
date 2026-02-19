@@ -258,7 +258,7 @@ class Deal(db.Model):
             'departure_time': self.departure_time,
             'home_market': self.home_market,
             'home_price_usd': self.home_price_usd,
-            'arbitrage_market': self.arbitrage_market,
+            'arbitrage_market': 'MYSTES',  # B2C safe — real POS stays in DB only
             'arbitrage_price_usd': self.arbitrage_price_usd,
             'gross_savings_usd': self.gross_savings_usd,
             'platform_fee_usd': self.platform_fee_usd,

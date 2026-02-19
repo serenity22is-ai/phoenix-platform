@@ -450,8 +450,9 @@ class TestPicassoClient:
 
         flight = result["flights"][0]
         assert flight["us_price"] == 450
-        assert flight["cheapest_price"] == 350
-        assert flight["cheapest_market"] == "DK"
+        assert flight["cheapest_market"] == "MYSTES"  # B2C safe — real POS in _internal fields
+        assert flight["_internal_pos_market"] == "DK"
+        assert flight["_internal_cheapest_price"] == 350
 
     @patch("picasso_client.requests.post")
     def test_pos_arbitrage_pricing(self, mock_post):
@@ -747,7 +748,7 @@ class TestPicassoClient:
 
         assert flight["deal"] is not None
         assert flight["deal"]["home_price"] == 500.0
-        assert flight["deal"]["cheapest_market"] == "ES"
+        assert flight["deal"]["cheapest_market"] == "MYSTES"  # B2C safe
         assert flight["deal"]["price_difference"] > 0
 
     def test_module_level_search(self):

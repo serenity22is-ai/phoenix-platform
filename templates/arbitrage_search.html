@@ -324,10 +324,10 @@
                     const arbPrice = deal.cheapest_price_usd || deal.arbitrage_price_usd || deal.arbitrage_total_usd || 0;
                     const savings = deal.user_savings_usd || deal.gross_savings_usd || 0;
                     const pct = deal.savings_percent || 0;
-                    const market = deal.cheapest_market || deal.arbitrage_market || '';
+                    const market = 'MYSTES';
 
                     const meta = [];
-                    if (deal.cheapest_market) meta.push('via ' + deal.cheapest_market);
+                    meta.push('via MYSTES');
                     if (deal.markets_checked) meta.push(deal.markets_checked + ' markets checked');
                     if (deal.star_rating) meta.push(deal.star_rating + '-star');
                     if (deal.duration_nights) meta.push(deal.duration_nights + ' nights');
