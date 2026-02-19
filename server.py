@@ -118,30 +118,19 @@ def audit_log(action, user_id=None, **details):
 # --- APP CONFIGURATION ---
 app = Flask(__name__)
 
-# Core config
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-_db_url = os.environ.get('DATABASE_URL', 'sqlite:///mystes.db')
+# Load environment-aware config from config.py (Build #108)
+from config import get_config
+app.config.from_object(get_config())
+
+# Override DATABASE_URL with Render-style postgres:// fix
+_db_url = os.environ.get('DATABASE_URL') or app.config.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///mystes.db')
 if _db_url.startswith('postgres://'):
     _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Session config
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-
-# Email config (for SendGrid, Mailgun, or SMTP)
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@mystes.app')
-
-# CSRF config
-app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
+# Ensure SECRET_KEY is set even if env var is missing (dev fallback)
+if not app.config.get('SECRET_KEY') or app.config['SECRET_KEY'] == 'dev-secret-key-change-in-production':
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 CORS(app, supports_credentials=True)
 
