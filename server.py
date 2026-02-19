@@ -4767,102 +4767,42 @@ def execute_automated_hotel_booking(booking, deal, guest_data):
 
 def execute_automated_booking(booking, deal, passenger_data):
     """
-    Execute automated booking using Amadeus Flight Orders API.
+    Execute automated flight booking.
 
-    Flow: price_confirm → create_booking → PNR
-    The user never sees the source page. MYSTES handles everything server-side.
+    Currently attempts airline_booker (Playwright-based) for supported airlines.
+    Amadeus API was discontinued — Picasso Travel API will replace it.
 
     Returns dict with success status, confirmation code (PNR), and order details.
     """
     try:
-        from amadeus_client import AmadeusClient
-        import json
-
-        client = AmadeusClient()
-        if not client.is_configured():
-            logger.error("Amadeus API not configured for booking")
-            return {"success": False, "error": "Booking system not configured"}
-
-        # Get the raw Amadeus offer stored on the deal
-        raw_offer = None
-        if deal.amadeus_offer_data:
-            try:
-                raw_offer = json.loads(deal.amadeus_offer_data)
-            except json.JSONDecodeError:
-                logger.error(f"Invalid amadeus_offer_data on deal {deal.deal_id}")
-
-        if not raw_offer:
-            # Fallback: re-search and find matching offer
-            logger.info(f"No stored offer for deal {deal.deal_id}, re-searching...")
-            result = client.search_flights(
-                origin=deal.origin,
-                destination=deal.destination,
-                departure_date=deal.departure_date.isoformat() if deal.departure_date else "",
-                adults=1,
-                max_results=15,
+        # Try airline_booker first (Playwright-based automation)
+        try:
+            from airline_booker import book_flight_sync
+            result = book_flight_sync(
+                deal_data={
+                    "airline": deal.airline,
+                    "flight_number": deal.flight_number,
+                    "origin": deal.origin,
+                    "destination": deal.destination,
+                    "departure_date": deal.departure_date.isoformat() if deal.departure_date else "",
+                    "departure_time": deal.departure_time or "",
+                    "arrival_time": deal.arrival_time or "",
+                    "price": float(deal.arbitrage_price_usd or 0),
+                    "market": deal.arbitrage_market or "US",
+                },
+                passenger_data=passenger_data,
+                booking_id=booking.id,
             )
-            if result.get("success") and result.get("flights"):
-                # Find matching flight by airline + flight number or closest price
-                for flight in result["flights"]:
-                    if flight.get("raw_offer"):
-                        fn = flight.get("flight_number", "")
-                        carrier = flight.get("airline", "")
-                        if (deal.flight_number and fn and deal.flight_number in fn) or \
-                           (deal.airline and carrier and deal.airline == carrier):
-                            raw_offer = flight["raw_offer"]
-                            break
-                # If no exact match, use first offer as fallback
-                if not raw_offer and result["flights"][0].get("raw_offer"):
-                    raw_offer = result["flights"][0]["raw_offer"]
+            if result.get("success"):
+                return result
+            logger.warning(f"Airline booker failed: {result.get('error')}")
+        except ImportError:
+            logger.info("airline_booker not available")
+        except Exception as booker_err:
+            logger.warning(f"Airline booker error: {booker_err}")
 
-        if not raw_offer:
-            return {"success": False, "error": "Could not find matching flight offer for booking"}
-
-        # Step 1: Price confirmation
-        logger.info(f"Confirming price for deal {deal.deal_id}...")
-        price_result = client.price_confirm(raw_offer)
-        if price_result.get("success"):
-            confirmed_offer = price_result["confirmed_offer"]
-            logger.info(f"Price confirmed: ${price_result['confirmed_price']} (was ${price_result['original_price']})")
-        else:
-            # Try booking with original offer if price confirm fails
-            logger.warning(f"Price confirm failed: {price_result.get('error')}, attempting booking with original offer")
-            confirmed_offer = raw_offer
-
-        # Step 2: Build traveler data from passenger_data
-        traveler = {
-            "first_name": passenger_data.get("first_name", ""),
-            "last_name": passenger_data.get("last_name", ""),
-            "date_of_birth": passenger_data.get("date_of_birth", "1990-01-01"),
-            "gender": passenger_data.get("gender", "MALE"),
-            "email": passenger_data.get("email", booking.passenger_email or ""),
-            "phone": passenger_data.get("phone", ""),
-            "passport_number": passenger_data.get("passport_number"),
-            "passport_expiry": passenger_data.get("passport_expiry"),
-            "passport_country": passenger_data.get("passport_country", "US"),
-            "nationality": passenger_data.get("nationality", "US"),
-        }
-
-        # Step 3: Create booking
-        logger.info(f"Creating flight order for {deal.airline} {deal.flight_number} to {deal.destination}...")
-        book_result = client.create_booking(confirmed_offer, traveler)
-
-        if book_result.get("success"):
-            logger.info(f"Booking successful! PNR={book_result['pnr']}, price=${book_result['price']}")
-            return {
-                "success": True,
-                "confirmation_code": book_result["pnr"],
-                "order_id": book_result.get("order_id"),
-                "segments": book_result.get("segments", []),
-                "booked_price": book_result.get("price"),
-                "currency": book_result.get("currency", "USD"),
-            }
-        else:
-            logger.warning(f"Booking failed: {book_result.get('error')}")
-            return {
-                "success": False,
-                "error": book_result.get("error", "Booking failed"),
-            }
+        # No automated booking path available — fall back to manual agent
+        return {"success": False, "error": "Automated flight booking not available. Manual agent will process."}
 
     except Exception as e:
         logger.error(f"Automated booking error: {e}")
@@ -5091,6 +5031,32 @@ BOOKING_STATUS_CONTENT = """
         <a href="/dashboard" class="btn btn-secondary">Go to Dashboard</a>
     </div>
 </div>
+
+<script>
+(function() {
+    const bookingId = {{ booking.id }};
+    const status = '{{ booking.status }}';
+    // Only auto-poll for in-progress statuses
+    if (['pending_fulfillment', 'processing', 'booked'].indexOf(status) === -1) return;
+    let pollCount = 0;
+    const maxPolls = 60; // 10 minutes at 10s intervals
+    const interval = setInterval(function() {
+        pollCount++;
+        if (pollCount > maxPolls) { clearInterval(interval); return; }
+        fetch('/api/v1/booking/' + bookingId + '/status', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'booked' && data.confirmation_code) {
+                    clearInterval(interval);
+                    window.location.href = '/booking-confirmation/' + bookingId;
+                } else if (data.status !== status) {
+                    window.location.reload();
+                }
+            })
+            .catch(() => {});
+    }, 10000);
+})();
+</script>
 """
 
 
@@ -5735,6 +5701,32 @@ def booking_status(booking_id):
         ),
         current_user=current_user
     )
+
+
+# --- BOOKING STATUS API (for auto-refresh polling) ---
+
+@app.route("/api/v1/booking/<int:booking_id>/status")
+def api_booking_status(booking_id):
+    """Return booking status as JSON for auto-refresh polling."""
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"error": "Not found"}), 404
+
+    # Security check
+    if current_user.is_authenticated:
+        if booking.user_id and booking.user_id != current_user.id:
+            return jsonify({"error": "Access denied"}), 403
+    else:
+        if session.get('booking_id') != booking_id:
+            return jsonify({"error": "Access denied"}), 403
+
+    return jsonify({
+        "booking_id": booking.id,
+        "status": booking.status,
+        "fulfillment_type": booking.fulfillment_type,
+        "confirmation_code": booking.confirmation_code,
+        "updated_at": booking.updated_at.isoformat() if booking.updated_at else None,
+    })
 
 
 # --- SUBMIT CONFIRMATION CODE (Self-Service Booking) ---

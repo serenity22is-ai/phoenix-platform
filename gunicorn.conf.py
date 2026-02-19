@@ -11,7 +11,8 @@ bind = os.environ.get("GUNICORN_BIND", f"0.0.0.0:{port}")
 backlog = 2048
 
 # Worker Processes
-workers = int(os.environ.get("GUNICORN_WORKERS", min(multiprocessing.cpu_count() * 2 + 1, 2)))
+_default_workers = min(multiprocessing.cpu_count() * 2 + 1, 8)
+workers = int(os.environ.get("GUNICORN_WORKERS", _default_workers))
 worker_class = "gevent"
 worker_connections = 1000
 threads = 1

@@ -1,5 +1,5 @@
 # MYSTES Flight Arbitrage Platform - Docker Compose
-# Full stack: Web + PostgreSQL + Redis + WebSocket
+# Full stack: Web + PostgreSQL + Redis + Celery
 
 version: "3.9"
 
@@ -128,27 +128,6 @@ services:
         condition: service_healthy
     volumes:
       - app_logs:/app/logs
-    networks:
-      - mystes-network
-
-  # WebSocket Server (Browser Control Protocol)
-  websocket:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mystes-websocket
-    restart: unless-stopped
-    command: ["python", "-m", "browser_control"]
-    ports:
-      - "8765:8765"
-    env_file:
-      - .env
-    environment:
-      - FLASK_ENV=production
-      - DATABASE_URL=postgresql://mystes:${POSTGRES_PASSWORD:-mystes_secret}@postgres:5432/mystes_db
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - mystes-network
 
