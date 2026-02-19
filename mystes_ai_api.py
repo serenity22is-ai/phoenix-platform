@@ -223,6 +223,20 @@ def register_mystes_ai_routes(app, csrf=None):
                                 h.get("offer_id"): h for h in hotels if h.get("offer_id")
                             }
 
+            # --- SSE push: emit AI response for real-time dashboard (Build #107) ---
+            try:
+                from event_stream import emit_ai_response
+                emit_ai_response(user_id, {
+                    "conversation_id": conversation_id,
+                    "chunk_type": "done",
+                    "content": assistant_content[:500] if assistant_content else "",
+                    "tool_calls_count": len(tool_calls_raw) if tool_calls_raw else 0,
+                    "model_used": model_used,
+                    "response_time_ms": response_time_ms,
+                })
+            except Exception:
+                pass  # SSE is best-effort
+
             # --- Strategy observation hook (Build #73) ---
             try:
                 from strategy_learner import strategy_learner

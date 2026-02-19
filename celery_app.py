@@ -153,6 +153,16 @@ celery.conf.update(
             "task": "celery_app.aggregate_strategy_insights",
             "schedule": 21600.0,  # 6 hours
         },
+        # Build #107 — Data quality score recalculation
+        "recalculate-data-quality-6h": {
+            "task": "celery_app.recalculate_data_quality_scores",
+            "schedule": 21600.0,  # 6 hours
+        },
+        # Build #107 — CitizenSERP stale task cleanup
+        "cleanup-citizenserp-tasks-15m": {
+            "task": "celery_app.cleanup_citizenserp_tasks",
+            "schedule": 900.0,  # 15 minutes
+        },
     },
 )
 
@@ -493,6 +503,59 @@ def recalculate_commercial_tiers():
         result = commercial_manager.recalculate_tiers()
         logger.info(f"Commercial tier recalculation: {result}")
         return result
+
+
+# ============================================================
+# Data Quality Feedback — Periodic Node Score Recalculation (Build #107)
+# ============================================================
+
+@celery.task
+def recalculate_data_quality_scores():
+    """Recalculate quality adjustments for all nodes with recent feedback."""
+    app = _get_flask_app()
+    with app.app_context():
+        try:
+            from data_quality_feedback import quality_feedback_engine
+            from models import DataQualityFeedback
+            from datetime import datetime, timedelta
+
+            cutoff = datetime.utcnow() - timedelta(days=30)
+            node_ids = set(
+                row[0] for row in
+                DataQualityFeedback.query
+                .filter(DataQualityFeedback.created_at >= cutoff, DataQualityFeedback.node_id.isnot(None))
+                .with_entities(DataQualityFeedback.node_id)
+                .distinct()
+                .all()
+            )
+            if node_ids:
+                updated = quality_feedback_engine._recalculate_node_adjustments(node_ids)
+                logger.info(f"Data quality recalculation: {updated} nodes updated out of {len(node_ids)} with feedback")
+                return {"nodes_checked": len(node_ids), "nodes_updated": updated}
+            return {"nodes_checked": 0, "nodes_updated": 0}
+        except Exception as exc:
+            logger.warning(f"Data quality recalculation failed: {exc}")
+            return {"error": str(exc)}
+
+
+# ============================================================
+# CitizenSERP Stale Task Cleanup (Build #107)
+# ============================================================
+
+@celery.task
+def cleanup_citizenserp_tasks():
+    """Clean up stale CitizenSERP tasks that exceeded their timeout."""
+    try:
+        from citizenserp_tasks import task_dispatcher
+        task_dispatcher.cleanup_stale(max_age_minutes=30)
+        stats = task_dispatcher.get_stats()
+        logger.info(f"CitizenSERP task cleanup: {stats.get('active_tasks', 0)} active tasks remaining")
+        return stats
+    except ImportError:
+        return {"skipped": "citizenserp_tasks not available"}
+    except Exception as exc:
+        logger.warning(f"CitizenSERP task cleanup failed: {exc}")
+        return {"error": str(exc)}
 
 
 # ============================================================

@@ -225,6 +225,26 @@ def register_sse_routes(app):
         )
         return {"ok": True, "channel": f"user:{current_user.id}"}
 
+    @app.route("/admin/api/broadcast", methods=["POST"])
+    @login_required
+    def admin_system_broadcast():
+        """Admin endpoint: send a system-wide broadcast via SSE (Build #107)."""
+        if not current_user.is_admin:
+            return {"error": "Admin only"}, 403
+
+        data = request.get_json(silent=True) or {}
+        event_type = data.get("event_type", "system_announcement")
+        message = data.get("message", "")
+        if not message:
+            return {"error": "message required"}, 400
+
+        emit_system_broadcast(event_type, {
+            "message": message,
+            "severity": data.get("severity", "info"),
+            "admin_user_id": current_user.id,
+        })
+        return {"ok": True, "event_type": event_type}
+
 
 # ============================================================
 # Typed Event Emitters — convenience functions for common events

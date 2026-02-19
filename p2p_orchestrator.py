@@ -232,6 +232,27 @@ class P2POrchestrator:
             f"in {helper.country_code} (score: {best['score']}, factors: {best['factors']})"
         )
 
+        # Notify helper of match via email
+        try:
+            from email_service import send_p2p_helper_matched
+            from models import User
+            helper_user = User.query.get(helper.user_id)
+            if helper_user:
+                send_p2p_helper_matched(
+                    to=helper_user.email,
+                    name=helper_user.name,
+                    transaction={
+                        "origin": transaction.origin,
+                        "destination": transaction.destination,
+                        "departure_date": transaction.departure_date.isoformat() if transaction.departure_date else "",
+                        "airline": transaction.airline,
+                        "helper_earning_rlusd": transaction.helper_earning_rlusd or 0,
+                        "total_rlusd": transaction.escrow_amount_rlusd or 0,
+                    },
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send helper match email: {e}")
+
         return {
             "success": True,
             "transaction_id": transaction_id,
@@ -335,6 +356,27 @@ class P2POrchestrator:
             f"Escrow {escrow.escrow_id} created for transaction {transaction_id}: "
             f"{escrow.total_rlusd} RLUSD locked"
         )
+
+        # Notify buyer of escrow lock via email
+        try:
+            from email_service import send_p2p_escrow_locked
+            from models import User
+            buyer = User.query.get(transaction.buyer_id)
+            if buyer:
+                send_p2p_escrow_locked(
+                    to=buyer.email,
+                    name=buyer.name,
+                    transaction={
+                        "total_rlusd": float(escrow.total_rlusd or 0),
+                        "origin": transaction.origin,
+                        "destination": transaction.destination,
+                        "target_market": transaction.target_market,
+                        "savings_usd": float(transaction.savings_usd or 0),
+                        "escrow_id": escrow.escrow_id,
+                    },
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send escrow locked email: {e}")
 
         return {
             "success": True,
@@ -608,6 +650,30 @@ class P2POrchestrator:
             "confirmation_code": confirmation_code,
         })
 
+        # Send ticket confirmation email to buyer
+        try:
+            from email_service import send_ticket_confirmation
+            from models import User, Deal
+            buyer = User.query.get(transaction.buyer_id)
+            # Build a lightweight deal-like object for the email template
+            deal_for_email = type('DealProxy', (), {
+                'airline': transaction.airline,
+                'origin': transaction.origin,
+                'destination': transaction.destination,
+                'departure_date': transaction.departure_date,
+                'gross_savings_usd': transaction.savings_usd,
+                'user_savings_usd': transaction.savings_usd,
+            })()
+            if buyer:
+                send_ticket_confirmation(
+                    user_email=buyer.email,
+                    deal=deal_for_email,
+                    booking=None,
+                    confirmation_code=confirmation_code,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to send ticket confirmation email: {e}")
+
         logger.info(
             f"Booking confirmed for transaction {transaction_id}: "
             f"code {confirmation_code}"
@@ -791,6 +857,21 @@ class P2POrchestrator:
 
         logger.error(f"Transaction {transaction_id} failed: {reason}")
 
+        # Send escrow refund email if escrow existed
+        if escrow:
+            try:
+                from email_service import send_p2p_escrow_refunded
+                from models import User
+                buyer = User.query.get(transaction.buyer_id)
+                if buyer:
+                    send_p2p_escrow_refunded(
+                        to=buyer.email,
+                        name=buyer.name,
+                        amount_rlusd=float(escrow.total_rlusd or 0),
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send escrow refund email: {e}")
+
         # Notify parties
         self._notify_failure(transaction, reason)
 
@@ -855,6 +936,21 @@ class P2POrchestrator:
             "transaction_id": transaction_id,
             "cancelled_by": cancelled_by,
         })
+
+        # Send escrow refund email if escrow existed
+        if escrow:
+            try:
+                from email_service import send_p2p_escrow_refunded
+                from models import User
+                buyer = User.query.get(transaction.buyer_id)
+                if buyer:
+                    send_p2p_escrow_refunded(
+                        to=buyer.email,
+                        name=buyer.name,
+                        amount_rlusd=float(escrow.total_rlusd or 0),
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send escrow refund email: {e}")
 
         logger.info(f"Transaction {transaction_id} cancelled by {cancelled_by}")
 

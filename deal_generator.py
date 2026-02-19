@@ -176,6 +176,25 @@ def run_deal_scan(routes=None, dates=None, max_routes=None):
                         db.session.add(deal)
                         stats["deals_new"] += 1
 
+                        # Emit SSE opportunity event for high-savings deals (Build #107)
+                        savings_pct = deal_info.get("user_saves_pct", 0) or 0
+                        if savings_pct >= 15:
+                            try:
+                                from event_stream import emit_opportunity
+                                emit_opportunity({
+                                    "type": "flight",
+                                    "route": f"{origin}-{destination}",
+                                    "origin": origin,
+                                    "destination": destination,
+                                    "departure_date": date_str,
+                                    "savings_pct": savings_pct,
+                                    "home_market": deal_info.get("home_market", "US"),
+                                    "arbitrage_market": deal_data.get("cheapest_market"),
+                                    "deal_id": deal_id,
+                                })
+                            except Exception:
+                                pass  # SSE is best-effort
+
                 db.session.commit()
 
             except Exception as exc:

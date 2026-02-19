@@ -124,6 +124,25 @@ def register_node_service_routes(app):
 
             db.session.commit()
 
+            # Anti-dilution check before registration (Build #107)
+            try:
+                from node_antidilution import check_onboarding_allowed, classify_node_type
+                capabilities = data.get("capabilities", {})
+                allowed, reason = check_onboarding_allowed(capabilities, profile.user_id)
+                node_type = classify_node_type(capabilities)
+                if not allowed:
+                    logger.warning("Node onboarding blocked by anti-dilution: %s (user %d)", reason, profile.user_id)
+                    return jsonify({
+                        "error": "node_cap_reached",
+                        "message": reason,
+                        "node_type": node_type,
+                    }), 429
+            except ImportError:
+                node_type = "unknown"
+            except Exception as exc:
+                logger.debug("Anti-dilution check skipped: %s", exc)
+                node_type = "unknown"
+
             # Register with node registry (lazy import)
             newly_registered = False
             try:
@@ -451,6 +470,100 @@ def register_node_service_routes(app):
 
         except Exception as exc:
             logger.exception("node_earnings error")
+            return jsonify({"error": "Internal server error", "detail": str(exc)}), 500
+
+    # ------------------------------------------------------------------
+    # GET /api/v1/node/tasks/poll — Poll for pending tasks (Build #107)
+    # ------------------------------------------------------------------
+    @app.route("/api/v1/node/tasks/poll", methods=["GET"])
+    @require_helper_token
+    def node_tasks_poll():
+        try:
+            node_id = request.args.get("node_id")
+            if not node_id:
+                return jsonify({"error": "Missing node_id"}), 400
+
+            profile = g.helper_profile
+            market = profile.country_code or "US"
+            tasks_to_send = []
+
+            try:
+                from citizenserp_tasks import task_dispatcher
+                # Find tasks dispatched to this node's user_id that are pending
+                for task_id, task in list(task_dispatcher._active_tasks.items()):
+                    if task.node_user_id == profile.user_id and task.status == "dispatched":
+                        tasks_to_send.append(task.to_node_message())
+                        task.status = "executing"
+            except ImportError:
+                logger.debug("citizenserp_tasks not available")
+            except Exception as exc:
+                logger.warning("task poll error: %s", exc)
+
+            return jsonify({
+                "tasks": tasks_to_send,
+                "count": len(tasks_to_send),
+            }), 200
+
+        except Exception as exc:
+            logger.exception("node_tasks_poll error")
+            return jsonify({"error": "Internal server error", "detail": str(exc)}), 500
+
+    # ------------------------------------------------------------------
+    # POST /api/v1/node/tasks/result — Submit task result (Build #107)
+    # ------------------------------------------------------------------
+    @app.route("/api/v1/node/tasks/result", methods=["POST"])
+    @require_helper_token
+    def node_tasks_result():
+        try:
+            data = request.get_json(silent=True) or {}
+            task_id = data.get("task_id")
+            success = data.get("success", False)
+            result_data = data.get("data", {})
+            error = data.get("error")
+            execution_time_ms = data.get("execution_time_ms", 0)
+
+            if not task_id:
+                return jsonify({"error": "Missing task_id"}), 400
+
+            profile = g.helper_profile
+
+            try:
+                from citizenserp_tasks import task_dispatcher, TaskResult
+                result = TaskResult(
+                    task_id=task_id,
+                    success=success,
+                    data=result_data,
+                    error=error,
+                    execution_time_ms=execution_time_ms,
+                    node_user_id=profile.user_id,
+                    node_country=profile.country_code,
+                    extracted_items=len(result_data.get("results", [])) if isinstance(result_data, dict) else 0,
+                )
+                task_dispatcher.record_result(task_id, result)
+            except ImportError:
+                logger.warning("citizenserp_tasks not available — result discarded")
+                return jsonify({"warning": "task system unavailable"}), 200
+            except Exception as exc:
+                logger.warning("task result recording failed: %s", exc)
+                return jsonify({"error": "Failed to record result", "detail": str(exc)}), 500
+
+            # Emit SSE event for task completion
+            try:
+                from event_stream import emit_node_event
+                emit_node_event("node_task_completed", {
+                    "task_id": task_id,
+                    "node_id": request.args.get("node_id", ""),
+                    "user_id": profile.user_id,
+                    "success": success,
+                    "execution_time_ms": execution_time_ms,
+                })
+            except Exception:
+                pass
+
+            return jsonify({"status": "recorded", "task_id": task_id}), 200
+
+        except Exception as exc:
+            logger.exception("node_tasks_result error")
             return jsonify({"error": "Internal server error", "detail": str(exc)}), 500
 
     logger.info("Node service API routes registered")

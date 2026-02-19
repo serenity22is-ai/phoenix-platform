@@ -612,7 +612,7 @@ class BookingFulfillmentManager:
 
     def complete_booking(self, booking_id: int) -> Dict[str, Any]:
         """Mark a booking as fully completed."""
-        from models import Booking
+        from models import Booking, Deal
 
         booking = Booking.query.get(booking_id)
         if not booking:
@@ -621,6 +621,28 @@ class BookingFulfillmentManager:
         booking.status = BookingStatus.COMPLETED.value
         booking.completed_at = datetime.utcnow()
         self.db.commit()
+
+        # Record commercial transaction for fee tracking (if applicable)
+        try:
+            deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+            if deal:
+                from commercial import commercial_manager
+                from commercial_auth import get_commercial_account
+                # Only record if this booking came through a commercial API account
+                from flask import g
+                account = getattr(g, 'commercial_account', None)
+                if account:
+                    commercial_manager.record_transaction(
+                        account_id=account.account_id,
+                        retail_price_usd=float(deal.home_price_usd or 0),
+                        booked_price_usd=float(deal.arbitrage_price_usd or 0),
+                        origin=deal.origin,
+                        destination=deal.destination,
+                        market_used=deal.arbitrage_market,
+                        booking_id=booking.id,
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to record commercial transaction for booking {booking_id}: {e}")
 
         return {"success": True}
 

@@ -1696,7 +1696,26 @@ def calculate_deal(home_price, arbitrage_price, airline, cheapest_market,
         return None
 
     # Platform fee: percentage of savings, with min/max caps
-    platform_fee = gross_savings * (PLATFORM_FEE_CONFIG["savings_cut_pct"] / 100)
+    fee_pct = PLATFORM_FEE_CONFIG["savings_cut_pct"] / 100
+
+    # Apply node tier arbitrage discount if user has a NodeConsentProfile (Build #107)
+    try:
+        from flask import g
+        user_id = getattr(g, 'user_id', None) or getattr(getattr(g, '_login_user', None), 'id', None)
+        if user_id:
+            from models import NodeConsentProfile
+            ncp = NodeConsentProfile.query.filter_by(user_id=user_id).first()
+            if ncp and ncp.current_tier:
+                from node_consent_economy import get_tier_benefits
+                benefits = get_tier_benefits()
+                tier_b = benefits.get(ncp.current_tier, {})
+                discount = tier_b.get('arbitrage_discount', 0)
+                if discount > 0:
+                    fee_pct = max(0.05, fee_pct - discount)  # Floor at 5%
+    except Exception:
+        pass  # Never block deal calculation on tier lookup
+
+    platform_fee = gross_savings * fee_pct
     platform_fee = max(platform_fee, PLATFORM_FEE_CONFIG["min_fee_usd"])
     platform_fee = min(platform_fee, PLATFORM_FEE_CONFIG["max_fee_usd"])
 

@@ -739,13 +739,20 @@ class NodeConsentEconomy:
             if referral:
                 referrer_user_id = referral.referrer_user_id
 
-        alloc_config = FEE_ALLOCATION.get(node_tier, FEE_ALLOCATION['bronze'])
+        # Use phase-aware fee allocation (Build #107)
+        active_alloc = get_fee_allocation()
+        alloc_config = active_alloc.get(node_tier, active_alloc['bronze'])
+
+        # Apply payout_multiplier from tier benefits to node share (Build #107)
+        active_benefits = get_tier_benefits()
+        tier_benefits = active_benefits.get(node_tier, active_benefits['bronze'])
+        payout_multiplier = tier_benefits.get('payout_multiplier', 1.0)
 
         node_share_pct = alloc_config['node_share'] if serving_node_user_id else 0.0
         referral_share_pct = alloc_config['referral_share'] if referrer_user_id else 0.0
         infra_share_pct = alloc_config['infra_share']
 
-        node_share_usd = fee_usd * node_share_pct
+        node_share_usd = fee_usd * node_share_pct * payout_multiplier
         referral_share_usd = fee_usd * referral_share_pct
         infra_share_usd = fee_usd * infra_share_pct
         platform_profit = fee_usd - node_share_usd - referral_share_usd - infra_share_usd
