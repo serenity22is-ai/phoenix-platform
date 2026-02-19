@@ -39,7 +39,8 @@ load_dotenv()
 # Import from local modules
 from models import (db, init_db, User, Deal, Payment, Booking, PriceAlert, Escrow,
                     HelperProfile, UserWallet, UserCard, P2PTransaction, P2PEscrow,
-                    NodeConsentProfile, RevenueAllocation, TravelerProfile)
+                    NodeConsentProfile, RevenueAllocation, TravelerProfile,
+                    BrowsingEvent)
 from translation import (
     translate_html, translate_text, translate_form_data,
     detect_language, detect_language_from_html,
@@ -3499,7 +3500,7 @@ def _get_apple_jwks():
     if _apple_jwks_cache["keys"] and (_time.time() - _apple_jwks_cache["fetched_at"]) < 3600:
         return _apple_jwks_cache["keys"]
     try:
-        resp = requests.get("https://appleid.apple.com/auth/keys", timeout=10)
+        resp = http_requests.get("https://appleid.apple.com/auth/keys", timeout=10)
         resp.raise_for_status()
         jwks = resp.json()
         _apple_jwks_cache["keys"] = jwks
@@ -6174,6 +6175,7 @@ def proxy(encoded_url):
         if not any(domain in parsed.netloc for domain in ALLOWED_PROXY_DOMAINS):
             return jsonify({"error": f"Domain not allowed: {parsed.netloc}"}), 403
 
+        from proxy_manager import get_proxy_for_market
         proxies = get_proxy_for_market("JP")
 
         user_language = current_user.preferred_language or 'en'
@@ -6330,7 +6332,7 @@ def api_deals():
             "departure_date": d.departure_date.isoformat() if d.departure_date else None,
             "home_market": d.home_market,
             "home_price_usd": d.home_price_usd,
-            "arbitrage_market": MYSTES,  # Never expose proxy market codes
+            "arbitrage_market": "MYSTES",  # Never expose proxy market codes
             "arbitrage_price_usd": d.arbitrage_price_usd,
             "gross_savings_usd": d.gross_savings_usd,
             "platform_fee_usd": d.platform_fee_usd,
@@ -9808,7 +9810,7 @@ function renderFlightCards(r) {
         // Format times - extract just HH:MM from ISO datetime
         function fmtTime(t) {
             if (!t) return '';
-            const m = String(t).match(/(\d{1,2}:\d{2})/);
+            const m = String(t).match(/(\\d{1,2}:\\d{2})/);
             return m ? m[1] : t;
         }
         const depTime = fmtTime(f.departure_time || f.departure || '');
@@ -10555,7 +10557,7 @@ MYSTES_INSTALL_CONTENT = """
             deferredPrompt.prompt();
             deferredPrompt.userChoice.then(function(result) {
                 if (result.outcome === 'accepted') {
-                    installBtn.textContent = 'Installed\!';
+                    installBtn.textContent = 'Installed!';
                     setTimeout(function() { window.location.href = '/ai'; }, 1000);
                 }
                 deferredPrompt = null;
@@ -16670,7 +16672,7 @@ def api_compare_itinerary():
                     "date": date,
                     "airline": search_result.get("flight", {}).get("airline", ""),
                     "market_prices": {},  # Scrubbed
-                    "cheapest_market": MYSTES,
+                    "cheapest_market": "MYSTES",
                     "cheapest_price_usd": cheapest_price,
                     "us_price_usd": us_price,
                     "savings_usd": round(savings, 2)
@@ -21410,8 +21412,10 @@ def admin_data_marketplace():
         stats = {"error": str(e)}
 
     return render_template_string(
-        ADMIN_SHELL.replace("{{CONTENT}}", DATA_MARKETPLACE_ADMIN_CONTENT),
-        stats=stats,
+        BASE_TEMPLATE,
+        title="Data Marketplace - Admin",
+        content=render_template_string(DATA_MARKETPLACE_ADMIN_CONTENT, stats=stats),
+        current_user=current_user,
     )
 
 
