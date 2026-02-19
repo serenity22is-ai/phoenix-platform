@@ -126,17 +126,50 @@ def get_node_counts() -> Dict[str, int]:
 def get_proxy_demand_gb() -> float:
     """Get current monthly proxy demand in GB.
 
+    Measures real demand from two sources (Build #109):
+    1. BrowsingEvent ingestion volume (last 30 days)
+    2. CitizenSERP task dispatches (last 30 days)
+
+    Each browsing event ~ 5KB avg payload, each task ~ 500KB avg (screenshots + data).
+    Falls back to node-count estimate if DB unavailable.
+
     Returns:
-        Estimated monthly proxy demand based on recent sales.
+        Estimated monthly proxy demand in GB.
     """
     try:
-        # TODO: Wire to actual proxy sales tracking
-        # For now, return a placeholder based on node count
-        from node_registry import node_registry
-        active_nodes = len([n for n in node_registry._nodes.values()
-                           if n.status in ("online", "idle", "busy")])
-        # Assume 30% utilization for now
-        return active_nodes * AVG_NODE_CAPACITY_GB_PER_MONTH * 0.30
+        from models import db, BrowsingEvent
+        from datetime import datetime, timedelta
+        from sqlalchemy import func
+
+        cutoff = datetime.utcnow() - timedelta(days=30)
+
+        # Source 1: BrowsingEvent count (each ~ 5KB)
+        event_count = BrowsingEvent.query.filter(
+            BrowsingEvent.ingested_at >= cutoff
+        ).count()
+        events_gb = (event_count * 5) / (1024 * 1024)  # 5KB per event → GB
+
+        # Source 2: CitizenSERP task volume (each ~ 500KB avg w/ screenshots)
+        task_gb = 0.0
+        try:
+            from citizenserp_tasks import task_dispatcher
+            stats = task_dispatcher.get_stats()
+            completed = stats.get("total_completed", 0)
+            task_gb = (completed * 500) / (1024 * 1024)  # 500KB per task → GB
+        except ImportError:
+            pass
+
+        total_demand = events_gb + task_gb
+
+        # If no real data yet, fall back to node-count estimate
+        if total_demand < 0.01:
+            from node_registry import node_registry
+            active_nodes = len([n for n in node_registry._nodes.values()
+                               if n.status in ("online", "idle", "busy")])
+            return active_nodes * AVG_NODE_CAPACITY_GB_PER_MONTH * 0.30
+
+        return total_demand
+
     except Exception:
         return 0.0
 

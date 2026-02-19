@@ -3490,6 +3490,28 @@ def api_auth_microsoft():
         return jsonify({"error": "Internal server error"}), 500
 
 
+# Apple JWKS cache (Build #109)
+_apple_jwks_cache = {"keys": None, "fetched_at": 0}
+
+def _get_apple_jwks():
+    """Fetch and cache Apple's JWKS public keys (1-hour cache)."""
+    import time as _time
+    if _apple_jwks_cache["keys"] and (_time.time() - _apple_jwks_cache["fetched_at"]) < 3600:
+        return _apple_jwks_cache["keys"]
+    try:
+        resp = requests.get("https://appleid.apple.com/auth/keys", timeout=10)
+        resp.raise_for_status()
+        jwks = resp.json()
+        _apple_jwks_cache["keys"] = jwks
+        _apple_jwks_cache["fetched_at"] = _time.time()
+        logger.debug("Apple JWKS refreshed: %d keys", len(jwks.get("keys", [])))
+        return jwks
+    except Exception as e:
+        logger.error(f"Failed to fetch Apple JWKS: {e}")
+        # Return cached keys if available, even if stale
+        return _apple_jwks_cache["keys"] or {"keys": []}
+
+
 @app.route("/api/v1/auth/apple", methods=["POST"])
 @limiter.limit("20 per hour")
 def api_auth_apple():
@@ -3509,26 +3531,70 @@ def api_auth_apple():
 
         id_token = data["id_token"]
 
-        # Decode Apple id_token (JWT)
-        # Format: header.payload.signature — each base64url-encoded
+        # Decode and verify Apple id_token (JWT with RS256 JWKS — Build #109)
         try:
             import base64
+            import time
 
             parts = id_token.split(".")
             if len(parts) != 3:
                 return jsonify({"error": "Malformed id_token"}), 400
 
-            # Decode payload (part 1) — add padding as needed
-            payload_b64 = parts[1]
-            payload_b64 += "=" * (4 - len(payload_b64) % 4)
-            payload_bytes = base64.urlsafe_b64decode(payload_b64)
-            claims = json.loads(payload_bytes)
+            def _b64url_decode(s):
+                s += "=" * (4 - len(s) % 4)
+                return base64.urlsafe_b64decode(s)
 
-            # Validate issuer and audience
+            # Decode header to get kid (key ID)
+            header = json.loads(_b64url_decode(parts[0]))
+            kid = header.get("kid")
+            alg = header.get("alg", "RS256")
+
+            if alg != "RS256":
+                return jsonify({"error": f"Unsupported JWT algorithm: {alg}"}), 401
+
+            # Verify RS256 signature against Apple's JWKS
+            if kid:
+                try:
+                    from cryptography.hazmat.primitives.asymmetric import padding
+                    from cryptography.hazmat.primitives import hashes, serialization
+                    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+                    from cryptography.hazmat.backends import default_backend
+
+                    # Fetch Apple's JWKS (cached in-memory for 1 hour)
+                    apple_keys = _get_apple_jwks()
+                    matching_key = next((k for k in apple_keys.get("keys", []) if k.get("kid") == kid), None)
+
+                    if not matching_key:
+                        logger.warning(f"Apple JWKS: no key found for kid={kid}")
+                        return jsonify({"error": "Apple signing key not found"}), 401
+
+                    # Reconstruct RSA public key from JWK n + e
+                    n_bytes = _b64url_decode(matching_key["n"])
+                    e_bytes = _b64url_decode(matching_key["e"])
+                    n_int = int.from_bytes(n_bytes, byteorder="big")
+                    e_int = int.from_bytes(e_bytes, byteorder="big")
+                    public_key = RSAPublicNumbers(e_int, n_int).public_key(default_backend())
+
+                    # Verify signature: RS256 = RSASSA-PKCS1-v1_5 with SHA-256
+                    signature = _b64url_decode(parts[2])
+                    signed_content = f"{parts[0]}.{parts[1]}".encode("ascii")
+                    public_key.verify(signature, signed_content, padding.PKCS1v15(), hashes.SHA256())
+
+                    logger.debug("Apple JWT signature verified (kid=%s)", kid)
+                except ImportError:
+                    logger.warning("cryptography not available — skipping Apple JWT signature verification")
+                except Exception as sig_err:
+                    logger.error(f"Apple JWT signature verification failed: {sig_err}")
+                    return jsonify({"error": "Invalid token signature"}), 401
+
+            # Decode payload claims
+            claims = json.loads(_b64url_decode(parts[1]))
+
+            # Validate issuer
             if claims.get("iss") != "https://appleid.apple.com":
                 return jsonify({"error": "Invalid token issuer"}), 401
 
-            import time
+            # Validate expiry
             if claims.get("exp", 0) < time.time():
                 return jsonify({"error": "Token expired"}), 401
 
@@ -3539,10 +3605,6 @@ def api_auth_apple():
 
             if not apple_id or not email:
                 return jsonify({"error": "Invalid Apple token claims"}), 400
-
-            # TODO: For production, verify JWT signature against Apple's JWKS
-            # keys = http_requests.get("https://appleid.apple.com/auth/keys").json()
-            # Use matching kid from JWT header to verify RS256 signature
 
         except (ValueError, KeyError, json.JSONDecodeError) as e:
             logger.error(f"Apple id_token decode error: {e}")
