@@ -37,6 +37,24 @@ def _emit_p2p(buyer_id, helper_user_id, event_type, data):
         pass  # SSE is best-effort; never block transaction flow
 
 
+def _track_p2p(event, market="unknown"):
+    """Track P2P metric (best-effort, never blocks)."""
+    try:
+        from monitoring import track_p2p_event
+        track_p2p_event(event=event, market=market)
+    except Exception:
+        pass
+
+
+def _track_escrow_metric(action, amount_rlusd):
+    """Track escrow metric (best-effort, never blocks)."""
+    try:
+        from monitoring import track_escrow
+        track_escrow(action=action, amount_rlusd=float(amount_rlusd or 0))
+    except Exception:
+        pass
+
+
 class P2PWorkflowStatus(Enum):
     """High-level workflow states."""
     INITIATED = "initiated"
@@ -142,10 +160,10 @@ class P2POrchestrator:
         """
         Step 2: Find and assign a helper in the target market.
 
-        Searches for available helpers in the target market,
-        ordered by rating and experience.
+        Uses the smart multi-factor scoring algorithm from helper_matching.py
+        (reliability, rating, experience, availability, recency, speed).
         """
-        from models import P2PTransaction, HelperProfile, UserWallet, UserCard
+        from models import P2PTransaction, HelperProfile, UserWallet
 
         transaction = P2PTransaction.query.filter_by(
             transaction_id=transaction_id
@@ -160,55 +178,42 @@ class P2POrchestrator:
         transaction.status = "matching"
         self.db.commit()
 
-        # Find available helpers in the target market
-        helpers = HelperProfile.query.filter_by(
-            country_code=transaction.target_market,
-            is_active=True,
-            is_approved=True,
-        ).order_by(
-            HelperProfile.average_rating.desc(),
-            HelperProfile.successful_transactions.desc(),
-        ).all()
+        # Use smart scoring algorithm from helper_matching module
+        try:
+            from helper_matching import rank_helpers
+            ranked = rank_helpers(
+                target_market=transaction.target_market,
+                limit=5,
+                transaction_amount_usd=transaction.us_price_usd,
+                require_wallet=True,
+                require_card=True,
+            )
+        except ImportError:
+            logger.warning("helper_matching module not available")
+            ranked = []
 
-        # Filter: helper must have wallet + card, not maxed out for today
-        eligible = []
-        for helper in helpers:
-            # Check daily limit
-            if helper.transactions_today >= helper.max_daily_transactions:
-                continue
-
-            # Check wallet exists
-            wallet = UserWallet.query.filter_by(
-                user_id=helper.user_id, is_primary=True
-            ).first()
-            if not wallet:
-                continue
-
-            # Check card exists
-            card = UserCard.query.filter_by(
-                user_id=helper.user_id, is_active=True
-            ).first()
-            if not card:
-                continue
-
-            eligible.append({
-                "helper": helper,
-                "wallet": wallet,
-                "card": card,
-            })
-
-        if not eligible:
+        if not ranked:
             transaction.status = "requested"  # Revert to allow retry
             self.db.commit()
             return {
                 "success": False,
                 "error": f"No available helpers in {transaction.target_market}",
-                "helpers_checked": len(helpers),
             }
 
-        # Select best helper (first eligible — already sorted by rating)
-        selected = eligible[0]
-        helper = selected["helper"]
+        # Select the top-scored helper
+        best = ranked[0]
+        helper = HelperProfile.query.get(best["helper_id"])
+        if not helper:
+            transaction.status = "requested"
+            self.db.commit()
+            return {"success": False, "error": "Matched helper not found in database"}
+
+        # Get helper's wallet for escrow
+        wallet = UserWallet.query.filter_by(
+            user_id=helper.user_id, is_primary=True
+        ).first()
+        if not wallet:
+            wallet = UserWallet.query.filter_by(user_id=helper.user_id).first()
 
         transaction.helper_id = helper.id
         transaction.status = "matched"
@@ -218,11 +223,13 @@ class P2POrchestrator:
         _emit_p2p(transaction.buyer_id, helper.user_id, "p2p_matched", {
             "transaction_id": transaction_id,
             "helper_market": helper.country_code,
+            "match_score": best["score"],
         })
+        _track_p2p("matched", transaction.target_market)
 
         logger.info(
             f"Transaction {transaction_id} matched to helper {helper.id} "
-            f"in {helper.country_code} (rating: {helper.average_rating})"
+            f"in {helper.country_code} (score: {best['score']}, factors: {best['factors']})"
         )
 
         return {
@@ -231,7 +238,8 @@ class P2POrchestrator:
             "helper_id": helper.id,
             "helper_market": helper.country_code,
             "helper_rating": helper.average_rating,
-            "helper_wallet": selected["wallet"].wallet_address,
+            "match_score": best["score"],
+            "helper_wallet": wallet.wallet_address if wallet else None,
             "status": "matched",
             "next_step": "create_escrow",
         }
@@ -321,6 +329,7 @@ class P2POrchestrator:
             "escrow_id": escrow.escrow_id,
             "total_rlusd": str(escrow.total_rlusd),
         })
+        _track_escrow_metric("locked", escrow.total_rlusd)
 
         logger.info(
             f"Escrow {escrow.escrow_id} created for transaction {transaction_id}: "
@@ -692,6 +701,8 @@ class P2POrchestrator:
             })
         except Exception:
             pass
+        _track_p2p("completed", transaction.target_market)
+        _track_escrow_metric("released", escrow.total_rlusd)
 
         logger.info(
             f"Escrow released for transaction {transaction_id}: "

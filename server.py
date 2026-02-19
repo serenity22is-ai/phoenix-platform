@@ -2695,7 +2695,17 @@ def register():
         user.is_helper_node = True
         user.set_password(password)
         db.session.add(user)
-        db.session.commit()
+        db.session.flush()  # Get user.id before commit
+
+        # Generate email verification token and send verification email
+        try:
+            token = user.generate_verification_token()
+            db.session.commit()
+            from email_service import send_verification_email
+            send_verification_email(to=email, token=token, name=name)
+        except Exception as verify_err:
+            db.session.commit()  # Ensure user is saved even if email fails
+            logger.warning(f"Verification email failed for {email} (non-blocking): {verify_err}")
 
         # Create HelperProfile with helper_token for node service / extension auth
         try:
@@ -2801,6 +2811,106 @@ def login():
         pending_deal=pending_deal,
         current_user=current_user
     )
+
+
+@app.route("/verify-email/<token>")
+def verify_email(token):
+    """Verify a user's email address via token link."""
+    user = User.query.filter_by(verification_token=token).first()
+    if user and user.verify_email(token):
+        db.session.commit()
+        flash("Email verified successfully!", "success")
+        if current_user.is_authenticated:
+            return redirect("/ai")
+        return redirect("/login")
+    flash("Invalid or expired verification link.", "error")
+    return redirect("/login")
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
+def forgot_password():
+    """Request a password reset email."""
+    if request.method == "POST":
+        email = request.form.get("email", "").lower().strip()
+        user = User.query.filter_by(email=email).first()
+        if user:
+            try:
+                token = user.generate_reset_token()
+                db.session.commit()
+                from email_service import send_password_reset_email
+                send_password_reset_email(to=email, token=token, name=user.name)
+            except Exception as e:
+                logger.error(f"Password reset email failed for {email}: {e}")
+        # Always show same message to prevent email enumeration
+        flash("If that email is registered, you'll receive a password reset link.", "info")
+        return redirect("/login")
+
+    # GET: render a simple forgot-password form
+    form_html = """
+    <div style="max-width:400px;margin:40px auto;padding:30px;background:white;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+        <h2 style="color:#4361ee;">Reset Password</h2>
+        <p>Enter your email and we'll send you a reset link.</p>
+        <form method="POST">
+            <input type="email" name="email" placeholder="Email address" required
+                   style="width:100%;padding:10px;margin:10px 0;border:1px solid #ddd;border-radius:6px;">
+            <button type="submit"
+                    style="width:100%;padding:12px;background:#4361ee;color:white;border:none;border-radius:6px;cursor:pointer;font-size:16px;">
+                Send Reset Link
+            </button>
+        </form>
+        <p style="margin-top:15px;font-size:14px;"><a href="/login">Back to login</a></p>
+    </div>
+    """
+    return render_template_string(BASE_TEMPLATE, title="Forgot Password",
+                                  content=form_html, current_user=current_user)
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
+def reset_password(token):
+    """Reset password using a token from the email link."""
+    user = User.query.filter_by(reset_token=token).first()
+    if not user or not user.reset_token_expires or user.reset_token_expires < datetime.utcnow():
+        flash("Invalid or expired reset link.", "error")
+        return redirect("/forgot-password")
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return redirect(f"/reset-password/{token}")
+        if password != confirm:
+            flash("Passwords do not match.", "error")
+            return redirect(f"/reset-password/{token}")
+
+        if user.reset_password(token, password):
+            db.session.commit()
+            flash("Password reset successfully! Please log in.", "success")
+            return redirect("/login")
+        else:
+            flash("Reset failed. Please request a new link.", "error")
+            return redirect("/forgot-password")
+
+    # GET: render reset form
+    form_html = f"""
+    <div style="max-width:400px;margin:40px auto;padding:30px;background:white;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+        <h2 style="color:#4361ee;">Set New Password</h2>
+        <form method="POST">
+            <input type="password" name="password" placeholder="New password" required minlength="8"
+                   style="width:100%;padding:10px;margin:10px 0;border:1px solid #ddd;border-radius:6px;">
+            <input type="password" name="confirm_password" placeholder="Confirm password" required
+                   style="width:100%;padding:10px;margin:10px 0;border:1px solid #ddd;border-radius:6px;">
+            <button type="submit"
+                    style="width:100%;padding:12px;background:#4361ee;color:white;border:none;border-radius:6px;cursor:pointer;font-size:16px;">
+                Reset Password
+            </button>
+        </form>
+    </div>
+    """
+    return render_template_string(BASE_TEMPLATE, title="Reset Password",
+                                  content=form_html, current_user=current_user)
 
 
 def _oauth_provision_user(provider_id_field, provider_id_value, email, name):
@@ -3985,6 +4095,13 @@ def api_hotel_search():
             max_hotels=20,
         )
 
+        # Track hotel search metric
+        try:
+            from monitoring import track_search
+            track_search(origin=city_code, destination=city_code, market="hotel")
+        except Exception:
+            pass
+
         if not result.get("success"):
             return jsonify({"success": False, "error": result.get("error", "No hotels found"), "hotels": []})
 
@@ -4532,22 +4649,44 @@ def complete_booking(deal_id):
 
     fulfillment_type = request.form.get("fulfillment_type", "automated")
 
-    # Get or create booking record
+    # Get or create booking record via BookingFulfillmentManager (single source of truth)
     booking = Booking.query.filter_by(
         deal_id=deal.id,
         payment_id=payment.id
     ).first()
 
     if not booking:
-        booking = Booking(
-            user_id=user_id,
-            deal_id=deal.id,
-            payment_id=payment.id,
-            status='pending_fulfillment',
-            fulfillment_type=fulfillment_type,
-            created_at=datetime.utcnow()
-        )
-        db.session.add(booking)
+        try:
+            from booking_fulfillment import BookingFulfillmentManager
+            manager = BookingFulfillmentManager(db.session)
+            # Create a lightweight user object for guest checkouts
+            if current_user.is_authenticated:
+                bfm_user = current_user
+            else:
+                class _GuestUser:
+                    def __init__(self, uid, email):
+                        self.id = uid
+                        self.email = email
+                _guest_email = passenger_data.get('email', session.get('guest_email', ''))
+                bfm_user = _GuestUser(user_id, _guest_email)
+
+            result = manager.create_booking(
+                deal, payment, bfm_user,
+                fulfillment_type=fulfillment_type,
+                skip_fulfillment=True,  # complete_booking() handles fulfillment itself
+            )
+            booking = result.get("booking")
+        except ImportError:
+            logger.warning("booking_fulfillment not available, creating booking inline")
+            booking = Booking(
+                user_id=user_id,
+                deal_id=deal.id,
+                payment_id=payment.id,
+                status='pending_fulfillment',
+                fulfillment_type=fulfillment_type,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(booking)
 
     # Update booking with passenger/guest details
     booking.passenger_name = f"{passenger_data['first_name']} {passenger_data['last_name']}"
@@ -6488,6 +6627,13 @@ def api_payment_verify():
             db.session.add(payment)
             db.session.commit()
 
+            # Track payment metric
+            try:
+                from monitoring import track_payment
+                track_payment(method=method, amount_usd=total_amount, status="verified")
+            except Exception:
+                pass
+
             # Trigger booking fulfillment
             trigger_booking_fulfillment(deal, payment)
 
@@ -7073,6 +7219,13 @@ def webhook_stripe():
                             db.session.add(payment)
                             db.session.commit()
 
+                        # Track payment metric
+                        try:
+                            from monitoring import track_payment
+                            track_payment(method="card", amount_usd=amount_usd, status="verified")
+                        except Exception:
+                            pass
+
                         # Trigger booking fulfillment
                         trigger_booking_fulfillment(deal, payment)
 
@@ -7138,6 +7291,13 @@ def webhook_coinbase():
                     )
                     db.session.add(payment)
                     db.session.commit()
+
+                    # Track payment metric
+                    try:
+                        from monitoring import track_payment
+                        track_payment(method="crypto", amount_usd=amount_usd, status="verified")
+                    except Exception:
+                        pass
 
                     logger.info(f"Coinbase payment verified via webhook for deal {deal_id}")
                     audit_log("payment_verified", user_id=deal.user_id,
@@ -15876,6 +16036,13 @@ def api_search():
 
     try:
         results = search_global(origin, destination, date, fast_mode=True)
+
+        # Track search metric
+        try:
+            from monitoring import track_search
+            track_search(origin=origin, destination=destination, market="US")
+        except Exception:
+            pass
 
         # Store deals in database
         for deal_data in results.get("deals", []):

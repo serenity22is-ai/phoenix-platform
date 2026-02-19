@@ -612,6 +612,12 @@ class FeedbackEngine:
                     f"${current_price:.0f} vs ${avg_price:.0f} avg "
                     f"({anomaly['deviation_pct']}%)"
                 )
+                # Emit SSE anomaly event for admin dashboard
+                try:
+                    from event_stream import emit_anomaly
+                    emit_anomaly(anomaly)
+                except Exception:
+                    pass
 
             return anomaly
 

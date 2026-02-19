@@ -125,14 +125,28 @@ def register_node_service_routes(app):
             db.session.commit()
 
             # Register with node registry (lazy import)
+            newly_registered = False
             try:
                 from node_registry import node_registry
                 if not node_registry.is_registered(profile.node_id):
                     node_registry.register(profile.node_id, profile.user_id)
+                    newly_registered = True
             except ImportError:
                 logger.debug("node_registry not available; skipping registration")
             except Exception as exc:
                 logger.warning("node_registry.register failed: %s", exc)
+
+            # Emit SSE node event for real-time dashboard
+            if newly_registered:
+                try:
+                    from event_stream import emit_node_event
+                    emit_node_event("node_registered", {
+                        "node_id": profile.node_id,
+                        "user_id": profile.user_id,
+                        "country_code": profile.country_code,
+                    })
+                except Exception:
+                    pass
 
             return jsonify({
                 "node_id": profile.node_id,
@@ -260,6 +274,17 @@ def register_node_service_routes(app):
                     "error": "Ingestion failed",
                     "detail": str(exc),
                 }), 500
+
+            # Emit SSE extension event for real-time dashboard
+            try:
+                from event_stream import emit_extension_event
+                emit_extension_event(user_id, "extension_data_ingested", {
+                    "node_id": node_id,
+                    "accepted": result.get("accepted", 0),
+                    "rejected": result.get("rejected", 0),
+                })
+            except Exception:
+                pass
 
             return jsonify(result), 200
 

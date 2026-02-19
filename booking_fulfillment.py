@@ -88,7 +88,8 @@ class BookingFulfillmentManager:
     def __init__(self, db_session):
         self.db = db_session
 
-    def create_booking(self, deal, payment, user, fulfillment_type: str = None) -> Dict[str, Any]:
+    def create_booking(self, deal, payment, user, fulfillment_type: str = None,
+                       skip_fulfillment: bool = False) -> Dict[str, Any]:
         """
         Create a new booking after payment verification.
 
@@ -97,9 +98,10 @@ class BookingFulfillmentManager:
             payment: The Payment model instance
             user: The User model instance
             fulfillment_type: Override default fulfillment type
+            skip_fulfillment: If True, create booking record only (caller handles fulfillment)
 
         Returns:
-            dict with booking details
+            dict with booking details and 'booking' key containing the model instance
         """
         from models import Booking
 
@@ -107,7 +109,7 @@ class BookingFulfillmentManager:
 
         # Check if booking already exists
         existing = Booking.query.filter_by(
-            user_id=user.id,
+            user_id=getattr(user, 'id', None),
             deal_id=deal.id,
             payment_id=payment.id
         ).first()
@@ -116,16 +118,17 @@ class BookingFulfillmentManager:
             return {
                 "success": True,
                 "booking_id": existing.id,
+                "booking": existing,
                 "status": existing.status,
                 "message": "Booking already exists"
             }
 
         # Create new booking
         booking = Booking(
-            user_id=user.id,
+            user_id=getattr(user, 'id', None),
             deal_id=deal.id,
             payment_id=payment.id,
-            passenger_email=user.email,
+            passenger_email=getattr(user, 'email', None),
             status=BookingStatus.PENDING_FULFILLMENT.value,
             fulfillment_type=fulfillment_type,
             vendor_payment_amount=deal.arbitrage_price_usd,
@@ -138,12 +141,22 @@ class BookingFulfillmentManager:
 
         logger.info(f"Created booking {booking.id} for deal {deal.deal_id}, fulfillment: {fulfillment_type}")
 
+        if skip_fulfillment:
+            return {
+                "success": True,
+                "booking_id": booking.id,
+                "booking": booking,
+                "status": booking.status,
+                "fulfillment_type": fulfillment_type,
+            }
+
         # Initiate fulfillment based on type
         result = self._initiate_fulfillment(booking, deal, user)
 
         return {
             "success": True,
             "booking_id": booking.id,
+            "booking": booking,
             "status": booking.status,
             "fulfillment_type": fulfillment_type,
             **result

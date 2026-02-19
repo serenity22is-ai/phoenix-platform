@@ -329,6 +329,19 @@ def check_price_alerts():
                             f"user:{user.id}", "price_alert",
                             {"count": len(matching), "route": f"{alert.origin}→{alert.destination}"},
                         )
+
+                        # Emit typed SSE price alert for real-time UI
+                        try:
+                            from event_stream import emit_price_alert
+                            emit_price_alert(user.id, {
+                                "alert_id": alert.id,
+                                "origin": alert.origin,
+                                "destination": alert.destination,
+                                "deals_found": len(matching),
+                                "top_savings": matching[0].get("savings", 0) if matching else 0,
+                            })
+                        except Exception:
+                            pass
             except Exception as e:
                 logger.error(f"Alert {alert.id} error: {e}")
 
