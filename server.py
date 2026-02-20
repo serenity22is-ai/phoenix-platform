@@ -272,11 +272,11 @@ _FALLBACK_TEMPLATE = """
         :root {
             --black: #000000;
             --white: #ffffff;
-            --mystes-orange: #ff4d00;
-            --mystes-amber: #ff8c00;
-            --mystes-gold: #ffc107;
+            --mystes-purple: #5b21b6;
+            --mystes-deep: #6d28d9;
+            --mystes-gold: #14b8a6;
             --success: #00c853;
-            --warning: #ff9100;
+            --warning: #7c3aed;
             --error: #ff1744;
 
             /* HIGH CONTRAST text colors */
@@ -306,7 +306,7 @@ _FALLBACK_TEMPLATE = """
             pointer-events: none;
             z-index: 0;
             background:
-                radial-gradient(ellipse 80% 50% at 20% 40%, rgba(255,107,53,0.15) 0%, transparent 50%),
+                radial-gradient(ellipse 80% 50% at 20% 40%, rgba(124,58,237,0.15) 0%, transparent 50%),
                 radial-gradient(ellipse 60% 40% at 80% 20%, rgba(247,147,26,0.1) 0%, transparent 50%),
                 radial-gradient(ellipse 50% 30% at 40% 80%, rgba(255,200,55,0.08) 0%, transparent 50%),
                 radial-gradient(ellipse 100% 100% at 50% 0%, rgba(26,26,46,0.5) 0%, transparent 60%);
@@ -340,7 +340,7 @@ _FALLBACK_TEMPLATE = """
         .conn-line {
             position: absolute;
             height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255,107,53,0.3), transparent);
+            background: linear-gradient(90deg, transparent, rgba(124,58,237,0.3), transparent);
             animation: pulse-line 4s ease-in-out infinite;
         }
         .conn-line:nth-child(1) { top: 20%; width: 40%; left: 10%; animation-delay: 0s; }
@@ -368,17 +368,17 @@ _FALLBACK_TEMPLATE = """
             position: absolute;
             width: 4px;
             height: 4px;
-            background: var(--mystes-orange);
+            background: var(--mystes-purple);
             border-radius: 50%;
             filter: blur(1px);
             animation: rise 8s ease-in infinite;
         }
         .particle:nth-child(1) { left: 10%; animation-delay: 0s; }
-        .particle:nth-child(2) { left: 25%; animation-delay: 1.5s; background: var(--mystes-amber); }
+        .particle:nth-child(2) { left: 25%; animation-delay: 1.5s; background: var(--mystes-deep); }
         .particle:nth-child(3) { left: 40%; animation-delay: 3s; }
         .particle:nth-child(4) { left: 55%; animation-delay: 0.5s; background: var(--mystes-gold); }
         .particle:nth-child(5) { left: 70%; animation-delay: 2s; }
-        .particle:nth-child(6) { left: 85%; animation-delay: 4s; background: var(--mystes-amber); }
+        .particle:nth-child(6) { left: 85%; animation-delay: 4s; background: var(--mystes-deep); }
         @keyframes rise {
             0% { bottom: -10px; opacity: 0; }
             10% { opacity: 0.8; }
@@ -416,7 +416,7 @@ _FALLBACK_TEMPLATE = """
             color: var(--text-primary);
             background: var(--glass-bg);
         }
-        nav a.active { color: var(--mystes-orange); }
+        nav a.active { color: var(--mystes-purple); }
 
         /* Brand logo */
         .brand {
@@ -431,19 +431,19 @@ _FALLBACK_TEMPLATE = """
         .brand-icon {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, var(--mystes-orange), var(--mystes-amber));
+            background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-deep));
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 20px;
-            box-shadow: 0 4px 20px rgba(255,107,53,0.3);
+            box-shadow: 0 4px 20px rgba(124,58,237,0.3);
         }
         .brand-text {
             font-family: 'Space Grotesk', sans-serif;
             font-size: 24px;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--mystes-orange), var(--mystes-gold));
+            background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-gold));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -486,7 +486,7 @@ _FALLBACK_TEMPLATE = """
 
         /* Modern buttons with animation */
         .btn {
-            background: linear-gradient(135deg, #ff6b35, #ff8c00);
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
             color: white;
             padding: 12px 28px;
             border: none;
@@ -551,7 +551,7 @@ _FALLBACK_TEMPLATE = """
         }
         .form-group input:focus, .form-group select:focus {
             outline: none;
-            border-color: #ff6b35;
+            border-color: #7c3aed;
             box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.1);
         }
 
@@ -573,7 +573,7 @@ _FALLBACK_TEMPLATE = """
         .alert-success::before { content: ''; }
         .alert-error { background: linear-gradient(135deg, #f8d7da, #f5c6cb); color: #721c24; }
         .alert-error::before { content: ''; }
-        .alert-info { background: linear-gradient(135deg, #fff5f0, #ffe5d8); color: #8b4513; }
+        .alert-info { background: linear-gradient(135deg, #f5f3ff, #ffe5d8); color: #8b4513; }
         .alert-info::before { content: ''; }
 
         .deal {
@@ -582,7 +582,7 @@ _FALLBACK_TEMPLATE = """
             padding: 25px;
             margin: 20px 0;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            border-left: 4px solid #ff6b35;
+            border-left: 4px solid #7c3aed;
             transition: all 0.3s ease;
         }
         .deal:hover { transform: translateX(5px); }
@@ -614,9 +614,9 @@ _FALLBACK_TEMPLATE = """
             font-size: 12px;
             font-weight: 600;
         }
-        .tag-warning { background: linear-gradient(135deg, #fff3cd, #ffeaa7); color: #856404; }
+        .tag-warning { background: linear-gradient(135deg, #f0fdfa, #ffeaa7); color: #856404; }
         .payment-box {
-            background: linear-gradient(135deg, #fff8f5, #fff5f0);
+            background: linear-gradient(135deg, #f5f3ff, #f5f3ff);
             padding: 20px;
             border-radius: 12px;
             margin-top: 15px;
@@ -627,7 +627,7 @@ _FALLBACK_TEMPLATE = """
             font-size: 13px;
             word-break: break-all;
             background: #1a1a2e;
-            color: #ffc107;
+            color: #14b8a6;
             padding: 12px;
             border-radius: 8px;
             margin: 10px 0;
@@ -641,7 +641,7 @@ _FALLBACK_TEMPLATE = """
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .status-pending { background: linear-gradient(135deg, #fff3cd, #ffeaa7); color: #856404; }
+        .status-pending { background: linear-gradient(135deg, #f0fdfa, #ffeaa7); color: #856404; }
         .status-verified { background: linear-gradient(135deg, #d4edda, #c3e6cb); color: #155724; }
         .status-expired { background: linear-gradient(135deg, #f8d7da, #f5c6cb); color: #721c24; }
 
@@ -672,7 +672,7 @@ _FALLBACK_TEMPLATE = """
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #ff6b35, #ffc107, #ffc107);
+            background: linear-gradient(90deg, #7c3aed, #14b8a6, #14b8a6);
         }
         .stat-card:hover {
             transform: translateY(-8px) scale(1.02);
@@ -681,7 +681,7 @@ _FALLBACK_TEMPLATE = """
         .stat-value {
             font-size: 32px;
             font-weight: bold;
-            background: linear-gradient(135deg, #ff6b35, #ffc107);
+            background: linear-gradient(135deg, #7c3aed, #14b8a6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -701,7 +701,7 @@ _FALLBACK_TEMPLATE = """
             position: relative;
             z-index: 2;
         }
-        footer a { color: #ffc107; text-decoration: none; transition: color 0.3s ease; }
+        footer a { color: #14b8a6; text-decoration: none; transition: color 0.3s ease; }
         footer a:hover { color: #fff; }
         footer p { margin: 10px 0; }
 
@@ -773,7 +773,7 @@ _FALLBACK_TEMPLATE = """
             width: 150px;
             height: 150px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #ff6b35 0%, #ff8c00 50%, #ffc107 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 50%, #14b8a6 100%);
             position: absolute;
             top: 50%;
             left: 50%;
@@ -860,7 +860,7 @@ _FALLBACK_TEMPLATE = """
         .loading-dots span {
             width: 12px;
             height: 12px;
-            background: linear-gradient(135deg, #ff6b35, #ffc107);
+            background: linear-gradient(135deg, #7c3aed, #14b8a6);
             border-radius: 50%;
             animation: bounce 1.4s ease-in-out infinite;
         }
@@ -886,9 +886,9 @@ _FALLBACK_TEMPLATE = """
             position: absolute;
             width: 8px;
             height: 8px;
-            background: #ffc107;
+            background: #14b8a6;
             border-radius: 50%;
-            box-shadow: 0 0 10px #ffc107;
+            box-shadow: 0 0 10px #14b8a6;
         }
         .marker:nth-child(1) { top: 20%; left: 30%; }
         .marker:nth-child(2) { top: 40%; left: 70%; }
@@ -953,7 +953,7 @@ _FALLBACK_TEMPLATE = """
                 <a href="/dashboard">Dashboard</a>
                 <a href="/helper">Helper</a>
                 <a href="/wallet">Wallet</a>
-                {% if current_user.is_admin %}<a href="/admin" style="color: #ffc107;">Admin</a>{% endif %}
+                {% if current_user.is_admin %}<a href="/admin" style="color: #14b8a6;">Admin</a>{% endif %}
                 <a href="/logout">Logout</a>
             {% else %}
                 <a href="/login">Login</a>
@@ -1105,16 +1105,16 @@ HOME_CONTENT = """
 
     .mystes-search-bar input::placeholder { color: rgba(255,255,255,0.35); }
     .mystes-search-bar input:focus {
-        border-color: rgba(255, 107, 53, 0.5);
+        border-color: rgba(124, 58, 237, 0.5);
         background: rgba(255, 255, 255, 0.08);
-        box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
     }
 
     .mystes-search-btn {
         position: absolute;
         right: 6px; top: 6px; bottom: 6px;
         width: 48px;
-        background: linear-gradient(135deg, #ff6b35, #ff4d00);
+        background: linear-gradient(135deg, #7c3aed, #5b21b6);
         border: none; border-radius: 12px;
         color: white; font-size: 20px;
         cursor: pointer;
@@ -1147,8 +1147,8 @@ HOME_CONTENT = """
         transition: all 0.25s ease;
     }
     .mystes-chip:hover {
-        background: rgba(255, 107, 53, 0.1);
-        border-color: rgba(255, 107, 53, 0.3);
+        background: rgba(124, 58, 237, 0.1);
+        border-color: rgba(124, 58, 237, 0.3);
         color: #fff;
     }
 
@@ -1180,7 +1180,7 @@ HOME_CONTENT = """
     }
     .mystes-vertical:hover {
         background: rgba(255, 255, 255, 0.05);
-        border-color: rgba(255, 107, 53, 0.3);
+        border-color: rgba(124, 58, 237, 0.3);
         transform: translateY(-4px);
     }
     .mystes-vertical .v-icon { font-size: 28px; }
@@ -1194,8 +1194,8 @@ HOME_CONTENT = """
         opacity: 0;
         animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
     }
-    .mystes-note a { color: rgba(255,107,53,0.7); text-decoration: none; }
-    .mystes-note a:hover { color: #ff6b35; }
+    .mystes-note a { color: rgba(124,58,237,0.7); text-decoration: none; }
+    .mystes-note a:hover { color: #7c3aed; }
 
     @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(30px); }
@@ -1263,9 +1263,9 @@ HOME_CONTENT = """
     </div>
 
     <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; opacity: 0; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;">
-        <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
+        <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
         {% if feature_node_onboarding %}
-        <a href="/helper" style="padding: 14px 32px; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the MYSTES Network</a>
+        <a href="/helper" style="padding: 14px 32px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.3); color: #7c3aed; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the MYSTES Network</a>
         {% endif %}
         <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Sign In</a>
     </div>
@@ -1291,7 +1291,7 @@ LOGIN_CONTENT = """
 <div class="card" style="max-width: 400px; margin: 40px auto;">
     <h2>Login</h2>
     {% if pending_deal %}
-    <div style="background: #fff5f0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    <div style="background: #f5f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
         Your deal has been saved. Log in to continue booking.
     </div>
     {% endif %}
@@ -1325,7 +1325,7 @@ REGISTER_CONTENT = """
 <div class="card" style="max-width: 400px; margin: 40px auto;">
     <h2>Create Account</h2>
     {% if pending_deal %}
-    <div style="background: #fff5f0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    <div style="background: #f5f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
         Your deal has been saved. Create an account to continue booking.
     </div>
     {% endif %}
@@ -1367,7 +1367,7 @@ DASHBOARD_CONTENT = """
 <h1>Welcome, {{ user.name or user.email }}!</h1>
 
 <!-- Tier Card -->
-<div class="card" style="background: linear-gradient(135deg, rgba(255,107,53,0.1), rgba(255,77,0,0.05)); border: 1px solid rgba(255,107,53,0.3); margin-bottom: 24px;">
+<div class="card" style="background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(255,77,0,0.05)); border: 1px solid rgba(124,58,237,0.3); margin-bottom: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
         <div>
             <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 4px;">Your Tier</div>
@@ -1385,11 +1385,11 @@ DASHBOARD_CONTENT = """
         </div>
         <div style="display: flex; gap: 24px; flex-wrap: wrap;">
             <div style="text-align: center;">
-                <div style="font-size: 1.4rem; font-weight: 700; color: #ff6b35;">{{ tier_info.queries_per_day }}</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: #7c3aed;">{{ tier_info.queries_per_day }}</div>
                 <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">searches/day</div>
             </div>
             <div style="text-align: center;">
-                <div style="font-size: 1.4rem; font-weight: 700; color: #ff6b35;">{{ tier_info.markets_per_query }}</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: #7c3aed;">{{ tier_info.markets_per_query }}</div>
                 <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">markets</div>
             </div>
             <div style="text-align: center;">
@@ -1402,7 +1402,7 @@ DASHBOARD_CONTENT = """
     <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
         <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">
             {% if tier_info.current_tier == 'bronze' %}
-            <strong>Upgrade to Silver:</strong> <a href="/helper" style="color: #ff6b35;">Join the MYSTES Network</a> to get 10 searches/day and 5 markets.
+            <strong>Upgrade to Silver:</strong> <a href="/helper" style="color: #7c3aed;">Join the MYSTES Network</a> to get 10 searches/day and 5 markets.
             {% elif tier_info.current_tier == 'silver' %}
             <strong>Upgrade to Gold:</strong> Enable data sharing in your node settings for 20 searches/day and 8 markets.
             {% elif tier_info.current_tier == 'gold' %}
@@ -1786,7 +1786,7 @@ DEALS_CONTENT = """
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <h1 style="margin: 0;">Available Deals</h1>
     <div style="color: #fff; font-size: 14px;">
-        XRP: <strong style="color: #ff6b35;">${{ "%.2f"|format(xrp_price) }}</strong> |
+        XRP: <strong style="color: #7c3aed;">${{ "%.2f"|format(xrp_price) }}</strong> |
         Network: <strong>{{ network }}</strong> |
         {{ deals|length }} deal{{ 's' if deals|length != 1 else '' }} found
         {% if last_scan %} | Last scan: {{ last_scan }}{% endif %}
@@ -1796,11 +1796,11 @@ DEALS_CONTENT = """
 {% if deals %}
     <div style="display: grid; gap: 20px;">
     {% for d in deals %}
-    <div class="card" style="border-left: 4px solid #ff6b35;">
+    <div class="card" style="border-left: 4px solid #7c3aed;">
         <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
             <div>
                 {% if d.deal_type == 'hotel' %}
-                    <span style="background: #ff8c00; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px;">HOTEL</span>
+                    <span style="background: #6d28d9; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px;">HOTEL</span>
                     <h3 style="margin: 5px 0 5px 0; color: #f5f5f5;">{{ d.hotel_name }}</h3>
                     <div style="color: #fff; font-size: 14px;">
                         {{ d.city_code }} &bull;
@@ -1820,7 +1820,7 @@ DEALS_CONTENT = """
             </div>
             <div style="text-align: right;">
                 {% if d.deal_type == 'hotel' %}
-                    <div style="font-size: 24px; font-weight: bold; color: #ff6b35;">
+                    <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">
                         ${{ "%.0f"|format(d.price_per_night_usd or 0) }}<span style="font-size: 14px; font-weight: normal; color: #ccc;">/night</span>
                     </div>
                     <div style="color: #ccc; font-size: 14px;">${{ "%.0f"|format(d.price_total_usd or 0) }} total</div>
@@ -1884,7 +1884,7 @@ GUEST_CHECKOUT_CONTENT = """
 
     <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
         {% if deal.deal_type == 'hotel' %}
-            <span style="background: #ff8c00; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px;">HOTEL</span>
+            <span style="background: #6d28d9; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px;">HOTEL</span>
             <h3 style="margin: 10px 0 5px; color: #1a1a2e;">{{ deal.hotel_name }}</h3>
             <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.city_code }} / {{ deal.check_in_date }} - {{ deal.check_out_date }}</p>
             <p style="margin-top: 15px; font-size: 1.2em;">
@@ -1940,12 +1940,12 @@ BOOK_CONTENT = """
         background: white;
     }
     .payment-method-card:hover {
-        border-color: #ff6b35;
+        border-color: #7c3aed;
         box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15);
     }
     .payment-method-card.selected {
-        border-color: #ff6b35;
-        background: #fff8f5;
+        border-color: #7c3aed;
+        background: #f5f3ff;
     }
     .payment-method-card .method-header {
         display: flex;
@@ -1988,7 +1988,7 @@ BOOK_CONTENT = """
         margin: 10px 0;
     }
     .copy-btn {
-        background: #ff6b35;
+        background: #7c3aed;
         color: white;
         border: none;
         padding: 8px 16px;
@@ -1998,7 +1998,7 @@ BOOK_CONTENT = """
         margin-top: 10px;
     }
     .copy-btn:hover {
-        background: #ff8c00;
+        background: #6d28d9;
     }
     .order-summary {
         background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
@@ -2009,7 +2009,7 @@ BOOK_CONTENT = """
     }
     .order-summary h3 {
         margin: 0 0 20px 0;
-        color: #ffc107;
+        color: #14b8a6;
     }
     .order-row {
         display: flex;
@@ -2067,7 +2067,7 @@ BOOK_CONTENT = """
         width: 50px;
         height: 50px;
         border: 4px solid #e9ecef;
-        border-top-color: #ff6b35;
+        border-top-color: #7c3aed;
         border-radius: 50%;
         animation: spin 1s linear infinite;
         margin: 0 auto 20px;
@@ -2090,12 +2090,12 @@ BOOK_CONTENT = """
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <strong>{{ leg.is_outbound and '🛫 Outbound' or (leg.is_return and '🛬 Return' or ('Leg ' ~ loop.index)) }}</strong><br>
-                        <span style="color: #ffc107;">{{ leg.airline or 'Multiple Airlines' }} • {{ leg.route }}</span><br>
+                        <span style="color: #14b8a6;">{{ leg.airline or 'Multiple Airlines' }} • {{ leg.route }}</span><br>
                         <small>{{ leg.date }}</small>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(leg.cheapest_price or 0) }}</span>
-                        <br><small style="color: #ffc107;">via MYSTES</small>
+                        <br><small style="color: #14b8a6;">via MYSTES</small>
                     </div>
                 </div>
             </div>
@@ -2105,12 +2105,12 @@ BOOK_CONTENT = """
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <strong>{{ deal.airline or 'Flight' }} {{ deal.flight_number or '' }}</strong><br>
-                        <span style="color: #ffc107;">{{ deal.origin }} → {{ deal.destination }}</span><br>
+                        <span style="color: #14b8a6;">{{ deal.origin }} → {{ deal.destination }}</span><br>
                         <small>{{ deal.departure_date }}</small>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.arbitrage_price_usd or 0) }}</span>
-                        <br><small style="color: #ffc107;">via MYSTES</small>
+                        <br><small style="color: #14b8a6;">via MYSTES</small>
                     </div>
                 </div>
             </div>
@@ -2250,7 +2250,7 @@ BOOK_CONTENT = """
                 </div>
 
                 <!-- Booking Options -->
-                <div style="margin-top: 25px; padding: 20px; background: #fff5f0; border-radius: 8px;">
+                <div style="margin-top: 25px; padding: 20px; background: #f5f3ff; border-radius: 8px;">
                     <h5 style="margin: 0 0 15px 0;">Booking Method</h5>
                     <div style="display: flex; gap: 20px;">
                         <label style="display: flex; align-items: center; cursor: pointer;">
@@ -2311,7 +2311,7 @@ BOOK_CONTENT = """
     {% else %}
         <!-- Guest Email Collection (for non-authenticated users) -->
         {% if not current_user.is_authenticated %}
-        <div style="background: #fff8f5; border: 2px solid #ff6b35; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+        <div style="background: #f5f3ff; border: 2px solid #7c3aed; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
             <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
             <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation and e-ticket.</p>
             <div class="form-group" style="margin-bottom: 0;">
@@ -2323,7 +2323,7 @@ BOOK_CONTENT = """
                        onchange="saveGuestEmail(this.value)">
             </div>
             <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                <a href="/register?deal={{ deal.deal_id }}" style="color: #ff6b35;">Create an account</a> to track your bookings and get price alerts.
+                <a href="/register?deal={{ deal.deal_id }}" style="color: #7c3aed;">Create an account</a> to track your bookings and get price alerts.
             </p>
         </div>
         {% endif %}
@@ -2339,7 +2339,7 @@ BOOK_CONTENT = """
                     <div class="method-title">Credit or Debit Card</div>
                     <div class="method-subtitle">Visa, Mastercard, American Express</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     ${{ "%.2f"|format((deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
@@ -2359,7 +2359,7 @@ BOOK_CONTENT = """
                     <div class="method-title">XRP (Direct)</div>
                     <div class="method-subtitle">Pay directly on XRPL • Instant settlement</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     {{ "%.4f"|format(payment_options.methods.xrp.amount_xrp or 0) }} XRP
                 </div>
             </div>
@@ -2375,7 +2375,7 @@ BOOK_CONTENT = """
                 <button class="copy-btn" onclick="copyToClipboard('xrp-address', event)">📋 Copy Address</button>
 
                 <p style="margin-top: 15px;"><strong>⚠️ IMPORTANT - Destination Tag:</strong></p>
-                <div class="crypto-address-box" style="background: #fff3cd; border-color: #ffc107;" id="xrp-tag">
+                <div class="crypto-address-box" style="background: #f0fdfa; border-color: #14b8a6;" id="xrp-tag">
                     {{ payment_options.methods.xrp.destination_tag or deal.destination_tag }}
                 </div>
                 <button class="copy-btn" onclick="copyToClipboard('xrp-tag', event)">📋 Copy Tag</button>
@@ -2405,7 +2405,7 @@ BOOK_CONTENT = """
                     <div class="method-title">RLUSD Stablecoin</div>
                     <div class="method-subtitle">Ripple's USD stablecoin on XRPL • 1:1 with USD</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     ${{ "%.2f"|format((deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)) }} RLUSD
                 </div>
             </div>
@@ -2421,7 +2421,7 @@ BOOK_CONTENT = """
                 <button class="copy-btn" onclick="copyToClipboard('rlusd-address', event)">📋 Copy Address</button>
 
                 <p style="margin-top: 15px;"><strong>⚠️ Destination Tag:</strong></p>
-                <div class="crypto-address-box" style="background: #fff3cd;" id="rlusd-tag">
+                <div class="crypto-address-box" style="background: #f0fdfa;" id="rlusd-tag">
                     {{ payment_options.methods.rlusd.destination_tag or deal.destination_tag }}
                 </div>
                 <button class="copy-btn" onclick="copyToClipboard('rlusd-tag', event)">📋 Copy Tag</button>
@@ -2445,7 +2445,7 @@ BOOK_CONTENT = """
                     <div class="method-title">Other Cryptocurrency</div>
                     <div class="method-subtitle">Bitcoin, Ethereum, Litecoin, Dogecoin, USDC & more</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     ${{ "%.2f"|format((deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
@@ -3188,11 +3188,11 @@ def auth_google_landing():
 <style>
 body{background:#0a0612;color:#f5f5f5;font-family:'Rajdhani',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
 .box{text-align:center;max-width:500px;padding:20px;}
-.spinner{width:40px;height:40px;border:3px solid rgba(255,107,53,0.3);border-top:3px solid #ff6b35;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+.spinner{width:40px;height:40px;border:3px solid rgba(124,58,237,0.3);border-top:3px solid #7c3aed;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .err{color:#f87171;margin-top:16px;font-size:14px;line-height:1.5;}
 .debug{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;margin-top:16px;font-size:12px;color:#999;text-align:left;word-break:break-all;}
-a{color:#ff6b35;}
+a{color:#7c3aed;}
 </style></head><body>
 <div class="box">
 <div class="spinner" id="spinner"></div>
@@ -3299,11 +3299,11 @@ def auth_google_redirect():
 <style>
 body{background:#0a0612;color:#f5f5f5;font-family:'Rajdhani',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
 .box{text-align:center;max-width:500px;padding:20px;}
-.spinner{width:40px;height:40px;border:3px solid rgba(255,107,53,0.3);border-top:3px solid #ff6b35;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+.spinner{width:40px;height:40px;border:3px solid rgba(124,58,237,0.3);border-top:3px solid #7c3aed;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .err{color:#f87171;margin-top:16px;font-size:14px;line-height:1.5;}
 .debug{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;margin-top:16px;font-size:12px;color:#999;text-align:left;word-break:break-all;}
-a{color:#ff6b35;}
+a{color:#7c3aed;}
 </style></head><body>
 <div class="box">
 <div class="spinner" id="spinner"></div>
@@ -5071,7 +5071,7 @@ def send_self_service_instructions(booking, deal, passenger_data):
 
         <p>Click the button below to open the booking page through our regional proxy:</p>
 
-        <a href="{proxy_url}" style="display: inline-block; background: #ff6b35; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0;">
+        <a href="{proxy_url}" style="display: inline-block; background: #7c3aed; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin: 20px 0;">
             Book Your Flight Now
         </a>
 
@@ -5155,7 +5155,7 @@ BOOKING_STATUS_CONTENT = """
     <span style="font-size: 64px;">⏳</span>
     <h2 style="margin: 20px 0;">Booking In Progress</h2>
 
-    <div style="background: #fff3cd; padding: 25px; border-radius: 12px; margin: 25px 0;">
+    <div style="background: #f0fdfa; padding: 25px; border-radius: 12px; margin: 25px 0;">
         <h3 style="margin: 0 0 15px 0;">Status: {{ booking.status|replace('_', ' ')|title }}</h3>
         {% if booking.fulfillment_type == 'self_service' %}
         <p style="color: #856404; margin: 0;">Complete your booking via the proxy link below, then submit your confirmation code.</p>
@@ -5194,7 +5194,7 @@ BOOKING_STATUS_CONTENT = """
     </div>
 
     <!-- Self-Service: Submit confirmation code -->
-    <div style="background: #fff8f5; border: 2px solid #ff6b35; padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left;">
+    <div style="background: #f5f3ff; border: 2px solid #7c3aed; padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left;">
         <h4 style="margin: 0 0 10px 0; color: #e65100;">Step 2: Submit Your Confirmation Code</h4>
         <p style="color: #555; margin-bottom: 15px;">After you've completed booking on the airline site, enter your confirmation code below.</p>
         <form action="/submit-confirmation/{{ booking.id }}" method="POST">
@@ -5270,15 +5270,15 @@ HOTELS_SEARCH_CONTENT = """
     }
     .hotel-search-form input::placeholder { color: #999; }
     .hotel-search-form input:focus, .hotel-search-form select:focus {
-        border-color: #ff6b35; outline: none; box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2);
+        border-color: #7c3aed; outline: none; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
     }
     .rating-group { display: flex; gap: 15px; flex-wrap: wrap; }
     .rating-group label { display: flex; align-items: center; cursor: pointer; font-weight: normal; color: #ccc; }
     .rating-group input { width: auto; margin-right: 6px; }
     .hotel-card { transition: all 0.3s ease; }
-    .hotel-card:hover { transform: translateX(4px); border-color: rgba(255, 107, 53, 0.5); }
+    .hotel-card:hover { transform: translateX(4px); border-color: rgba(124, 58, 237, 0.5); }
     .hotel-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px; }
-    .spinner-hotel { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #ff6b35; border-radius: 50%; animation: hotelspin 1s linear infinite; margin: 0 auto 20px; }
+    .spinner-hotel { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #7c3aed; border-radius: 50%; animation: hotelspin 1s linear infinite; margin: 0 auto 20px; }
     @keyframes hotelspin { to { transform: rotate(360deg); } }
 </style>
 
@@ -5430,10 +5430,10 @@ function renderHotelResults(data, cityCode, checkIn, checkOut) {
     header.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;"><h2 style="color: #f5f5f5; margin: 0;">' + data.hotels.length + ' Hotels in ' + cityCode + '</h2><span style="color: #ccc;">' + checkIn + ' to ' + checkOut + '</span></div>';
 
     list.innerHTML = data.hotels.map(hotel => `
-        <div class="card hotel-card" style="border-left: 4px solid #ff6b35;">
+        <div class="card hotel-card" style="border-left: 4px solid #7c3aed;">
             <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
                 <div style="flex: 1; min-width: 200px;">
-                    <span class="hotel-badge" style="background: #ff8c00; color: white;">HOTEL</span>
+                    <span class="hotel-badge" style="background: #6d28d9; color: white;">HOTEL</span>
                     <h3 style="margin: 5px 0; color: #f5f5f5;">${hotel.hotel_name}</h3>
                     <div style="font-size: 14px; color: #ccc;">
                         ${hotel.room_type || 'Standard Room'}${hotel.bed_type ? ' / ' + hotel.bed_type : ''}
@@ -5443,7 +5443,7 @@ function renderHotelResults(data, cityCode, checkIn, checkOut) {
                     ${hotel.cancellation_deadline ? '<div style="font-size: 12px; color: #4caf50; margin-top: 5px;">Free cancellation until ' + hotel.cancellation_deadline.split('T')[0] + '</div>' : ''}
                 </div>
                 <div style="text-align: right; min-width: 140px;">
-                    <div style="font-size: 24px; font-weight: bold; color: #ff6b35;">
+                    <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">
                         $${hotel.price_per_night.toFixed(0)}<span style="font-size: 14px; font-weight: normal; color: #ccc;">/night</span>
                     </div>
                     <div style="color: #ccc; font-size: 14px;">$${hotel.price_total.toFixed(0)} total</div>
@@ -5491,8 +5491,8 @@ async function selectHotel(offerId, hotelId, btn) {
 HOTEL_BOOK_CONTENT = """
 <style>
     .payment-method-card { border: 2px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: white; }
-    .payment-method-card:hover { border-color: #ff6b35; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
-    .payment-method-card.selected { border-color: #ff6b35; background: #fff8f5; }
+    .payment-method-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
+    .payment-method-card.selected { border-color: #7c3aed; background: #f5f3ff; }
     .payment-method-card .method-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
     .payment-method-card .method-icon { font-size: 32px; width: 50px; text-align: center; }
     .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: #16213e; }
@@ -5500,10 +5500,10 @@ HOTEL_BOOK_CONTENT = """
     .payment-details-panel { display: none; background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 15px; }
     .payment-details-panel.active { display: block; }
     .crypto-address-box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 14px; word-break: break-all; margin: 10px 0; }
-    .copy-btn { background: #ff6b35; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 10px; }
-    .copy-btn:hover { background: #ff8c00; }
+    .copy-btn { background: #7c3aed; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 10px; }
+    .copy-btn:hover { background: #6d28d9; }
     .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
-    .order-summary h3 { margin: 0 0 20px 0; color: #ffc107; }
+    .order-summary h3 { margin: 0 0 20px 0; color: #14b8a6; }
     .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .order-row:last-child { border-bottom: none; }
     .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.3); }
@@ -5511,7 +5511,7 @@ HOTEL_BOOK_CONTENT = """
     .processing-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
     .processing-overlay.active { display: flex; }
     .processing-box { background: white; border-radius: 16px; padding: 40px; text-align: center; max-width: 400px; }
-    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #ff6b35; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
@@ -5525,12 +5525,12 @@ HOTEL_BOOK_CONTENT = """
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <strong>{{ deal.hotel_name }}</strong><br>
-                    <span style="color: #ffc107;">{{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }} / {{ deal.room_type or 'Standard Room' }}{{ ' / ' + deal.bed_type if deal.bed_type else '' }}</span><br>
+                    <span style="color: #14b8a6;">{{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }} / {{ deal.room_type or 'Standard Room' }}{{ ' / ' + deal.bed_type if deal.bed_type else '' }}</span><br>
                     <small>{{ deal.check_in_date }} to {{ deal.check_out_date }} ({{ deal.nights }} night{{ 's' if deal.nights != 1 else '' }})</small>
                 </div>
                 <div style="text-align: right;">
                     <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.price_total_usd or 0) }}</span>
-                    <br><small style="color: #ffc107;">${{ "%.0f"|format(deal.price_per_night_usd or 0) }}/night</small>
+                    <br><small style="color: #14b8a6;">${{ "%.0f"|format(deal.price_per_night_usd or 0) }}/night</small>
                 </div>
             </div>
         </div>
@@ -5600,7 +5600,7 @@ HOTEL_BOOK_CONTENT = """
                     </div>
                 </div>
 
-                <div style="margin-top: 25px; padding: 20px; background: #fff5f0; border-radius: 8px;">
+                <div style="margin-top: 25px; padding: 20px; background: #f5f3ff; border-radius: 8px;">
                     <h5 style="margin: 0 0 10px 0;">Booking Method</h5>
                     <label style="display: flex; align-items: center; cursor: pointer;">
                         <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
@@ -5617,7 +5617,7 @@ HOTEL_BOOK_CONTENT = """
     {% else %}
         <!-- Guest Email Collection (for non-authenticated users) -->
         {% if not current_user.is_authenticated %}
-        <div style="background: #fff8f5; border: 2px solid #ff6b35; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+        <div style="background: #f5f3ff; border: 2px solid #7c3aed; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
             <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
             <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
             <div class="form-group" style="margin-bottom: 0;">
@@ -5629,7 +5629,7 @@ HOTEL_BOOK_CONTENT = """
                        onchange="saveGuestEmail(this.value)">
             </div>
             <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                <a href="/register?deal={{ deal.deal_id }}" style="color: #ff6b35;">Create an account</a> to track your bookings.
+                <a href="/register?deal={{ deal.deal_id }}" style="color: #7c3aed;">Create an account</a> to track your bookings.
             </p>
         </div>
         {% endif %}
@@ -5645,7 +5645,7 @@ HOTEL_BOOK_CONTENT = """
                     <div class="method-title">Credit or Debit Card</div>
                     <div class="method-subtitle">Visa, Mastercard, American Express</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
@@ -5665,7 +5665,7 @@ HOTEL_BOOK_CONTENT = """
                     <div class="method-title">XRP (Direct)</div>
                     <div class="method-subtitle">Pay directly on XRPL</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     {{ "%.4f"|format(payment_options.methods.xrp.amount_xrp or 0) }} XRP
                 </div>
             </div>
@@ -5676,7 +5676,7 @@ HOTEL_BOOK_CONTENT = """
                 <div class="crypto-address-box" id="xrp-address">{{ payment_options.methods.xrp.destination or platform_wallet }}</div>
                 <button class="copy-btn" onclick="copyToClipboard('xrp-address', event)">Copy Address</button>
                 <p style="margin-top: 15px;"><strong>Destination Tag:</strong></p>
-                <div class="crypto-address-box" style="background: #fff3cd; border-color: #ffc107;" id="xrp-tag">{{ payment_options.methods.xrp.destination_tag or deal.destination_tag }}</div>
+                <div class="crypto-address-box" style="background: #f0fdfa; border-color: #14b8a6;" id="xrp-tag">{{ payment_options.methods.xrp.destination_tag or deal.destination_tag }}</div>
                 <button class="copy-btn" onclick="copyToClipboard('xrp-tag', event)">Copy Tag</button>
                 <div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 8px; margin-top: 15px;">
                     <strong>Warning:</strong> You MUST include the destination tag.
@@ -5701,7 +5701,7 @@ HOTEL_BOOK_CONTENT = """
                     <div class="method-title">RLUSD Stablecoin</div>
                     <div class="method-subtitle">Ripple's USD stablecoin on XRPL</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} RLUSD
                 </div>
             </div>
@@ -5712,7 +5712,7 @@ HOTEL_BOOK_CONTENT = """
                 <div class="crypto-address-box" id="rlusd-address">{{ payment_options.methods.rlusd.destination or platform_wallet }}</div>
                 <button class="copy-btn" onclick="copyToClipboard('rlusd-address', event)">Copy Address</button>
                 <p style="margin-top: 15px;"><strong>Destination Tag:</strong></p>
-                <div class="crypto-address-box" style="background: #fff3cd;" id="rlusd-tag">{{ payment_options.methods.rlusd.destination_tag or deal.destination_tag }}</div>
+                <div class="crypto-address-box" style="background: #f0fdfa;" id="rlusd-tag">{{ payment_options.methods.rlusd.destination_tag or deal.destination_tag }}</div>
                 <button class="copy-btn" onclick="copyToClipboard('rlusd-tag', event)">Copy Tag</button>
                 <form method="POST" style="margin-top: 15px;" onsubmit="return validateGuestEmail()">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -5733,7 +5733,7 @@ HOTEL_BOOK_CONTENT = """
                     <div class="method-title">Other Cryptocurrency</div>
                     <div class="method-subtitle">Bitcoin, Ethereum, Litecoin, USDC & more</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #ff6b35;">
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
                     ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
@@ -6272,12 +6272,12 @@ def rewrite_urls(html_content, base_url, source_lang='ja', target_lang='en', tra
 
     # Add proxy banner with translation controls
     banner = f'''
-    <div style="position:fixed;top:0;left:0;right:0;background:#ff6b35;color:white;padding:10px;text-align:center;z-index:99999;font-family:sans-serif;display:flex;justify-content:center;align-items:center;gap:20px;">
+    <div style="position:fixed;top:0;left:0;right:0;background:#7c3aed;color:white;padding:10px;text-align:center;z-index:99999;font-family:sans-serif;display:flex;justify-content:center;align-items:center;gap:20px;">
         <span>MYSTES - Booking via JP market</span>
-        <span style="color:#ffc107;">|</span>
+        <span style="color:#14b8a6;">|</span>
         <span style="font-size:12px;">{source_name} → {target_name}</span>
-        <a href="?translate={translate_toggle}" style="color:white;background:#ff8c00;padding:4px 12px;border-radius:4px;text-decoration:none;font-size:12px;">{toggle_text}</a>
-        <span style="color:#ffc107;">|</span>
+        <a href="?translate={translate_toggle}" style="color:white;background:#6d28d9;padding:4px 12px;border-radius:4px;text-decoration:none;font-size:12px;">{toggle_text}</a>
+        <span style="color:#14b8a6;">|</span>
         <a href="/deals" style="color:white;">Back to Deals</a>
     </div>
     <div style="height:50px;"></div>
@@ -7442,7 +7442,7 @@ def api_languages():
 
 ERROR_404_CONTENT = """
 <div class="card" style="max-width: 500px; margin: 60px auto; text-align: center;">
-    <h1 style="font-size: 72px; margin: 0; color: #ff6b35;">404</h1>
+    <h1 style="font-size: 72px; margin: 0; color: #7c3aed;">404</h1>
     <h2>Page Not Found</h2>
     <p style="color: #666;">The page you're looking for doesn't exist or has been moved.</p>
     <a href="/" class="btn">Go Home</a>
@@ -7462,7 +7462,7 @@ ERROR_500_CONTENT = """
 
 ERROR_CSRF_CONTENT = """
 <div class="card" style="max-width: 500px; margin: 60px auto; text-align: center;">
-    <h1 style="font-size: 48px; margin: 0; color: #ffc107;">⚠️</h1>
+    <h1 style="font-size: 48px; margin: 0; color: #14b8a6;">⚠️</h1>
     <h2>Session Expired</h2>
     <p style="color: #666;">Your session has expired for security reasons. Please refresh the page and try again.</p>
     <a href="javascript:location.reload()" class="btn">Refresh Page</a>
@@ -7472,7 +7472,7 @@ ERROR_CSRF_CONTENT = """
 
 ERROR_RATE_LIMIT_CONTENT = """
 <div class="card" style="max-width: 500px; margin: 60px auto; text-align: center;">
-    <h1 style="font-size: 48px; margin: 0; color: #ffc107;">🚦</h1>
+    <h1 style="font-size: 48px; margin: 0; color: #14b8a6;">🚦</h1>
     <h2>Too Many Requests</h2>
     <p style="color: #666;">You've made too many requests. Please wait a moment before trying again.</p>
     <a href="/" class="btn">Go Home</a>
@@ -7894,8 +7894,8 @@ EARN_CONTENT = """
 
     <!-- Hero Section -->
     <div class="card card-light" style="text-align: center; padding: 50px 40px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white; border: none;">
-        <p style="font-size: 12px; color: #ff6b35; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">The Citizen SerpAPI</p>
-        <h1 style="color: #ff6b35; margin-bottom: 10px; font-size: 36px;">Earn With MYSTES</h1>
+        <p style="font-size: 12px; color: #7c3aed; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px;">The Citizen SerpAPI</p>
+        <h1 style="color: #7c3aed; margin-bottom: 10px; font-size: 36px;">Earn With MYSTES</h1>
         <p style="font-size: 22px; color: #fff; margin-bottom: 20px;">Turn your Google account into passive income</p>
         <p style="font-size: 16px; color: #fff; max-width: 600px; margin: 0 auto; line-height: 1.7;">
             Earn XRP every time MYSTES uses your account to find and book cheaper flights
@@ -7905,7 +7905,7 @@ EARN_CONTENT = """
 
     <!-- The Mission -->
     <div class="card card-light" style="margin-top: 20px; background: #0d1117; color: white; border: 1px solid #30363d;">
-        <h2 style="color: #ff6b35; margin-bottom: 15px;">The Honest API</h2>
+        <h2 style="color: #7c3aed; margin-bottom: 15px;">The Honest API</h2>
         <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             Google, Expedia, and every major travel platform serve you different prices based on where you are.
             Not different flights &mdash; <strong style="color: white;">different prices for the exact same seat</strong>.
@@ -7917,14 +7917,14 @@ EARN_CONTENT = """
             to hedge funds, to corporations, to anyone with money. They scrape it from the same internet you use,
             through the same infrastructure you pay for, and they profit. You get nothing.
         </p>
-        <p style="color: #ff6b35; line-height: 1.8; font-size: 16px; font-weight: bold; margin-top: 15px;">
+        <p style="color: #7c3aed; line-height: 1.8; font-size: 16px; font-weight: bold; margin-top: 15px;">
             MYSTES is the people's data network. We don't scrape data to sell to corporations.
             We use it to save travelers money &mdash; and we pay <em>you</em> for access instead of data farms.
         </p>
     </div>
 
     <!-- The Pitch: Take Back Your Data -->
-    <div class="card card-light" style="margin-top: 20px; border-left: 4px solid #ff6b35;">
+    <div class="card card-light" style="margin-top: 20px; border-left: 4px solid #7c3aed;">
         <h2 style="color: #1a1a2e; margin-bottom: 15px;">Your Data Has Value. You Should Profit From It.</h2>
         <p style="color: #555; line-height: 1.8; font-size: 15px;">
             Right now, airlines and tech companies use <strong>your location, your browsing habits, and your search history</strong>
@@ -7936,7 +7936,7 @@ EARN_CONTENT = """
             <strong>10-25% less</strong> for the exact same seat. The airlines pocket the difference.
             You never even know it happened.
         </p>
-        <p style="color: #ff6b35; line-height: 1.8; font-size: 16px; font-weight: bold; margin-top: 15px;">
+        <p style="color: #7c3aed; line-height: 1.8; font-size: 16px; font-weight: bold; margin-top: 15px;">
             MYSTES flips this system. Instead of corporations profiting from your data, <em>you</em> profit from it.
         </p>
     </div>
@@ -7947,21 +7947,21 @@ EARN_CONTENT = """
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
             <div style="text-align: center; padding: 25px 15px; background: #f8f9fa; border-radius: 12px;">
-                <div style="font-size: 36px; margin-bottom: 10px; color: #ff6b35;">1</div>
+                <div style="font-size: 36px; margin-bottom: 10px; color: #7c3aed;">1</div>
                 <h4 style="color: #1a1a2e; margin-bottom: 8px;">Sign Up as a Helper</h4>
                 <p style="color: #666; font-size: 14px; line-height: 1.6;">
                     Connect your XRPL wallet and grant MYSTES temporary access to your browser session. Your Google account stays yours.
                 </p>
             </div>
             <div style="text-align: center; padding: 25px 15px; background: #f8f9fa; border-radius: 12px;">
-                <div style="font-size: 36px; margin-bottom: 10px; color: #ff6b35;">2</div>
+                <div style="font-size: 36px; margin-bottom: 10px; color: #7c3aed;">2</div>
                 <h4 style="color: #1a1a2e; margin-bottom: 8px;">MYSTES Does the Work</h4>
                 <p style="color: #666; font-size: 14px; line-height: 1.6;">
                     When a traveler needs a flight booked through your region, MYSTES remotely handles the search and purchase through your browser. You don't lift a finger.
                 </p>
             </div>
             <div style="text-align: center; padding: 25px 15px; background: #f8f9fa; border-radius: 12px;">
-                <div style="font-size: 36px; margin-bottom: 10px; color: #ff6b35;">3</div>
+                <div style="font-size: 36px; margin-bottom: 10px; color: #7c3aed;">3</div>
                 <h4 style="color: #1a1a2e; margin-bottom: 8px;">Get Paid in XRP</h4>
                 <p style="color: #666; font-size: 14px; line-height: 1.6;">
                     Funds are locked in an on-chain XRPL escrow <em>before</em> any purchase. When the booking confirms, RLUSD releases directly to your wallet. Trustless. Instant.
@@ -8021,23 +8021,23 @@ EARN_CONTENT = """
         <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin-top: 15px;">
             <div style="display: flex; flex-direction: column; gap: 12px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="background: #ff6b35; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">1</span>
+                    <span style="background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">1</span>
                     <span style="color: #555; font-size: 14px;">Traveler converts USD to RLUSD (1:1 stablecoin) and locks it in escrow</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="background: #ff6b35; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">2</span>
+                    <span style="background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">2</span>
                     <span style="color: #555; font-size: 14px;">You verify the escrow is locked on-chain &mdash; visible on the XRPL ledger</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="background: #ff6b35; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">3</span>
+                    <span style="background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">3</span>
                     <span style="color: #555; font-size: 14px;">You front the ticket purchase with your card (escrow guarantees reimbursement)</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="background: #ff6b35; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">4</span>
+                    <span style="background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">4</span>
                     <span style="color: #555; font-size: 14px;">Booking confirms &rarr; escrow releases RLUSD to your wallet (reimbursement + your cut)</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="background: #ff6b35; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">5</span>
+                    <span style="background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">5</span>
                     <span style="color: #555; font-size: 14px;">Use your RLUSD to book your own discounted flights &mdash; or cash out via Coinbase</span>
                 </div>
             </div>
@@ -8073,7 +8073,7 @@ EARN_CONTENT = """
     </div>
 
     <!-- The Bigger Picture -->
-    <div class="card card-light" style="margin-top: 20px; border-left: 4px solid #ff6b35;">
+    <div class="card card-light" style="margin-top: 20px; border-left: 4px solid #7c3aed;">
         <h2 style="color: #1a1a2e; margin-bottom: 15px;">The Bigger Picture: A Citizen Data Network</h2>
         <p style="color: #555; line-height: 1.8; font-size: 15px;">
             Google knows the flight from JFK to London costs $847 from your apartment in New York
@@ -8103,7 +8103,7 @@ EARN_CONTENT = """
 
     <!-- Data Sovereignty Pitch -->
     <div class="card card-light" style="margin-top: 20px; background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; border: none;">
-        <h2 style="color: #ff6b35; margin-bottom: 15px;">Take Back Your Data</h2>
+        <h2 style="color: #7c3aed; margin-bottom: 15px;">Take Back Your Data</h2>
         <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             Every day, airlines use geographic price discrimination to overcharge millions of travelers.
             They use <em>your</em> IP address, <em>your</em> cookies, and <em>your</em> search patterns to determine
@@ -8112,12 +8112,12 @@ EARN_CONTENT = """
         <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             MYSTES changes the equation. By joining the network, your Google account and local market access
             become a tool for global price transparency. Instead of data farms and proxy infrastructure
-            profiting from internet access, <strong style="color: #ff6b35;">real people earn real money</strong>
+            profiting from internet access, <strong style="color: #7c3aed;">real people earn real money</strong>
             by contributing what they already have &mdash; a browser, an internet connection, and a location.
         </p>
         <p style="color: #fff; line-height: 1.8; font-size: 15px;">
             This isn't just about saving money on flights. It's about building a network where
-            <strong style="color: #ff6b35;">consumers benefit from their own data</strong> instead of handing it
+            <strong style="color: #7c3aed;">consumers benefit from their own data</strong> instead of handing it
             to institutions for free. Every helper in the MYSTES network is a statement: our data, our profit.
         </p>
     </div>
@@ -8176,7 +8176,7 @@ EARN_CONTENT = """
 
     <!-- CTA -->
     <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
-        <a href="/register" class="btn" style="padding: 16px 50px; font-size: 18px; background: #ff6b35; color: white; border-radius: 8px; text-decoration: none; display: inline-block;">
+        <a href="/register" class="btn" style="padding: 16px 50px; font-size: 18px; background: #7c3aed; color: white; border-radius: 8px; text-decoration: none; display: inline-block;">
             Start Earning With MYSTES
         </a>
         <p style="color: #fff; font-size: 13px; margin-top: 12px;">
@@ -8214,7 +8214,7 @@ PORTAL_CONTENT = """
         color: #fff;
         margin-bottom: 10px;
     }
-    .portal-hero .accent { color: #ff6b35; }
+    .portal-hero .accent { color: #7c3aed; }
     .portal-hero p { color: #fff; font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
 
     .portal-section { margin-bottom: 40px; }
@@ -8234,8 +8234,8 @@ PORTAL_CONTENT = """
         cursor: pointer;
         transition: all 0.2s ease;
     }
-    .market-card:hover { border-color: #ff6b35; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .market-card.selected { border-color: #ff6b35; background: #fff5f0; }
+    .market-card:hover { border-color: #7c3aed; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .market-card.selected { border-color: #7c3aed; background: #f5f3ff; }
     .market-card .flag { font-size: 2rem; display: block; margin-bottom: 5px; }
     .market-card .name { font-size: 0.85rem; font-weight: 600; color: #1a1a2e; }
     .market-card .count { font-size: 0.75rem; color: #fff; margin-top: 3px; }
@@ -8256,8 +8256,8 @@ PORTAL_CONTENT = """
         font-weight: 500;
         transition: all 0.2s;
     }
-    .cat-tab:hover { border-color: #ff6b35; }
-    .cat-tab.active { background: #ff6b35; color: #fff; border-color: #ff6b35; }
+    .cat-tab:hover { border-color: #7c3aed; }
+    .cat-tab.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
 
     .app-grid {
         display: grid;
@@ -8279,7 +8279,7 @@ PORTAL_CONTENT = """
     .app-card .browse-btn {
         display: inline-block;
         padding: 8px 16px;
-        background: #ff6b35;
+        background: #7c3aed;
         color: #fff;
         border: none;
         border-radius: 8px;
@@ -8331,7 +8331,7 @@ PORTAL_CONTENT = """
         margin-top: 15px;
         color: #fff;
     }
-    .proxy-details h4 { color: #ff6b35; margin: 0 0 12px 0; }
+    .proxy-details h4 { color: #7c3aed; margin: 0 0 12px 0; }
     .proxy-details .cred-row {
         display: flex;
         justify-content: space-between;
@@ -8423,7 +8423,7 @@ PORTAL_CONTENT = """
 <div style="text-align: center; margin: 40px 0; padding: 40px; background: linear-gradient(135deg, #0f3460, #1a1a2e); border-radius: 16px;">
     <h2 style="color: #fff; margin-bottom: 10px;">Power the Network</h2>
     <p style="color: #fff; margin-bottom: 20px;">Earn RLUSD by contributing your connection as a proxy node.</p>
-    <a href="/earn" style="display: inline-block; padding: 14px 32px; background: #ff6b35; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Learn How to Earn</a>
+    <a href="/earn" style="display: inline-block; padding: 14px 32px; background: #7c3aed; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Learn How to Earn</a>
 </div>
 
 <script>
@@ -9095,7 +9095,7 @@ AI_SEARCH_CONTENT = """
         <div id="dealResult" style="display: none; margin-top: 20px;">
             <h3 style="color: #1a1a2e;">Contract Terms</h3>
             <div id="dealTerms" style="padding: 15px; background: #f8f9fa; border-radius: 10px; margin-bottom: 10px;"></div>
-            <div id="dealRisk" style="padding: 15px; background: #fff3cd; border-radius: 10px; margin-bottom: 10px;"></div>
+            <div id="dealRisk" style="padding: 15px; background: #f0fdfa; border-radius: 10px; margin-bottom: 10px;"></div>
             <button id="dealFundBtn" onclick="fundDeal()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Fund Escrow on XRPL</button>
         </div>
 
@@ -9362,7 +9362,7 @@ async function loadDeals() {
         if (!container) return;
         container.innerHTML = '';
         (data.deals || []).forEach(d => {
-            const statusColors = {draft:'#ffc107',escrow_funded:'#17a2b8',delivered:'#28a745',completed:'#28a745',disputed:'#dc3545',cancelled:'#6c757d',expired:'#6c757d'};
+            const statusColors = {draft:'#14b8a6',escrow_funded:'#17a2b8',delivered:'#28a745',completed:'#28a745',disputed:'#dc3545',cancelled:'#6c757d',expired:'#6c757d'};
             const div = document.createElement('div');
             div.style.cssText = 'padding: 12px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;';
             let actions = '';
@@ -9414,7 +9414,7 @@ MYSTES_AI_CONTENT = """
     .ai-conv-list { flex: 1; overflow-y: auto; }
     .ai-conv-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 2px; color: rgba(255,255,255,0.8); font-size: 0.875rem; transition: background 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ai-conv-item:hover { background: rgba(255,255,255,0.08); }
-    .ai-conv-item.active { background: rgba(255,107,53,0.15); color: #fff; }
+    .ai-conv-item.active { background: rgba(124,58,237,0.15); color: #fff; }
     .ai-conv-item .conv-time { font-size: 0.7rem; color: rgba(255,255,255,0.4); display: block; margin-top: 2px; }
 
     /* Main chat area */
@@ -9429,38 +9429,38 @@ MYSTES_AI_CONTENT = """
     .ai-message.user { }
     .ai-message.assistant { }
     .ai-message-content { padding: 0; line-height: 1.7; font-family: 'Outfit', sans-serif; font-size: 1rem; color: #ececec; }
-    .ai-message.user .ai-message-content { background: rgba(255,107,53,0.12); color: #fff; padding: 14px 18px; border-radius: 12px; }
+    .ai-message.user .ai-message-content { background: rgba(124,58,237,0.12); color: #fff; padding: 14px 18px; border-radius: 12px; }
     .ai-message.assistant .ai-message-content { background: transparent; color: #ececec; padding: 4px 0; }
     .ai-message-content p { margin: 0 0 12px 0; }
     .ai-message-content p:last-child { margin-bottom: 0; }
     .ai-message-content table { width: 100%; border-collapse: collapse; margin: 16px 0; background: rgba(255,255,255,0.03); border-radius: 8px; overflow: hidden; }
     .ai-message-content th, .ai-message-content td { padding: 10px 14px; border: 1px solid rgba(255,255,255,0.08); text-align: left; }
-    .ai-message-content th { background: rgba(255,107,53,0.1); color: #ff6b35; font-weight: 600; }
-    .ai-message-content a { color: #ff6b35; text-decoration: none; }
+    .ai-message-content th { background: rgba(124,58,237,0.1); color: #7c3aed; font-weight: 600; }
+    .ai-message-content a { color: #7c3aed; text-decoration: none; }
     .ai-message-content a:hover { text-decoration: underline; }
     .ai-message-content code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', Monaco, monospace; }
     .ai-message-content pre { background: rgba(0,0,0,0.4); padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
     .ai-message-content ul, .ai-message-content ol { margin: 12px 0; padding-left: 24px; }
     .ai-message-content li { margin-bottom: 6px; }
 
-    .ai-tool-badge { display: inline-block; background: rgba(255,107,53,0.15); color: #ff6b35; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; margin: 4px 4px 4px 0; font-weight: 500; }
+    .ai-tool-badge { display: inline-block; background: rgba(124,58,237,0.15); color: #7c3aed; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; margin: 4px 4px 4px 0; font-weight: 500; }
 
     /* Input area - fixed at bottom */
     .ai-input-area { padding: 16px 24px 24px; background: linear-gradient(transparent, #0f0f0f 20%); position: absolute; bottom: 0; left: 260px; right: 0; }
     .ai-input-wrapper { display: flex; align-items: flex-end; max-width: 768px; margin: 0 auto; background: #1a1a1a; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
-    .ai-input-wrapper:focus-within { border-color: rgba(255,107,53,0.5); box-shadow: 0 0 0 2px rgba(255,107,53,0.1); }
+    .ai-input-wrapper:focus-within { border-color: rgba(124,58,237,0.5); box-shadow: 0 0 0 2px rgba(124,58,237,0.1); }
     .ai-input { flex: 1; background: transparent; border: none; color: #fff; padding: 14px 16px; font-family: 'Outfit', sans-serif; font-size: 1rem; outline: none; resize: none; min-height: 24px; max-height: 200px; line-height: 1.5; }
     .ai-input::placeholder { color: rgba(255,255,255,0.4); }
-    .ai-send-btn { background: #ff6b35; color: white; border: none; width: 40px; height: 40px; margin: 6px; border-radius: 8px; cursor: pointer; font-size: 1rem; transition: background 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .ai-send-btn:hover { background: #ff4d00; }
+    .ai-send-btn { background: #7c3aed; color: white; border: none; width: 40px; height: 40px; margin: 6px; border-radius: 8px; cursor: pointer; font-size: 1rem; transition: background 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ai-send-btn:hover { background: #5b21b6; }
     .ai-send-btn:disabled { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); cursor: not-allowed; }
 
-    .ai-tier-badge { background: rgba(255,107,53,0.1); color: #ff6b35; padding: 10px 12px; border-radius: 8px; font-size: 0.8rem; font-family: 'Outfit', sans-serif; text-align: center; margin-top: auto; border: 1px solid rgba(255,107,53,0.2); }
+    .ai-tier-badge { background: rgba(124,58,237,0.1); color: #7c3aed; padding: 10px 12px; border-radius: 8px; font-size: 0.8rem; font-family: 'Outfit', sans-serif; text-align: center; margin-top: auto; border: 1px solid rgba(124,58,237,0.2); }
 
     /* Quick action buttons */
     .ai-quick-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 24px 0; max-width: 500px; }
     .ai-quick-btn { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); padding: 14px 16px; border-radius: 10px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.9rem; transition: all 0.2s; text-align: left; }
-    .ai-quick-btn:hover { border-color: rgba(255,107,53,0.4); background: rgba(255,107,53,0.05); color: #fff; }
+    .ai-quick-btn:hover { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.05); color: #fff; }
 
     /* Welcome screen */
     .ai-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: 40px 20px; text-align: center; }
@@ -9469,7 +9469,7 @@ MYSTES_AI_CONTENT = """
 
     /* Typing indicator */
     .ai-typing { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; }
-    .ai-typing span { display: inline-block; width: 8px; height: 8px; background: #ff6b35; border-radius: 50%; animation: typing 1.4s infinite; }
+    .ai-typing span { display: inline-block; width: 8px; height: 8px; background: #7c3aed; border-radius: 50%; animation: typing 1.4s infinite; }
     .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
     .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes typing { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
@@ -9477,29 +9477,29 @@ MYSTES_AI_CONTENT = """
     /* Flight/deal cards */
     .ai-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
     .ai-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; transition: border-color 0.2s; }
-    .ai-card:hover { border-color: rgba(255,107,53,0.3); }
+    .ai-card:hover { border-color: rgba(124,58,237,0.3); }
     .ai-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .ai-card-title { font-weight: 600; color: #fff; font-size: 1rem; }
-    .ai-card-badge { background: rgba(255,107,53,0.15); color: #ff6b35; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+    .ai-card-badge { background: rgba(124,58,237,0.15); color: #7c3aed; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
     .ai-card-badge.green { background: rgba(0,200,100,0.12); color: #00c864; }
     .ai-card-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.9rem; }
     .ai-card-row .label { color: rgba(255,255,255,0.6); }
     .ai-card-row .value { color: #fff; font-weight: 500; }
-    .ai-card-price { font-size: 1.4rem; font-weight: 700; color: #ff6b35; }
+    .ai-card-price { font-size: 1.4rem; font-weight: 700; color: #7c3aed; }
     .ai-card-savings { color: #00c864; font-size: 0.85rem; font-weight: 600; }
-    .ai-card-action { display: inline-block; margin-top: 12px; padding: 10px 20px; background: #ff6b35; color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: background 0.2s; }
-    .ai-card-action:hover { background: #ff4d00; }
+    .ai-card-action { display: inline-block; margin-top: 12px; padding: 10px 20px; background: #7c3aed; color: white; border: none; border-radius: 8px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: background 0.2s; }
+    .ai-card-action:hover { background: #5b21b6; }
     .ai-card-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
     .ai-card-btn { padding: 8px 16px; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-decoration: none; border: none; transition: all 0.2s; }
-    .ai-card-btn.primary { background: #ff6b35; color: white; }
-    .ai-card-btn.primary:hover { background: #ff4d00; }
-    .ai-card-btn.save { background: transparent; border: 1px solid rgba(255,107,53,0.3); color: #ff6b35; }
-    .ai-card-btn.save:hover { background: rgba(255,107,53,0.1); }
+    .ai-card-btn.primary { background: #7c3aed; color: white; }
+    .ai-card-btn.primary:hover { background: #5b21b6; }
+    .ai-card-btn.save { background: transparent; border: 1px solid rgba(124,58,237,0.3); color: #7c3aed; }
+    .ai-card-btn.save:hover { background: rgba(124,58,237,0.1); }
     .ai-card-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
     .ai-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
 
     .ai-wallet-card { display: flex; align-items: center; gap: 12px; }
-    .ai-wallet-icon { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,53,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #ff6b35; flex-shrink: 0; }
+    .ai-wallet-icon { width: 40px; height: 40px; border-radius: 50%; background: rgba(124,58,237,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #7c3aed; flex-shrink: 0; }
     .ai-wallet-details { flex: 1; }
 
     .ai-saved-deals { display: none !important; }
@@ -9535,7 +9535,7 @@ MYSTES_AI_CONTENT = """
         <div class="ai-messages" id="messages">
             <div class="ai-messages-inner">
                 <div class="ai-welcome" id="welcomeScreen">
-                    <h2 style="font-family: 'Cinzel', serif; letter-spacing: 8px; text-transform: uppercase;">MYSTES</h2>
+                    <h2 style="font-family: 'Outfit', sans-serif; font-weight: 600;">Where to?</h2>
                     <p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p>
                     <div class="ai-quick-actions">
                         <button class="ai-quick-btn" onclick="sendQuick('Find flights from NYC to Tokyo next month')">NYC → Tokyo</button>
@@ -9593,7 +9593,7 @@ async function showSavedDeals() {
                 if (d.savings_pct > 0) html += ' (Save ' + Math.round(d.savings_pct) + '%)';
                 html += '<br>';
             });
-            if (isGuest) html += '<br><a href="/register" style="color:#ff6b35;font-weight:600;">Sign up to book these deals</a>';
+            if (isGuest) html += '<br><a href="/register" style="color:#7c3aed;font-weight:600;">Sign up to book these deals</a>';
             appendMessage('assistant', html);
         } else {
             appendMessage('assistant', 'No saved deals yet. Search for something and click "Save Deal" on any result.');
@@ -9932,7 +9932,7 @@ function renderHotelCards(r) {
         if (savingsPct > 0) {
             html += '<span class="ai-card-badge green">Save ' + Math.round(savingsPct) + '%</span>';
         } else if (priceNight) {
-            html += '<span class="ai-card-badge" style="background:rgba(255,107,53,0.15);color:#ff6b35;">' + priceNight + '/night</span>';
+            html += '<span class="ai-card-badge" style="background:rgba(124,58,237,0.15);color:#7c3aed;">' + priceNight + '/night</span>';
         }
         html += '</div>';
         if (room || bed) {
@@ -10206,16 +10206,16 @@ async function sendMessage() {
                     '<div style="font-size:1.3rem;font-weight:700;margin-bottom:8px;">You\\'ve used all 3 free searches</div>' +
                     '<div style="margin-bottom:16px;opacity:0.85;">Create a free account to keep searching and find the best prices on flights and hotels.</div>' +
                     '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">' +
-                    '<a href="/register" style="padding:10px 24px;background:linear-gradient(135deg,#ff6b35,#ff4d00);color:white;border-radius:10px;text-decoration:none;font-weight:600;">Create Free Account</a>' +
-                    '<a href="/login" style="padding:10px 24px;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);color:#ff6b35;border-radius:10px;text-decoration:none;font-weight:600;">Sign In</a>' +
+                    '<a href="/register" style="padding:10px 24px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:white;border-radius:10px;text-decoration:none;font-weight:600;">Create Free Account</a>' +
+                    '<a href="/login" style="padding:10px 24px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);color:#7c3aed;border-radius:10px;text-decoration:none;font-weight:600;">Sign In</a>' +
                     '</div></div>');
             } else if (err.error === 'daily_limit_reached') {
                 appendMessage('assistant', '<div style="text-align:center;padding:16px 0;">' +
                     '<div style="font-size:1.3rem;font-weight:700;margin-bottom:8px;">Daily limit reached</div>' +
                     '<div style="margin-bottom:16px;opacity:0.85;">' + (err.message || 'You have used your free queries for today.') + '</div>' +
                     '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">' +
-                    '<a href="/dashboard#data-sharing" style="padding:10px 24px;background:linear-gradient(135deg,#ff6b35,#ff4d00);color:white;border-radius:10px;text-decoration:none;font-weight:600;">Share Data for More</a>' +
-                    '<a href="/ai/pricing" style="padding:10px 24px;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);color:#ff6b35;border-radius:10px;text-decoration:none;font-weight:600;">Subscribe from $4.99/mo</a>' +
+                    '<a href="/dashboard#data-sharing" style="padding:10px 24px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:white;border-radius:10px;text-decoration:none;font-weight:600;">Share Data for More</a>' +
+                    '<a href="/ai/pricing" style="padding:10px 24px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);color:#7c3aed;border-radius:10px;text-decoration:none;font-weight:600;">Subscribe from $4.99/mo</a>' +
                     '</div></div>');
             } else {
                 appendMessage('assistant', 'Error: ' + (err.error || 'Request failed'));
@@ -11623,7 +11623,7 @@ def public_deal_link_view(link_token):
     accept_form = ""
     if not already_accepted:
         accept_form = f"""
-        <div style="background:#fff3cd;border:1px solid #ffeaa7;padding:20px;border-radius:8px;margin:20px 0">
+        <div style="background:#f0fdfa;border:1px solid #ffeaa7;padding:20px;border-radius:8px;margin:20px 0">
             <h4 style="margin-top:0;color:#856404">How MYSTES Escrow Works</h4>
             <ol style="padding-left:20px;color:#856404">
                 <li>You provide your XRPL wallet address below</li>
@@ -11947,7 +11947,7 @@ WALLET_CONTENT = """
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
                         <div>
                             <strong style="color: #1a1a2e;">{{ w.wallet_label }}</strong>
-                            {% if w.is_primary %}<span style="background: #ff6b35; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px;">Primary</span>{% endif %}
+                            {% if w.is_primary %}<span style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px;">Primary</span>{% endif %}
                             <br><code style="font-size: 13px; color: #666;">{{ w.wallet_address }}</code>
                             {% if w.is_verified %}
                                 <span style="color: #2e7d32; font-size: 12px; margin-left: 8px;">Verified</span>
@@ -11994,7 +11994,7 @@ WALLET_CONTENT = """
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
                         <div>
                             <strong style="color: #1a1a2e;">{{ c.card_label }}</strong>
-                            {% if c.is_primary %}<span style="background: #ff6b35; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px;">Primary</span>{% endif %}
+                            {% if c.is_primary %}<span style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px;">Primary</span>{% endif %}
                             <br><span style="color: #666; font-size: 14px;">{{ c.card_brand | upper }} ending in {{ c.card_last_four }} &mdash; expires {{ c.card_exp_month }}/{{ c.card_exp_year }}</span>
                         </div>
                         <form method="POST" action="/card/remove" style="margin: 0;">
@@ -12162,7 +12162,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var hasVirtualCard = false;
             data.zones.forEach(function(zone) {
                 var color = zone.status === 'full' ? '#2e7d32' :
-                            zone.status === 'partial' ? '#ff6b35' : '#c62828';
+                            zone.status === 'partial' ? '#7c3aed' : '#c62828';
                 var hasCrypto = zone.methods.some(function(m) { return m === 'virtual_card' || m === 'xrp' || m === 'rlusd'; });
                 if (hasCrypto) hasVirtualCard = true;
                 var fxLabel = hasCrypto ? '~' + zone.fx_estimate.crypto_spread_pct + '%' : '~' + zone.fx_estimate.card_spread_pct + '%';
@@ -12196,7 +12196,7 @@ document.addEventListener('DOMContentLoaded', function() {
             data.ramps.forEach(function(ramp) {
                 var badge = '';
                 if (ramp.is_best_for_country) badge = '<span style="background:#2e7d32;color:white;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:6px;">Best for you</span>';
-                if (ramp.is_user_default) badge = '<span style="background:#ff6b35;color:white;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:6px;">Default</span>';
+                if (ramp.is_user_default) badge = '<span style="background:#7c3aed;color:white;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:6px;">Default</span>';
                 var feeLabel = ramp.fee_estimate_pct === 0 ? 'Zero fee' : '~' + ramp.fee_estimate_pct + '% fee';
                 var cryptos = (ramp.supported_crypto_out || ['USDC']).join(', ');
                 container.innerHTML +=
@@ -12207,7 +12207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         '<p style="color:#666;font-size:12px;margin:4px 0 8px;">' + (ramp.description || '') + '</p>' +
                         '<p style="color:#999;font-size:11px;margin-bottom:10px;">' + feeLabel + ' &middot; ' + (ramp.fiat_methods_summary || '') + '</p>' +
                         '<a href="/api/payment/ramps/' + ramp.provider_code + '/widget-url?crypto=USDC" target="_blank" ' +
-                            'style="display:block;text-align:center;padding:8px;background:#ff6b35;color:white;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">' +
+                            'style="display:block;text-align:center;padding:8px;background:#7c3aed;color:white;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">' +
                             'Buy ' + cryptos +
                         '</a>' +
                     '</div>';
@@ -12355,13 +12355,13 @@ HELPER_DASHBOARD_CONTENT = """
     .earnings-chart { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
     .chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding-top: 10px; }
     .chart-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-    .chart-bar { width: 100%; min-width: 20px; max-width: 40px; background: linear-gradient(180deg, #ff6b35, #ff8c00); border-radius: 4px 4px 0 0; transition: height 0.3s ease; position: relative; }
+    .chart-bar { width: 100%; min-width: 20px; max-width: 40px; background: linear-gradient(180deg, #7c3aed, #6d28d9); border-radius: 4px 4px 0 0; transition: height 0.3s ease; position: relative; }
     .chart-bar:hover { opacity: 0.85; }
     .chart-bar-label { font-size: 10px; color: #fff; margin-top: 6px; }
     .chart-bar-value { font-size: 9px; color: #666; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
     .earnings-summary { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
     .earnings-period { padding: 10px 16px; background: white; border: 1px solid #eee; border-radius: 8px; }
-    .earnings-period strong { display: block; color: #ff6b35; font-size: 18px; }
+    .earnings-period strong { display: block; color: #7c3aed; font-size: 18px; }
     .earnings-period span { color: #666; font-size: 12px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 10px; margin-bottom: 12px; }
     .toggle-row .label strong { color: #1a1a2e; }
@@ -12453,7 +12453,7 @@ HELPER_DASHBOARD_CONTENT = """
         <!-- Stats Grid -->
         <div class="helper-stats">
             <div class="helper-stat">
-                <div class="helper-stat-value" style="color: #ff6b35;">{{ helper.total_earned_rlusd | round(2) }}</div>
+                <div class="helper-stat-value" style="color: #7c3aed;">{{ helper.total_earned_rlusd | round(2) }}</div>
                 <div class="helper-stat-label">RLUSD Earned</div>
             </div>
             <div class="helper-stat">
@@ -12609,7 +12609,7 @@ HELPER_DASHBOARD_CONTENT = """
         <div class="quick-links">
             <a href="/wallet" class="btn" style="padding: 10px 20px; font-size: 14px; background: #1a1a2e; color: white; border-radius: 8px; text-decoration: none;">Manage Wallet</a>
             <a href="/p2p/my-bookings" class="btn" style="padding: 10px 20px; font-size: 14px; background: #f0f0f0; color: #333; border-radius: 8px; text-decoration: none;">My Bookings</a>
-            <a href="/earn" style="padding: 10px 20px; font-size: 14px; color: #ff6b35; text-decoration: none;">Learn More</a>
+            <a href="/earn" style="padding: 10px 20px; font-size: 14px; color: #7c3aed; text-decoration: none;">Learn More</a>
         </div>
     </div>
 </div>
@@ -12811,11 +12811,11 @@ def helper_token_view():
 
 BROWSING_DASHBOARD_CONTENT = """
 <div style="max-width: 900px; margin: 0 auto; padding: 30px 20px;">
-    <h2 style="color: #ff6b35; margin-bottom: 5px;">Browser Extension Dashboard</h2>
+    <h2 style="color: #7c3aed; margin-bottom: 5px;">Browser Extension Dashboard</h2>
     <p style="color: #fff; margin-bottom: 25px;">Passive browsing data earnings from the MYSTES Chrome extension.</p>
 
     <!-- Connection Status -->
-    <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(255,107,53,0.2);">
+    <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(124,58,237,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div>
                 <div style="font-size: 13px; color: #fff;">Extension Status</div>
@@ -12844,11 +12844,11 @@ BROWSING_DASHBOARD_CONTENT = """
 
     <!-- Token Management -->
     <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05);">
-        <div style="font-size: 15px; font-weight: 600; color: #ff6b35; margin-bottom: 12px;">Helper Token</div>
+        <div style="font-size: 15px; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">Helper Token</div>
         {% if helper and helper.helper_token %}
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <code id="token-display" style="background: #1a1a2e; padding: 8px 14px; border-radius: 6px; color: #fff; font-size: 13px; word-break: break-all;">{{ helper.helper_token }}</code>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('token-display').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy'},1500)})" style="padding: 8px 16px; background: #ff6b35; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">Copy</button>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('token-display').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy'},1500)})" style="padding: 8px 16px; background: #7c3aed; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">Copy</button>
             </div>
             <p style="color: #fff; font-size: 12px; margin-top: 8px;">Use this token in the extension options or node service CLI.</p>
             <form action="/helper/token/generate" method="POST" style="margin-top: 10px;">
@@ -12866,7 +12866,7 @@ BROWSING_DASHBOARD_CONTENT = """
     <!-- Earnings Summary -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
         <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="font-size: 24px; font-weight: 700; color: #ff6b35;">{{ '%.4f' | format(stats.totals.total_value_usd) }}</div>
+            <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">{{ '%.4f' | format(stats.totals.total_value_usd) }}</div>
             <div style="font-size: 12px; color: #fff; margin-top: 4px;">Total Earnings (USD)</div>
         </div>
         <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
@@ -12885,7 +12885,7 @@ BROWSING_DASHBOARD_CONTENT = """
 
     <!-- Per-Type Breakdown -->
     <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05);">
-        <div style="font-size: 15px; font-weight: 600; color: #ff6b35; margin-bottom: 15px;">Event Breakdown (7 days)</div>
+        <div style="font-size: 15px; font-weight: 600; color: #7c3aed; margin-bottom: 15px;">Event Breakdown (7 days)</div>
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
@@ -12900,7 +12900,7 @@ BROWSING_DASHBOARD_CONTENT = """
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                     <td style="padding: 10px 0; color: #fff;">{{ etype | replace('_', ' ') | title }}</td>
                     <td style="padding: 10px 0; color: #fff; text-align: right;">{{ data.count }}</td>
-                    <td style="padding: 10px 0; color: #ff6b35; text-align: right;">${{ '%.4f' | format(data.value_usd) }}</td>
+                    <td style="padding: 10px 0; color: #7c3aed; text-align: right;">${{ '%.4f' | format(data.value_usd) }}</td>
                     <td style="padding: 10px 0; color: #fff; text-align: right;">{{ data.avg_quality }}/100</td>
                 </tr>
                 {% endfor %}
@@ -12915,7 +12915,7 @@ BROWSING_DASHBOARD_CONTENT = """
 
     <!-- Setup Instructions -->
     <div style="background: rgba(35,41,47,0.6); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.05);">
-        <div style="font-size: 15px; font-weight: 600; color: #ff6b35; margin-bottom: 12px;">Quick Setup</div>
+        <div style="font-size: 15px; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">Quick Setup</div>
         <ol style="color: #fff; line-height: 1.8; padding-left: 20px; margin: 0;">
             <li>Generate a helper token above (if you haven't already)</li>
             <li>Install the MYSTES Chrome extension from <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">chrome://extensions</code> (load unpacked)</li>
@@ -13242,10 +13242,10 @@ SEARCH_PAGE_CONTENT = """
 .search-row .form-group { flex: 1; min-width: 150px; position: relative; }
 .leg-card { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
 .leg-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.leg-number { background: #ff6b35; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
+.leg-number { background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
 .leg-info { flex: 1; }
 .add-leg-btn { border: 2px dashed #ddd; padding: 15px; text-align: center; border-radius: 8px; cursor: pointer; color: #666; }
-.add-leg-btn:hover { border-color: #ff6b35; color: #ff6b35; }
+.add-leg-btn:hover { border-color: #7c3aed; color: #7c3aed; }
 .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
 .deal-card { background: white; border: 1px solid #eee; border-radius: 12px; padding: 20px; }
 .deal-card.has-deal { border-color: #28a745; border-width: 2px; }
@@ -13255,8 +13255,8 @@ SEARCH_PAGE_CONTENT = """
 /* Tab styles */
 .search-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #eee; }
 .search-tab { padding: 12px 24px; cursor: pointer; border: none; background: none; font-size: 16px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-.search-tab:hover { color: #ff6b35; }
-.search-tab.active { color: #ff6b35; border-bottom-color: #ff6b35; font-weight: 600; }
+.search-tab:hover { color: #7c3aed; }
+.search-tab.active { color: #7c3aed; border-bottom-color: #7c3aed; font-weight: 600; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
@@ -13271,8 +13271,8 @@ SEARCH_PAGE_CONTENT = """
     cursor: pointer;
     min-width: 120px;
 }
-.option-select:hover { border-color: #ff6b35; }
-.option-select:focus { outline: none; border-color: #ff6b35; }
+.option-select:hover { border-color: #7c3aed; }
+.option-select:focus { outline: none; border-color: #7c3aed; }
 
 /* Passenger dropdown */
 .passenger-dropdown { position: relative; display: inline-block; }
@@ -13287,7 +13287,7 @@ SEARCH_PAGE_CONTENT = """
     align-items: center;
     gap: 8px;
 }
-.passenger-btn:hover { border-color: #ff6b35; }
+.passenger-btn:hover { border-color: #7c3aed; }
 .passenger-menu {
     display: none;
     position: absolute;
@@ -13326,7 +13326,7 @@ SEARCH_PAGE_CONTENT = """
     align-items: center;
     justify-content: center;
 }
-.passenger-controls button:hover { background: #fff8f5; border-color: #ff6b35; }
+.passenger-controls button:hover { background: #f5f3ff; border-color: #7c3aed; }
 .passenger-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
 .passenger-controls span { min-width: 20px; text-align: center; font-weight: 600; }
 
@@ -13346,7 +13346,7 @@ SEARCH_PAGE_CONTENT = """
     z-index: 1;
     position: relative;
 }
-.swap-btn:hover { background: #fff8f5; border-color: #ff6b35; }
+.swap-btn:hover { background: #f5f3ff; border-color: #7c3aed; }
 
 /* Price comparison table */
 .price-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -13356,7 +13356,7 @@ SEARCH_PAGE_CONTENT = """
 .price-table .cheapest { background: #d4edda; }
 .price-table .cheapest td { color: #155724; font-weight: 600; }
 .price-table .market-flag { font-size: 18px; margin-right: 8px; }
-.google-link { color: #ff6b35; text-decoration: none; font-size: 14px; }
+.google-link { color: #7c3aed; text-decoration: none; font-size: 14px; }
 .google-link:hover { text-decoration: underline; }
 
 /* Autocomplete styles */
@@ -13381,9 +13381,9 @@ SEARCH_PAGE_CONTENT = """
     border-bottom: 1px solid #eee;
 }
 .autocomplete-item:last-child { border-bottom: none; }
-.autocomplete-item:hover { background: #fff8f5; }
+.autocomplete-item:hover { background: #f5f3ff; }
 .autocomplete-item.selected { background: #e8f0fe; }
-.autocomplete-code { font-weight: bold; color: #ff6b35; font-size: 16px; }
+.autocomplete-code { font-weight: bold; color: #7c3aed; font-size: 16px; }
 .autocomplete-city { color: #333; }
 .autocomplete-country { color: #666; font-size: 13px; }
 .airport-input { position: relative; }
@@ -13424,7 +13424,7 @@ details[open] summary { border-bottom: 1px solid #eee; margin-bottom: 10px; }
 
 /* Select flight button */
 .select-flight-btn {
-    background: linear-gradient(135deg, #ff6b35, #ff8c00);
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
     border: none;
     color: white;
     border-radius: 20px;
@@ -13443,7 +13443,7 @@ tr.cheapest .select-flight-btn {
 /* Selected flight row styling */
 tr.selected-flight {
     background: linear-gradient(135deg, rgba(67, 97, 238, 0.15), rgba(76, 201, 240, 0.15)) !important;
-    border-left: 4px solid #ff6b35;
+    border-left: 4px solid #7c3aed;
     position: relative;
     animation: selectPulse 0.3s ease;
 }
@@ -13454,7 +13454,7 @@ tr.selected-flight td:first-child::before {
     content: '\\2713';
     position: absolute;
     left: 8px;
-    color: #ff6b35;
+    color: #7c3aed;
     font-weight: bold;
     font-size: 16px;
 }
@@ -13547,8 +13547,8 @@ tr.selected-flight .select-flight-btn::after {
     transition: all 0.3s ease;
 }
 .payment-option-btn:hover {
-    border-color: #ff6b35;
-    background: #fff8f5;
+    border-color: #7c3aed;
+    background: #f5f3ff;
     transform: translateX(5px);
 }
 .payment-icon {
@@ -13734,7 +13734,7 @@ tr.selected-flight .select-flight-btn::after {
             Paste flight details from your booking confirmation or enter them manually.
         </p>
 
-        <div style="background: #fff5f0; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="background: #f5f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
             <strong>How it works:</strong>
             <ol style="margin: 10px 0 0 20px; color: #333;">
                 <li>Find your flight on Google Flights</li>
@@ -14626,7 +14626,7 @@ function displayResults(data) {
         const returnDate = data.summary?.return_date || data.leg_results?.[0]?.return_date || '';
 
         html += `
-            <div style="background: linear-gradient(135deg, #ff6b35, #ff8c00); padding: 20px; border-radius: 12px; margin-bottom: 20px; color: white;">
+            <div style="background: linear-gradient(135deg, #7c3aed, #6d28d9); padding: 20px; border-radius: 12px; margin-bottom: 20px; color: white;">
                 <div style="display: flex; align-items: flex-start; gap: 15px;">
                     <div style="font-size: 32px;">🔄</div>
                     <div style="flex: 1;">
@@ -14694,7 +14694,7 @@ function displayResults(data) {
         const savings = flex.potential_savings || 0;
 
         html += `
-            <div style="background: ${savings > 10 ? '#d4edda' : '#fff5f0'}; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+            <div style="background: ${savings > 10 ? '#d4edda' : '#f5f3ff'}; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
                 <h3 style="margin: 0 0 15px 0; ${savings > 10 ? 'color: #155724;' : ''}">
                     ${savings > 10 ? '💰 Better dates available!' : '📅 Flexible Date Comparison'}
                 </h3>
@@ -14716,9 +14716,9 @@ function displayResults(data) {
                     border-radius: 8px;
                     text-align: center;
                     min-width: 80px;
-                    background: ${isCheapest ? '#28a745' : (isSelected ? '#ff6b35' : 'white')};
+                    background: ${isCheapest ? '#28a745' : (isSelected ? '#7c3aed' : 'white')};
                     color: ${isCheapest || isSelected ? 'white' : '#333'};
-                    border: 2px solid ${isCheapest ? '#28a745' : (isSelected ? '#ff6b35' : '#ddd')};
+                    border: 2px solid ${isCheapest ? '#28a745' : (isSelected ? '#7c3aed' : '#ddd')};
                     ${isCheapest ? 'transform: scale(1.05);' : ''}
                 ">
                     <div style="font-size: 12px; opacity: 0.8;">${day.day}</div>
@@ -14781,7 +14781,7 @@ function displayResults(data) {
                     <div>
                         <h3 style="margin: 0;">${legIcon} ${legLabel}: ${routeDisplay}</h3>
                         <span style="color: #666;">${dateDisplay}</span>
-                        ${isActualRoundTrip ? '<span style="background: #ff6b35; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px;">ROUND-TRIP TOTAL</span>' : ''}
+                        ${isActualRoundTrip ? '<span style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px;">ROUND-TRIP TOTAL</span>' : ''}
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         ${hasDeal ? `<span class="savings-badge">Save up to $${leg.savings?.toFixed(2) || '0'}</span>` : ''}
@@ -14862,7 +14862,7 @@ function displayResults(data) {
                         <td>
                             <strong>${flight.airline || 'Multiple'}</strong>
                             ${flight.flight_number ? `<br><span style="color: #666; font-size: 12px;">${flight.flight_number}</span>` : ''}
-                            ${isExclusive ? `<br><span style="background: #ff6b35; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px;">🔥 MYSTES Exclusive</span>` : ''}
+                            ${isExclusive ? `<br><span style="background: #7c3aed; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px;">🔥 MYSTES Exclusive</span>` : ''}
                         </td>
                         <td>${flight.departure_time || 'N/A'} - ${flight.arrival_time || 'N/A'}</td>
                         <td>${flight.duration || 'N/A'}</td>
@@ -14870,7 +14870,7 @@ function displayResults(data) {
                         <td style="font-weight: bold; color: #28a745;">$${cheapestPrice?.toFixed(0) || 'N/A'}</td>
                         <td><span class="market-tag">MYSTES</span></td>
                         <td>${isExclusive ? '<span style="color: #fff; font-size: 11px;">Not available</span>' : `$${usPrice?.toFixed(0) || 'N/A'}`}</td>
-                        <td>${hasSavings ? `<span style="color: #28a745; font-weight: bold;">$${savings.toFixed(0)} (${savingsPct}%)</span>` : (isExclusive ? `<span style="color: #ff6b35; font-weight: bold;">Exclusive Deal</span>` : '<span style="color: #fff;">-</span>')}</td>
+                        <td>${hasSavings ? `<span style="color: #28a745; font-weight: bold;">$${savings.toFixed(0)} (${savingsPct}%)</span>` : (isExclusive ? `<span style="color: #7c3aed; font-weight: bold;">Exclusive Deal</span>` : '<span style="color: #fff;">-</span>')}</td>
                         <td>
                             <button class="btn select-flight-btn" onclick="selectFlightForLeg(${legNum}, '${flightData}')" style="padding: 8px 16px; font-size: 12px;">
                                 ${hasSavings || isExclusive ? 'Book & Save' : 'Select'}
@@ -14932,7 +14932,7 @@ function displayResults(data) {
     // Add checkout panel placeholder
     html += `
         <div id="checkout-panel" class="checkout-panel" style="display: none;">
-            <div class="card" style="border: 3px solid #ff6b35; background: #ffffff; color: #1a1a2e;">
+            <div class="card" style="border: 3px solid #7c3aed; background: #ffffff; color: #1a1a2e;">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <h2 style="margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px; color: #1a1a2e;">
                         <span style="font-size: 28px;">✈️</span> Flight Selected
@@ -14948,7 +14948,7 @@ function displayResults(data) {
                 </div>
 
                 <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="proceedToPayment()" class="btn" style="font-size: 18px; padding: 15px 40px; background: linear-gradient(135deg, #ff6b35, #ff8c00); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    <button onclick="proceedToPayment()" class="btn" style="font-size: 18px; padding: 15px 40px; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
                         Proceed to Checkout →
                     </button>
                     <p style="color: #555; font-size: 13px; margin-top: 10px;">
@@ -15076,13 +15076,13 @@ function updateCheckoutPanel() {
                         <h4 style="margin: 0; color: #1a1a2e; font-size: 18px;">
                             🔄 Round-Trip: ${flight.route || 'Flight'}
                         </h4>
-                        <span style="background: #ff6b35; color: white; padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 600;">INCLUDES BOTH FLIGHTS</span>
+                        <span style="background: #7c3aed; color: white; padding: 4px 12px; border-radius: 15px; font-size: 11px; font-weight: 600;">INCLUDES BOTH FLIGHTS</span>
                     </div>
 
                     <!-- Outbound Flight -->
-                    <div style="background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #ff6b35;">
+                    <div style="background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #7c3aed;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <span style="font-weight: 600; color: #ff6b35;">✈️ OUTBOUND</span>
+                            <span style="font-weight: 600; color: #7c3aed;">✈️ OUTBOUND</span>
                             <span style="color: #555; font-size: 14px;">${flight.date || 'Departure date'}</span>
                         </div>
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
@@ -15231,7 +15231,7 @@ function updateCheckoutPanel() {
         </div>
         <div class="price-row" style="display: flex; justify-content: space-between; padding: 15px 0; font-size: 22px; font-weight: bold; color: #1a1a2e;">
             <span>Total</span>
-            <span style="color: #ff6b35;">$${finalPrice.toFixed(2)}</span>
+            <span style="color: #7c3aed;">$${finalPrice.toFixed(2)}</span>
         </div>
     `;
 
@@ -15246,7 +15246,7 @@ function updateCheckoutPanel() {
     // Show warning if not all legs are selected
     if (totalLegs > 0 && selectedCount < totalLegs) {
         priceHtml += `
-            <div style="background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; text-align: center; margin-top: 10px;">
+            <div style="background: #f0fdfa; color: #856404; padding: 12px; border-radius: 8px; text-align: center; margin-top: 10px;">
                 <strong>⚠️ Select flights for all ${totalLegs} legs to complete your booking</strong>
             </div>
         `;
@@ -15393,7 +15393,7 @@ function showPaymentModal(dealData) {
             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <p style="margin: 0;"><strong>${dealData.airline}</strong> ${dealData.flight_number || ''}</p>
                 <p style="margin: 5px 0; color: #666;">${dealData.route} • ${dealData.date}</p>
-                <p style="margin: 10px 0 0 0; font-size: 24px; font-weight: bold; color: #ff6b35;">$${dealData.total_price.toFixed(2)}</p>
+                <p style="margin: 10px 0 0 0; font-size: 24px; font-weight: bold; color: #7c3aed;">$${dealData.total_price.toFixed(2)}</p>
             </div>
 
             <div class="payment-options">
@@ -15750,7 +15750,7 @@ function displayImportResults(data) {
                     </p>
                     ${savings > 5 ? `
                         <a href="/p2p/book?origin=${encodeURIComponent(flight.origin)}&destination=${encodeURIComponent(flight.destination)}&date=${encodeURIComponent(flight.date)}&flight=${encodeURIComponent(flight.flight_number)}&market=mystes&price=${cheapestPrice.toFixed(2)}&us_price=${flight.market_prices['US']?.price_usd?.toFixed(2) || cheapestPrice.toFixed(2)}"
-                           class="btn" style="background: #ff6b35; border-color: #ff6b35; color: white; padding: 8px 16px; font-size: 13px; text-decoration: none; border-radius: 6px;">
+                           class="btn" style="background: #7c3aed; border-color: #7c3aed; color: white; padding: 8px 16px; font-size: 13px; text-decoration: none; border-radius: 6px;">
                             Book via P2P Network — Save $${savings.toFixed(2)}
                         </a>
                     ` : ''}
@@ -16801,8 +16801,8 @@ PAYMENT_PAGE_CONTENT = """
     padding: 20px; border: 2px solid #eee; border-radius: 12px;
     transition: all 0.2s;
 }
-.payment-method:hover { border-color: #ff6b35; background: #f8f9ff; }
-.payment-method.selected { border-color: #ff6b35; background: #fff8f5; }
+.payment-method:hover { border-color: #7c3aed; background: #f8f9ff; }
+.payment-method.selected { border-color: #7c3aed; background: #f5f3ff; }
 .method-icon { font-size: 32px; }
 .method-info { flex: 1; }
 .method-info strong { display: block; margin-bottom: 4px; }
@@ -16816,7 +16816,7 @@ PAYMENT_PAGE_CONTENT = """
 }
 .copy-field code { flex: 1; word-break: break-all; font-size: 13px; }
 .copy-btn { padding: 5px 10px; font-size: 12px; cursor: pointer; }
-.warning { background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin: 10px 0; }
+.warning { background: #f0fdfa; color: #856404; padding: 10px; border-radius: 4px; margin: 10px 0; }
 .deal-summary { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
 </style>
 
@@ -17412,7 +17412,7 @@ P2P_BOOK_CONTENT = """
 .p2p-hero h1 { margin: 0 0 10px 0; font-size: 28px; }
 .p2p-hero .subtitle { color: #fff; font-size: 16px; }
 .p2p-step { display: flex; gap: 20px; margin-bottom: 30px; }
-.p2p-step-number { width: 40px; height: 40px; border-radius: 50%; background: #ff6b35; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
+.p2p-step-number { width: 40px; height: 40px; border-radius: 50%; background: #7c3aed; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
 .p2p-step-content { flex: 1; }
 .p2p-step-content h3 { margin: 5px 0 8px 0; }
 .p2p-step-content p { color: #666; margin: 0; }
@@ -17427,13 +17427,13 @@ P2P_BOOK_CONTENT = """
 .price-box .amount { font-size: 28px; font-weight: bold; }
 .price-box.target .amount { color: #155724; }
 .escrow-info { background: linear-gradient(135deg, #1a0a2e, #0d1b2a); padding: 20px; border-radius: 12px; color: white; margin: 20px 0; }
-.escrow-info h3 { color: #ff6b35; margin-top: 0; }
+.escrow-info h3 { color: #7c3aed; margin-top: 0; }
 .escrow-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .escrow-row:last-child { border-bottom: none; }
 .passenger-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
 .passenger-form label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
 .passenger-form input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-.passenger-form input:focus { outline: none; border-color: #ff6b35; }
+.passenger-form input:focus { outline: none; border-color: #7c3aed; }
 </style>
 
 <div class="p2p-hero">
@@ -17502,7 +17502,7 @@ P2P_BOOK_CONTENT = """
     </div>
     <div class="escrow-row" style="font-weight: bold; font-size: 18px; padding-top: 12px; border-top: 2px solid rgba(255,255,255,0.3);">
         <span>Total Escrow Amount</span>
-        <span style="color: #ff6b35;">{{ "%.2f"|format(total_escrow) }} RLUSD</span>
+        <span style="color: #7c3aed;">{{ "%.2f"|format(total_escrow) }} RLUSD</span>
     </div>
 </div>
 
@@ -17549,14 +17549,14 @@ P2P_BOOK_CONTENT = """
             </div>
         </div>
 
-        <div style="margin-top: 15px; padding: 15px; background: #fff3cd; border-radius: 8px; color: #664d03;">
+        <div style="margin-top: 15px; padding: 15px; background: #f0fdfa; border-radius: 8px; color: #664d03;">
             <strong>XRPL Wallet Required:</strong> You need an XRPL wallet with at least {{ "%.2f"|format(total_escrow) }} RLUSD to lock in escrow.
             {% if not current_user.is_authenticated %}
-                <br><a href="/login" style="color: #ff6b35;">Log in</a> or <a href="/register" style="color: #ff6b35;">create an account</a> to continue.
+                <br><a href="/login" style="color: #7c3aed;">Log in</a> or <a href="/register" style="color: #7c3aed;">create an account</a> to continue.
             {% endif %}
         </div>
 
-        <button type="submit" class="btn" style="width: 100%; margin-top: 20px; padding: 15px; font-size: 18px; background: #ff6b35; border-color: #ff6b35;">
+        <button type="submit" class="btn" style="width: 100%; margin-top: 20px; padding: 15px; font-size: 18px; background: #7c3aed; border-color: #7c3aed;">
             Proceed to XRPL Escrow — {{ "%.2f"|format(total_escrow) }} RLUSD
         </button>
     </form>
@@ -17577,12 +17577,12 @@ P2P_STATUS_CONTENT = """
 .timeline-step { position: relative; margin-bottom: 25px; }
 .timeline-step .dot { position: absolute; left: -33px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #ddd; background: white; }
 .timeline-step.completed .dot { background: #28a745; border-color: #28a745; }
-.timeline-step.active .dot { background: #ff6b35; border-color: #ff6b35; animation: pulse 2s infinite; }
+.timeline-step.active .dot { background: #7c3aed; border-color: #7c3aed; animation: pulse 2s infinite; }
 .timeline-step.failed .dot { background: #dc3545; border-color: #dc3545; }
 .timeline-step h4 { margin: 0 0 4px 0; }
 .timeline-step p { margin: 0; color: #666; font-size: 14px; }
 .timeline-step .time { color: #fff; font-size: 12px; }
-@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,53,0.4); } 50% { box-shadow: 0 0 0 8px rgba(255,107,53,0); } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4); } 50% { box-shadow: 0 0 0 8px rgba(124,58,237,0); } }
 </style>
 
 <h1>P2P Transaction Status</h1>
@@ -17595,7 +17595,7 @@ P2P_STATUS_CONTENT = """
             {% if transaction.status == 'completed' %}background: #d4edda; color: #155724;
             {% elif transaction.status == 'failed' %}background: #f8d7da; color: #842029;
             {% elif transaction.status == 'cancelled' %}background: #e2e3e5; color: #41464b;
-            {% else %}background: #fff3cd; color: #664d03;{% endif %}">
+            {% else %}background: #f0fdfa; color: #664d03;{% endif %}">
             {{ transaction.status|upper }}
         </span>
         <span style="color: #666; margin-left: 10px;">ID: {{ transaction.transaction_id[:12] }}...</span>
@@ -17848,7 +17848,7 @@ def p2p_my_bookings():
     for t in transactions:
         status_color = {
             'completed': '#d4edda', 'failed': '#f8d7da', 'cancelled': '#e2e3e5'
-        }.get(t.status, '#fff3cd')
+        }.get(t.status, '#f0fdfa')
         status_text_color = {
             'completed': '#155724', 'failed': '#842029', 'cancelled': '#41464b'
         }.get(t.status, '#664d03')
@@ -17900,17 +17900,17 @@ def admin_required(f):
 
 ADMIN_NAV = """
 <nav style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;">
-    <a href="/admin" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Dashboard</a>
-    <a href="/admin/payments" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Payments</a>
-    <a href="/admin/users" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Users</a>
-    <a href="/admin/deals" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Deals</a>
-    <a href="/admin/wallet" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Wallet</a>
-    <a href="/admin/proxies" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Proxies</a>
-    <a href="/admin/p2p" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#ff6b35;background:rgba(255,107,53,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,107,53,0.1)'">P2P</a>
-    <a href="/admin/helpers" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Helpers</a>
-    <a href="/admin/tasks" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Tasks</a>
+    <a href="/admin" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Dashboard</a>
+    <a href="/admin/payments" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Payments</a>
+    <a href="/admin/users" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Users</a>
+    <a href="/admin/deals" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Deals</a>
+    <a href="/admin/wallet" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Wallet</a>
+    <a href="/admin/proxies" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Proxies</a>
+    <a href="/admin/p2p" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#7c3aed;background:rgba(124,58,237,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(124,58,237,0.1)'">P2P</a>
+    <a href="/admin/helpers" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Helpers</a>
+    <a href="/admin/tasks" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Tasks</a>
     <a href="/admin/nodes" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#0f9d58;background:rgba(15,157,88,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(15,157,88,0.3)'" onmouseout="this.style.background='rgba(15,157,88,0.1)'">Nodes</a>
-    <a href="/admin/payouts" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,107,53,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Payouts</a>
+    <a href="/admin/payouts" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#e8e8e8;background:rgba(255,255,255,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(124,58,237,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Payouts</a>
     <a href="/admin/node-consent" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#00bcd4;background:rgba(0,188,212,0.1);transition:background 0.2s;" onmouseover="this.style.background='rgba(0,188,212,0.3)'" onmouseout="this.style.background='rgba(0,188,212,0.1)'">Consent Economy</a>
     <a href="/admin/features" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#ffd700;background:rgba(255,215,0,0.15);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,215,0,0.3)'" onmouseout="this.style.background='rgba(255,215,0,0.15)'">Features</a>
     <a href="/admin/security" style="padding:6px 14px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;color:#f44336;background:rgba(244,67,54,0.15);transition:background 0.2s;" onmouseover="this.style.background='rgba(244,67,54,0.3)'" onmouseout="this.style.background='rgba(244,67,54,0.15)'">Security</a>
@@ -17981,8 +17981,8 @@ ADMIN_DASHBOARD_CONTENT = """
         <h3>Proxy Config</h3>
         <p style="color: #666;">Manage regional proxies, test connections</p>
     </a>
-    <a href="/admin/p2p" class="card" style="text-decoration: none; color: inherit; border: 1px solid #ff6b35;">
-        <h3 style="color: #ff6b35;">P2P Network</h3>
+    <a href="/admin/p2p" class="card" style="text-decoration: none; color: inherit; border: 1px solid #7c3aed;">
+        <h3 style="color: #7c3aed;">P2P Network</h3>
         <p style="color: #666;">Manage helpers, transactions, escrows</p>
     </a>
     <a href="/admin/helpers" class="card" style="text-decoration: none; color: inherit;">
@@ -18036,8 +18036,8 @@ ADMIN_DASHBOARD_CONTENT = """
     </div>
 </div>
 
-<div class="card" style="margin-top: 20px; border-left: 4px solid #ff6b35;">
-    <h2 style="color: #ff6b35;">P2P Network Overview</h2>
+<div class="card" style="margin-top: 20px; border-left: 4px solid #7c3aed;">
+    <h2 style="color: #7c3aed;">P2P Network Overview</h2>
     <div class="stats">
         <div class="stat-card">
             <div class="stat-value">{{ p2p_active_helpers }}</div>
@@ -18330,11 +18330,11 @@ def admin_features():
         .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .layer-title { font-size: 1.2rem; font-weight: 700; }
         .layer-1 .layer-title { color: #00c864; }
-        .layer-2 .layer-title { color: #ff6b35; }
+        .layer-2 .layer-title { color: #7c3aed; }
         .layer-3 .layer-title { color: #ffd700; }
         .layer-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
         .layer-1 .layer-badge { background: rgba(0,200,100,0.15); color: #00c864; }
-        .layer-2 .layer-badge { background: rgba(255,107,53,0.15); color: #ff6b35; }
+        .layer-2 .layer-badge { background: rgba(124,58,237,0.15); color: #7c3aed; }
         .layer-3 .layer-badge { background: rgba(255,215,0,0.15); color: #ffd700; }
         .flag-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .flag-row:last-child { border-bottom: none; }
@@ -18602,7 +18602,7 @@ def admin_security():
 .config-label { flex: 1; color: #888; }
 .config-input { width: 100px; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; text-align: right; }
 .config-unit { color: #666; min-width: 40px; }
-.save-btn { padding: 10px 24px; background: linear-gradient(135deg, #ff6b35, #ff4d00); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 20px; }
+.save-btn { padding: 10px 24px; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 20px; }
 .save-btn:hover { opacity: 0.9; }
 .geo-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .geo-segment { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; }
@@ -19148,7 +19148,7 @@ def api_proxy_status():
 
 ADMIN_P2P_CONTENT = """
 """ + ADMIN_NAV + """
-<h1 style="color: #ff6b35;">P2P Network Management</h1>
+<h1 style="color: #7c3aed;">P2P Network Management</h1>
 
 <div class="stats">
     <div class="stat-card">
@@ -19216,7 +19216,7 @@ ADMIN_P2P_CONTENT = """
                         {% if t.status == 'completed' %}background: #d4edda; color: #155724;
                         {% elif t.status == 'failed' %}background: #f8d7da; color: #842029;
                         {% elif t.status == 'cancelled' %}background: #e2e3e5; color: #41464b;
-                        {% else %}background: #fff3cd; color: #664d03;{% endif %}">
+                        {% else %}background: #f0fdfa; color: #664d03;{% endif %}">
                         {{ t.status }}
                     </span>
                 </td>
@@ -19252,7 +19252,7 @@ ADMIN_P2P_CONTENT = """
                         {% if e.status == 'released' %}background: #d4edda; color: #155724;
                         {% elif e.status == 'locked' %}background: #cce5ff; color: #004085;
                         {% elif e.status == 'cancelled' %}background: #f8d7da; color: #842029;
-                        {% else %}background: #fff3cd; color: #664d03;{% endif %}">
+                        {% else %}background: #f0fdfa; color: #664d03;{% endif %}">
                         {{ e.status }}
                     </span>
                 </td>
@@ -19597,7 +19597,7 @@ def admin_task_result(task_id):
 # --- Admin Node Fleet Dashboard (Build #69) ---
 
 ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
-<h1 style="color: #ff6b35;">Node Fleet Dashboard</h1>
+<h1 style="color: #7c3aed;">Node Fleet Dashboard</h1>
 <p style="color: #fff;">Real-time monitoring of the MYSTES node network and browsing data pipeline.</p>
 
 <!-- Fleet Summary -->
@@ -19611,7 +19611,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
         <div class="stat-label" style="font-size:11px;color:#999;margin-top:4px;">Total Helpers</div>
     </div>
     <div class="stat-card" style="background:rgba(35,41,47,0.6);border-radius:10px;padding:16px;text-align:center;border:1px solid rgba(255,255,255,0.05);">
-        <div class="stat-value" style="font-size:28px;font-weight:700;color:#ff6b35;">{{ fleet.with_tokens }}</div>
+        <div class="stat-value" style="font-size:28px;font-weight:700;color:#7c3aed;">{{ fleet.with_tokens }}</div>
         <div class="stat-label" style="font-size:11px;color:#999;margin-top:4px;">With Tokens</div>
     </div>
     <div class="stat-card" style="background:rgba(35,41,47,0.6);border-radius:10px;padding:16px;text-align:center;border:1px solid rgba(255,255,255,0.05);">
@@ -19622,7 +19622,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
 
 <!-- Data Pipeline Stats -->
 <div style="background:rgba(35,41,47,0.6);border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);">
-    <div style="font-size:15px;font-weight:600;color:#ff6b35;margin-bottom:15px;">Data Pipeline (7 days)</div>
+    <div style="font-size:15px;font-weight:600;color:#7c3aed;margin-bottom:15px;">Data Pipeline (7 days)</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">
         <div style="text-align:center;">
             <div style="font-size:22px;font-weight:700;color:#ddd;">{{ pipeline.total_events }}</div>
@@ -19649,7 +19649,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
 
 <!-- Event Type Distribution -->
 <div style="background:rgba(35,41,47,0.6);border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);">
-    <div style="font-size:15px;font-weight:600;color:#ff6b35;margin-bottom:15px;">Event Type Distribution</div>
+    <div style="font-size:15px;font-weight:600;color:#7c3aed;margin-bottom:15px;">Event Type Distribution</div>
     <table style="width:100%;border-collapse:collapse;">
         <thead>
             <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
@@ -19665,7 +19665,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
             <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                 <td style="padding:10px 0;color:#ddd;">{{ et.type | replace('_', ' ') | title }}</td>
                 <td style="padding:10px 0;color:#ddd;text-align:right;">{{ et.count }}</td>
-                <td style="padding:10px 0;color:#ff6b35;text-align:right;">${{ '%.4f' | format(et.value) }}</td>
+                <td style="padding:10px 0;color:#7c3aed;text-align:right;">${{ '%.4f' | format(et.value) }}</td>
                 <td style="padding:10px 0;color:#ddd;text-align:right;">{{ et.quality }}/100</td>
                 <td style="padding:10px 0;color:#ddd;text-align:right;">{{ et.pct }}%</td>
             </tr>
@@ -19679,7 +19679,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
 
 <!-- Top Nodes -->
 <div style="background:rgba(35,41,47,0.6);border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);">
-    <div style="font-size:15px;font-weight:600;color:#ff6b35;margin-bottom:15px;">Top Contributing Nodes (7 days)</div>
+    <div style="font-size:15px;font-weight:600;color:#7c3aed;margin-bottom:15px;">Top Contributing Nodes (7 days)</div>
     <table style="width:100%;border-collapse:collapse;">
         <thead>
             <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
@@ -19696,7 +19696,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
                 <td style="padding:10px 0;color:#ddd;">{{ node.email }}</td>
                 <td style="padding:10px 0;color:#ddd;">{{ node.country }}</td>
                 <td style="padding:10px 0;color:#ddd;text-align:right;">{{ node.events }}</td>
-                <td style="padding:10px 0;color:#ff6b35;text-align:right;">${{ '%.4f' | format(node.value) }}</td>
+                <td style="padding:10px 0;color:#7c3aed;text-align:right;">${{ '%.4f' | format(node.value) }}</td>
                 <td style="padding:10px 0;color:#999;text-align:right;">{{ node.last_seen }}</td>
             </tr>
             {% endfor %}
@@ -19709,7 +19709,7 @@ ADMIN_NODE_FLEET_CONTENT = ADMIN_NAV + """
 
 <!-- Processor Stats -->
 <div style="background:rgba(35,41,47,0.6);border-radius:12px;padding:20px;border:1px solid rgba(255,255,255,0.05);">
-    <div style="font-size:15px;font-weight:600;color:#ff6b35;margin-bottom:15px;">Processor Runtime</div>
+    <div style="font-size:15px;font-weight:600;color:#7c3aed;margin-bottom:15px;">Processor Runtime</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
         <div>
             <div style="font-size:11px;color:#999;">Total Ingested</div>
@@ -19877,7 +19877,7 @@ ADMIN_DISBURSEMENT_CONTENT = ADMIN_NAV + """
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">
     <div style="background:rgba(255,255,255,0.05);padding:16px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);">
         <div style="font-size:11px;color:#999;text-transform:uppercase;">Pending Payouts</div>
-        <div style="font-size:28px;font-weight:700;color:#ff6b35;">{{ stats.pending_count }}</div>
+        <div style="font-size:28px;font-weight:700;color:#7c3aed;">{{ stats.pending_count }}</div>
         <div style="font-size:12px;color:#666;">{{ "%.2f"|format(stats.pending_value) }} RLUSD</div>
     </div>
     <div style="background:rgba(255,255,255,0.05);padding:16px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);">
@@ -19913,7 +19913,7 @@ ADMIN_DISBURSEMENT_CONTENT = ADMIN_NAV + """
     </div>
     <div style="background:rgba(255,255,255,0.05);padding:16px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);">
         <div style="font-size:11px;color:#999;text-transform:uppercase;">Total Disbursed</div>
-        <div style="font-size:28px;font-weight:700;color:#ff6b35;">{{ "%.2f"|format(stats.total_disbursed) }}</div>
+        <div style="font-size:28px;font-weight:700;color:#7c3aed;">{{ "%.2f"|format(stats.total_disbursed) }}</div>
         <div style="font-size:12px;color:#666;">RLUSD all-time</div>
     </div>
 </div>
@@ -19937,7 +19937,7 @@ ADMIN_DISBURSEMENT_CONTENT = ADMIN_NAV + """
 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
     <td style="padding:8px;color:#e8e8e8;">{{ p.email }}</td>
     <td style="padding:8px;color:#999;font-family:monospace;font-size:11px;">{{ p.wallet[:12] }}…</td>
-    <td style="padding:8px;text-align:right;color:#ff6b35;font-weight:600;">{{ "%.4f"|format(p.amount) }}</td>
+    <td style="padding:8px;text-align:right;color:#7c3aed;font-weight:600;">{{ "%.4f"|format(p.amount) }}</td>
     <td style="padding:8px;text-align:center;">
         {% if p.status == 'confirmed' %}<span style="color:#0f9d58;">✓ Confirmed</span>
         {% elif p.status == 'sent' %}<span style="color:#f4b400;">⏳ Sent</span>
@@ -19957,12 +19957,12 @@ ADMIN_DISBURSEMENT_CONTENT = ADMIN_NAV + """
 </div>
 
 <!-- Manual Trigger -->
-<div style="margin-top:32px;padding:20px;background:rgba(255,107,53,0.05);border:1px solid rgba(255,107,53,0.2);border-radius:10px;">
-    <h4 style="color:#ff6b35;margin:0 0 8px;">Manual Epoch Trigger</h4>
+<div style="margin-top:32px;padding:20px;background:rgba(124,58,237,0.05);border:1px solid rgba(124,58,237,0.2);border-radius:10px;">
+    <h4 style="color:#7c3aed;margin:0 0 8px;">Manual Epoch Trigger</h4>
     <p style="color:#999;font-size:13px;margin:0 0 12px;">Manually trigger a new payout epoch for today. This will calculate node uptime, create payout records, and queue them for XRPL disbursement.</p>
     <form method="POST" action="/admin/payouts/trigger-epoch" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" style="padding:8px 20px;background:#ff6b35;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="return confirm('Trigger new payout epoch for today?')">Trigger Epoch</button>
+        <button type="submit" style="padding:8px 20px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="return confirm('Trigger new payout epoch for today?')">Trigger Epoch</button>
     </form>
 </div>
 """
@@ -21220,7 +21220,7 @@ DATA_MARKETPLACE_ADMIN_CONTENT = """
         </div>
         <div style="background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:20px;text-align:center;">
             <div style="color:#aaa;font-size:13px;margin-bottom:8px;">Data Products</div>
-            <div style="color:#ff9100;font-size:28px;font-weight:700;">{{ stats.total_products|default(22) }}</div>
+            <div style="color:#7c3aed;font-size:28px;font-weight:700;">{{ stats.total_products|default(22) }}</div>
         </div>
     </div>
 
@@ -21275,7 +21275,7 @@ DATA_MARKETPLACE_ADMIN_CONTENT = """
                         <td style="padding:10px;color:#00d4ff;font-size:13px;">{{ record.product_id }}</td>
                         <td style="padding:10px;color:#ccc;font-size:13px;">{{ record.query_type }}</td>
                         <td style="padding:10px;color:#fff;font-size:13px;text-align:right;">{{ record.records_returned }}</td>
-                        <td style="padding:10px;color:#ff9100;font-size:13px;text-align:right;">{{ record.credits_consumed }}</td>
+                        <td style="padding:10px;color:#7c3aed;font-size:13px;text-align:right;">{{ record.credits_consumed }}</td>
                     </tr>
                     {% endfor %}
                     {% if not stats.get('recent_activity') %}
@@ -21295,7 +21295,7 @@ DATA_MARKETPLACE_ADMIN_CONTENT = """
         </div>
         <div style="background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;">
             <h2 style="color:#fff;margin:0 0 16px 0;font-size:18px;">Pending Exports</h2>
-            <div style="color:#ff9100;font-size:32px;font-weight:700;">{{ stats.pending_exports|default(0) }}</div>
+            <div style="color:#7c3aed;font-size:32px;font-weight:700;">{{ stats.pending_exports|default(0) }}</div>
             <div style="color:#aaa;font-size:13px;margin-top:4px;">{{ stats.completed_exports|default(0) }} completed</div>
         </div>
     </div>
@@ -21321,11 +21321,11 @@ NODE_CONSENT_ADMIN_CONTENT = ADMIN_NAV + """
         </div>
         <div style="background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;">
             <h2 style="color:#fff;margin:0 0 16px 0;font-size:18px;">Avg Tier Score</h2>
-            <div style="color:#ff9100;font-size:32px;font-weight:700;">{{ "%.1f"|format(stats.avg_tier_score|default(0)) }}</div>
+            <div style="color:#7c3aed;font-size:32px;font-weight:700;">{{ "%.1f"|format(stats.avg_tier_score|default(0)) }}</div>
         </div>
         <div style="background:#16213e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;">
             <h2 style="color:#fff;margin:0 0 16px 0;font-size:18px;">Total Allocated</h2>
-            <div style="color:#ff6b35;font-size:32px;font-weight:700;">${{ "%.2f"|format(stats.total_fees_allocated|default(0)) }}</div>
+            <div style="color:#7c3aed;font-size:32px;font-weight:700;">${{ "%.2f"|format(stats.total_fees_allocated|default(0)) }}</div>
         </div>
     </div>
 
@@ -21364,7 +21364,7 @@ NODE_CONSENT_ADMIN_CONTENT = ADMIN_NAV + """
                     <span style="color:#aaa;">Referral Payouts</span><span style="color:#00bcd4;font-weight:600;">${{ "%.2f"|format(stats.total_referral_payouts|default(0)) }}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;padding:8px 0;">
-                    <span style="color:#aaa;">Platform Profit</span><span style="color:#ff6b35;font-weight:600;">${{ "%.2f"|format(stats.total_platform_profit|default(0)) }}</span>
+                    <span style="color:#aaa;">Platform Profit</span><span style="color:#7c3aed;font-weight:600;">${{ "%.2f"|format(stats.total_platform_profit|default(0)) }}</span>
                 </div>
             </div>
         </div>
@@ -21378,7 +21378,7 @@ NODE_CONSENT_ADMIN_CONTENT = ADMIN_NAV + """
                     <span style="color:#aaa;">Active</span><span style="color:#00e676;font-weight:600;">{{ stats.active_referrals|default(0) }}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;padding:8px 0;">
-                    <span style="color:#aaa;">Bonuses Paid</span><span style="color:#ff9100;font-weight:600;">${{ "%.2f"|format(stats.total_referral_bonuses|default(0)) }}</span>
+                    <span style="color:#aaa;">Bonuses Paid</span><span style="color:#7c3aed;font-weight:600;">${{ "%.2f"|format(stats.total_referral_bonuses|default(0)) }}</span>
                 </div>
             </div>
         </div>

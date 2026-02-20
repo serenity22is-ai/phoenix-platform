@@ -71,7 +71,7 @@ BASE_TEMPLATE = '''
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="MYSTES - AI-powered search engine for geographic price arbitrage. Compare flights, hotels, products, rentals and more across 195 markets. Pay with crypto. Powered by XRPL.">
     <!-- PWA Meta -->
-    <meta name="theme-color" content="#ff6b35">
+    <meta name="theme-color" content="#7c3aed">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Mystes">
@@ -108,13 +108,13 @@ BASE_TEMPLATE = '''
             --text-on-light: #1a1a2e;
             --text-on-card: #ffffff;
 
-            /* Accent colors - Mystes fire theme */
-            --mystes-glow: #ff6b35;
-            --mystes-silver: #ffc107;
-            --mystes-cyan: #ff8c00;
-            --mystes-aurora: #ff4d00;
+            /* Accent colors - Mystes purple/teal theme */
+            --mystes-glow: #7c3aed;
+            --mystes-silver: #14b8a6;
+            --mystes-cyan: #6d28d9;
+            --mystes-aurora: #5b21b6;
             --success-green: #4ade80;
-            --ocean-blue: #ff8c00;
+            --ocean-blue: #0891b2;
 
             /* Card backgrounds */
             --card-dark: rgba(15, 10, 25, 0.85);
@@ -500,18 +500,18 @@ BASE_TEMPLATE = '''
         }
 
         .nav-cta {
-            background: linear-gradient(135deg, #ff6b35, #ff8c00);
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
             color: #ffffff !important;
             padding: var(--space-sm) var(--space-lg) !important;
             border-radius: 6px;
             font-weight: 600;
-            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.4);
+            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
         }
 
         .nav-cta:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(255, 107, 53, 0.5);
-            background: linear-gradient(135deg, #ff8c00, #ffc107) !important;
+            box-shadow: 0 8px 30px rgba(124, 58, 237, 0.5);
+            background: linear-gradient(135deg, #6d28d9, #14b8a6) !important;
         }
 
         /* XRPL Trust Badge */
@@ -648,16 +648,16 @@ BASE_TEMPLATE = '''
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #ff6b35, #ff8c00);
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
             color: #ffffff;
-            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.4);
+            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
             font-weight: 700;
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(255, 107, 53, 0.5);
-            background: linear-gradient(135deg, #ff8c00, #ffc107);
+            box-shadow: 0 8px 30px rgba(124, 58, 237, 0.5);
+            background: linear-gradient(135deg, #6d28d9, #14b8a6);
         }
 
         .btn-secondary {
@@ -1679,7 +1679,7 @@ BASE_TEMPLATE = '''
 
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
-                <a href="/ai" class="nav-link"><span class="mystes-brand" style="letter-spacing:2px;font-size:12px;">MYSTES</span> AI</a>
+                <a href="/ai" class="nav-link">AI Search</a>
                 <a href="/dashboard" class="nav-link">Dashboard</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/wallet" class="nav-link">Wallet</a>
@@ -1753,17 +1753,17 @@ BASE_TEMPLATE = '''
     {% endif %}
 
     <style>
-    .onboard-banner{position:fixed;top:60px;left:0;right:0;z-index:999;background:linear-gradient(135deg,rgba(255,107,53,0.15),rgba(138,43,226,0.12));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,107,53,0.3);padding:0;animation:bannerSlide .4s ease-out;}
+    .onboard-banner{position:fixed;top:60px;left:0;right:0;z-index:999;background:linear-gradient(135deg,rgba(124,58,237,0.15),rgba(138,43,226,0.12));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(124,58,237,0.3);padding:0;animation:bannerSlide .4s ease-out;}
     @keyframes bannerSlide{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
     .onboard-banner-inner{max-width:1200px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
     .onboard-banner-text{flex:1;min-width:200px;font-family:'Rajdhani',sans-serif;}
-    .onboard-banner-text strong{color:var(--mystes-glow,#ff6b35);font-size:1.05rem;display:block;line-height:1.2;}
+    .onboard-banner-text strong{color:var(--mystes-glow,#7c3aed);font-size:1.05rem;display:block;line-height:1.2;}
     .onboard-banner-sub{color:var(--text-secondary,#999);font-size:0.88rem;}
     .onboard-banner-action{flex-shrink:0;}
     .onboard-banner-close{background:none;border:none;color:var(--text-secondary,#999);font-size:1.4rem;cursor:pointer;padding:0 0 0 12px;line-height:1;opacity:0.7;}
     .onboard-banner-close:hover{opacity:1;color:var(--text-bright,#fff);}
-    .onboard-btn{background:linear-gradient(135deg,#ff6b35,#ff8f5e);color:#fff;border:none;padding:10px 28px;border-radius:25px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.95rem;cursor:pointer;transition:all .2s;}
-    .onboard-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(255,107,53,0.4);}
+    .onboard-btn{background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff;border:none;padding:10px 28px;border-radius:25px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.95rem;cursor:pointer;transition:all .2s;}
+    .onboard-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(124,58,237,0.4);}
     .onboard-btn:disabled{opacity:0.6;cursor:wait;transform:none;}
     .google-signin-btn{display:inline-flex;align-items:center;background:#fff;color:#3c4043;border:none;padding:10px 24px;border-radius:25px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.95rem;cursor:pointer;transition:all .2s;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
     .google-signin-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(0,0,0,0.3);background:#f8f8f8;}
@@ -2073,7 +2073,7 @@ HOME_HERO = '''
     }
 
     .feature-card:hover {
-        border-color: rgba(255, 107, 53, 0.3);
+        border-color: rgba(124, 58, 237, 0.3);
         transform: translateY(-8px);
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
     }
@@ -2081,7 +2081,7 @@ HOME_HERO = '''
     .feature-icon {
         width: 64px;
         height: 64px;
-        background: linear-gradient(135deg, rgba(255, 107, 53, 0.2), rgba(255, 200, 87, 0.1));
+        background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(20, 184, 166, 0.1));
         border-radius: 16px;
         display: flex;
         align-items: center;
@@ -2129,7 +2129,7 @@ HOME_HERO = '''
     }
 
     .trust-badge:hover {
-        border-color: rgba(255, 107, 53, 0.3);
+        border-color: rgba(124, 58, 237, 0.3);
         background: rgba(255, 255, 255, 0.05);
     }
 
