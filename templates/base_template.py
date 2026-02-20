@@ -1768,12 +1768,9 @@ BASE_TEMPLATE = '''
         // Hero section — cinematic staggered entrance
         var hero = document.querySelector('.hero');
         if (hero) {
-            gsap.from('.hero-overline', { y: 60, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.3 });
-            gsap.from('.hero h1', { y: 80, opacity: 0, duration: 1.4, ease: 'power3.out', delay: 0.5 });
-            gsap.from('.hero-subtitle', { y: 60, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.7 });
-            gsap.from('.hero-search', { y: 40, opacity: 0, duration: 1, ease: 'power3.out', delay: 0.85 });
-            gsap.from('.hero-ctas', { y: 40, opacity: 0, duration: 1, ease: 'power3.out', delay: 1.0 });
-            gsap.from('.hero-stats > div', { y: 30, opacity: 0, stagger: 0.15, duration: 0.8, ease: 'power2.out', delay: 1.1 });
+            gsap.from('.hero h1', { y: 60, opacity: 0, duration: 1.4, ease: 'power3.out', delay: 0.3 });
+            gsap.from('.hero-subtitle', { y: 40, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.6 });
+            gsap.from('.hero-search', { y: 30, opacity: 0, duration: 1, ease: 'power3.out', delay: 0.85 });
         }
 
         // Cards — slide up + fade on scroll into view
@@ -1789,14 +1786,6 @@ BASE_TEMPLATE = '''
             gsap.from(el, {
                 scrollTrigger: { trigger: el, start: 'top 92%' },
                 y: 25, opacity: 0, duration: 0.6, ease: 'power2.out'
-            });
-        });
-
-        // Stat values — count-up style entrance
-        gsap.utils.toArray('.stat-value, .hero-stat-value').forEach(function(el) {
-            gsap.from(el, {
-                scrollTrigger: { trigger: el, start: 'top 90%' },
-                scale: 0.5, opacity: 0, duration: 0.5, ease: 'back.out(1.7)'
             });
         });
 
@@ -1830,32 +1819,6 @@ HOME_HERO = '''
         position: relative;
     }
 
-    .hero-overline {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 20px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 100px;
-        font-family: var(--font-display);
-        font-size: 12px;
-        font-weight: 500;
-        letter-spacing: 4px;
-        text-transform: uppercase;
-        color: var(--text-secondary);
-        margin-bottom: 40px;
-        animation: fadeInUp 0.8s var(--ease-out) forwards;
-    }
-
-    .hero-overline .dot {
-        width: 8px;
-        height: 8px;
-        background: var(--success-green);
-        border-radius: 50%;
-        animation: pulse 2s ease-in-out infinite;
-    }
-
     .hero h1 {
         font-family: var(--font-display);
         font-size: clamp(48px, 12vw, 120px);
@@ -1868,11 +1831,6 @@ HOME_HERO = '''
         text-shadow: 0 4px 40px rgba(0, 0, 0, 0.5);
         opacity: 0;
         animation: fadeInUp 0.8s var(--ease-out) 0.15s forwards;
-    }
-
-    .hero h1 .accent {
-        display: block;
-        color: var(--text-bright);
     }
 
     .hero-subtitle {
@@ -1941,262 +1899,21 @@ HOME_HERO = '''
         opacity: 0.85;
     }
 
-    .hero-ctas {
-        display: flex;
-        gap: 20px;
-        flex-wrap: wrap;
-        justify-content: center;
-        opacity: 0;
-        animation: fadeInUp 0.8s var(--ease-out) 0.45s forwards;
-    }
-
-    .hero-stats {
-        display: flex;
-        gap: 60px;
-        margin-top: 80px;
-        opacity: 0;
-        animation: fadeInUp 0.8s var(--ease-out) 0.6s forwards;
-    }
-
-    .hero-stat {
-        text-align: center;
-    }
-
-    .hero-stat-value {
-        font-family: var(--font-display);
-        font-size: 52px;
-        font-weight: 600;
-        letter-spacing: 2px;
-        color: var(--text-bright);
-    }
-
-    .hero-stat-label {
-        font-size: 12px;
-        font-weight: 500;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        margin-top: 8px;
-    }
-
     @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(30px); }
         to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Features */
-    .features-section {
-        padding: 100px 0;
-    }
-
-    .section-header {
-        text-align: center;
-        margin-bottom: 60px;
-    }
-
-    .section-header h2 {
-        font-size: clamp(28px, 4vw, 42px);
-        font-weight: 700;
-        letter-spacing: -1px;
-        color: var(--text-bright);
-        margin-bottom: 16px;
-    }
-
-    .section-header p {
-        font-size: 18px;
-        color: var(--text-muted);
-    }
-
-    .features-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 24px;
-    }
-
-    .feature-card {
-        background: var(--card-dark);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 20px;
-        padding: 40px;
-        transition: all 0.4s var(--ease-out);
-    }
-
-    .feature-card:hover {
-        border-color: rgba(124, 58, 237, 0.3);
-        transform: translateY(-8px);
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-    }
-
-    .feature-icon {
-        width: 64px;
-        height: 64px;
-        background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(20, 184, 166, 0.1));
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 32px;
-        margin-bottom: 24px;
-    }
-
-    .feature-card h3 {
-        font-size: 22px;
-        font-weight: 700;
-        color: var(--text-bright);
-        margin-bottom: 12px;
-    }
-
-    .feature-card p {
-        font-size: 15px;
-        color: var(--text-muted);
-        line-height: 1.7;
-    }
-
-    /* Trust badges */
-    .trust-section {
-        padding: 60px 0;
-    }
-
-    .trust-badges {
-        display: flex;
-        justify-content: center;
-        gap: 24px;
-        flex-wrap: wrap;
-    }
-
-    .trust-badge {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-        padding: 24px 32px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        min-width: 140px;
-        transition: all 0.3s var(--ease-out);
-    }
-
-    .trust-badge:hover {
-        border-color: rgba(124, 58, 237, 0.3);
-        background: rgba(255, 255, 255, 0.05);
-    }
-
-    .trust-badge .icon {
-        font-size: 36px;
-    }
-
-    .trust-badge strong {
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--text-bright);
-    }
-
-    .trust-badge span {
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-    @media (max-width: 768px) {
-        .hero-stats {
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        .features-grid {
-            grid-template-columns: 1fr;
-        }
-    }
 </style>
 
 <section class="hero">
-    <span class="hero-overline">
-        <span class="dot"></span>
-        Powered by XRP Ledger
-    </span>
+    <h1><span class="mystes-brand">MYSTES</span></h1>
 
-    <h1>EXPLORE<br><span class="accent">THE WORLD</span></h1>
-
-    <p class="hero-subtitle">
-        Break free from borders. Access flight prices from any country on Earth.
-        Pay with crypto. No restrictions. No barriers. Your journey begins here.
-    </p>
+    <p class="hero-subtitle">Where would you like to travel?</p>
 
     <form class="hero-search" action="/search" method="GET" autocomplete="off">
-        <input type="text" name="q" class="hero-search-input" placeholder="Where do you want to fly?" />
+        <input type="text" name="q" class="hero-search-input" placeholder="City, country, or anywhere..." />
         <button type="submit" class="hero-search-btn">Search</button>
     </form>
-
-    <div class="hero-ctas">
-        <a href="/register" class="btn btn-primary btn-large">Get Started</a>
-        <a href="/login" class="btn btn-secondary btn-large">Sign In</a>
-    </div>
-
-    <div class="hero-stats">
-        <div class="hero-stat">
-            <div class="hero-stat-value">195</div>
-            <div class="hero-stat-label">Countries</div>
-        </div>
-        <div class="hero-stat">
-            <div class="hero-stat-value">70%</div>
-            <div class="hero-stat-label">Max Savings</div>
-        </div>
-        <div class="hero-stat">
-            <div class="hero-stat-value">{{ total_deals }}</div>
-            <div class="hero-stat-label">Active Deals</div>
-        </div>
-    </div>
-</section>
-
-<section class="features-section">
-    <div class="section-header">
-        <h2>Why <span class="mystes-brand">MYSTES</span>?</h2>
-        <p>The future of travel is borderless</p>
-    </div>
-
-    <div class="features-grid">
-        <div class="feature-card">
-            <div class="feature-icon">&#127760;</div>
-            <h3>Global Access</h3>
-            <p>Search flights from any market on the planet. Our network spans every continent, giving you prices that were previously impossible to access.</p>
-        </div>
-
-        <div class="feature-card">
-            <div class="feature-icon">&#128274;</div>
-            <h3>Borderless Payments</h3>
-            <p>Pay with XRP or cryptocurrency. No banking restrictions. No geographic blocks. Trustless escrow protects every single transaction.</p>
-        </div>
-
-        <div class="feature-card">
-            <div class="feature-icon">&#127793;</div>
-            <h3>Adventure Awaits</h3>
-            <p>The same flight costs different prices around the world. We find the cheapest regional price and unlock it for you instantly.</p>
-        </div>
-    </div>
-</section>
-
-<section class="trust-section">
-    <div class="trust-badges">
-        <div class="trust-badge">
-            <div class="icon">&#128179;</div>
-            <strong>Cards</strong>
-            <span>Visa, Mastercard</span>
-        </div>
-        <div class="trust-badge">
-            <div class="icon">&#128142;</div>
-            <strong>XRP</strong>
-            <span>Instant Settlement</span>
-        </div>
-        <div class="trust-badge">
-            <div class="icon">&#129689;</div>
-            <strong>Crypto</strong>
-            <span>BTC, ETH, USDC</span>
-        </div>
-        <div class="trust-badge">
-            <div class="icon">&#128178;</div>
-            <strong>RLUSD</strong>
-            <span>XRPL Stablecoin</span>
-        </div>
-    </div>
 </section>
 '''
