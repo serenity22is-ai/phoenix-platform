@@ -353,39 +353,6 @@ _FALLBACK_TEMPLATE = """
             50% { opacity: 1; transform: scaleX(1); }
         }
 
-        /* MYSTES flame particles */
-        .particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
-            overflow: hidden;
-        }
-        .particle {
-            position: absolute;
-            width: 4px;
-            height: 4px;
-            background: var(--mystes-purple);
-            border-radius: 50%;
-            filter: blur(1px);
-            animation: rise 8s ease-in infinite;
-        }
-        .particle:nth-child(1) { left: 10%; animation-delay: 0s; }
-        .particle:nth-child(2) { left: 25%; animation-delay: 1.5s; background: var(--mystes-deep); }
-        .particle:nth-child(3) { left: 40%; animation-delay: 3s; }
-        .particle:nth-child(4) { left: 55%; animation-delay: 0.5s; background: var(--mystes-gold); }
-        .particle:nth-child(5) { left: 70%; animation-delay: 2s; }
-        .particle:nth-child(6) { left: 85%; animation-delay: 4s; background: var(--mystes-deep); }
-        @keyframes rise {
-            0% { bottom: -10px; opacity: 0; }
-            10% { opacity: 0.8; }
-            90% { opacity: 0.3; }
-            100% { bottom: 100%; opacity: 0; }
-        }
-
         .container { max-width: 1100px; margin: 0 auto; padding: 20px; position: relative; z-index: 10; }
 
         /* Navigation */

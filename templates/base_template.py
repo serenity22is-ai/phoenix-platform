@@ -84,6 +84,10 @@ BASE_TEMPLATE = '''
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- 3D Scene & Scroll Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
     <!-- Google OAuth handled via server-side redirect, no JS library needed -->
     <style>
         /* ============================================
@@ -185,16 +189,10 @@ BASE_TEMPLATE = '''
            ============================================ */
 
         /* ============================================
-           ANIMATED AURORA BACKGROUND
-           Multi-layer slow-drifting aurora curtains
+           DEEP SPACE BACKGROUND (Three.js renders behind)
            ============================================ */
 
-        .aurora-bg {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 0;
-            pointer-events: none;
+        body {
             background: linear-gradient(180deg,
                 #050210 0%,
                 #0a0612 15%,
@@ -203,163 +201,11 @@ BASE_TEMPLATE = '''
                 #0a0612 80%,
                 #050210 100%
             );
-            overflow: hidden;
-        }
-
-        /* Aurora curtain layer 1 — slow drift right, magenta/purple */
-        .aurora-layer-1 {
-            position: fixed;
-            top: -20%; left: -20%;
-            width: 140%; height: 140%;
-            z-index: 0;
-            pointer-events: none;
-            opacity: 0.5;
-            background:
-                radial-gradient(ellipse 60% 50% at 25% 30%, rgba(139, 45, 91, 0.6) 0%, transparent 60%),
-                radial-gradient(ellipse 50% 40% at 65% 25%, rgba(74, 25, 66, 0.5) 0%, transparent 55%),
-                radial-gradient(ellipse 70% 35% at 45% 60%, rgba(196, 69, 105, 0.25) 0%, transparent 50%);
-            animation: auroraDrift1 25s ease-in-out infinite;
-            will-change: transform, opacity;
-        }
-
-        /* Aurora curtain layer 2 — slow drift left, teal/green */
-        .aurora-layer-2 {
-            position: fixed;
-            top: -15%; left: -15%;
-            width: 130%; height: 130%;
-            z-index: 0;
-            pointer-events: none;
-            opacity: 0.35;
-            background:
-                radial-gradient(ellipse 55% 45% at 70% 35%, rgba(13, 79, 79, 0.7) 0%, transparent 55%),
-                radial-gradient(ellipse 45% 55% at 30% 50%, rgba(26, 95, 74, 0.5) 0%, transparent 50%),
-                radial-gradient(ellipse 65% 30% at 55% 70%, rgba(74, 222, 128, 0.15) 0%, transparent 45%);
-            animation: auroraDrift2 30s ease-in-out infinite;
-            will-change: transform, opacity;
-        }
-
-        /* Aurora curtain layer 3 — vertical shimmer, cool violet/cyan */
-        .aurora-layer-3 {
-            position: fixed;
-            top: -10%; left: -10%;
-            width: 120%; height: 120%;
-            z-index: 0;
-            pointer-events: none;
-            opacity: 0.3;
-            background:
-                radial-gradient(ellipse 40% 60% at 50% 20%, rgba(100, 60, 180, 0.4) 0%, transparent 50%),
-                radial-gradient(ellipse 50% 40% at 35% 45%, rgba(60, 140, 160, 0.3) 0%, transparent 45%),
-                radial-gradient(ellipse 35% 50% at 70% 55%, rgba(120, 40, 140, 0.25) 0%, transparent 40%);
-            animation: auroraDrift3 20s ease-in-out infinite;
-            will-change: transform, opacity;
-        }
-
-        /* Aurora curtain layer 4 — deep bloom, slow pulse */
-        .aurora-layer-4 {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 0;
-            pointer-events: none;
-            opacity: 0.2;
-            background:
-                radial-gradient(ellipse 80% 50% at 40% 40%, rgba(139, 45, 91, 0.5) 0%, transparent 50%),
-                radial-gradient(ellipse 60% 70% at 60% 60%, rgba(13, 79, 79, 0.4) 0%, transparent 45%);
-            animation: auroraPulse 35s ease-in-out infinite;
-            will-change: opacity;
-        }
-
-        @keyframes auroraDrift1 {
-            0%   { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 0.5; }
-            25%  { transform: translate(4%, -3%) scale(1.05) rotate(1deg); opacity: 0.6; }
-            50%  { transform: translate(7%, 2%) scale(1.02) rotate(-0.5deg); opacity: 0.45; }
-            75%  { transform: translate(2%, -1%) scale(1.07) rotate(0.5deg); opacity: 0.55; }
-            100% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 0.5; }
-        }
-
-        @keyframes auroraDrift2 {
-            0%   { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 0.35; }
-            25%  { transform: translate(-5%, 2%) scale(1.04) rotate(-1deg); opacity: 0.4; }
-            50%  { transform: translate(-3%, -3%) scale(1.08) rotate(0.5deg); opacity: 0.3; }
-            75%  { transform: translate(-6%, 1%) scale(1.02) rotate(-0.5deg); opacity: 0.45; }
-            100% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 0.35; }
-        }
-
-        @keyframes auroraDrift3 {
-            0%   { transform: translate(0, 0) scale(1); opacity: 0.3; }
-            33%  { transform: translate(3%, -4%) scale(1.06); opacity: 0.4; }
-            66%  { transform: translate(-2%, 3%) scale(1.03); opacity: 0.25; }
-            100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
-        }
-
-        @keyframes auroraPulse {
-            0%, 100% { opacity: 0.2; }
-            30%      { opacity: 0.35; }
-            60%      { opacity: 0.15; }
-            80%      { opacity: 0.3; }
-        }
-
-        /* Stars — dual layer with stagger */
-        .stars {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-            pointer-events: none;
-            background-image:
-                radial-gradient(1.5px 1.5px at 20px 30px, rgba(255,255,255,0.9), transparent),
-                radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.7), transparent),
-                radial-gradient(1.5px 1.5px at 90px 40px, white, transparent),
-                radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.8), transparent),
-                radial-gradient(1.5px 1.5px at 230px 80px, white, transparent),
-                radial-gradient(1px 1px at 300px 150px, rgba(255,255,255,0.6), transparent),
-                radial-gradient(1.5px 1.5px at 350px 50px, white, transparent),
-                radial-gradient(1px 1px at 420px 180px, rgba(255,255,255,0.7), transparent),
-                radial-gradient(1.5px 1.5px at 500px 90px, white, transparent),
-                radial-gradient(1px 1px at 580px 130px, rgba(255,255,255,0.8), transparent),
-                radial-gradient(1.5px 1.5px at 650px 60px, white, transparent),
-                radial-gradient(1px 1px at 720px 200px, rgba(255,255,255,0.7), transparent),
-                radial-gradient(1px 1px at 780px 25px, white, transparent),
-                radial-gradient(1.5px 1.5px at 110px 170px, rgba(255,255,255,0.6), transparent),
-                radial-gradient(1px 1px at 440px 45px, white, transparent),
-                radial-gradient(1.5px 1.5px at 680px 160px, rgba(255,255,255,0.8), transparent);
-            background-size: 800px 250px;
-            animation: twinkle 6s ease-in-out infinite;
-        }
-
-        .stars-2 {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-            pointer-events: none;
-            background-image:
-                radial-gradient(1px 1px at 55px 95px, rgba(255,255,255,0.6), transparent),
-                radial-gradient(1.5px 1.5px at 135px 15px, white, transparent),
-                radial-gradient(1px 1px at 215px 145px, rgba(255,255,255,0.7), transparent),
-                radial-gradient(1.5px 1.5px at 330px 85px, rgba(255,255,255,0.5), transparent),
-                radial-gradient(1px 1px at 475px 125px, white, transparent),
-                radial-gradient(1.5px 1.5px at 565px 35px, rgba(255,255,255,0.8), transparent),
-                radial-gradient(1px 1px at 625px 175px, rgba(255,255,255,0.6), transparent),
-                radial-gradient(1.5px 1.5px at 755px 105px, white, transparent);
-            background-size: 800px 220px;
-            animation: twinkle2 9s ease-in-out infinite;
-        }
-
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.7; }
-            50%      { opacity: 1; }
-        }
-
-        @keyframes twinkle2 {
-            0%, 100% { opacity: 1; }
-            50%      { opacity: 0.6; }
         }
 
         /* Reduce animation on low-power devices */
         @media (prefers-reduced-motion: reduce) {
-            .aurora-layer-1, .aurora-layer-2, .aurora-layer-3, .aurora-layer-4 { animation: none; }
-            .stars, .stars-2 { animation: none; opacity: 0.8; }
+            #aurora-canvas { display: none; }
         }
 
         /* ============================================
@@ -381,10 +227,11 @@ BASE_TEMPLATE = '''
         }
 
         .nav.scrolled {
-            background: rgba(10, 6, 18, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: rgba(10, 6, 18, 0.6);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(124, 58, 237, 0.12);
         }
 
         .nav-brand {
@@ -509,8 +356,8 @@ BASE_TEMPLATE = '''
         }
 
         .nav-cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(124, 58, 237, 0.5);
+            transform: translateY(-3px);
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.5), 0 10px 30px rgba(124, 58, 237, 0.3);
             background: linear-gradient(135deg, #6d28d9, #14b8a6) !important;
         }
 
@@ -694,13 +541,14 @@ BASE_TEMPLATE = '''
             border-radius: 16px;
             padding: var(--space-xl);
             margin: var(--space-lg) 0;
-            transition: all 0.3s var(--ease-out);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.3s ease;
+            transform-style: preserve-3d;
         }
 
         .card:hover {
-            border-color: rgba(0, 212, 255, 0.3);
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border-color: rgba(124, 58, 237, 0.3);
+            transform: translateY(-8px) rotateX(2deg);
+            box-shadow: 0 20px 60px rgba(124, 58, 237, 0.2), 0 0 40px rgba(124, 58, 237, 0.08);
         }
 
         /* Light card variant - FIXED READABILITY */
@@ -1603,14 +1451,8 @@ BASE_TEMPLATE = '''
     </style>
 </head>
 <body>
-    <!-- Aurora Background — Animated layers -->
-    <div class="aurora-bg"></div>
-    <div class="aurora-layer-1"></div>
-    <div class="aurora-layer-2"></div>
-    <div class="aurora-layer-3"></div>
-    <div class="aurora-layer-4"></div>
-    <div class="stars"></div>
-    <div class="stars-2"></div>
+    <!-- 3D Aurora Background — Three.js WebGL -->
+    <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;"></canvas>
 
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
@@ -1917,6 +1759,61 @@ BASE_TEMPLATE = '''
         }
     </script>
     {% endif %}
+
+    <!-- Three.js 3D Aurora Scene -->
+    <script src="/static/js/aurora-scene.js" defer></script>
+
+    <!-- GSAP Scroll Animations -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Hero section — cinematic staggered entrance
+        var hero = document.querySelector('.hero');
+        if (hero) {
+            gsap.from('.hero-overline', { y: 60, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.3 });
+            gsap.from('.hero h1', { y: 80, opacity: 0, duration: 1.4, ease: 'power3.out', delay: 0.5 });
+            gsap.from('.hero-subtitle', { y: 60, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.7 });
+            gsap.from('.hero-ctas', { y: 40, opacity: 0, duration: 1, ease: 'power3.out', delay: 0.9 });
+            gsap.from('.hero-stats > div', { y: 30, opacity: 0, stagger: 0.15, duration: 0.8, ease: 'power2.out', delay: 1.1 });
+        }
+
+        // Cards — slide up + fade on scroll into view
+        gsap.utils.toArray('.card').forEach(function(card) {
+            gsap.from(card, {
+                scrollTrigger: { trigger: card, start: 'top 88%', toggleActions: 'play none none none' },
+                y: 50, opacity: 0, duration: 0.7, ease: 'power2.out'
+            });
+        });
+
+        // Section headings — fade in on scroll
+        gsap.utils.toArray('.container h2, .container h3').forEach(function(el) {
+            gsap.from(el, {
+                scrollTrigger: { trigger: el, start: 'top 92%' },
+                y: 25, opacity: 0, duration: 0.6, ease: 'power2.out'
+            });
+        });
+
+        // Stat values — count-up style entrance
+        gsap.utils.toArray('.stat-value, .hero-stat-value').forEach(function(el) {
+            gsap.from(el, {
+                scrollTrigger: { trigger: el, start: 'top 90%' },
+                scale: 0.5, opacity: 0, duration: 0.5, ease: 'back.out(1.7)'
+            });
+        });
+
+        // Buttons — subtle entrance
+        gsap.utils.toArray('.btn, .nav-cta').forEach(function(btn) {
+            btn.addEventListener('mouseenter', function() {
+                gsap.to(btn, { scale: 1.05, duration: 0.2, ease: 'power2.out' });
+            });
+            btn.addEventListener('mouseleave', function() {
+                gsap.to(btn, { scale: 1, duration: 0.3, ease: 'power2.out' });
+            });
+        });
+    });
+    </script>
 </body>
 </html>
 '''
