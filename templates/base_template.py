@@ -80,6 +80,7 @@ BASE_TEMPLATE = '''
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon-eyes.svg">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1446,6 +1447,9 @@ BASE_TEMPLATE = '''
     <!-- 3D Aurora Background — Three.js WebGL -->
     <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
 
+    <!-- Divine Eyes — Canvas 2D -->
+    <canvas id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;"></canvas>
+
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
         <svg class="loading-logo sacred-geo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -1754,6 +1758,9 @@ BASE_TEMPLATE = '''
 
     <!-- Three.js 3D Aurora Scene -->
     <script src="/static/js/aurora-scene.js" defer></script>
+
+    <!-- Divine Eyes -->
+    <script src="/static/js/divine-eyes.js" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>
