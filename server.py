@@ -2635,6 +2635,15 @@ def favicon():
     )
 
 
+# --- HEALTH CHECK (exempt from rate limiting) ---
+
+@app.route("/health")
+@limiter.exempt
+def health_check():
+    """Lightweight health check for Render / load balancers."""
+    return jsonify({"status": "ok"}), 200
+
+
 # --- ROUTES ---
 
 @app.route("/")

@@ -16,5 +16,5 @@ services:
         # Optional — set in Render dashboard for Redis-backed rate limiting
       - key: GUNICORN_WORKERS
         value: "2"
-    healthCheckPath: /
+    healthCheckPath: /health
     autoDeploy: true
