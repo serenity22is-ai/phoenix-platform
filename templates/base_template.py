@@ -156,11 +156,12 @@ BASE_TEMPLATE = '''
             scroll-behavior: smooth;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            background: var(--deep-space);
         }
 
         body {
             font-family: var(--font-sans);
-            background: var(--deep-space);
+            background: transparent;
             color: var(--text-primary);
             min-height: 100vh;
             overflow-x: hidden;
@@ -190,18 +191,9 @@ BASE_TEMPLATE = '''
 
         /* ============================================
            DEEP SPACE BACKGROUND (Three.js renders behind)
+           body is transparent so fixed canvases show through
+           html element holds the dark fallback background
            ============================================ */
-
-        body {
-            background: linear-gradient(180deg,
-                #050210 0%,
-                #0a0612 15%,
-                #0e0818 35%,
-                #120a20 55%,
-                #0a0612 80%,
-                #050210 100%
-            );
-        }
 
         /* Reduce animation on low-power devices */
         @media (prefers-reduced-motion: reduce) {
@@ -1452,9 +1444,9 @@ BASE_TEMPLATE = '''
 </head>
 <body>
     <!-- 3D Aurora Background — Three.js WebGL -->
-    <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;"></canvas>
+    <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
     <!-- Divine Eyes of the Oracle — opens when you seek -->
-    <canvas id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+    <canvas id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;"></canvas>
 
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
@@ -1779,7 +1771,8 @@ BASE_TEMPLATE = '''
             gsap.from('.hero-overline', { y: 60, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.3 });
             gsap.from('.hero h1', { y: 80, opacity: 0, duration: 1.4, ease: 'power3.out', delay: 0.5 });
             gsap.from('.hero-subtitle', { y: 60, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.7 });
-            gsap.from('.hero-ctas', { y: 40, opacity: 0, duration: 1, ease: 'power3.out', delay: 0.9 });
+            gsap.from('.hero-search', { y: 40, opacity: 0, duration: 1, ease: 'power3.out', delay: 0.85 });
+            gsap.from('.hero-ctas', { y: 40, opacity: 0, duration: 1, ease: 'power3.out', delay: 1.0 });
             gsap.from('.hero-stats > div', { y: 30, opacity: 0, stagger: 0.15, duration: 0.8, ease: 'power2.out', delay: 1.1 });
         }
 
@@ -1891,6 +1884,61 @@ HOME_HERO = '''
         margin: 0 0 50px;
         opacity: 0;
         animation: fadeInUp 0.8s var(--ease-out) 0.3s forwards;
+    }
+
+    .hero-search {
+        display: flex;
+        max-width: 560px;
+        width: 100%;
+        margin: 0 auto 30px;
+        border-radius: 60px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        opacity: 0;
+        animation: fadeInUp 0.8s var(--ease-out) 0.4s forwards;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .hero-search:focus-within {
+        border-color: rgba(124, 58, 237, 0.5);
+        box-shadow: 0 0 30px rgba(124, 58, 237, 0.15);
+    }
+
+    .hero-search-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        padding: 16px 28px;
+        font-size: 16px;
+        font-family: var(--font-sans);
+        color: var(--text-bright);
+        letter-spacing: 0.3px;
+    }
+
+    .hero-search-input::placeholder {
+        color: rgba(255, 255, 255, 0.35);
+    }
+
+    .hero-search-btn {
+        background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-deep));
+        border: none;
+        padding: 16px 32px;
+        color: white;
+        font-family: var(--font-display);
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: opacity 0.3s;
+    }
+
+    .hero-search-btn:hover {
+        opacity: 0.85;
     }
 
     .hero-ctas {
@@ -2073,6 +2121,11 @@ HOME_HERO = '''
         Break free from borders. Access flight prices from any country on Earth.
         Pay with crypto. No restrictions. No barriers. Your journey begins here.
     </p>
+
+    <form class="hero-search" action="/search" method="GET" autocomplete="off">
+        <input type="text" name="q" class="hero-search-input" placeholder="Where do you want to fly?" />
+        <button type="submit" class="hero-search-btn">Search</button>
+    </form>
 
     <div class="hero-ctas">
         <a href="/register" class="btn btn-primary btn-large">Get Started</a>
