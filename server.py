@@ -2606,12 +2606,11 @@ def favicon():
 
 @app.route("/")
 def home():
-    """Homepage IS MYSTES AI for everyone."""
-    is_auth = "true" if current_user.is_authenticated else "false"
-    content = MYSTES_AI_CONTENT.replace("__IS_AUTHENTICATED__", is_auth)
+    """Homepage — clean hero with aurora background."""
+    content = HOME_HERO if HOME_HERO else '<div style="text-align:center;padding:100px 20px;"><h1>MYSTES</h1><p>Where would you like to travel?</p></div>'
     return render_template_string(
         BASE_TEMPLATE,
-        title="MYSTES AI",
+        title="MYSTES",
         content=content,
         current_user=current_user
     )
@@ -9348,9 +9347,22 @@ async function loadDeals() {
     } catch(e) {}
 }
 
+// Auto-send query from ?q= URL parameter (from homepage search)
+function checkAutoQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q && q.trim()) {
+        document.getElementById('chatInput').value = q.trim();
+        // Small delay to let page finish loading
+        setTimeout(function() { sendMessage(); }, 500);
+        // Clean up URL
+        window.history.replaceState({}, '', '/ai');
+    }
+}
+
 // Initialize on load
-if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', loadAIPage); }
-else { loadAIPage(); }
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', function() { loadAIPage(); checkAutoQuery(); }); }
+else { loadAIPage(); checkAutoQuery(); }
 </script>
 """
 
@@ -9370,10 +9382,10 @@ def ai_search_page():
 MYSTES_AI_CONTENT = """
 <style>
     /* Main layout - full viewport like ChatGPT/Claude */
-    .ai-chat-container { display: flex; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+    .ai-chat-container { display: flex; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; }
 
     /* Sidebar */
-    .ai-sidebar { width: 260px; background: #0a0a0a; border-right: 1px solid rgba(255,255,255,0.08); padding: 12px; overflow-y: auto; display: flex; flex-direction: column; flex-shrink: 0; }
+    .ai-sidebar { width: 260px; background: rgba(6, 4, 12, 0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-right: 1px solid rgba(255,255,255,0.06); padding: 12px; overflow-y: auto; display: flex; flex-direction: column; flex-shrink: 0; }
     .ai-sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 8px 4px; }
     .ai-sidebar-header h3 { font-family: 'Outfit', sans-serif; color: #fff; font-size: 0.9rem; font-weight: 600; margin: 0; }
     .ai-new-chat-btn { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.85rem; transition: background 0.2s; }
@@ -9385,7 +9397,7 @@ MYSTES_AI_CONTENT = """
     .ai-conv-item .conv-time { font-size: 0.7rem; color: rgba(255,255,255,0.4); display: block; margin-top: 2px; }
 
     /* Main chat area */
-    .ai-main { flex: 1; display: flex; flex-direction: column; background: #0f0f0f; min-width: 0; }
+    .ai-main { flex: 1; display: flex; flex-direction: column; background: rgba(8, 5, 15, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); min-width: 0; }
 
     /* Messages container - scrollable */
     .ai-messages { flex: 1; overflow-y: auto; padding: 0; }
@@ -9413,7 +9425,7 @@ MYSTES_AI_CONTENT = """
     .ai-tool-badge { display: inline-block; background: rgba(124,58,237,0.15); color: #7c3aed; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; margin: 4px 4px 4px 0; font-weight: 500; }
 
     /* Input area - fixed at bottom */
-    .ai-input-area { padding: 16px 24px 24px; background: linear-gradient(transparent, #0f0f0f 20%); position: absolute; bottom: 0; left: 260px; right: 0; }
+    .ai-input-area { padding: 16px 24px 24px; background: linear-gradient(transparent, rgba(8, 5, 15, 0.85) 20%); position: absolute; bottom: 0; left: 260px; right: 0; }
     .ai-input-wrapper { display: flex; align-items: flex-end; max-width: 768px; margin: 0 auto; background: #1a1a1a; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
     .ai-input-wrapper:focus-within { border-color: rgba(124,58,237,0.5); box-shadow: 0 0 0 2px rgba(124,58,237,0.1); }
     .ai-input { flex: 1; background: transparent; border: none; color: #fff; padding: 14px 16px; font-family: 'Outfit', sans-serif; font-size: 1rem; outline: none; resize: none; min-height: 24px; max-height: 200px; line-height: 1.5; }
@@ -9502,14 +9514,8 @@ MYSTES_AI_CONTENT = """
         <div class="ai-messages" id="messages">
             <div class="ai-messages-inner">
                 <div class="ai-welcome" id="welcomeScreen">
-                    <h2 style="font-family: 'Outfit', sans-serif; font-weight: 600;">Where to?</h2>
-                    <p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p>
-                    <div class="ai-quick-actions">
-                        <button class="ai-quick-btn" onclick="sendQuick('Find flights from NYC to Tokyo next month')">NYC → Tokyo</button>
-                        <button class="ai-quick-btn" onclick="sendQuick('Cheapest flights from LA to London in March')">LA → London</button>
-                        <button class="ai-quick-btn" onclick="sendQuick('Find flights from Miami to Paris')">Miami → Paris</button>
-                        <button class="ai-quick-btn" onclick="sendQuick('Best deals on flights to Bali')">Flights to Bali</button>
-                    </div>
+                    <h2 style="font-family: 'Outfit', sans-serif; font-weight: 600;">MYSTES</h2>
+                    <p class="ai-welcome-intro">Where would you like to travel?</p>
                 </div>
             </div>
         </div>
@@ -9615,7 +9621,7 @@ function newConversation() {
     currentConvId = null;
     const msgs = document.getElementById('messages');
     const inner = msgs.querySelector('.ai-messages-inner') || msgs;
-    inner.innerHTML = '<div class="ai-welcome" id="welcomeScreen"><h2>MYSTES</h2><p class="ai-welcome-intro">Search flights across 195 markets and find the best price.</p><div class="ai-quick-actions"><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from NYC to Tokyo next month\')">NYC → Tokyo</button><button class="ai-quick-btn" onclick="sendQuick(\'Cheapest flights from LA to London in March\')">LA → London</button><button class="ai-quick-btn" onclick="sendQuick(\'Find flights from Miami to Paris\')">Miami → Paris</button><button class="ai-quick-btn" onclick="sendQuick(\'Best deals on flights to Bali\')">Flights to Bali</button></div></div>';
+    inner.innerHTML = '<div class="ai-welcome" id="welcomeScreen"><h2>MYSTES</h2><p class="ai-welcome-intro">Where would you like to travel?</p></div>';
 }
 
 function sendQuick(text) {
@@ -13523,9 +13529,8 @@ tr.selected-flight .select-flight-btn::after {
 }
 </style>
 
-<div class="card search-form">
-    <h1>Global Flight Search</h1>
-    <p style="color: #666; margin-bottom: 15px;">Compare prices across 40+ regional markets to find the best deals.</p>
+<div class="card search-form" style="background: rgba(10, 6, 18, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); color: #e0e0e0;">
+    <h1 style="color: #fff;">Search Flights</h1>
 
     <!-- Search Tabs -->
     <div class="search-tabs">

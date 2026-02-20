@@ -1445,8 +1445,6 @@ BASE_TEMPLATE = '''
 <body>
     <!-- 3D Aurora Background — Three.js WebGL -->
     <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
-    <!-- Divine Eyes of the Oracle — opens when you seek -->
-    <canvas id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;"></canvas>
 
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
@@ -1756,8 +1754,6 @@ BASE_TEMPLATE = '''
 
     <!-- Three.js 3D Aurora Scene -->
     <script src="/static/js/aurora-scene.js" defer></script>
-    <!-- Divine Eyes of the Oracle -->
-    <script src="/static/js/divine-eyes.js" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>
@@ -1911,8 +1907,8 @@ HOME_HERO = '''
 
     <p class="hero-subtitle">Where would you like to travel?</p>
 
-    <form class="hero-search" action="/search" method="GET" autocomplete="off">
-        <input type="text" name="q" class="hero-search-input" placeholder="City, country, or anywhere..." />
+    <form class="hero-search" action="/ai" method="GET" autocomplete="off">
+        <input type="text" name="q" class="hero-search-input" placeholder="Where do you want to go?" />
         <button type="submit" class="hero-search-btn">Search</button>
     </form>
 </section>
