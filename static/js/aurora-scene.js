@@ -1,6 +1,6 @@
 /**
  * MYSTES Aurora Scene — Three.js WebGL Background
- * Realistic aurora borealis curtains + star field
+ * Realistic aurora borealis curtains — NO stars
  * Smooth flowing vertical bands with organic movement
  */
 (function () {
@@ -22,13 +22,8 @@
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.autoClear = false;
 
-  // ─── Scenes & Camera ───────────────────────────────────────
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.z = 5;
-
+  // ─── Scene & Camera ───────────────────────────────────────
   const auroraScene = new THREE.Scene();
   const auroraCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
@@ -65,7 +60,7 @@
     float noise(vec2 p) {
       vec2 i = floor(p);
       vec2 f = fract(p);
-      f = f * f * (3.0 - 2.0 * f); // smooth interpolation
+      f = f * f * (3.0 - 2.0 * f);
       float a = hash(i);
       float b = hash(i + vec2(1.0, 0.0));
       float c = hash(i + vec2(0.0, 1.0));
@@ -131,7 +126,6 @@
       vec3 pink = vec3(0.75, 0.12, 0.5);
 
       // Height-based color blending within each curtain
-      // Green at base of curtain, purple/pink at top (realistic)
       float heightMix = smoothstep(0.5, 0.85, y);
 
       // Composite all layers
@@ -141,7 +135,7 @@
       aurora += purple * c3 * 0.45;
       aurora += pink * c4 * 0.25;
 
-      // Soft bloom/glow — makes it look diffuse and ethereal
+      // Soft bloom/glow
       float bloom = (c1 + c2 * 0.5 + c3 * 0.7 + c4 * 0.3) * 0.06;
       vec3 bloomColor = mix(vec3(0.1, 0.6, 0.4), vec3(0.4, 0.1, 0.6), heightMix);
       aurora += bloomColor * bloom;
@@ -177,75 +171,6 @@
   const auroraMesh = new THREE.Mesh(auroraGeometry, auroraMaterial);
   auroraScene.add(auroraMesh);
 
-  // ─── Star Field ─────────────────────────────────────────────
-  const STAR_COUNT = isMobile ? 1500 : 4000;
-  const starPositions = new Float32Array(STAR_COUNT * 3);
-  const starSizes = new Float32Array(STAR_COUNT);
-  const starPhases = new Float32Array(STAR_COUNT);
-
-  for (let i = 0; i < STAR_COUNT; i++) {
-    starPositions[i * 3] = (Math.random() - 0.5) * 40;
-    starPositions[i * 3 + 1] = (Math.random() - 0.5) * 25;
-    starPositions[i * 3 + 2] = (Math.random() - 0.5) * 30 - 5;
-    starSizes[i] = Math.random() * 2.0 + 0.3;
-    starPhases[i] = Math.random() * Math.PI * 2;
-  }
-
-  const starGeometry = new THREE.BufferGeometry();
-  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-  starGeometry.setAttribute('aSize', new THREE.BufferAttribute(starSizes, 1));
-  starGeometry.setAttribute('aPhase', new THREE.BufferAttribute(starPhases, 1));
-
-  const starVertexShader = `
-    attribute float aSize;
-    attribute float aPhase;
-    varying float vAlpha;
-    uniform float uTime;
-    uniform float uScroll;
-    uniform vec2 uMouse;
-
-    void main() {
-      vec3 pos = position;
-      float depth = (pos.z + 20.0) / 40.0;
-      pos.y += uScroll * 0.001 * (1.0 - depth * 0.7);
-      pos.x += uMouse.x * 0.3 * depth;
-      pos.y += uMouse.y * 0.2 * depth;
-
-      // Gentle twinkle
-      vAlpha = 0.3 + 0.7 * (0.5 + 0.5 * sin(uTime * 1.2 + aPhase));
-
-      vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-      gl_PointSize = aSize * (300.0 / -mvPosition.z);
-      gl_Position = projectionMatrix * mvPosition;
-    }
-  `;
-
-  const starFragmentShader = `
-    varying float vAlpha;
-    void main() {
-      float d = length(gl_PointCoord - 0.5) * 2.0;
-      if (d > 1.0) discard;
-      float alpha = vAlpha * (1.0 - d * d);
-      gl_FragColor = vec4(0.92, 0.94, 1.0, alpha);
-    }
-  `;
-
-  const starMaterial = new THREE.ShaderMaterial({
-    vertexShader: starVertexShader,
-    fragmentShader: starFragmentShader,
-    uniforms: {
-      uTime: { value: 0 },
-      uScroll: { value: 0 },
-      uMouse: { value: new THREE.Vector2(0, 0) }
-    },
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-
-  const stars = new THREE.Points(starGeometry, starMaterial);
-  scene.add(stars);
-
   // ─── Mouse tracking ─────────────────────────────────────────
   if (!isMobile) {
     window.addEventListener('mousemove', function (e) {
@@ -263,8 +188,6 @@
   window.addEventListener('resize', function () {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
     renderer.setSize(w, h);
     auroraMaterial.uniforms.uResolution.value.set(w, h);
   }, { passive: true });
@@ -287,15 +210,8 @@
     auroraMaterial.uniforms.uMouse.value.set(mouse.x, mouse.y);
     auroraMaterial.uniforms.uScroll.value = scrollY;
 
-    // Update stars
-    starMaterial.uniforms.uTime.value = elapsed;
-    starMaterial.uniforms.uScroll.value = scrollY;
-    starMaterial.uniforms.uMouse.value.set(mouse.x, mouse.y);
-
-    // Render
-    renderer.clear();
+    // Render aurora only
     renderer.render(auroraScene, auroraCamera);
-    renderer.render(scene, camera);
   }
 
   animate();

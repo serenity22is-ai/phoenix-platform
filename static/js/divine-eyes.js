@@ -596,8 +596,8 @@
     // Slow iris rotation
     irisRotation += dt * 0.3;
 
-    // Auto-close after 6 seconds of inactivity
-    if (targetOpen > 0 && time - lastActivity > 6) {
+    // Auto-close after 10 seconds of inactivity
+    if (targetOpen > 0 && time - lastActivity > 10) {
       targetOpen = 0;
     }
 
@@ -661,5 +661,11 @@
       openEyes();
     }
   });
+
+  // ─── Auto-open on page load ──────────────────────────────────
+  // Eyes start closed, then gracefully open after a short delay
+  setTimeout(function () {
+    openEyes();
+  }, 1200);
 
 })();
