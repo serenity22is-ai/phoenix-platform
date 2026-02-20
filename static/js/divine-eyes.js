@@ -8,8 +8,8 @@
  * Canvas 2D — hand-drawn Da Vinci aesthetic
  * Eyes remain closed in meditative rest.
  * When the seeker searches, the eyes of gnosis open,
- * revealing irises of Philippine ocean teal —
- * the color of water so clear you can see the divine through it.
+ * revealing irises of green-gold hazel —
+ * forest and sunlight, the color of seeing.
  */
 (function () {
   'use strict';
@@ -29,16 +29,18 @@
   var lastActivity = 0;
   var hasEverOpened = false;
 
-  // ─── Colors — Philippine Ocean ──────────────────────────────
-  var OCEAN_DEEP    = '#065f5b';
-  var OCEAN_MID     = '#0dd3b5';
-  var OCEAN_BRIGHT  = '#00f5d4';
-  var OCEAN_LIGHT   = '#a0fff8';
-  var OCEAN_GLOW    = '#0dd3b5';
-  var PUPIL_COLOR   = '#0a0612';
-  var LASH_COLOR    = 'rgba(220, 210, 240, 0.85)';
-  var OUTLINE_COLOR = 'rgba(200, 190, 230, 0.6)';
-  var GLOW_COLOR    = 'rgba(13, 211, 181, ';  // + alpha + ')'
+  // ─── Colors — Green-Gold Hazel (from reference) ─────────────
+  var IRIS_OUTER    = '#3d6b35';   // deep forest green (limbal ring)
+  var IRIS_MID      = '#6b9a4e';   // bright moss green
+  var IRIS_INNER    = '#8fb86c';   // golden-green
+  var IRIS_AMBER    = '#c4a44d';   // warm amber near pupil
+  var IRIS_HIGHLIGHT = '#d4c87a';  // golden catch-light
+  var IRIS_GLOW     = 'rgba(120, 170, 80, '; // + alpha + ')' — warm green glow
+  var PUPIL_COLOR   = '#1a1208';   // warm near-black
+  var SCLERA_COLOR  = 'rgba(245, 235, 225, 0.15)'; // warm off-white, very subtle
+  var LASH_COLOR    = 'rgba(80, 60, 45, 0.8)';  // warm brown, natural
+  var OUTLINE_COLOR = 'rgba(90, 70, 55, 0.55)';  // warm brown outline
+  var GLOW_COLOR    = 'rgba(140, 180, 80, ';  // + alpha + ')' — golden-green glow
 
   // ─── Resize ─────────────────────────────────────────────────
   function resize() {
@@ -157,124 +159,156 @@
     };
   }
 
-  // ─── Draw Iris (Ocean Swirl) ────────────────────────────────
+  // ─── Draw Iris (Green-Gold Hazel — from reference) ──────────
   function drawIris(cx, cy, radius, t) {
     ctx.save();
 
-    // Base — deep ocean
-    var baseGrad = ctx.createRadialGradient(cx, cy, radius * 0.1, cx, cy, radius);
-    baseGrad.addColorStop(0, OCEAN_BRIGHT);
-    baseGrad.addColorStop(0.3, OCEAN_MID);
-    baseGrad.addColorStop(0.7, OCEAN_DEEP);
-    baseGrad.addColorStop(1, '#043d3a');
+    // Base gradient — amber center to forest green edge
+    var baseGrad = ctx.createRadialGradient(cx, cy, radius * 0.08, cx, cy, radius);
+    baseGrad.addColorStop(0, IRIS_AMBER);       // warm gold near pupil
+    baseGrad.addColorStop(0.25, IRIS_INNER);     // golden-green
+    baseGrad.addColorStop(0.55, IRIS_MID);       // bright moss
+    baseGrad.addColorStop(0.8, IRIS_OUTER);      // deep forest
+    baseGrad.addColorStop(1, '#2a4a22');          // darkest edge
     ctx.fillStyle = baseGrad;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Swirling caustic rings — like light through clear water
-    ctx.globalCompositeOperation = 'screen';
-    for (var ring = 0; ring < 6; ring++) {
-      var ringRadius = radius * (0.25 + ring * 0.12);
-      var ringAlpha = 0.12 + Math.sin(t * 0.8 + ring * 1.2) * 0.06;
-      var angleOffset = t * 0.3 * (ring % 2 === 0 ? 1 : -1) + ring * 0.5;
+    // Collarette ring — the golden-amber boundary visible in the reference
+    ctx.strokeStyle = 'rgba(196, 164, 77, 0.35)';
+    ctx.lineWidth = radius * 0.04;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.38, 0, Math.PI * 2);
+    ctx.stroke();
 
-      ctx.strokeStyle = 'rgba(0, 245, 212, ' + ringAlpha + ')';
-      ctx.lineWidth = 1.5 + Math.sin(t + ring) * 0.5;
-      ctx.beginPath();
-      for (var a = 0; a < Math.PI * 2; a += 0.05) {
-        var wobble = Math.sin(a * 6 + t * 1.5 + ring) * radius * 0.03;
-        var r = ringRadius + wobble;
-        var px = cx + Math.cos(a + angleOffset) * r;
-        var py = cy + Math.sin(a + angleOffset) * r;
-        if (a === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.stroke();
-    }
-
-    // Radial fiber lines — like iris strands
-    ctx.globalCompositeOperation = 'screen';
-    var fiberCount = 60;
+    // Radial fibers — the stroma strands visible in hazel eyes
+    // These radiate outward from the pupil, creating the natural iris texture
+    var fiberCount = 80;
     for (var f = 0; f < fiberCount; f++) {
-      var angle = (f / fiberCount) * Math.PI * 2 + irisRotation * 0.1;
-      var innerR = radius * 0.2;
-      var outerR = radius * (0.7 + Math.sin(f * 3.7 + t * 0.5) * 0.15);
-      var fiberAlpha = 0.06 + Math.sin(f * 2.1 + t) * 0.03;
+      var angle = (f / fiberCount) * Math.PI * 2 + irisRotation * 0.02;
+      var innerR = radius * 0.22;
+      var outerR = radius * (0.75 + Math.sin(f * 5.3 + t * 0.2) * 0.12);
 
-      ctx.strokeStyle = 'rgba(160, 255, 248, ' + fiberAlpha + ')';
-      ctx.lineWidth = 0.6;
+      // Alternate between green and gold fibers like in the reference
+      var isGoldFiber = (f % 3 === 0);
+      var fiberAlpha = 0.12 + Math.sin(f * 2.7 + t * 0.3) * 0.05;
+
+      if (isGoldFiber) {
+        ctx.strokeStyle = 'rgba(196, 168, 77, ' + fiberAlpha + ')';
+      } else {
+        ctx.strokeStyle = 'rgba(107, 154, 78, ' + (fiberAlpha * 0.8) + ')';
+      }
+      ctx.lineWidth = 0.8 + Math.sin(f * 1.3) * 0.3;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
 
-      // Slight curve to the fiber
-      var midAngle = angle + Math.sin(f + t * 0.3) * 0.1;
+      // Gentle curve — natural fiber waviness
+      var midAngle = angle + Math.sin(f * 2.1 + t * 0.15) * 0.08;
       var midR = (innerR + outerR) * 0.5;
       ctx.quadraticCurveTo(
         cx + Math.cos(midAngle) * midR,
         cy + Math.sin(midAngle) * midR,
-        cx + Math.cos(angle) * outerR,
-        cy + Math.sin(angle) * outerR
+        cx + Math.cos(angle + Math.sin(f) * 0.03) * outerR,
+        cy + Math.sin(angle + Math.sin(f) * 0.03) * outerR
       );
       ctx.stroke();
     }
 
-    // Light caustics overlay — dappled light like underwater
-    ctx.globalCompositeOperation = 'overlay';
-    for (var c = 0; c < 8; c++) {
-      var ca = t * 0.2 + c * 0.785;
-      var cr = radius * (0.2 + Math.sin(t * 0.5 + c * 1.5) * 0.2);
-      var cSize = radius * (0.15 + Math.sin(t * 0.7 + c) * 0.05);
-      var cx2 = cx + Math.cos(ca) * cr;
-      var cy2 = cy + Math.sin(ca) * cr;
-      var causticGrad = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, cSize);
-      causticGrad.addColorStop(0, 'rgba(160, 255, 248, 0.2)');
-      causticGrad.addColorStop(1, 'rgba(160, 255, 248, 0)');
-      ctx.fillStyle = causticGrad;
+    // Crypts — the darker spots/gaps in the iris stroma
+    // These create the depth that makes hazel eyes so captivating
+    for (var cr = 0; cr < 12; cr++) {
+      var cryptAngle = cr * 0.524 + Math.sin(cr * 3.1) * 0.3;
+      var cryptDist = radius * (0.4 + Math.sin(cr * 2.7) * 0.15);
+      var cryptSize = radius * (0.04 + Math.sin(cr * 4.1) * 0.015);
+      var cryptX = cx + Math.cos(cryptAngle) * cryptDist;
+      var cryptY = cy + Math.sin(cryptAngle) * cryptDist;
+      var cryptGrad = ctx.createRadialGradient(cryptX, cryptY, 0, cryptX, cryptY, cryptSize);
+      cryptGrad.addColorStop(0, 'rgba(40, 55, 30, 0.3)');
+      cryptGrad.addColorStop(1, 'rgba(40, 55, 30, 0)');
+      ctx.fillStyle = cryptGrad;
       ctx.beginPath();
-      ctx.arc(cx2, cy2, cSize, 0, Math.PI * 2);
+      ctx.arc(cryptX, cryptY, cryptSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Sunlight warmth — the golden light visible in the reference photo
+    // A warm light source from upper-left creates the living quality
+    ctx.globalCompositeOperation = 'overlay';
+    var sunX = cx - radius * 0.3;
+    var sunY = cy - radius * 0.25;
+    var sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, radius * 0.7);
+    sunGrad.addColorStop(0, 'rgba(212, 200, 122, 0.25)');
+    sunGrad.addColorStop(0.4, 'rgba(180, 160, 80, 0.1)');
+    sunGrad.addColorStop(1, 'rgba(180, 160, 80, 0)');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Subtle living shimmer — very gentle color shift
+    ctx.globalCompositeOperation = 'soft-light';
+    for (var sh = 0; sh < 5; sh++) {
+      var shAngle = t * 0.1 + sh * 1.257;
+      var shDist = radius * (0.3 + Math.sin(t * 0.3 + sh * 2) * 0.15);
+      var shSize = radius * 0.2;
+      var shX = cx + Math.cos(shAngle) * shDist;
+      var shY = cy + Math.sin(shAngle) * shDist;
+      var shGrad = ctx.createRadialGradient(shX, shY, 0, shX, shY, shSize);
+      shGrad.addColorStop(0, 'rgba(143, 184, 108, 0.15)');
+      shGrad.addColorStop(1, 'rgba(143, 184, 108, 0)');
+      ctx.fillStyle = shGrad;
+      ctx.beginPath();
+      ctx.arc(shX, shY, shSize, 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.globalCompositeOperation = 'source-over';
 
-    // Pupil — the abyss
-    var pupilSize = radius * (0.28 + Math.sin(t * 0.5) * 0.03);
+    // Pupil — warm dark, not cold black
+    var pupilSize = radius * (0.26 + Math.sin(t * 0.5) * 0.02);
     var pupilGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, pupilSize);
     pupilGrad.addColorStop(0, PUPIL_COLOR);
-    pupilGrad.addColorStop(0.85, PUPIL_COLOR);
-    pupilGrad.addColorStop(1, 'rgba(10, 6, 18, 0.5)');
+    pupilGrad.addColorStop(0.8, PUPIL_COLOR);
+    pupilGrad.addColorStop(1, 'rgba(26, 18, 8, 0.6)');
     ctx.fillStyle = pupilGrad;
     ctx.beginPath();
     ctx.arc(cx, cy, pupilSize, 0, Math.PI * 2);
     ctx.fill();
 
-    // Reflections — Da Vinci sfumato light points
-    // Main highlight (upper left)
-    var hlx = cx - radius * 0.25;
-    var hly = cy - radius * 0.2;
-    var hlr = radius * 0.12;
+    // Pupil edge — amber glow ring where pupil meets iris (visible in reference)
+    ctx.strokeStyle = 'rgba(196, 164, 77, 0.4)';
+    ctx.lineWidth = radius * 0.02;
+    ctx.beginPath();
+    ctx.arc(cx, cy, pupilSize * 1.05, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Reflections — the living light that makes eyes feel real
+    // Main catch-light (upper-left, like the reference photo)
+    var hlx = cx - radius * 0.22;
+    var hly = cy - radius * 0.18;
+    var hlr = radius * 0.13;
     var hlGrad = ctx.createRadialGradient(hlx, hly, 0, hlx, hly, hlr);
-    hlGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
-    hlGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.3)');
-    hlGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    hlGrad.addColorStop(0, 'rgba(255, 252, 240, 0.9)');
+    hlGrad.addColorStop(0.3, 'rgba(255, 250, 235, 0.4)');
+    hlGrad.addColorStop(0.7, 'rgba(255, 248, 220, 0.1)');
+    hlGrad.addColorStop(1, 'rgba(255, 248, 220, 0)');
     ctx.fillStyle = hlGrad;
     ctx.beginPath();
     ctx.arc(hlx, hly, hlr, 0, Math.PI * 2);
     ctx.fill();
 
-    // Secondary highlight (lower right)
-    var hl2x = cx + radius * 0.15;
-    var hl2y = cy + radius * 0.15;
-    var hl2r = radius * 0.06;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    // Secondary catch-light (smaller, lower-right)
+    var hl2x = cx + radius * 0.12;
+    var hl2y = cy + radius * 0.14;
+    var hl2r = radius * 0.05;
+    ctx.fillStyle = 'rgba(255, 250, 235, 0.45)';
     ctx.beginPath();
     ctx.arc(hl2x, hl2y, hl2r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Iris rim — dark limbal ring
-    ctx.strokeStyle = 'rgba(4, 61, 58, 0.6)';
+    // Limbal ring — dark green-brown edge (prominent in the reference)
+    ctx.strokeStyle = 'rgba(35, 50, 25, 0.7)';
     ctx.lineWidth = radius * 0.06;
     ctx.beginPath();
     ctx.arc(cx, cy, radius * 0.97, 0, Math.PI * 2);
@@ -335,7 +369,7 @@
 
       // Da Vinci double-stroke: a thinner parallel line for hand-drawn feel
       if (lash.thickness > 1 && i % 2 === 0) {
-        ctx.strokeStyle = 'rgba(200, 190, 230, 0.3)';
+        ctx.strokeStyle = 'rgba(120, 95, 70, 0.25)';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(pt.x + 0.5, pt.y + 0.5);
@@ -380,8 +414,8 @@
 
       // Sclera — barely visible darkness
       var scleraGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, eyeW * 0.35);
-      scleraGrad.addColorStop(0, 'rgba(15, 12, 25, 0.8)');
-      scleraGrad.addColorStop(1, 'rgba(8, 5, 15, 0.9)');
+      scleraGrad.addColorStop(0, 'rgba(20, 16, 10, 0.8)');
+      scleraGrad.addColorStop(1, 'rgba(12, 10, 6, 0.9)');
       ctx.fillStyle = scleraGrad;
       ctx.fill();
 
@@ -404,7 +438,7 @@
     ctx.save();
     ctx.translate(0.4, 0.3);
     traceEyeOpening(cx, cy, eyeW, eyeH, drawOpen);
-    ctx.strokeStyle = 'rgba(180, 170, 210, 0.25)';
+    ctx.strokeStyle = 'rgba(120, 100, 75, 0.2)';
     ctx.lineWidth = 0.7;
     ctx.stroke();
     ctx.restore();
@@ -420,7 +454,7 @@
         creasePaths.upper.cp2.x, creasePaths.upper.cp2.y,
         creasePaths.outer.x - eyeW * 0.03, creasePaths.outer.y
       );
-      ctx.strokeStyle = 'rgba(180, 170, 210, ' + (0.2 * open) + ')';
+      ctx.strokeStyle = 'rgba(120, 100, 75, ' + (0.18 * open) + ')';
       ctx.lineWidth = 0.8;
       ctx.stroke();
     }
@@ -436,7 +470,7 @@
         linerPaths.upper.cp2.x, linerPaths.upper.cp2.y - 1,
         linerPaths.outer.x + eyeW * 0.03, linerPaths.outer.y - eyeH * 0.03
       );
-      ctx.strokeStyle = 'rgba(220, 210, 240, ' + (0.5 * Math.min(open * 2, 1)) + ')';
+      ctx.strokeStyle = 'rgba(140, 115, 85, ' + (0.45 * Math.min(open * 2, 1)) + ')';
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -470,7 +504,7 @@
       cx + eyeW * 0.2, cy - eyeH * 0.05,
       ox, oy
     );
-    ctx.strokeStyle = 'rgba(200, 190, 230, ' + alpha + ')';
+    ctx.strokeStyle = 'rgba(140, 120, 90, ' + alpha + ')';
     ctx.lineWidth = 1.5;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -483,7 +517,7 @@
       cx + eyeW * 0.2 + 0.5, cy - eyeH * 0.04,
       ox + 0.5, oy + 0.5
     );
-    ctx.strokeStyle = 'rgba(200, 190, 230, ' + (alpha * 0.4) + ')';
+    ctx.strokeStyle = 'rgba(140, 120, 90, ' + (alpha * 0.4) + ')';
     ctx.lineWidth = 0.6;
     ctx.stroke();
 
@@ -504,7 +538,7 @@
         lx + (outerBias - 0.4) * eyeW * 0.04,
         ly + lashLen
       );
-      ctx.strokeStyle = 'rgba(200, 190, 230, ' + (alpha * 0.7) + ')';
+      ctx.strokeStyle = 'rgba(140, 120, 90, ' + (alpha * 0.7) + ')';
       ctx.lineWidth = 0.8 + outerBias * 0.4;
       ctx.stroke();
     }
@@ -542,7 +576,7 @@
       }
 
       var alpha = p.life * 0.6 * openAmount;
-      ctx.fillStyle = 'rgba(160, 255, 248, ' + alpha + ')';
+      ctx.fillStyle = 'rgba(180, 200, 120, ' + alpha + ')';
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
       ctx.fill();
@@ -550,8 +584,8 @@
       // Tiny glow
       if (p.size > 1.5) {
         var pg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
-        pg.addColorStop(0, 'rgba(13, 211, 181, ' + (alpha * 0.3) + ')');
-        pg.addColorStop(1, 'rgba(13, 211, 181, 0)');
+        pg.addColorStop(0, 'rgba(140, 180, 80, ' + (alpha * 0.3) + ')');
+        pg.addColorStop(1, 'rgba(140, 180, 80, 0)');
         ctx.fillStyle = pg;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
@@ -566,7 +600,7 @@
     var frameAlpha = (open - 0.3) / 0.7 * 0.15;
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(124, 58, 237, ' + frameAlpha + ')';
+    ctx.strokeStyle = 'rgba(140, 170, 80, ' + frameAlpha + ')';
     ctx.lineWidth = 0.5;
 
     // Outer circle
@@ -638,8 +672,8 @@
       var thirdAlpha = (openAmount - 0.5) * 0.4;
       var thirdPulse = 3 + Math.sin(time * 2) * 1.5;
       var thirdGrad = ctx.createRadialGradient(centerX, centerY - eyeH * 0.3, 0, centerX, centerY - eyeH * 0.3, thirdPulse * 3);
-      thirdGrad.addColorStop(0, 'rgba(13, 211, 181, ' + thirdAlpha + ')');
-      thirdGrad.addColorStop(1, 'rgba(13, 211, 181, 0)');
+      thirdGrad.addColorStop(0, 'rgba(160, 185, 90, ' + thirdAlpha + ')');
+      thirdGrad.addColorStop(1, 'rgba(160, 185, 90, 0)');
       ctx.fillStyle = thirdGrad;
       ctx.beginPath();
       ctx.arc(centerX, centerY - eyeH * 0.3, thirdPulse * 3, 0, Math.PI * 2);
