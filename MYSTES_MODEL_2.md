@@ -345,7 +345,7 @@ More nodes → better coverage → more data → better products → more revenu
 | Web | Render: srv-d61a6f24d50c739nvb40 |
 | Database | Render PostgreSQL: dpg-d61a5ikhg0os73cht7j0-a |
 | Redis | Render: red-d61a5r3uibrs73dgtb10 |
-| URL | https://mystes-web-nj67.onrender.com |
+| URL | https://phoenix-web-nj67.onrender.com |
 | Repo | https://github.com/serenity22is-ai/mystes-platform (private) |
 
 ### Mobile

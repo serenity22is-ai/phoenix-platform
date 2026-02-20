@@ -13,7 +13,7 @@ When returning to this project:
 1. **Read this file first**
 2. **Check `docs/BUILD_LOG_100.md`** for last session's work
 3. **Run the server:** `python server.py`
-4. **Production URL:** https://mystes-web-nj67.onrender.com
+4. **Production URL:** https://phoenix-web-nj67.onrender.com
 
 ---
 

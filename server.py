@@ -10657,7 +10657,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">3</div>
             <div class="step-content">
                 <p><strong>Install the node service</strong></p>
-                <div class="code-block">pip3 install aiohttp &amp;&amp; curl -sL https://mystes-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://mystes-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip3 install aiohttp && curl -sL https://mystes-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://mystes-web-nj67.onrender.com');">Copy</button></div>
+                <div class="code-block">pip3 install aiohttp &amp;&amp; curl -sL https://phoenix-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://phoenix-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip3 install aiohttp && curl -sL https://phoenix-web-nj67.onrender.com/static/install-node.sh | bash -s -- --token YOUR_TOKEN --server https://phoenix-web-nj67.onrender.com');">Copy</button></div>
                 <p style="color:#888; font-size:13px;">Replace <code>YOUR_TOKEN</code> with the token from step 1.</p>
             </div>
         </div>
@@ -10699,7 +10699,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">3</div>
             <div class="step-content">
                 <p><strong>Open PowerShell as Administrator and run:</strong></p>
-                <div class="code-block">pip install aiohttp; Invoke-WebRequest -Uri "https://mystes-web-nj67.onrender.com/static/install-node.ps1" -OutFile install-node.ps1; .\\install-node.ps1 -Token YOUR_TOKEN -Server https://mystes-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip install aiohttp; Invoke-WebRequest -Uri &quot;https://mystes-web-nj67.onrender.com/static/install-node.ps1&quot; -OutFile install-node.ps1; .\\\\install-node.ps1 -Token YOUR_TOKEN -Server https://mystes-web-nj67.onrender.com');">Copy</button></div>
+                <div class="code-block">pip install aiohttp; Invoke-WebRequest -Uri "https://phoenix-web-nj67.onrender.com/static/install-node.ps1" -OutFile install-node.ps1; .\\install-node.ps1 -Token YOUR_TOKEN -Server https://phoenix-web-nj67.onrender.com<button class="copy-btn" onclick="navigator.clipboard.writeText('pip install aiohttp; Invoke-WebRequest -Uri &quot;https://phoenix-web-nj67.onrender.com/static/install-node.ps1&quot; -OutFile install-node.ps1; .\\\\install-node.ps1 -Token YOUR_TOKEN -Server https://phoenix-web-nj67.onrender.com');">Copy</button></div>
             </div>
         </div>
 
@@ -10763,7 +10763,7 @@ SETUP_GUIDES_CONTENT = """
         <div class="step">
             <div class="step-num">1</div>
             <div class="step-content">
-                <p>Open Safari and visit <a href="https://mystes-web-nj67.onrender.com" style="color:#4fc3f7;">mystes-web-nj67.onrender.com</a></p>
+                <p>Open Safari and visit <a href="https://phoenix-web-nj67.onrender.com" style="color:#4fc3f7;">phoenix-web-nj67.onrender.com</a></p>
             </div>
         </div>
         <div class="step">
@@ -10783,7 +10783,7 @@ SETUP_GUIDES_CONTENT = """
         <div class="step">
             <div class="step-num">1</div>
             <div class="step-content">
-                <p>Open Chrome and visit <a href="https://mystes-web-nj67.onrender.com" style="color:#4fc3f7;">mystes-web-nj67.onrender.com</a></p>
+                <p>Open Chrome and visit <a href="https://phoenix-web-nj67.onrender.com" style="color:#4fc3f7;">phoenix-web-nj67.onrender.com</a></p>
             </div>
         </div>
         <div class="step">

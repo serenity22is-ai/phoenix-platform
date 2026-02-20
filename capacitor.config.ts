@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   webDir: 'static',
   server: {
     // Production: Render cloud deployment
-    url: 'https://mystes-web-nj67.onrender.com',
+    url: 'https://phoenix-web-nj67.onrender.com',
     cleartext: false,
   },
   plugins: {
