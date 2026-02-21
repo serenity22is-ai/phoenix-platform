@@ -1536,12 +1536,13 @@ BASE_TEMPLATE = '''
             document.getElementById('loadingScreen').classList.add('hidden');
         };
 
-        // PWA Service Worker registration
+        // PWA Service Worker registration — force update on every load
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/service-worker.js')
                     .then(function(reg) {
                         console.log('Mystes SW registered, scope:', reg.scope);
+                        reg.update();
                     })
                     .catch(function(err) {
                         console.log('Mystes SW registration failed:', err);

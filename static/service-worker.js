@@ -3,9 +3,9 @@
  * Provides offline caching, background sync, and PWA installability.
  */
 
-const CACHE_NAME = 'mystes-v2';
-const STATIC_CACHE = 'mystes-static-v2';
-const API_CACHE = 'mystes-api-v2';
+const CACHE_NAME = 'mystes-v3';
+const STATIC_CACHE = 'mystes-static-v3';
+const API_CACHE = 'mystes-api-v3';
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -65,18 +65,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: cache-first
+  // Static assets: network-first (ensures updates are always picked up)
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return cached || fetch(event.request).then((response) => {
+      fetch(event.request)
+        .then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
           }
           return response;
-        });
-      })
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
