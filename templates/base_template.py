@@ -1325,8 +1325,8 @@ BASE_TEMPLATE = '''
     <!-- 3D Aurora Background — Three.js WebGL -->
     <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
 
-    <!-- Divine Eyes — Canvas 2D -->
-    <canvas id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;"></canvas>
+    <!-- Divine Eyes -->
+    <div id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;display:flex;align-items:center;justify-content:center;"></div>
 
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
@@ -1579,7 +1579,7 @@ BASE_TEMPLATE = '''
     <script src="/static/js/aurora-scene.js?v=3" defer></script>
 
     <!-- Divine Eyes -->
-    <script src="/static/js/divine-eyes.js?v=3" defer></script>
+    <script src="/static/js/divine-eyes.js?v=6" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>

@@ -163,7 +163,7 @@
     brow.setAttribute('d', 'M ' + bs + ',' + (cy - eyeH * 0.9) +
       ' Q ' + bp + ',' + (cy - eyeH * 1.65) + ' ' + be + ',' + (cy - eyeH * 0.75));
     brow.setAttribute('fill', 'none');
-    brow.setAttribute('stroke', 'rgba(40,30,50,0.7)');
+    brow.setAttribute('stroke', 'rgba(255,255,255,0.7)');
     brow.setAttribute('stroke-width', '2.5');
     brow.setAttribute('stroke-linecap', 'round');
     g.appendChild(brow);
@@ -252,7 +252,7 @@
     // --- Eye outline ---
     var outline = document.createElementNS(ns, 'path');
     outline.setAttribute('fill', 'none');
-    outline.setAttribute('stroke', 'rgba(30,25,40,0.6)');
+    outline.setAttribute('stroke', 'rgba(255,255,255,0.6)');
     outline.setAttribute('stroke-width', '1.8');
     outline.setAttribute('stroke-linecap', 'round');
     outline.setAttribute('stroke-linejoin', 'round');
@@ -262,7 +262,7 @@
     // --- Bold upper lid (eyeliner) ---
     var liner = document.createElementNS(ns, 'path');
     liner.setAttribute('fill', 'none');
-    liner.setAttribute('stroke', 'rgba(25,20,35,0.7)');
+    liner.setAttribute('stroke', 'rgba(255,255,255,0.8)');
     liner.setAttribute('stroke-width', '3.2');
     liner.setAttribute('stroke-linecap', 'round');
     g.appendChild(liner);
@@ -271,7 +271,7 @@
     // --- Crease line ---
     var crease = document.createElementNS(ns, 'path');
     crease.setAttribute('fill', 'none');
-    crease.setAttribute('stroke', 'rgba(30,25,40,0.15)');
+    crease.setAttribute('stroke', 'rgba(255,255,255,0.15)');
     crease.setAttribute('stroke-width', '0.8');
     crease.setAttribute('stroke-linecap', 'round');
     g.appendChild(crease);
@@ -279,7 +279,7 @@
 
     // --- Lashes (static SVG paths — pre-built, clean) ---
     var lashG = document.createElementNS(ns, 'g');
-    lashG.setAttribute('stroke', 'rgba(25,20,35,0.7)');
+    lashG.setAttribute('stroke', 'rgba(255,255,255,0.7)');
     lashG.setAttribute('stroke-linecap', 'round');
     lashG.setAttribute('fill', 'none');
     g.appendChild(lashG);
@@ -288,7 +288,7 @@
     // --- Closed-eye line (visible when closed) ---
     var closedLine = document.createElementNS(ns, 'path');
     closedLine.setAttribute('fill', 'none');
-    closedLine.setAttribute('stroke', 'rgba(30,25,40,0.35)');
+    closedLine.setAttribute('stroke', 'rgba(255,255,255,0.35)');
     closedLine.setAttribute('stroke-width', '1.5');
     closedLine.setAttribute('stroke-linecap', 'round');
     closedLine.setAttribute('d', closedLinePath(cx));
@@ -298,32 +298,13 @@
     return g;
   }
 
-  // Soft light backdrop so dark pencil lines show against aurora
-  var backdrop = document.createElementNS(ns, 'ellipse');
-  backdrop.setAttribute('cx', '260');
-  backdrop.setAttribute('cy', '125');
-  backdrop.setAttribute('rx', '240');
-  backdrop.setAttribute('ry', '110');
-  backdrop.setAttribute('fill', 'rgba(250,248,245,0.08)');
-  backdrop.setAttribute('filter', 'none');
-  svg.appendChild(backdrop);
-
-  // Soft glow filter for the backdrop
+  // Soft glow filter for subtle backdrop
   var blurFilter = document.createElementNS(ns, 'filter');
   blurFilter.id = 'softGlow';
   var feBlur = document.createElementNS(ns, 'feGaussianBlur');
   feBlur.setAttribute('stdDeviation', '30');
   blurFilter.appendChild(feBlur);
   defs.appendChild(blurFilter);
-
-  var glowBg = document.createElementNS(ns, 'ellipse');
-  glowBg.setAttribute('cx', '260');
-  glowBg.setAttribute('cy', '125');
-  glowBg.setAttribute('rx', '220');
-  glowBg.setAttribute('ry', '100');
-  glowBg.setAttribute('fill', 'rgba(250,248,245,0.12)');
-  glowBg.setAttribute('filter', 'url(#softGlow)');
-  svg.appendChild(glowBg);
 
   var leftEyeG = createEye(leftCx, 'leftEyeClip', 'left');
   var rightEyeG = createEye(rightCx, 'rightEyeClip', 'right');
@@ -394,7 +375,7 @@
         var ll = document.createElementNS(ns, 'path');
         ll.setAttribute('d', 'M ' + lx + ',' + ly + ' L ' + (lx + (louter - 0.4) * 3) + ',' + (ly + lLen));
         ll.setAttribute('stroke-width', String(0.5 + louter * 0.5));
-        ll.setAttribute('stroke', 'rgba(30,25,40,0.45)');
+        ll.setAttribute('stroke', 'rgba(255,255,255,0.45)');
         g._lashG.appendChild(ll);
       }
     }
@@ -414,8 +395,8 @@
     if (open > 0.02) {
       leftEyeG._liner.setAttribute('d', upperLidPath(leftCx, open));
       rightEyeG._liner.setAttribute('d', upperLidPath(rightCx, open));
-      leftEyeG._liner.setAttribute('stroke', 'rgba(25,20,35,' + Math.min(open * 1.5, 0.7) + ')');
-      rightEyeG._liner.setAttribute('stroke', 'rgba(25,20,35,' + Math.min(open * 1.5, 0.7) + ')');
+      leftEyeG._liner.setAttribute('stroke', 'rgba(255,255,255,' + Math.min(open * 1.5, 0.8) + ')');
+      rightEyeG._liner.setAttribute('stroke', 'rgba(255,255,255,' + Math.min(open * 1.5, 0.8) + ')');
     } else {
       leftEyeG._liner.setAttribute('d', '');
       rightEyeG._liner.setAttribute('d', '');
@@ -431,20 +412,20 @@
         var cpx = ecx;
         var cpy = cy - eyeH * open * 1.25;
         el._crease.setAttribute('d', 'M ' + cix + ',' + (cy - eyeH * open * 0.5) + ' Q ' + cpx + ',' + cpy + ' ' + cox + ',' + (cy - eyeH * open * 0.4));
-        el._crease.setAttribute('stroke', 'rgba(30,25,40,' + creaseAlpha + ')');
+        el._crease.setAttribute('stroke', 'rgba(255,255,255,' + creaseAlpha + ')');
       });
     }
 
     // Closed line
-    leftEyeG._closedLine.setAttribute('stroke', 'rgba(30,25,40,' + (0.35 * (1 - open)) + ')');
-    rightEyeG._closedLine.setAttribute('stroke', 'rgba(30,25,40,' + (0.35 * (1 - open)) + ')');
+    leftEyeG._closedLine.setAttribute('stroke', 'rgba(255,255,255,' + (0.35 * (1 - open)) + ')');
+    rightEyeG._closedLine.setAttribute('stroke', 'rgba(255,255,255,' + (0.35 * (1 - open)) + ')');
 
     // Brow lift
     var browLift = open * 8;
     leftEyeG._brow.setAttribute('transform', 'translate(0,' + (-browLift) + ')');
     rightEyeG._brow.setAttribute('transform', 'translate(0,' + (-browLift) + ')');
-    leftEyeG._brow.setAttribute('stroke', 'rgba(40,30,50,' + (0.4 + open * 0.3) + ')');
-    rightEyeG._brow.setAttribute('stroke', 'rgba(40,30,50,' + (0.4 + open * 0.3) + ')');
+    leftEyeG._brow.setAttribute('stroke', 'rgba(255,255,255,' + (0.4 + open * 0.3) + ')');
+    rightEyeG._brow.setAttribute('stroke', 'rgba(255,255,255,' + (0.4 + open * 0.3) + ')');
 
     // Lashes
     buildLashes(leftEyeG, leftCx, open, 'left');
