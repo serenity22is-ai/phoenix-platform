@@ -1,8 +1,9 @@
 /**
- * MYSTES — Divine Eyes (SVG-based)
- * Clean white line-art eyes on dark background
- * Crystal green iris — SVG for smooth, precise rendering
- * Eyes open from closed on page load
+ * MYSTES — Divine Eyes
+ * Realistic feminine eyes matching pencil sketch reference
+ * Thick filled eyebrows, dramatic sweeping lashes, crystal green iris
+ * White luminous strokes on dark aurora background
+ * Eyes animate open from closed on page load
  */
 (function () {
   'use strict';
@@ -10,89 +11,79 @@
   var container = document.getElementById('divine-eyes-canvas');
   if (!container) return;
 
-  // Convert canvas element to a div container for SVG
   container.innerHTML = '';
   container.style.display = 'flex';
   container.style.alignItems = 'center';
   container.style.justifyContent = 'center';
 
   // ─── State ──────────────────────────────────────────────────
-  var openAmount = 0;       // 0 = closed, 1 = fully open
+  var openAmount = 0;
   var targetOpen = 0;
   var time = 0;
   var lastActivity = 0;
-  var hasOpened = false;
+  var prevOpen = -1; // track for lash rebuild optimization
 
-  // ─── Create SVG ─────────────────────────────────────────────
+  // ─── SVG Setup ──────────────────────────────────────────────
   var ns = 'http://www.w3.org/2000/svg';
   var isMobile = window.innerWidth < 768;
-  var svgW = isMobile ? 340 : 520;
-  var svgH = isMobile ? 160 : 240;
+  var svgW = isMobile ? 380 : 580;
+  var svgH = isMobile ? 200 : 300;
 
   var svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 520 240');
+  svg.setAttribute('viewBox', '0 0 580 300');
   svg.setAttribute('width', svgW);
   svg.setAttribute('height', svgH);
   svg.style.overflow = 'visible';
   container.appendChild(svg);
 
-  // ─── Defs: iris gradient + clip paths ───────────────────────
+  // ─── Defs ───────────────────────────────────────────────────
   var defs = document.createElementNS(ns, 'defs');
 
   // Iris gradient — crystal green
   var irisGrad = document.createElementNS(ns, 'radialGradient');
   irisGrad.id = 'irisGrad';
-  ['0%:#42d68a', '25%:#22c070', '55%:#0f8a45', '80%:#0a5c2e', '100%:#062e1c'].forEach(function (s) {
-    var parts = s.split(':');
+  [['0%','#42d68a'],['22%','#2acc78'],['50%','#15a857'],['78%','#0a5c2e'],['100%','#062e1c']].forEach(function(s) {
     var stop = document.createElementNS(ns, 'stop');
-    stop.setAttribute('offset', parts[0]);
-    stop.setAttribute('stop-color', parts[1]);
+    stop.setAttribute('offset', s[0]);
+    stop.setAttribute('stop-color', s[1]);
     irisGrad.appendChild(stop);
   });
   defs.appendChild(irisGrad);
 
-  // Gold hint gradient
+  // Gold hint
   var goldGrad = document.createElementNS(ns, 'radialGradient');
   goldGrad.id = 'goldHint';
-  var gs1 = document.createElementNS(ns, 'stop');
-  gs1.setAttribute('offset', '0%');
-  gs1.setAttribute('stop-color', 'rgba(210,195,100,0.15)');
-  goldGrad.appendChild(gs1);
-  var gs2 = document.createElementNS(ns, 'stop');
-  gs2.setAttribute('offset', '100%');
-  gs2.setAttribute('stop-color', 'rgba(210,195,100,0)');
-  goldGrad.appendChild(gs2);
+  [['0%','rgba(210,195,100,0.18)'],['100%','rgba(210,195,100,0)']].forEach(function(s) {
+    var stop = document.createElementNS(ns, 'stop');
+    stop.setAttribute('offset', s[0]);
+    stop.setAttribute('stop-color', s[1]);
+    goldGrad.appendChild(stop);
+  });
   defs.appendChild(goldGrad);
 
-  // Catch-light gradient
+  // Catch-light
   var hlGrad = document.createElementNS(ns, 'radialGradient');
   hlGrad.id = 'catchLight';
   hlGrad.setAttribute('cx', '35%');
   hlGrad.setAttribute('cy', '35%');
   hlGrad.setAttribute('r', '50%');
-  var hl1 = document.createElementNS(ns, 'stop');
-  hl1.setAttribute('offset', '0%');
-  hl1.setAttribute('stop-color', 'rgba(255,255,255,0.95)');
-  hlGrad.appendChild(hl1);
-  var hl2 = document.createElementNS(ns, 'stop');
-  hl2.setAttribute('offset', '50%');
-  hl2.setAttribute('stop-color', 'rgba(255,255,255,0.3)');
-  hlGrad.appendChild(hl2);
-  var hl3 = document.createElementNS(ns, 'stop');
-  hl3.setAttribute('offset', '100%');
-  hl3.setAttribute('stop-color', 'rgba(255,255,255,0)');
-  hlGrad.appendChild(hl3);
+  [['0%','rgba(255,255,255,0.95)'],['50%','rgba(255,255,255,0.3)'],['100%','rgba(255,255,255,0)']].forEach(function(s) {
+    var stop = document.createElementNS(ns, 'stop');
+    stop.setAttribute('offset', s[0]);
+    stop.setAttribute('stop-color', s[1]);
+    hlGrad.appendChild(stop);
+  });
   defs.appendChild(hlGrad);
 
-  // Clip paths for each eye (will be animated)
+  // Clip paths (animated)
   var leftClip = document.createElementNS(ns, 'clipPath');
-  leftClip.id = 'leftEyeClip';
+  leftClip.id = 'leftClip';
   var leftClipPath = document.createElementNS(ns, 'path');
   leftClip.appendChild(leftClipPath);
   defs.appendChild(leftClip);
 
   var rightClip = document.createElementNS(ns, 'clipPath');
-  rightClip.id = 'rightEyeClip';
+  rightClip.id = 'rightClip';
   var rightClipPath = document.createElementNS(ns, 'path');
   rightClip.appendChild(rightClipPath);
   defs.appendChild(rightClip);
@@ -100,93 +91,224 @@
   svg.appendChild(defs);
 
   // ─── Eye geometry constants ─────────────────────────────────
-  var leftCx = 150, rightCx = 370, cy = 130;
-  var eyeW = 120, eyeH = 55;
+  var LCX = 165;   // left eye center x
+  var RCX = 415;   // right eye center x
+  var CY = 155;    // vertical center
+  var EW = 80;     // eye half-width (corner to center)
+  var EH = 50;     // max eye half-height when fully open
 
-  // ─── Build eye path from open amount ────────────────────────
-  function eyePath(cx, open) {
-    // Inner and outer corners (fixed)
-    var ix = cx - eyeW;
-    var ox = cx + eyeW;
-    var iy = cy + 2;
-    var oy = cy - 3;
+  // ─── Path generators ────────────────────────────────────────
+  function eyeOpenPath(cx, open) {
+    var ix = cx - EW;       // inner corner x
+    var ox = cx + EW;       // outer corner x
+    var iy = CY + 3;        // inner corner y (slightly below center)
+    var oy = CY - 5;        // outer corner y (cat-eye uptilt)
 
-    // Upper lid control points
-    var upperH = eyeH * open;
-    var ucp1x = cx - eyeW * 0.4;
-    var ucp1y = cy - upperH * 0.95;
-    var ucp2x = cx + eyeW * 0.35;
-    var ucp2y = cy - upperH * 0.9;
+    if (open < 0.01) {
+      return 'M ' + ix + ',' + CY + ' Q ' + cx + ',' + (CY - 3) + ' ' + ox + ',' + (CY - 2);
+    }
 
-    // Lower lid control points
-    var lowerH = eyeH * 0.35 * open;
-    var lcp1x = cx - eyeW * 0.35;
-    var lcp1y = cy + lowerH * 0.85;
-    var lcp2x = cx + eyeW * 0.4;
-    var lcp2y = cy + lowerH * 0.75;
+    var uH = EH * open;
+    var lH = EH * 0.32 * open;
+
+    // Upper lid — pronounced arch, peak shifted slightly toward outer corner
+    var u1x = cx - EW * 0.42;
+    var u1y = CY - uH * 0.88;
+    var u2x = cx + EW * 0.32;
+    var u2y = CY - uH * 0.92;
+
+    // Lower lid — gentle curve
+    var l1x = cx + EW * 0.38;
+    var l1y = CY + lH * 0.78;
+    var l2x = cx - EW * 0.35;
+    var l2y = CY + lH * 0.65;
 
     return 'M ' + ix + ',' + iy +
-           ' C ' + ucp1x + ',' + ucp1y + ' ' + ucp2x + ',' + ucp2y + ' ' + ox + ',' + oy +
-           ' C ' + lcp2x + ',' + (cy + lcp2y - cy) + ' ' + lcp1x + ',' + (cy + lcp1y - cy) + ' ' + ix + ',' + iy +
-           ' Z';
+      ' C ' + u1x + ',' + u1y + ' ' + u2x + ',' + u2y + ' ' + ox + ',' + oy +
+      ' C ' + l1x + ',' + l1y + ' ' + l2x + ',' + l2y + ' ' + ix + ',' + iy + ' Z';
   }
 
   function upperLidPath(cx, open) {
-    var ix = cx - eyeW;
-    var ox = cx + eyeW;
-    var iy = cy + 2;
-    var oy = cy - 3;
-    var upperH = eyeH * open;
-    var ucp1x = cx - eyeW * 0.4;
-    var ucp1y = cy - upperH * 0.95;
-    var ucp2x = cx + eyeW * 0.35;
-    var ucp2y = cy - upperH * 0.9;
-    return 'M ' + ix + ',' + iy + ' C ' + ucp1x + ',' + ucp1y + ' ' + ucp2x + ',' + ucp2y + ' ' + ox + ',' + oy;
+    var ix = cx - EW;
+    var ox = cx + EW;
+    var iy = CY + 3;
+    var oy = CY - 5;
+    var uH = EH * open;
+    return 'M ' + ix + ',' + iy +
+      ' C ' + (cx - EW * 0.42) + ',' + (CY - uH * 0.88) +
+      ' ' + (cx + EW * 0.32) + ',' + (CY - uH * 0.92) +
+      ' ' + ox + ',' + oy;
   }
 
   function closedLinePath(cx) {
-    var ix = cx - eyeW * 0.9;
-    var ox = cx + eyeW * 0.9;
-    return 'M ' + ix + ',' + cy + ' Q ' + cx + ',' + (cy - 4) + ' ' + ox + ',' + (cy - 2);
+    return 'M ' + (cx - EW * 0.95) + ',' + CY +
+      ' Q ' + cx + ',' + (CY - 4) +
+      ' ' + (cx + EW * 0.95) + ',' + (CY - 2);
   }
 
-  // ─── Create eye group ───────────────────────────────────────
+  // Get point and tangent on upper lid cubic bezier at parameter t
+  function upperLidPoint(cx, open, t) {
+    var ix = cx - EW, ox = cx + EW;
+    var iy = CY + 3, oy = CY - 5;
+    var uH = EH * open;
+    var u1x = cx - EW * 0.42, u1y = CY - uH * 0.88;
+    var u2x = cx + EW * 0.32, u2y = CY - uH * 0.92;
+
+    var mt = 1 - t;
+    var px = mt*mt*mt*ix + 3*mt*mt*t*u1x + 3*mt*t*t*u2x + t*t*t*ox;
+    var py = mt*mt*mt*iy + 3*mt*mt*t*u1y + 3*mt*t*t*u2y + t*t*t*oy;
+
+    var tdx = 3*mt*mt*(u1x - ix) + 6*mt*t*(u2x - u1x) + 3*t*t*(ox - u2x);
+    var tdy = 3*mt*mt*(u1y - iy) + 6*mt*t*(u2y - u1y) + 3*t*t*(oy - u2y);
+    var tLen = Math.sqrt(tdx*tdx + tdy*tdy) || 1;
+
+    return {
+      x: px, y: py,
+      nx: -tdy / tLen,  // outward normal x
+      ny: tdx / tLen,   // outward normal y
+      tx: tdx / tLen,   // tangent x
+      ty: tdy / tLen    // tangent y
+    };
+  }
+
+  // ─── Create eyebrow ────────────────────────────────────────
+  function createBrow(cx, side) {
+    var g = document.createElementNS(ns, 'g');
+    var isLeft = (side === 'left');
+
+    // Brow shape coordinates — thick filled arch
+    // Matches reference: thick in middle, tapers at both ends
+    var innerX, peakX, outerX;
+    var topInnerY, topPeakY, topOuterY;
+    var thickness; // varies along brow
+
+    if (isLeft) {
+      innerX = cx - EW * 0.65;
+      peakX = cx + EW * 0.2;
+      outerX = cx + EW * 0.88;
+    } else {
+      innerX = cx + EW * 0.65;
+      peakX = cx - EW * 0.2;
+      outerX = cx - EW * 0.88;
+    }
+
+    topPeakY = CY - EH * 1.72;
+    topInnerY = CY - EH * 1.15;
+    topOuterY = CY - EH * 1.2;
+
+    // Filled brow shape — upper and lower edges
+    var browPath = document.createElementNS(ns, 'path');
+    var thickInner = 5;  // thin at inner end
+    var thickPeak = 12;  // thickest in middle
+    var thickOuter = 3;  // thin at tail
+
+    browPath.setAttribute('d',
+      // Upper edge
+      'M ' + innerX + ',' + topInnerY +
+      ' Q ' + ((innerX + peakX) / 2) + ',' + (topPeakY - 3) +
+      ' ' + peakX + ',' + topPeakY +
+      ' Q ' + ((peakX + outerX) / 2) + ',' + ((topPeakY + topOuterY) / 2 - 4) +
+      ' ' + outerX + ',' + topOuterY +
+      // Lower edge (return path, offset downward by thickness)
+      ' Q ' + ((peakX + outerX) / 2) + ',' + ((topPeakY + topOuterY) / 2 - 4 + thickOuter) +
+      ' ' + peakX + ',' + (topPeakY + thickPeak) +
+      ' Q ' + ((innerX + peakX) / 2) + ',' + (topPeakY - 3 + thickPeak) +
+      ' ' + innerX + ',' + (topInnerY + thickInner) +
+      ' Z'
+    );
+    browPath.setAttribute('fill', 'rgba(255,255,255,0.38)');
+    browPath.setAttribute('stroke', 'none');
+    g.appendChild(browPath);
+
+    // Upper edge stroke for definition
+    var browStroke = document.createElementNS(ns, 'path');
+    browStroke.setAttribute('d',
+      'M ' + innerX + ',' + topInnerY +
+      ' Q ' + ((innerX + peakX) / 2) + ',' + (topPeakY - 3) +
+      ' ' + peakX + ',' + topPeakY +
+      ' Q ' + ((peakX + outerX) / 2) + ',' + ((topPeakY + topOuterY) / 2 - 4) +
+      ' ' + outerX + ',' + topOuterY
+    );
+    browStroke.setAttribute('fill', 'none');
+    browStroke.setAttribute('stroke', 'rgba(255,255,255,0.5)');
+    browStroke.setAttribute('stroke-width', '1.2');
+    browStroke.setAttribute('stroke-linecap', 'round');
+    g.appendChild(browStroke);
+
+    // Lower edge stroke
+    var browLower = document.createElementNS(ns, 'path');
+    browLower.setAttribute('d',
+      'M ' + innerX + ',' + (topInnerY + thickInner) +
+      ' Q ' + ((innerX + peakX) / 2) + ',' + (topPeakY - 3 + thickPeak) +
+      ' ' + peakX + ',' + (topPeakY + thickPeak) +
+      ' Q ' + ((peakX + outerX) / 2) + ',' + ((topPeakY + topOuterY) / 2 - 4 + thickOuter) +
+      ' ' + outerX + ',' + (topOuterY + thickOuter)
+    );
+    browLower.setAttribute('fill', 'none');
+    browLower.setAttribute('stroke', 'rgba(255,255,255,0.35)');
+    browLower.setAttribute('stroke-width', '0.8');
+    browLower.setAttribute('stroke-linecap', 'round');
+    g.appendChild(browLower);
+
+    // Hair-stroke texture — short lines mimicking individual hairs
+    var hairCount = 28;
+    for (var i = 0; i < hairCount; i++) {
+      var ht = (i + 0.3) / hairCount;
+
+      // Position along brow arch (quadratic interpolation)
+      var mt1 = 1 - ht;
+      var hx = mt1 * mt1 * innerX + 2 * mt1 * ht * peakX + ht * ht * outerX;
+      var hy = mt1 * mt1 * topInnerY + 2 * mt1 * ht * topPeakY + ht * ht * topOuterY;
+      // Center vertically in brow
+      var localThick = mt1 * mt1 * thickInner + 2 * mt1 * ht * thickPeak + ht * ht * thickOuter;
+      hy += localThick * 0.4;
+
+      // Hair direction: near-vertical at inner end, more lateral toward outer
+      var hairAngle;
+      if (isLeft) {
+        hairAngle = -1.3 + ht * 0.9; // -1.3 rad (upward-left) to -0.4 rad (more lateral)
+      } else {
+        hairAngle = -1.8 + ht * -0.9; // mirror
+        hairAngle = Math.PI + 1.3 - ht * 0.9;
+      }
+
+      var hairLen = 4 + Math.sin(ht * Math.PI) * 6;
+      var hair = document.createElementNS(ns, 'line');
+      hair.setAttribute('x1', hx - Math.cos(hairAngle) * hairLen * 0.4);
+      hair.setAttribute('y1', hy - Math.sin(hairAngle) * hairLen * 0.4);
+      hair.setAttribute('x2', hx + Math.cos(hairAngle) * hairLen * 0.6);
+      hair.setAttribute('y2', hy + Math.sin(hairAngle) * hairLen * 0.6);
+      hair.setAttribute('stroke', 'rgba(255,255,255,' + (0.2 + Math.sin(ht * Math.PI) * 0.2) + ')');
+      hair.setAttribute('stroke-width', String(0.6 + Math.sin(ht * Math.PI) * 0.6));
+      hair.setAttribute('stroke-linecap', 'round');
+      g.appendChild(hair);
+    }
+
+    return g;
+  }
+
+  // ─── Create one eye ─────────────────────────────────────────
   function createEye(cx, clipId, side) {
     var g = document.createElementNS(ns, 'g');
 
-    // --- Eyebrow ---
-    var brow = document.createElementNS(ns, 'path');
-    var browFlip = side === 'left' ? 1 : -1;
-    var bs = cx - eyeW * 0.85;
-    var be = cx + eyeW * 0.9;
-    var bp = cx + eyeW * 0.1 * browFlip;
-    brow.setAttribute('d', 'M ' + bs + ',' + (cy - eyeH * 0.9) +
-      ' Q ' + bp + ',' + (cy - eyeH * 1.65) + ' ' + be + ',' + (cy - eyeH * 0.75));
-    brow.setAttribute('fill', 'none');
-    brow.setAttribute('stroke', 'rgba(40,30,50,0.7)');
-    brow.setAttribute('stroke-width', '2.5');
-    brow.setAttribute('stroke-linecap', 'round');
-    g.appendChild(brow);
-    g._brow = brow;
-
-    // --- Iris group (clipped) ---
+    // --- Iris group (clipped to eye opening) ---
     var irisG = document.createElementNS(ns, 'g');
     irisG.setAttribute('clip-path', 'url(#' + clipId + ')');
 
     // Sclera
     var sclera = document.createElementNS(ns, 'ellipse');
     sclera.setAttribute('cx', cx);
-    sclera.setAttribute('cy', cy);
-    sclera.setAttribute('rx', eyeW * 0.7);
-    sclera.setAttribute('ry', eyeH * 0.8);
-    sclera.setAttribute('fill', 'rgba(245,243,240,0.85)');
+    sclera.setAttribute('cy', CY);
+    sclera.setAttribute('rx', EW * 0.72);
+    sclera.setAttribute('ry', EH * 0.82);
+    sclera.setAttribute('fill', 'rgba(220,220,225,0.08)');
     irisG.appendChild(sclera);
 
     // Iris
-    var irisR = 32;
+    var irisR = 35;
     var iris = document.createElementNS(ns, 'circle');
     iris.setAttribute('cx', cx);
-    iris.setAttribute('cy', cy);
+    iris.setAttribute('cy', CY);
     iris.setAttribute('r', irisR);
     iris.setAttribute('fill', 'url(#irisGrad)');
     irisG.appendChild(iris);
@@ -194,56 +316,55 @@
     // Limbal ring
     var limbal = document.createElementNS(ns, 'circle');
     limbal.setAttribute('cx', cx);
-    limbal.setAttribute('cy', cy);
+    limbal.setAttribute('cy', CY);
     limbal.setAttribute('r', irisR - 1);
     limbal.setAttribute('fill', 'none');
-    limbal.setAttribute('stroke', 'rgba(6,30,18,0.7)');
-    limbal.setAttribute('stroke-width', '2');
+    limbal.setAttribute('stroke', 'rgba(6,30,18,0.8)');
+    limbal.setAttribute('stroke-width', '2.5');
     irisG.appendChild(limbal);
 
     // Gold hint
     var gold = document.createElementNS(ns, 'circle');
     gold.setAttribute('cx', cx);
-    gold.setAttribute('cy', cy);
-    gold.setAttribute('r', irisR * 0.5);
+    gold.setAttribute('cy', CY);
+    gold.setAttribute('r', irisR * 0.42);
     gold.setAttribute('fill', 'url(#goldHint)');
     irisG.appendChild(gold);
 
-    // Stroma fibers (radial lines — subtle)
+    // Stroma fibers
     for (var f = 0; f < 24; f++) {
-      var angle = (f / 24) * Math.PI * 2;
-      var line = document.createElementNS(ns, 'line');
-      line.setAttribute('x1', cx + Math.cos(angle) * 8);
-      line.setAttribute('y1', cy + Math.sin(angle) * 8);
-      line.setAttribute('x2', cx + Math.cos(angle) * (irisR - 3));
-      line.setAttribute('y2', cy + Math.sin(angle) * (irisR - 3));
-      var isGold = f % 8 === 0;
-      line.setAttribute('stroke', isGold ? 'rgba(190,175,90,0.12)' : 'rgba(30,200,100,0.1)');
-      line.setAttribute('stroke-width', '0.5');
-      irisG.appendChild(line);
+      var fa = (f / 24) * Math.PI * 2;
+      var fl = document.createElementNS(ns, 'line');
+      fl.setAttribute('x1', cx + Math.cos(fa) * 9);
+      fl.setAttribute('y1', CY + Math.sin(fa) * 9);
+      fl.setAttribute('x2', cx + Math.cos(fa) * (irisR - 3));
+      fl.setAttribute('y2', CY + Math.sin(fa) * (irisR - 3));
+      fl.setAttribute('stroke', f % 6 === 0 ? 'rgba(190,175,90,0.12)' : 'rgba(30,200,100,0.1)');
+      fl.setAttribute('stroke-width', '0.5');
+      irisG.appendChild(fl);
     }
 
     // Pupil
     var pupil = document.createElementNS(ns, 'circle');
     pupil.setAttribute('cx', cx);
-    pupil.setAttribute('cy', cy);
-    pupil.setAttribute('r', '10');
-    pupil.setAttribute('fill', '#050505');
+    pupil.setAttribute('cy', CY);
+    pupil.setAttribute('r', '11');
+    pupil.setAttribute('fill', '#080808');
     irisG.appendChild(pupil);
 
-    // Catch-light main
+    // Catch-light
     var hl = document.createElementNS(ns, 'circle');
-    hl.setAttribute('cx', cx - 8);
-    hl.setAttribute('cy', cy - 7);
-    hl.setAttribute('r', '5.5');
+    hl.setAttribute('cx', cx - 9);
+    hl.setAttribute('cy', CY - 8);
+    hl.setAttribute('r', '6.5');
     hl.setAttribute('fill', 'url(#catchLight)');
     irisG.appendChild(hl);
 
-    // Catch-light secondary
+    // Secondary catch-light
     var hl2 = document.createElementNS(ns, 'circle');
-    hl2.setAttribute('cx', cx + 6);
-    hl2.setAttribute('cy', cy + 5);
-    hl2.setAttribute('r', '2');
+    hl2.setAttribute('cx', cx + 7);
+    hl2.setAttribute('cy', CY + 6);
+    hl2.setAttribute('r', '2.5');
     hl2.setAttribute('fill', 'rgba(255,255,255,0.4)');
     irisG.appendChild(hl2);
 
@@ -252,8 +373,8 @@
     // --- Eye outline ---
     var outline = document.createElementNS(ns, 'path');
     outline.setAttribute('fill', 'none');
-    outline.setAttribute('stroke', 'rgba(30,25,40,0.6)');
-    outline.setAttribute('stroke-width', '1.8');
+    outline.setAttribute('stroke', 'rgba(255,255,255,0.55)');
+    outline.setAttribute('stroke-width', '2');
     outline.setAttribute('stroke-linecap', 'round');
     outline.setAttribute('stroke-linejoin', 'round');
     g.appendChild(outline);
@@ -262,8 +383,8 @@
     // --- Bold upper lid (eyeliner) ---
     var liner = document.createElementNS(ns, 'path');
     liner.setAttribute('fill', 'none');
-    liner.setAttribute('stroke', 'rgba(25,20,35,0.7)');
-    liner.setAttribute('stroke-width', '3.2');
+    liner.setAttribute('stroke', 'rgba(255,255,255,0.7)');
+    liner.setAttribute('stroke-width', '3.5');
     liner.setAttribute('stroke-linecap', 'round');
     g.appendChild(liner);
     g._liner = liner;
@@ -271,24 +392,28 @@
     // --- Crease line ---
     var crease = document.createElementNS(ns, 'path');
     crease.setAttribute('fill', 'none');
-    crease.setAttribute('stroke', 'rgba(30,25,40,0.15)');
-    crease.setAttribute('stroke-width', '0.8');
+    crease.setAttribute('stroke', 'rgba(255,255,255,0.12)');
+    crease.setAttribute('stroke-width', '1');
     crease.setAttribute('stroke-linecap', 'round');
     g.appendChild(crease);
     g._crease = crease;
 
-    // --- Lashes (static SVG paths — pre-built, clean) ---
-    var lashG = document.createElementNS(ns, 'g');
-    lashG.setAttribute('stroke', 'rgba(25,20,35,0.7)');
-    lashG.setAttribute('stroke-linecap', 'round');
-    lashG.setAttribute('fill', 'none');
-    g.appendChild(lashG);
-    g._lashG = lashG;
+    // --- Upper lash container ---
+    var upperLashG = document.createElementNS(ns, 'g');
+    upperLashG.setAttribute('fill', 'none');
+    g.appendChild(upperLashG);
+    g._upperLashG = upperLashG;
 
-    // --- Closed-eye line (visible when closed) ---
+    // --- Lower lash container ---
+    var lowerLashG = document.createElementNS(ns, 'g');
+    lowerLashG.setAttribute('fill', 'none');
+    g.appendChild(lowerLashG);
+    g._lowerLashG = lowerLashG;
+
+    // --- Closed line ---
     var closedLine = document.createElementNS(ns, 'path');
     closedLine.setAttribute('fill', 'none');
-    closedLine.setAttribute('stroke', 'rgba(30,25,40,0.35)');
+    closedLine.setAttribute('stroke', 'rgba(255,255,255,0.4)');
     closedLine.setAttribute('stroke-width', '1.5');
     closedLine.setAttribute('stroke-linecap', 'round');
     closedLine.setAttribute('d', closedLinePath(cx));
@@ -298,163 +423,195 @@
     return g;
   }
 
-  // Soft light backdrop so dark pencil lines show against aurora
-  var backdrop = document.createElementNS(ns, 'ellipse');
-  backdrop.setAttribute('cx', '260');
-  backdrop.setAttribute('cy', '125');
-  backdrop.setAttribute('rx', '240');
-  backdrop.setAttribute('ry', '110');
-  backdrop.setAttribute('fill', 'rgba(250,248,245,0.08)');
-  backdrop.setAttribute('filter', 'none');
-  svg.appendChild(backdrop);
+  // ─── Build upper lashes — DRAMATIC, matching reference ─────
+  function buildUpperLashes(g, cx, open, side) {
+    while (g._upperLashG.firstChild) g._upperLashG.removeChild(g._upperLashG.firstChild);
+    if (open < 0.08) return;
 
-  // Soft glow filter for the backdrop
-  var blurFilter = document.createElementNS(ns, 'filter');
-  blurFilter.id = 'softGlow';
-  var feBlur = document.createElementNS(ns, 'feGaussianBlur');
-  feBlur.setAttribute('stdDeviation', '30');
-  blurFilter.appendChild(feBlur);
-  defs.appendChild(blurFilter);
+    var isLeft = (side === 'left');
 
-  var glowBg = document.createElementNS(ns, 'ellipse');
-  glowBg.setAttribute('cx', '260');
-  glowBg.setAttribute('cy', '125');
-  glowBg.setAttribute('rx', '220');
-  glowBg.setAttribute('ry', '100');
-  glowBg.setAttribute('fill', 'rgba(250,248,245,0.12)');
-  glowBg.setAttribute('filter', 'url(#softGlow)');
-  svg.appendChild(glowBg);
+    // Define lash positions along the lid (t parameter, 0=inner, 1=outer)
+    // Cluster more toward outer corner like the reference
+    var lashPositions = [
+      0.06, 0.11, 0.16, 0.21, 0.26,
+      0.31, 0.36, 0.41, 0.46, 0.51,
+      0.56, 0.60, 0.64, 0.68, 0.72,
+      0.76, 0.80, 0.84, 0.88, 0.92, 0.96
+    ];
 
-  var leftEyeG = createEye(leftCx, 'leftEyeClip', 'left');
-  var rightEyeG = createEye(rightCx, 'rightEyeClip', 'right');
-  svg.appendChild(leftEyeG);
-  svg.appendChild(rightEyeG);
+    for (var i = 0; i < lashPositions.length; i++) {
+      var t = lashPositions[i];
+      var pt = upperLidPoint(cx, open, t);
 
-  // ─── Build lash paths for a given open amount ──────────────
-  function buildLashes(g, cx, open, side) {
-    // Clear existing
-    while (g._lashG.firstChild) g._lashG.removeChild(g._lashG.firstChild);
-    if (open < 0.05) return;
+      // "outer" = how far toward the outer corner (0=inner, 1=outer)
+      var outer = isLeft ? t : (1 - t);
 
-    var count = 15;
-    for (var i = 0; i < count; i++) {
-      var t = (i + 0.5) / count;
+      // DRAMATIC lash length — reference shows very long outer lashes
+      // Inner lashes: ~15px, middle: ~25px, outer: ~48px
+      var lashLen = (12 + outer * outer * 42) * open;
 
-      // Position along upper lid
-      var ix = cx - eyeW;
-      var ox = cx + eyeW;
-      var iy = cy + 2;
-      var oy = cy - 3;
-      var upperH = eyeH * open;
+      // Lash thickness — thicker toward outer
+      var lashWidth = 0.8 + outer * 1.8;
 
-      // Cubic bezier point on upper lid
-      var mt = 1 - t;
-      var ucp1x = cx - eyeW * 0.4;
-      var ucp1y = cy - upperH * 0.95;
-      var ucp2x = cx + eyeW * 0.35;
-      var ucp2y = cy - upperH * 0.9;
+      // Curl — outer lashes curl outward more dramatically
+      var curlStrength = 0.15 + outer * 0.55;
+      var curlDir = isLeft ? 1 : -1;
 
-      var px = mt * mt * mt * ix + 3 * mt * mt * t * ucp1x + 3 * mt * t * t * ucp2x + t * t * t * ox;
-      var py = mt * mt * mt * iy + 3 * mt * mt * t * ucp1y + 3 * mt * t * t * ucp2y + t * t * t * oy;
+      // End point — lashes go outward (normal) with curl
+      var endX = pt.x + pt.nx * lashLen;
+      var endY = pt.y + pt.ny * lashLen;
 
-      // Tangent for normal direction
-      var tx = 3 * mt * mt * (ucp1x - ix) + 6 * mt * t * (ucp2x - ucp1x) + 3 * t * t * (ox - ucp2x);
-      var ty = 3 * mt * mt * (ucp1y - iy) + 6 * mt * t * (ucp2y - ucp1y) + 3 * t * t * (oy - ucp2y);
-      var tLen = Math.sqrt(tx * tx + ty * ty);
-      var nx = -ty / tLen;
-      var ny = tx / tLen;
-
-      // Lash length — longer toward outer corner
-      var outer = side === 'left' ? t : (1 - t);
-      var lashLen = (12 + outer * 22) * open;
-      var curl = (0.1 + outer * 0.4) * (side === 'left' ? 1 : -1);
-
-      var endX = px + nx * lashLen;
-      var endY = py + ny * lashLen;
-      var cpX = px + nx * lashLen * 0.6 + tx / tLen * curl * lashLen;
-      var cpY = py + ny * lashLen * 0.6 + ty / tLen * curl * lashLen;
+      // Control point for the curl (quadratic bezier)
+      var cpX = pt.x + pt.nx * lashLen * 0.55 + pt.tx * curlDir * curlStrength * lashLen;
+      var cpY = pt.y + pt.ny * lashLen * 0.55 + pt.ty * curlDir * curlStrength * lashLen;
 
       var lash = document.createElementNS(ns, 'path');
-      lash.setAttribute('d', 'M ' + px + ',' + py + ' Q ' + cpX + ',' + cpY + ' ' + endX + ',' + endY);
-      lash.setAttribute('stroke-width', String(0.8 + outer * 1.2));
-      g._lashG.appendChild(lash);
-    }
+      lash.setAttribute('d', 'M ' + pt.x + ',' + pt.y +
+        ' Q ' + cpX + ',' + cpY + ' ' + endX + ',' + endY);
+      lash.setAttribute('stroke', 'rgba(255,255,255,' + (0.55 + outer * 0.25) + ')');
+      lash.setAttribute('stroke-width', String(lashWidth));
+      lash.setAttribute('stroke-linecap', 'round');
+      g._upperLashG.appendChild(lash);
 
-    // Lower lashes (fewer, shorter)
-    if (open > 0.2) {
-      var lCount = 8;
-      for (var j = 0; j < lCount; j++) {
-        var lt = (j + 0.5) / lCount;
-        var lx = cx - eyeW * 0.7 + lt * eyeW * 1.4;
-        var lowerH = eyeH * 0.35 * open;
-        var ly = cy + Math.sin(lt * Math.PI) * lowerH * 0.8;
-        var louter = side === 'left' ? lt : (1 - lt);
-        var lLen = (5 + louter * 10) * open;
+      // Add "companion" lashes for thickness on the outer half (like reference)
+      if (outer > 0.4 && open > 0.3) {
+        var compLen = lashLen * (0.6 + Math.random() * 0.25);
+        var compCurl = curlStrength * (0.8 + Math.random() * 0.3);
+        var compEndX = pt.x + pt.nx * compLen + pt.tx * curlDir * 3;
+        var compEndY = pt.y + pt.ny * compLen + pt.ty * curlDir * 3;
+        var compCpX = pt.x + pt.nx * compLen * 0.5 + pt.tx * curlDir * compCurl * compLen;
+        var compCpY = pt.y + pt.ny * compLen * 0.5 + pt.ty * curlDir * compCurl * compLen;
 
-        var ll = document.createElementNS(ns, 'path');
-        ll.setAttribute('d', 'M ' + lx + ',' + ly + ' L ' + (lx + (louter - 0.4) * 3) + ',' + (ly + lLen));
-        ll.setAttribute('stroke-width', String(0.5 + louter * 0.5));
-        ll.setAttribute('stroke', 'rgba(30,25,40,0.45)');
-        g._lashG.appendChild(ll);
+        var comp = document.createElementNS(ns, 'path');
+        comp.setAttribute('d', 'M ' + (pt.x + pt.tx * curlDir * 2) + ',' + (pt.y + pt.ty * curlDir * 2) +
+          ' Q ' + compCpX + ',' + compCpY + ' ' + compEndX + ',' + compEndY);
+        comp.setAttribute('stroke', 'rgba(255,255,255,' + (0.35 + outer * 0.2) + ')');
+        comp.setAttribute('stroke-width', String(lashWidth * 0.7));
+        comp.setAttribute('stroke-linecap', 'round');
+        g._upperLashG.appendChild(comp);
       }
     }
   }
 
-  // ─── Update eye state ──────────────────────────────────────
+  // ─── Build lower lashes ─────────────────────────────────────
+  function buildLowerLashes(g, cx, open, side) {
+    while (g._lowerLashG.firstChild) g._lowerLashG.removeChild(g._lowerLashG.firstChild);
+    if (open < 0.25) return;
+
+    var isLeft = (side === 'left');
+    var lH = EH * 0.32 * open;
+
+    // 10 lower lashes, sparser than upper
+    for (var j = 0; j < 10; j++) {
+      var lt = (j + 0.5) / 10;
+      var lx = cx - EW * 0.68 + lt * EW * 1.36;
+      var ly = CY + Math.sin(lt * Math.PI) * lH * 0.82;
+
+      var outer = isLeft ? lt : (1 - lt);
+      var lLen = (5 + outer * 14) * open;
+
+      // Slight outward angle
+      var dx = (outer - 0.45) * 4;
+
+      var ll = document.createElementNS(ns, 'path');
+      ll.setAttribute('d', 'M ' + lx + ',' + ly +
+        ' Q ' + (lx + dx * 0.5) + ',' + (ly + lLen * 0.6) +
+        ' ' + (lx + dx) + ',' + (ly + lLen));
+      ll.setAttribute('stroke', 'rgba(255,255,255,' + (0.3 + outer * 0.2) + ')');
+      ll.setAttribute('stroke-width', String(0.5 + outer * 0.7));
+      ll.setAttribute('stroke-linecap', 'round');
+      g._lowerLashG.appendChild(ll);
+    }
+  }
+
+  // ─── Create eyebrows and eyes ───────────────────────────────
+  var leftBrowG = createBrow(LCX, 'left');
+  var rightBrowG = createBrow(RCX, 'right');
+  var leftEyeG = createEye(LCX, 'leftClip', 'left');
+  var rightEyeG = createEye(RCX, 'rightClip', 'right');
+
+  // Nose bridge hint
+  var nose = document.createElementNS(ns, 'path');
+  nose.setAttribute('d', 'M 282,' + (CY - 12) + ' Q 290,' + (CY + 15) + ' 288,' + (CY + 35));
+  nose.setAttribute('fill', 'none');
+  nose.setAttribute('stroke', 'rgba(255,255,255,0.04)');
+  nose.setAttribute('stroke-width', '1.5');
+  svg.appendChild(nose);
+
+  svg.appendChild(leftEyeG);
+  svg.appendChild(rightEyeG);
+  svg.appendChild(leftBrowG);
+  svg.appendChild(rightBrowG);
+
+  // Start brows hidden (will fade in with eyes)
+  leftBrowG.setAttribute('opacity', '0');
+  rightBrowG.setAttribute('opacity', '0');
+
+  // ─── Update eyes for current open amount ────────────────────
   function updateEyes(open) {
     // Clip paths
-    leftClipPath.setAttribute('d', eyePath(leftCx, Math.max(open, 0.001)));
-    rightClipPath.setAttribute('d', eyePath(rightCx, Math.max(open, 0.001)));
+    leftClipPath.setAttribute('d', eyeOpenPath(LCX, Math.max(open, 0.001)));
+    rightClipPath.setAttribute('d', eyeOpenPath(RCX, Math.max(open, 0.001)));
 
     // Outlines
-    leftEyeG._outline.setAttribute('d', open > 0.01 ? eyePath(leftCx, open) : closedLinePath(leftCx));
-    rightEyeG._outline.setAttribute('d', open > 0.01 ? eyePath(rightCx, open) : closedLinePath(rightCx));
+    leftEyeG._outline.setAttribute('d', open > 0.01 ? eyeOpenPath(LCX, open) : closedLinePath(LCX));
+    rightEyeG._outline.setAttribute('d', open > 0.01 ? eyeOpenPath(RCX, open) : closedLinePath(RCX));
 
     // Upper lid liner
-    if (open > 0.02) {
-      leftEyeG._liner.setAttribute('d', upperLidPath(leftCx, open));
-      rightEyeG._liner.setAttribute('d', upperLidPath(rightCx, open));
-      leftEyeG._liner.setAttribute('stroke', 'rgba(25,20,35,' + Math.min(open * 1.5, 0.7) + ')');
-      rightEyeG._liner.setAttribute('stroke', 'rgba(25,20,35,' + Math.min(open * 1.5, 0.7) + ')');
+    if (open > 0.03) {
+      leftEyeG._liner.setAttribute('d', upperLidPath(LCX, open));
+      rightEyeG._liner.setAttribute('d', upperLidPath(RCX, open));
+      var linerAlpha = Math.min(open * 1.2, 0.7);
+      leftEyeG._liner.setAttribute('stroke', 'rgba(255,255,255,' + linerAlpha + ')');
+      rightEyeG._liner.setAttribute('stroke', 'rgba(255,255,255,' + linerAlpha + ')');
     } else {
       leftEyeG._liner.setAttribute('d', '');
       rightEyeG._liner.setAttribute('d', '');
     }
 
     // Crease
-    if (open > 0.15) {
-      var creaseAlpha = Math.min((open - 0.15) * 0.3, 0.15);
-      [leftCx, rightCx].forEach(function (ecx, idx) {
+    if (open > 0.2) {
+      var ca = Math.min((open - 0.2) * 0.18, 0.12);
+      [LCX, RCX].forEach(function(ecx, idx) {
         var el = idx === 0 ? leftEyeG : rightEyeG;
-        var cix = ecx - eyeW * 0.65;
-        var cox = ecx + eyeW * 0.65;
-        var cpx = ecx;
-        var cpy = cy - eyeH * open * 1.25;
-        el._crease.setAttribute('d', 'M ' + cix + ',' + (cy - eyeH * open * 0.5) + ' Q ' + cpx + ',' + cpy + ' ' + cox + ',' + (cy - eyeH * open * 0.4));
-        el._crease.setAttribute('stroke', 'rgba(30,25,40,' + creaseAlpha + ')');
+        var ci = ecx - EW * 0.68;
+        var co = ecx + EW * 0.68;
+        var cpy = CY - EH * open * 1.28;
+        el._crease.setAttribute('d',
+          'M ' + ci + ',' + (CY - EH * open * 0.48) +
+          ' Q ' + ecx + ',' + cpy +
+          ' ' + co + ',' + (CY - EH * open * 0.42));
+        el._crease.setAttribute('stroke', 'rgba(255,255,255,' + ca + ')');
       });
     }
 
-    // Closed line
-    leftEyeG._closedLine.setAttribute('stroke', 'rgba(30,25,40,' + (0.35 * (1 - open)) + ')');
-    rightEyeG._closedLine.setAttribute('stroke', 'rgba(30,25,40,' + (0.35 * (1 - open)) + ')');
+    // Closed line fades out as eyes open
+    var closedAlpha = 0.4 * (1 - open);
+    leftEyeG._closedLine.setAttribute('stroke', 'rgba(255,255,255,' + closedAlpha + ')');
+    rightEyeG._closedLine.setAttribute('stroke', 'rgba(255,255,255,' + closedAlpha + ')');
 
-    // Brow lift
+    // Eyebrows — fade in and lift upward as eyes open
+    var browAlpha = Math.min(open * 1.5, 1);
     var browLift = open * 8;
-    leftEyeG._brow.setAttribute('transform', 'translate(0,' + (-browLift) + ')');
-    rightEyeG._brow.setAttribute('transform', 'translate(0,' + (-browLift) + ')');
-    leftEyeG._brow.setAttribute('stroke', 'rgba(40,30,50,' + (0.4 + open * 0.3) + ')');
-    rightEyeG._brow.setAttribute('stroke', 'rgba(40,30,50,' + (0.4 + open * 0.3) + ')');
+    leftBrowG.setAttribute('opacity', String(browAlpha));
+    rightBrowG.setAttribute('opacity', String(browAlpha));
+    leftBrowG.setAttribute('transform', 'translate(0,' + (-browLift) + ')');
+    rightBrowG.setAttribute('transform', 'translate(0,' + (-browLift) + ')');
 
-    // Lashes
-    buildLashes(leftEyeG, leftCx, open, 'left');
-    buildLashes(rightEyeG, rightCx, open, 'right');
+    // Lashes — only rebuild when open amount changes significantly
+    if (Math.abs(open - prevOpen) > 0.008 || prevOpen < 0) {
+      buildUpperLashes(leftEyeG, LCX, open, 'left');
+      buildUpperLashes(rightEyeG, RCX, open, 'right');
+      buildLowerLashes(leftEyeG, LCX, open, 'left');
+      buildLowerLashes(rightEyeG, RCX, open, 'right');
+      prevOpen = open;
+    }
   }
 
   // Initial state — closed
   updateEyes(0);
 
-  // ─── Animation Loop ─────────────────────────────────────────
+  // ─── Animation Loop ───────────────────────────────────────
   var lastTime = 0;
   function animate(timestamp) {
     requestAnimationFrame(animate);
@@ -462,14 +619,14 @@
     lastTime = timestamp;
     time += dt;
 
-    // Smooth interpolation
-    var speed = targetOpen > openAmount ? 1.8 : 1.0;
+    // Smooth interpolation — opens faster than it closes
+    var speed = targetOpen > openAmount ? 2.0 : 1.2;
     var diff = targetOpen - openAmount;
     openAmount += diff * speed * dt;
     if (Math.abs(diff) < 0.002) openAmount = targetOpen;
 
-    // Auto-close after inactivity
-    if (targetOpen > 0 && time - lastActivity > 10) {
+    // Auto-close after 12s inactivity
+    if (targetOpen > 0 && time - lastActivity > 12) {
       targetOpen = 0;
     }
 
@@ -477,11 +634,10 @@
   }
   requestAnimationFrame(animate);
 
-  // ─── Interaction ────────────────────────────────────────────
+  // ─── Interaction ──────────────────────────────────────────
   function openEyes() {
     targetOpen = 1;
     lastActivity = time;
-    hasOpened = true;
   }
 
   function keepAwake() {
@@ -489,7 +645,6 @@
     if (targetOpen < 1) targetOpen = 1;
   }
 
-  // Search/input focus
   document.addEventListener('focusin', function (e) {
     var el = e.target;
     if (!el) return;

@@ -11,7 +11,7 @@ Features:
 """
 
 # MYSTES Logo — Eyes SVG (referenced from static/favicon-eyes.svg)
-MYSTES_LOGO_SVG = '<img src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:60px;height:60px;">'
+MYSTES_LOGO_SVG = '<img src="/static/favicon-eyes.svg?v=4" alt="MYSTES" style="width:60px;height:60px;">'
 
 BASE_TEMPLATE = '''
 <!DOCTYPE html>
@@ -31,7 +31,7 @@ BASE_TEMPLATE = '''
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon-eyes.svg?v=3">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon-eyes.svg?v=4">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1330,14 +1330,14 @@ BASE_TEMPLATE = '''
 
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
-        <img class="loading-logo" src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:120px;height:120px;opacity:0.9;animation:pulse-glow 2s ease-in-out infinite;">
+        <img class="loading-logo" src="/static/favicon-eyes.svg?v=4" alt="MYSTES" style="width:120px;height:120px;opacity:0.9;animation:pulse-glow 2s ease-in-out infinite;">
         <div class="loading-text">MYSTES</div>
     </div>
 
     <!-- Navigation -->
     <nav class="nav" id="nav">
         <a href="/" class="nav-brand">
-            <img class="nav-logo" src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:36px;height:36px;border-radius:8px;">
+            <img class="nav-logo" src="/static/favicon-eyes.svg?v=4" alt="MYSTES" style="width:36px;height:36px;border-radius:8px;">
             <span class="nav-wordmark">MYSTES</span>
         </a>
 
@@ -1457,7 +1457,7 @@ BASE_TEMPLATE = '''
         <div class="container">
             <div class="footer-content">
                 <div class="footer-brand">
-                    <img class="footer-logo" src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:40px;height:40px;opacity:0.7;border-radius:8px;">
+                    <img class="footer-logo" src="/static/favicon-eyes.svg?v=4" alt="MYSTES" style="width:40px;height:40px;opacity:0.7;border-radius:8px;">
                     <span class="footer-wordmark">MYSTES</span>
                 </div>
                 <div class="footer-links">
@@ -1576,10 +1576,10 @@ BASE_TEMPLATE = '''
     {% endif %}
 
     <!-- Three.js 3D Aurora Scene -->
-    <script src="/static/js/aurora-scene.js?v=3" defer></script>
+    <script src="/static/js/aurora-scene.js?v=4" defer></script>
 
     <!-- Divine Eyes -->
-    <script src="/static/js/divine-eyes.js?v=3" defer></script>
+    <script src="/static/js/divine-eyes.js?v=4" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>
