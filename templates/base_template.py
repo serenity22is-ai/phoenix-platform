@@ -1579,7 +1579,7 @@ BASE_TEMPLATE = '''
     <script src="/static/js/aurora-scene.js?v=4" defer></script>
 
     <!-- Divine Eyes -->
-    <script src="/static/js/divine-eyes.js?v=4" defer></script>
+    <script src="/static/js/divine-eyes.js?v=5" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>
