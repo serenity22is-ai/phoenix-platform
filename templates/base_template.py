@@ -888,21 +888,86 @@ BASE_TEMPLATE = '''
             visibility: hidden;
         }
 
-        /* Loading screen logo */
+        /* Sacred geometry shared styles */
+        .sacred-geo .geo-ring {
+            stroke-dasharray: 300;
+            stroke-dashoffset: 300;
+            animation: geoDraw 3s ease-out forwards;
+        }
+        .sacred-geo .geo-r1 { animation-delay: 0s; }
+        .sacred-geo .geo-r2 { animation-delay: 0.3s; stroke-width: 0.4; }
+        .sacred-geo .geo-r3 { animation-delay: 0.8s; }
+        .sacred-geo .geo-line {
+            stroke-dasharray: 200;
+            stroke-dashoffset: 200;
+            animation: geoDraw 2s ease-out forwards;
+            stroke-width: 0.35;
+            opacity: 0.7;
+        }
+        .sacred-geo .geo-l2 { animation-delay: 1s; opacity: 0.4; stroke-width: 0.25; }
+        .sacred-geo .geo-center {
+            fill: currentColor;
+            opacity: 0;
+            animation: geoPulseCenter 2s ease-out 1.5s forwards;
+        }
+
+        @keyframes geoDraw {
+            to { stroke-dashoffset: 0; }
+        }
+        @keyframes geoPulseCenter {
+            0% { opacity: 0; r: 1; }
+            100% { opacity: 0.8; r: 3; }
+        }
+        @keyframes geoSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Loading screen geometric logo */
         .loading-logo {
-            width: 120px;
-            height: 120px;
+            width: 140px;
+            height: 140px;
+            color: rgba(160, 120, 200, 0.8);
+            animation: geoSpin 40s linear infinite;
+            filter: drop-shadow(0 0 15px rgba(139, 45, 91, 0.6))
+                    drop-shadow(0 0 30px rgba(100, 60, 180, 0.4));
             position: relative;
-            filter: drop-shadow(0 0 20px rgba(66, 214, 138, 0.4));
         }
 
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 0.7; filter: drop-shadow(0 0 15px rgba(66, 214, 138, 0.3)); }
-            50% { opacity: 1; filter: drop-shadow(0 0 30px rgba(66, 214, 138, 0.6)); }
+        /* Ambient glow behind loading logo */
+        .loading-screen::before {
+            content: '';
+            position: absolute;
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle, rgba(139, 45, 91, 0.4) 0%, transparent 50%),
+                radial-gradient(circle at 30% 40%, rgba(100, 60, 180, 0.3) 0%, transparent 40%),
+                radial-gradient(circle at 70% 60%, rgba(13, 79, 79, 0.3) 0%, transparent 40%);
+            animation: geoAmbient 6s ease-in-out infinite;
+            pointer-events: none;
+            z-index: -1;
         }
 
-        .loading-screen::before { display: none; }
-        .loading-screen::after { display: none; }
+        @keyframes geoAmbient {
+            0%, 100% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(1.15); opacity: 0.9; }
+        }
+
+        /* Nav and footer sacred geometry logos */
+        .nav-logo .geo-ring, .nav-logo .geo-line, .nav-logo .geo-l2 {
+            stroke-dasharray: none;
+            stroke-dashoffset: 0;
+            animation: none;
+        }
+        .nav-logo .geo-center { opacity: 0.8; animation: none; }
+        .footer-logo .geo-ring, .footer-logo .geo-line, .footer-logo .geo-l2 {
+            stroke-dasharray: none;
+            stroke-dashoffset: 0;
+            animation: none;
+        }
+        .footer-logo .geo-center { opacity: 0.8; animation: none; }
 
         .loading-text {
             font-family: var(--font-brand);
@@ -1325,19 +1390,64 @@ BASE_TEMPLATE = '''
     <!-- 3D Aurora Background — Three.js WebGL -->
     <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
 
-    <!-- Divine Eyes -->
-    <div id="divine-eyes-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;display:flex;align-items:center;justify-content:center;"></div>
-
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
-        <img class="loading-logo" src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:120px;height:120px;opacity:0.9;animation:pulse-glow 2s ease-in-out infinite;">
+        <svg class="loading-logo sacred-geo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <g fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.9">
+                <circle cx="50" cy="50" r="44" class="geo-ring geo-r1"/>
+                <circle cx="50" cy="6" r="22" class="geo-ring geo-r2"/>
+                <circle cx="88" cy="28" r="22" class="geo-ring geo-r2"/>
+                <circle cx="88" cy="72" r="22" class="geo-ring geo-r2"/>
+                <circle cx="50" cy="94" r="22" class="geo-ring geo-r2"/>
+                <circle cx="12" cy="72" r="22" class="geo-ring geo-r2"/>
+                <circle cx="12" cy="28" r="22" class="geo-ring geo-r2"/>
+                <line x1="50" y1="6" x2="88" y2="28" class="geo-line"/>
+                <line x1="88" y1="28" x2="88" y2="72" class="geo-line"/>
+                <line x1="88" y1="72" x2="50" y2="94" class="geo-line"/>
+                <line x1="50" y1="94" x2="12" y2="72" class="geo-line"/>
+                <line x1="12" y1="72" x2="12" y2="28" class="geo-line"/>
+                <line x1="12" y1="28" x2="50" y2="6" class="geo-line"/>
+                <line x1="50" y1="6" x2="50" y2="94" class="geo-line"/>
+                <line x1="12" y1="28" x2="88" y2="72" class="geo-line"/>
+                <line x1="88" y1="28" x2="12" y2="72" class="geo-line"/>
+                <line x1="50" y1="6" x2="88" y2="72" class="geo-line geo-l2"/>
+                <line x1="50" y1="6" x2="12" y2="72" class="geo-line geo-l2"/>
+                <line x1="88" y1="28" x2="50" y2="94" class="geo-line geo-l2"/>
+                <line x1="88" y1="28" x2="12" y2="72" class="geo-line geo-l2"/>
+                <line x1="50" y1="94" x2="12" y2="28" class="geo-line geo-l2"/>
+                <line x1="12" y1="72" x2="88" y2="28" class="geo-line geo-l2"/>
+                <circle cx="50" cy="50" r="22" class="geo-ring geo-r3"/>
+                <circle cx="50" cy="50" r="3" class="geo-center" fill="currentColor"/>
+            </g>
+        </svg>
         <div class="loading-text">MYSTES</div>
     </div>
 
     <!-- Navigation -->
     <nav class="nav" id="nav">
         <a href="/" class="nav-brand">
-            <img class="nav-logo" src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:36px;height:36px;border-radius:8px;">
+            <svg class="nav-logo sacred-geo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <g fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.9">
+                    <circle cx="50" cy="50" r="44" class="geo-ring geo-r1"/>
+                    <circle cx="50" cy="6" r="22" class="geo-ring geo-r2"/>
+                    <circle cx="88" cy="28" r="22" class="geo-ring geo-r2"/>
+                    <circle cx="88" cy="72" r="22" class="geo-ring geo-r2"/>
+                    <circle cx="50" cy="94" r="22" class="geo-ring geo-r2"/>
+                    <circle cx="12" cy="72" r="22" class="geo-ring geo-r2"/>
+                    <circle cx="12" cy="28" r="22" class="geo-ring geo-r2"/>
+                    <line x1="50" y1="6" x2="88" y2="28" class="geo-line"/>
+                    <line x1="88" y1="28" x2="88" y2="72" class="geo-line"/>
+                    <line x1="88" y1="72" x2="50" y2="94" class="geo-line"/>
+                    <line x1="50" y1="94" x2="12" y2="72" class="geo-line"/>
+                    <line x1="12" y1="72" x2="12" y2="28" class="geo-line"/>
+                    <line x1="12" y1="28" x2="50" y2="6" class="geo-line"/>
+                    <line x1="50" y1="6" x2="50" y2="94" class="geo-line"/>
+                    <line x1="12" y1="28" x2="88" y2="72" class="geo-line"/>
+                    <line x1="88" y1="28" x2="12" y2="72" class="geo-line"/>
+                    <circle cx="50" cy="50" r="22" class="geo-ring geo-r3"/>
+                    <circle cx="50" cy="50" r="3" class="geo-center" fill="currentColor"/>
+                </g>
+            </svg>
             <span class="nav-wordmark">MYSTES</span>
         </a>
 
@@ -1457,7 +1567,25 @@ BASE_TEMPLATE = '''
         <div class="container">
             <div class="footer-content">
                 <div class="footer-brand">
-                    <img class="footer-logo" src="/static/favicon-eyes.svg?v=3" alt="MYSTES" style="width:40px;height:40px;opacity:0.7;border-radius:8px;">
+                    <svg class="footer-logo sacred-geo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <g fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.9">
+                            <circle cx="50" cy="50" r="44" class="geo-ring geo-r1"/>
+                            <circle cx="50" cy="6" r="22" class="geo-ring geo-r2"/>
+                            <circle cx="88" cy="28" r="22" class="geo-ring geo-r2"/>
+                            <circle cx="88" cy="72" r="22" class="geo-ring geo-r2"/>
+                            <circle cx="50" cy="94" r="22" class="geo-ring geo-r2"/>
+                            <circle cx="12" cy="72" r="22" class="geo-ring geo-r2"/>
+                            <circle cx="12" cy="28" r="22" class="geo-ring geo-r2"/>
+                            <line x1="50" y1="6" x2="88" y2="28" class="geo-line"/>
+                            <line x1="88" y1="28" x2="88" y2="72" class="geo-line"/>
+                            <line x1="88" y1="72" x2="50" y2="94" class="geo-line"/>
+                            <line x1="50" y1="94" x2="12" y2="72" class="geo-line"/>
+                            <line x1="12" y1="72" x2="12" y2="28" class="geo-line"/>
+                            <line x1="12" y1="28" x2="50" y2="6" class="geo-line"/>
+                            <circle cx="50" cy="50" r="22" class="geo-ring geo-r3"/>
+                            <circle cx="50" cy="50" r="3" class="geo-center" fill="currentColor"/>
+                        </g>
+                    </svg>
                     <span class="footer-wordmark">MYSTES</span>
                 </div>
                 <div class="footer-links">
@@ -1577,9 +1705,6 @@ BASE_TEMPLATE = '''
 
     <!-- Three.js 3D Aurora Scene -->
     <script src="/static/js/aurora-scene.js?v=3" defer></script>
-
-    <!-- Divine Eyes -->
-    <script src="/static/js/divine-eyes.js?v=6" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>

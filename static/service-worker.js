@@ -3,9 +3,9 @@
  * Provides offline caching, background sync, and PWA installability.
  */
 
-const CACHE_NAME = 'mystes-v3';
-const STATIC_CACHE = 'mystes-static-v3';
-const API_CACHE = 'mystes-api-v3';
+const CACHE_NAME = 'mystes-v4';
+const STATIC_CACHE = 'mystes-static-v4';
+const API_CACHE = 'mystes-api-v4';
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [
