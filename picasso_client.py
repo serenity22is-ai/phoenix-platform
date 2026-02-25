@@ -1,124 +1,136 @@
 """
-Picasso Travel / AERTiCKET Cockpit API Client for MYSTES
+Picasso Travel / AERTiCKET Redbox API Client for MYSTES
 
-Multi-market POS flight search + ticket issuance via Cockpit API.
+Flight search via the Redbox API at aerpackit.flightconex.de.
 Picasso is a 102-country POS consolidator with IATA subsidiaries in 25+ countries.
 
-Replaces amadeus_client.py as the primary flight search + booking engine.
+Replaces amadeus_client.py as the primary flight search engine.
 
-Cockpit API:
-    Base URL: https://cockpit.picassotravel.com/api/v1
-    Auth: API key + secret (OAuth2 or static key — TBD on onboarding)
-    Docs: Available post-onboarding
-
-The key feature: every search returns fares from MULTIPLE POS markets.
-We pick the cheapest POS, display that to the user, and pocket 25% of the
-savings vs the US-POS price (which equals Google Flights pricing).
+Redbox API:
+    Base URL: https://aerpackit.flightconex.de/redbox
+    Auth: Session-based (redbox-session-token from Cockpit portal)
+    Airport search: https://geo.direct-res.de/solr/select/ (public, no auth)
 
 Usage:
-    from picasso_client import PicassoClient, search_flights_multi_pos
+    from picasso_client import PicassoClient, search_with_picasso
 
-    result = search_flights_multi_pos("JFK", "LHR", "2026-03-15")
+    result = search_with_picasso("JFK", "LHR", "2026-03-15", return_date="2026-03-22")
     if result["success"]:
         for flight in result["flights"]:
-            print(flight["airline"], flight["price"], flight["pos_market"])
-            print(f"Google price: ${flight['us_price']} → MYSTES: ${flight['mystes_price']}")
-            print(f"You save: ${flight['savings']} ({flight['savings_pct']}%)")
+            print(flight["airline"], flight["price"], flight["duration"])
 """
 
 import os
+import re
 import requests
-from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
 
-# Cockpit API base URL — will be confirmed during onboarding
-BASE_URL = os.environ.get(
-    "PICASSO_API_URL",
-    "https://cockpit.picassotravel.com/api/v1",
+# Redbox API
+REDBOX_BASE_URL = os.environ.get(
+    "PICASSO_REDBOX_URL",
+    "https://aerpackit.flightconex.de/redbox",
 )
 
-# Platform fee: 25% of savings between cheapest POS and US POS
-PLATFORM_FEE_PERCENT = 0.25
-PLATFORM_FEE_MIN_USD = 3.00
-PLATFORM_FEE_MAX_USD = 50.00
+# Airport autocomplete (public Solr — no auth needed)
+GEO_SOLR_URL = "https://geo.direct-res.de/solr/select/"
+
+# Cabin class mapping
+CABIN_MAP = {
+    "economy": "ECONOMY",
+    "premium_economy": "PREMIUM_ECONOMY",
+    "premium economy": "PREMIUM_ECONOMY",
+    "business": "BUSINESS",
+    "first": "FIRST",
+}
 
 
 class PicassoClient:
     """
-    Picasso Travel / AERTiCKET Cockpit API client.
+    Picasso Travel / AERTiCKET Redbox API client.
 
-    Multi-market POS flight search + ticket issuance.
-
-    Auth method TBD — skeleton supports both API key and OAuth2.
-    Set PICASSO_API_KEY (and optionally PICASSO_API_SECRET) in .env.
+    Flight search via session-based auth against the Redbox backend.
+    Session token is managed automatically by PicassoTokenManager
+    (auto-login via Keycloak or headless browser, with fallback to manual token).
     """
 
     def __init__(self):
-        self.api_key = os.environ.get("PICASSO_API_KEY", "")
-        self.api_secret = os.environ.get("PICASSO_API_SECRET", "")
-        self._access_token = None
-        self._token_expires_at = None
+        from picasso_auth import token_manager
+        self._token_manager = token_manager
+        self.agency_id = os.environ.get("PICASSO_AGENCY_ID", "629818")
+        self.branch = os.environ.get("PICASSO_BRANCH", "PICL_707")
+        self._session = requests.Session()
 
-    def _headers(self) -> Dict[str, str]:
-        """Build request headers. Supports both API key and OAuth2 token."""
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        if self._access_token:
-            headers["Authorization"] = f"Bearer {self._access_token}"
-        elif self.api_key:
-            headers["X-API-Key"] = self.api_key
-        return headers
+    @property
+    def session_token(self) -> str:
+        """Dynamic property — always returns a fresh valid token."""
+        return self._token_manager.get_token()
+
+    def _api_url(self, endpoint: str) -> str:
+        """Build full Redbox API URL with session token."""
+        return f"{REDBOX_BASE_URL}/api/{self.session_token}/{endpoint}"
 
     def is_configured(self) -> bool:
-        """Check if Picasso API credentials are set."""
-        return bool(self.api_key)
+        """Check if Picasso is configured (auto-login or manual token)."""
+        token = self._token_manager.get_token()
+        return bool(token) and len(token) >= 20
 
-    def _authenticate(self) -> bool:
+    # -------------------------------------------------------------------------
+    # Airport Search (Public Solr — no auth needed)
+    # -------------------------------------------------------------------------
+
+    def search_airports(self, query: str, max_results: int = 10, language: str = "en") -> List[Dict]:
         """
-        Authenticate with Cockpit API (OAuth2 flow if required).
+        Search airports via the public Solr geo service.
 
-        Returns True if authenticated, False otherwise.
-        If API uses static key auth, this is a no-op that returns True.
+        Returns list of airports with IATA codes, names, countries.
+        No auth required — this is a public endpoint.
         """
-        # If we have a valid token, reuse it
-        if self._access_token and self._token_expires_at:
-            if datetime.now() < self._token_expires_at:
-                return True
-
-        # If no secret, assume static API key auth (no token exchange needed)
-        if not self.api_secret:
-            return bool(self.api_key)
-
-        # OAuth2 token exchange (if Cockpit uses this)
         try:
-            response = requests.post(
-                f"{BASE_URL}/auth/token",
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": self.api_key,
-                    "client_secret": self.api_secret,
+            response = self._session.get(
+                GEO_SOLR_URL,
+                params={
+                    "q": query,
+                    "rows": max_results,
+                    "wt": "json",
                 },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=15,
+                timeout=10,
             )
             response.raise_for_status()
             data = response.json()
-            self._access_token = data.get("access_token")
-            expires_in = data.get("expires_in", 3600)
-            self._token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
-            return bool(self._access_token)
+            docs = data.get("response", {}).get("docs", [])
+
+            airports = []
+            for doc in docs:
+                poi_id = doc.get("POI_ID", "")
+                doc_type = doc.get("TYPE", [])
+                name = doc.get("NAME_EN", doc.get("NAME", ""))
+                airport_name = doc.get("airporten_US_s", "")
+
+                airports.append({
+                    "code": poi_id,
+                    "name": name,
+                    "airport_name": airport_name,
+                    "country": doc.get("COUNTRY", ""),
+                    "country_name": doc.get("COUNTRY_EN", ""),
+                    "type": doc_type[0] if doc_type else "unknown",
+                    "is_multi": "multiairport" in doc_type if isinstance(doc_type, list) else False,
+                })
+            return airports
         except Exception as e:
-            print(f"[PICASSO] Auth failed: {e}")
-            return False
+            print(f"[PICASSO] Airport search error: {e}")
+            return []
 
     # -------------------------------------------------------------------------
-    # Search: Multi-POS Flight Search
+    # Flight Search
     # -------------------------------------------------------------------------
+
+    def _is_auth_error(self, error_str: str) -> bool:
+        """Detect if an error is authentication-related."""
+        indicators = ["401", "403", "unauthorized", "forbidden", "session", "expired"]
+        return any(ind in error_str.lower() for ind in indicators)
 
     def search_flights(
         self,
@@ -127,17 +139,48 @@ class PicassoClient:
         departure_date: str,
         return_date: Optional[str] = None,
         adults: int = 1,
+        children: int = 0,
+        infants: int = 0,
         cabin_class: str = "ECONOMY",
-        max_results: int = 15,
+        max_results: int = 20,
         nonstop_only: bool = False,
-        pos_markets: Optional[List[str]] = None,
+        fare_types: Optional[List[str]] = None,
+    ) -> Dict:
+        """Search flights with automatic retry on token expiration."""
+        result = self._search_flights_inner(
+            origin, destination, departure_date, return_date,
+            adults, children, infants, cabin_class,
+            max_results, nonstop_only, fare_types,
+        )
+
+        # If auth error, invalidate token and retry once
+        if not result.get("success") and self._is_auth_error(result.get("error", "")):
+            print("[PICASSO] Auth error detected — refreshing token and retrying...")
+            self._token_manager.invalidate()
+            result = self._search_flights_inner(
+                origin, destination, departure_date, return_date,
+                adults, children, infants, cabin_class,
+                max_results, nonstop_only, fare_types,
+            )
+
+        return result
+
+    def _search_flights_inner(
+        self,
+        origin: str,
+        destination: str,
+        departure_date: str,
+        return_date: Optional[str] = None,
+        adults: int = 1,
+        children: int = 0,
+        infants: int = 0,
+        cabin_class: str = "ECONOMY",
+        max_results: int = 20,
+        nonstop_only: bool = False,
+        fare_types: Optional[List[str]] = None,
     ) -> Dict:
         """
-        Search flights across multiple POS markets via Cockpit API.
-
-        This is the core arbitrage engine. Returns fares from multiple markets,
-        identifies the cheapest, calculates savings vs US POS, and applies
-        MYSTES platform fee.
+        Search flights via Redbox API (inner implementation).
 
         Args:
             origin: Origin IATA code (JFK, TYS, LAX)
@@ -145,522 +188,344 @@ class PicassoClient:
             departure_date: YYYY-MM-DD
             return_date: Optional return date for round-trip
             adults: Number of adult passengers
+            children: Number of child passengers
+            infants: Number of infant passengers
             cabin_class: ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
-            max_results: Max flights per POS market
+            max_results: Max results to return
             nonstop_only: Filter to non-stop only
-            pos_markets: Specific POS markets to query (default: all available)
+            fare_types: Fare types to search (default: PUB + NET)
 
         Returns:
-            Dict with success, flights (with pricing from cheapest POS),
-            us_benchmark, markets_searched, source
+            Dict with success, flights, source, etc.
         """
         if not self.is_configured():
             return {
                 "success": False,
                 "flights": [],
-                "error": "Picasso API not configured (PICASSO_API_KEY missing)",
+                "error": "Picasso not configured (PICASSO_SESSION_TOKEN missing)",
                 "source": "picasso",
             }
 
-        if not self._authenticate():
-            return {
-                "success": False,
-                "flights": [],
-                "error": "Picasso authentication failed",
-                "source": "picasso",
+        # Build segment list
+        segments = [
+            {
+                "departure": origin.upper(),
+                "destination": destination.upper(),
+                "departureDate": departure_date,
             }
-
-        # Build search payload
-        # NOTE: Actual field names will be confirmed during Cockpit API onboarding.
-        # This skeleton uses the most likely REST API structure based on
-        # Picasso's documented fare search capabilities.
-        payload = {
-            "origin": origin.upper(),
-            "destination": destination.upper(),
-            "departureDate": departure_date,
-            "adults": adults,
-            "cabinClass": cabin_class,
-            "maxResults": max_results,
-            "currency": "USD",
-        }
+        ]
         if return_date:
-            payload["returnDate"] = return_date
-        if nonstop_only:
-            payload["nonStop"] = True
-        if pos_markets:
-            payload["posMarkets"] = pos_markets
+            segments.append({
+                "departure": destination.upper(),
+                "destination": origin.upper(),
+                "departureDate": return_date,
+            })
+
+        # Build passenger list
+        pax_list = []
+        if adults > 0:
+            pax_list.append({"type": "ADT", "count": adults})
+        if children > 0:
+            pax_list.append({"type": "CHD", "count": children})
+        if infants > 0:
+            pax_list.append({"type": "INF", "count": infants})
+
+        # Cabin class
+        cabin = CABIN_MAP.get(cabin_class.lower(), cabin_class.upper())
+
+        # Fare types
+        fares = fare_types or ["PUB", "NET"]
+
+        payload = {
+            "segmentList": segments,
+            "passengerTypeCountList": pax_list,
+            "cabinClassList": [cabin],
+            "fareCharacteristicList": fares,
+            "nonStopFlightsOnly": nonstop_only,
+        }
 
         trip_desc = f"{origin}→{destination} on {departure_date}"
         if return_date:
             trip_desc += f" returning {return_date}"
-        print(f"[PICASSO] Searching multi-POS fares: {trip_desc}")
+        print(f"[PICASSO] Searching: {trip_desc}")
 
+        # Step 1: Submit search
         try:
-            response = requests.post(
-                f"{BASE_URL}/flights/search",
-                headers=self._headers(),
+            response = self._session.post(
+                self._api_url("availableFare"),
                 json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
                 timeout=30,
             )
             response.raise_for_status()
-            data = response.json()
+            search_data = response.json()
         except requests.exceptions.HTTPError as e:
-            error = self._parse_error(e.response)
-            print(f"[PICASSO] Search error: {error}")
+            error = self._parse_redbox_error(e.response)
+            print(f"[PICASSO] Search submit error: {error}")
             return {"success": False, "flights": [], "error": error, "source": "picasso"}
         except Exception as e:
-            print(f"[PICASSO] Search error: {e}")
+            print(f"[PICASSO] Search submit error: {e}")
             return {"success": False, "flights": [], "error": str(e), "source": "picasso"}
 
-        # Parse response — structure TBD, this is the expected shape
-        raw_offers = data.get("data", data.get("offers", data.get("flights", [])))
-        if not raw_offers:
-            raw_offers = []
+        # Check for API errors
+        if search_data.get("webServiceErrors"):
+            errors = search_data["webServiceErrors"]
+            error_msg = errors[0].get("description", "Unknown error")
+            detail = errors[0].get("detailMessages", [""])[0] if errors[0].get("detailMessages") else ""
+            print(f"[PICASSO] Search error: {error_msg} — {detail}")
+            return {"success": False, "flights": [], "error": f"{error_msg}: {detail}", "source": "picasso"}
 
-        markets_searched = data.get("marketsSearched", data.get("pos_count", 0))
-        print(f"[PICASSO] Found {len(raw_offers)} offers across {markets_searched} POS markets")
+        fare_search_id = search_data.get("fareSearchId")
+        num_results = search_data.get("numberOfResults", 0)
+        num_airlines = search_data.get("numberOfAirlines", 0)
 
-        # Process offers: find US benchmark, identify cheapest POS, calculate savings
+        if not fare_search_id or num_results == 0:
+            print("[PICASSO] No results found")
+            return {
+                "success": False, "flights": [], "source": "picasso",
+                "error": "No flights found for this route/date",
+            }
+
+        print(f"[PICASSO] Found {num_results} fares from {num_airlines} airlines")
+
+        # Step 2: Fetch results (paginated)
+        try:
+            results_response = self._session.post(
+                self._api_url(f"availableFare/{fare_search_id}"),
+                json={"pageNumber": 1, "resultsPerPage": min(max_results, 50)},
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=30,
+            )
+            results_response.raise_for_status()
+            results_data = results_response.json()
+        except Exception as e:
+            print(f"[PICASSO] Results fetch error: {e}")
+            return {"success": False, "flights": [], "error": str(e), "source": "picasso"}
+
+        currency = results_data.get("currencyIsoCode", "USD")
+        raw_results = results_data.get("results", [])
+
+        # Parse results
         flights = []
-        for offer in raw_offers[:max_results]:
-            parsed = self._parse_flight_offer(offer)
+        for raw in raw_results:
+            parsed = self._parse_redbox_result(raw, currency)
             if parsed:
                 flights.append(parsed)
 
-        # Sort by MYSTES price (cheapest first)
-        flights.sort(key=lambda f: f.get("mystes_price", f.get("price", 9999)))
+        # Sort by price
+        flights.sort(key=lambda f: f.get("price", 99999))
 
-        print(f"[PICASSO] Returning {len(flights)} flights with POS arbitrage pricing")
+        print(f"[PICASSO] Returning {len(flights)} flights")
         return {
             "success": len(flights) > 0,
             "flights": flights,
             "source": "picasso",
-            "markets_searched": markets_searched,
             "origin": origin.upper(),
             "destination": destination.upper(),
             "date": departure_date,
             "return_date": return_date,
+            "total_results": num_results,
+            "airlines_count": num_airlines,
+            "currency": currency,
+            "fare_search_id": fare_search_id,
         }
 
-    def _parse_flight_offer(self, offer: Dict) -> Optional[Dict]:
-        """
-        Parse a Cockpit API flight offer into normalized MYSTES format.
-
-        The key innovation: each offer includes pricing from multiple POS markets.
-        We extract the US price (Google benchmark) and cheapest POS price,
-        then calculate the MYSTES price (cheapest + 25% of savings).
-
-        Args:
-            offer: Raw offer from Cockpit API
-
-        Returns:
-            Normalized flight dict with arbitrage pricing, or None
-        """
+    def _parse_redbox_result(self, result: Dict, currency: str = "USD") -> Optional[Dict]:
+        """Parse a single Redbox flight result into MYSTES format."""
         try:
-            # Extract POS-specific pricing
-            # Expected structure: offer.pricing = [{pos: "US", amount: 450}, {pos: "DK", amount: 380}, ...]
-            pricing_by_pos = offer.get("pricing", offer.get("posFares", []))
+            airline = result.get("validatingAirline", {})
+            total = float(result.get("total", 0))
+            total_tax = float(result.get("totalTax", 0))
+            fare_id = result.get("fareId", "")
+            gds = result.get("gds", "")
 
-            if isinstance(pricing_by_pos, list):
-                pos_prices = {}
-                for p in pricing_by_pos:
-                    pos = p.get("pos", p.get("market", p.get("pointOfSale", "")))
-                    amount = float(p.get("amount", p.get("price", p.get("total", 0))))
-                    if pos and amount > 0:
-                        pos_prices[pos] = amount
-            elif isinstance(pricing_by_pos, dict):
-                pos_prices = {k: float(v) for k, v in pricing_by_pos.items() if float(v) > 0}
-            else:
-                # Single-POS fallback
-                price = float(offer.get("price", {}).get("total", offer.get("price", 0)))
-                pos_prices = {"US": price}
+            # Price details
+            price_details = result.get("priceDetails", [{}])[0] if result.get("priceDetails") else {}
+            base_fare = float(price_details.get("gdsFarePerPax", 0))
+            tax_per_pax = float(price_details.get("taxPerPax", 0))
+            ticket_fee = float(price_details.get("ticketFeeDetails", {}).get("originalTicketFee", 0))
 
-            if not pos_prices:
-                return None
+            # Fare family
+            fare_families = result.get("fareFamilies", [])
+            fare_family_name = fare_families[0].get("airlineName", "") if fare_families else ""
 
-            # US price = Google Flights benchmark
-            us_price = pos_prices.get("US", 0)
+            # Fare characteristics
+            fare_chars = result.get("fareCharacteristicList", [])
 
-            # Find cheapest POS
-            cheapest_pos = min(pos_prices, key=pos_prices.get)
-            cheapest_price = pos_prices[cheapest_pos]
+            # Additional fare info
+            additional = result.get("additionalFareInfos", [])
+            baggage_info = None
+            is_cheapest = False
+            for info in additional:
+                if info.get("type") == "baggageInfo":
+                    baggage_info = info.get("weightInfo", "")
+                if info.get("type") == "cheapestFare":
+                    is_cheapest = True
 
-            # If no US price, use the max price as benchmark
-            if not us_price:
-                us_price = max(pos_prices.values())
+            # Parse legs
+            legs = []
+            all_segments = []
+            for leg_data in result.get("legList", []):
+                leg = self._parse_leg(leg_data)
+                legs.append(leg)
+                all_segments.extend(leg.get("segments", []))
 
-            # Calculate savings and MYSTES pricing
-            savings_raw = us_price - cheapest_price
-            if savings_raw > 0:
-                platform_fee = savings_raw * PLATFORM_FEE_PERCENT
-                platform_fee = max(PLATFORM_FEE_MIN_USD, min(PLATFORM_FEE_MAX_USD, platform_fee))
-                mystes_price = cheapest_price + platform_fee
-                user_savings = us_price - mystes_price
-                savings_pct = (user_savings / us_price * 100) if us_price > 0 else 0
-            else:
-                # No arbitrage — price at cheapest (which equals US)
-                platform_fee = 0
-                mystes_price = cheapest_price
-                user_savings = 0
-                savings_pct = 0
-
-            # Parse itinerary
-            itineraries = offer.get("itineraries", offer.get("segments", []))
-            segments = []
-            for seg_data in (itineraries if isinstance(itineraries, list) else []):
-                # Handle nested segments within itineraries
-                if "segments" in seg_data:
-                    for seg in seg_data["segments"]:
-                        segments.append(self._parse_segment(seg))
-                else:
-                    segments.append(self._parse_segment(seg_data))
-
-            # Primary flight info from first segment
-            first_seg = segments[0] if segments else {}
-            last_seg = segments[-1] if segments else {}
-
-            # Count stops
-            outbound_stops = max(len(segments) - 1, 0)
-
-            # Duration
-            duration_str = offer.get("duration", offer.get("totalDuration", ""))
-            duration_mins = self._parse_duration(duration_str)
-            duration_fmt = self._format_duration(duration_mins)
-
-            # Layovers
-            layovers = []
-            for i in range(len(segments) - 1):
-                arr_time_str = segments[i].get("arrival_time", "")
-                dep_time_str = segments[i + 1].get("departure_time", "")
-                try:
-                    arr_t = datetime.fromisoformat(arr_time_str.replace("Z", "+00:00"))
-                    dep_t = datetime.fromisoformat(dep_time_str.replace("Z", "+00:00"))
-                    layover_mins = int((dep_t - arr_t).total_seconds() / 60)
-                    lh, lm = divmod(layover_mins, 60)
-                    layovers.append({
-                        "airport": segments[i].get("arrival_airport", ""),
-                        "duration_minutes": layover_mins,
-                        "duration_formatted": f"{lh}h {lm}m",
-                    })
-                except (ValueError, TypeError):
-                    layovers.append({
-                        "airport": segments[i].get("arrival_airport", ""),
-                        "duration_minutes": 0,
-                        "duration_formatted": "?",
-                    })
+            # Primary leg info (outbound)
+            outbound = legs[0] if legs else {}
+            inbound = legs[1] if len(legs) > 1 else None
 
             return {
                 # Identity
-                "offer_id": offer.get("id", offer.get("offerId", "")),
+                "offer_id": fare_id,
+                "fare_id": fare_id,
                 "source": "picasso",
+                "gds": gds,
 
                 # Carrier
-                "airline": first_seg.get("marketing_carrier", ""),
-                "airline_name": first_seg.get("marketing_carrier_name", first_seg.get("marketing_carrier", "")),
-                "marketing_carrier": first_seg.get("marketing_carrier", ""),
-                "flight_number": first_seg.get("flight_number", ""),
+                "airline": airline.get("code", ""),
+                "airline_name": airline.get("name", ""),
+                "airline_icao": airline.get("icao", ""),
 
-                # Route
-                "origin": first_seg.get("departure_airport", ""),
-                "destination": last_seg.get("arrival_airport", ""),
-                "departure_airport": first_seg.get("departure_airport", ""),
-                "arrival_airport": last_seg.get("arrival_airport", ""),
-                "departure_time": first_seg.get("departure_time", ""),
-                "arrival_time": last_seg.get("arrival_time", ""),
+                # Route (outbound)
+                "origin": outbound.get("departure_code", ""),
+                "destination": outbound.get("destination_code", ""),
+                "departure_time": outbound.get("departure_time", ""),
+                "arrival_time": outbound.get("arrival_time", ""),
 
                 # Duration
-                "duration_minutes": duration_mins,
-                "duration_formatted": duration_fmt,
-                "duration": duration_fmt,
-                "stops": outbound_stops,
-                "layovers": layovers,
+                "duration": outbound.get("total_travel_time", ""),
+                "duration_minutes": self._parse_iso_duration(outbound.get("total_travel_time", "")),
+                "duration_formatted": self._format_iso_duration(outbound.get("total_travel_time", "")),
+                "stops": outbound.get("stop_count", 0),
+                "stop_airports": outbound.get("stop_codes", []),
 
-                # Segments
-                "segments": segments,
+                # Return leg
+                "return_departure_time": inbound.get("departure_time", "") if inbound else None,
+                "return_arrival_time": inbound.get("arrival_time", "") if inbound else None,
+                "return_duration": inbound.get("total_travel_time", "") if inbound else None,
+                "return_stops": inbound.get("stop_count", 0) if inbound else None,
 
-                # Cabin
-                "cabin_class": offer.get("cabinClass", offer.get("cabin", "ECONOMY")),
-                "baggage_info": offer.get("baggageInfo", offer.get("baggage", None)),
+                # Legs and segments
+                "legs": legs,
+                "segments": all_segments,
 
-                # === PRICING (the core arbitrage data) ===
-                "price": mystes_price,            # What the user pays
-                "mystes_price": mystes_price,     # Same — MYSTES price after fee
-                "us_price": us_price,             # Google benchmark (US POS)
-                "savings": round(user_savings, 2),
-                "savings_pct": round(savings_pct, 1),
-                "platform_fee": round(platform_fee, 2),
-                "cheapest_market": "MYSTES",      # B2C safe — never expose real POS
-                "currency": "USD",
+                # Cabin and fare
+                "cabin_class": result.get("cabinClassList", ["ECONOMY"])[0],
+                "fare_family": fare_family_name,
+                "fare_type": fare_chars[0] if fare_chars else "PUB",
+                "baggage_info": baggage_info,
+                "is_cheapest": is_cheapest,
 
-                # Deal object (for renderFlightCards compatibility)
-                "deal": {
-                    "home_price": round(us_price, 2),
-                    "arbitrage_price": round(mystes_price, 2),
-                    "price_difference": round(user_savings, 2),
-                    "user_saves_pct": round(savings_pct, 1),
-                    "cheapest_market": "MYSTES",
-                } if user_savings > 0 else None,
+                # Pricing
+                "price": total,
+                "total": total,
+                "base_fare": base_fare,
+                "tax": total_tax,
+                "ticket_fee": ticket_fee,
+                "currency": currency,
 
-                # Internal — for booking engine only, NEVER sent to B2C
-                "_internal_pos_market": cheapest_pos,
-                "_internal_cheapest_price": cheapest_price,
-                "_internal_pos_prices": pos_prices,
-
-                # Raw offer for downstream booking
-                "raw_offer": offer,
+                # For MYSTES display compatibility
+                "mystes_price": total,
+                "deal": None,
             }
 
         except Exception as e:
-            print(f"[PICASSO] Error parsing offer: {e}")
+            print(f"[PICASSO] Error parsing result: {e}")
             return None
+
+    def _parse_leg(self, leg_data: Dict) -> Dict:
+        """Parse a leg (outbound or inbound) from Redbox result."""
+        departure = leg_data.get("departure", {})
+        destination = leg_data.get("destination", {})
+        stops = leg_data.get("stops", [])
+
+        segments = []
+        for itin in leg_data.get("itineraryList", []):
+            for seg_data in itin.get("segmentList", []):
+                seg = self._parse_segment(seg_data)
+                segments.append(seg)
+
+        return {
+            "departure_code": departure.get("code", ""),
+            "departure_name": departure.get("name", ""),
+            "destination_code": destination.get("code", ""),
+            "destination_name": destination.get("name", ""),
+            "departure_time": leg_data.get("departureTimestamp", ""),
+            "arrival_time": leg_data.get("arrivalTimestamp", ""),
+            "total_travel_time": leg_data.get("totalTravelTime", ""),
+            "total_transfer_time": leg_data.get("totalTransferTime", ""),
+            "stop_count": len(stops),
+            "stop_codes": [s.get("code", "") for s in stops],
+            "stop_names": [s.get("name", "") for s in stops],
+            "segments": segments,
+        }
 
     def _parse_segment(self, seg: Dict) -> Dict:
         """Parse a single flight segment."""
-        dep = seg.get("departure", seg)
-        arr = seg.get("arrival", seg)
+        dep = seg.get("departure", {})
+        dest = seg.get("destination", {})
+        marketing = seg.get("marketingAirline", {})
+        operating = seg.get("operatingAirline", marketing)
+        booking = seg.get("bookingClass", {})
 
-        carrier = seg.get("carrierCode", seg.get("carrier", seg.get("marketingCarrier", "")))
-        flight_num = seg.get("number", seg.get("flightNumber", ""))
-        if flight_num and not flight_num.startswith(carrier):
-            flight_num = f"{carrier}{flight_num}"
+        flight_num = seg.get("flightNumber", "")
+        carrier_code = marketing.get("code", "")
+        full_flight = f"{carrier_code}{flight_num}" if carrier_code and flight_num else ""
 
         return {
-            "carrier": carrier,
-            "marketing_carrier": carrier,
-            "marketing_carrier_name": seg.get("carrierName", seg.get("airlineName", carrier)),
-            "flight_number": flight_num,
-            "departure_airport": dep.get("iataCode", dep.get("airport", dep.get("origin", ""))),
-            "departure_terminal": dep.get("terminal", ""),
-            "departure_time": dep.get("at", dep.get("dateTime", dep.get("departureTime", ""))),
-            "arrival_airport": arr.get("iataCode", arr.get("airport", arr.get("destination", ""))),
-            "arrival_terminal": arr.get("terminal", ""),
-            "arrival_time": arr.get("at", arr.get("dateTime", arr.get("arrivalTime", ""))),
-            "aircraft_code": seg.get("aircraft", {}).get("code", seg.get("aircraftCode", "")),
-            "aircraft_name": seg.get("aircraft", {}).get("name", seg.get("aircraftName", "")),
-            "operating_carrier": seg.get("operatingCarrier", carrier),
-            "is_codeshare": bool(seg.get("operatingCarrier") and seg.get("operatingCarrier") != carrier),
-        }
-
-    # -------------------------------------------------------------------------
-    # Price Confirm (Pre-booking validation)
-    # -------------------------------------------------------------------------
-
-    def price_confirm(self, offer_id: str, pos_market: str = None) -> Dict:
-        """
-        Confirm pricing for a specific offer before booking.
-
-        Args:
-            offer_id: Offer ID from search results
-            pos_market: POS market to confirm price in (the cheapest one)
-
-        Returns:
-            Dict with success, confirmed_price, pos_market, bookable
-        """
-        if not self.is_configured():
-            return {"success": False, "error": "Picasso not configured"}
-
-        if not self._authenticate():
-            return {"success": False, "error": "Authentication failed"}
-
-        payload = {"offerId": offer_id}
-        if pos_market:
-            payload["pointOfSale"] = pos_market
-
-        print(f"[PICASSO] Confirming price for offer {offer_id[:30]}... (POS: {pos_market or 'best'})")
-
-        try:
-            response = requests.post(
-                f"{BASE_URL}/flights/price-confirm",
-                headers=self._headers(),
-                json=payload,
-                timeout=20,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.HTTPError as e:
-            error = self._parse_error(e.response)
-            return {"success": False, "error": error}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-        confirmed = data.get("data", data)
-        price = float(confirmed.get("price", confirmed.get("total", 0)))
-        confirmed_pos = confirmed.get("pointOfSale", confirmed.get("pos", pos_market))
-
-        print(f"[PICASSO] Price confirmed: ${price} (POS: {confirmed_pos})")
-        return {
-            "success": True,
-            "confirmed_price": price,
-            "currency": confirmed.get("currency", "USD"),
-            "pos_market": confirmed_pos,
-            "bookable": confirmed.get("bookable", True),
-            "confirmed_offer": confirmed,
-        }
-
-    # -------------------------------------------------------------------------
-    # Book: Create Flight Order
-    # -------------------------------------------------------------------------
-
-    def create_booking(
-        self,
-        offer_id: str,
-        travelers: List[Dict],
-        pos_market: str = None,
-        contact_email: str = None,
-    ) -> Dict:
-        """
-        Book a flight via Picasso Cockpit API.
-
-        Picasso issues the ticket through their IATA subsidiary in the
-        specified POS market. No IATA accreditation needed on our end.
-
-        Args:
-            offer_id: Offer ID from search/price-confirm
-            travelers: List of passenger dicts:
-                - first_name, last_name (required)
-                - date_of_birth (YYYY-MM-DD)
-                - gender (MALE/FEMALE)
-                - email, phone
-                - passport_number, passport_expiry, passport_country (international)
-            pos_market: POS market for ticket issuance (cheapest)
-            contact_email: Primary contact email
-
-        Returns:
-            Dict with success, booking_id, pnr, segments, price
-        """
-        if not self.is_configured():
-            return {"success": False, "error": "Picasso not configured"}
-
-        if not self._authenticate():
-            return {"success": False, "error": "Authentication failed"}
-
-        if not travelers:
-            return {"success": False, "error": "At least one traveler is required"}
-
-        # Build traveler objects
-        traveler_objects = []
-        for idx, t in enumerate(travelers, start=1):
-            traveler_obj = {
-                "id": str(idx),
-                "firstName": t.get("first_name", "").upper(),
-                "lastName": t.get("last_name", "").upper(),
-                "dateOfBirth": t.get("date_of_birth", "1990-01-01"),
-                "gender": t.get("gender", "MALE").upper(),
-                "email": t.get("email", contact_email or ""),
-                "phone": t.get("phone", ""),
-            }
-            if t.get("passport_number"):
-                traveler_obj["document"] = {
-                    "type": "PASSPORT",
-                    "number": t["passport_number"],
-                    "expiryDate": t.get("passport_expiry", "2030-01-01"),
-                    "issuanceCountry": t.get("passport_country", "US"),
-                    "nationality": t.get("nationality", "US"),
-                }
-            traveler_objects.append(traveler_obj)
-
-        payload = {
-            "offerId": offer_id,
-            "travelers": traveler_objects,
-        }
-        if pos_market:
-            payload["pointOfSale"] = pos_market
-        if contact_email:
-            payload["contactEmail"] = contact_email
-
-        print(f"[PICASSO] Booking offer {offer_id[:30]}... ({len(travelers)} pax, POS: {pos_market or 'best'})")
-
-        try:
-            response = requests.post(
-                f"{BASE_URL}/flights/book",
-                headers=self._headers(),
-                json=payload,
-                timeout=60,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.HTTPError as e:
-            error = self._parse_error(e.response)
-            print(f"[PICASSO] Booking error: {error}")
-            return {"success": False, "error": error}
-        except Exception as e:
-            print(f"[PICASSO] Booking error: {e}")
-            return {"success": False, "error": str(e)}
-
-        order = data.get("data", data)
-        booking_id = order.get("bookingId", order.get("id", ""))
-        pnr = order.get("pnr", order.get("recordLocator", order.get("confirmationCode", "")))
-        price = float(order.get("price", {}).get("total", order.get("totalPrice", 0)))
-
-        # Extract segments
-        segments = []
-        for seg in order.get("segments", order.get("itinerary", {}).get("segments", [])):
-            segments.append({
-                "origin": seg.get("departure", {}).get("iataCode", seg.get("origin", "")),
-                "destination": seg.get("arrival", {}).get("iataCode", seg.get("destination", "")),
-                "departure": seg.get("departure", {}).get("at", seg.get("departureTime", "")),
-                "arrival": seg.get("arrival", {}).get("at", seg.get("arrivalTime", "")),
-                "carrier": seg.get("carrierCode", seg.get("carrier", "")),
-                "flight_number": seg.get("number", seg.get("flightNumber", "")),
-            })
-
-        print(f"[PICASSO] Booking created: PNR={pnr}, {len(travelers)} pax, ${price}")
-        return {
-            "success": True,
-            "booking_id": booking_id,
-            "pnr": pnr,
-            "provider": "picasso",
-            "segments": segments,
-            "price": price,
-            "currency": order.get("currency", "USD"),
-            "pos_market": pos_market,
-            "travelers_booked": len(travelers),
-            "raw_order": order,
+            "carrier": carrier_code,
+            "carrier_name": marketing.get("name", ""),
+            "carrier_icao": marketing.get("icao", ""),
+            "flight_number": full_flight,
+            "flight_num_raw": flight_num,
+            "departure_airport": dep.get("code", ""),
+            "departure_name": dep.get("name", ""),
+            "departure_time": seg.get("departureTimestamp", ""),
+            "arrival_airport": dest.get("code", ""),
+            "arrival_name": dest.get("name", ""),
+            "cabin_class": seg.get("cabinClass", "ECONOMY"),
+            "booking_class": booking.get("code", ""),
+            "fare_base": seg.get("fareBase", ""),
+            "fare_family": seg.get("fareFamily", {}).get("airlineName", ""),
+            "ground_time": seg.get("groundTime", ""),
+            "operating_carrier": operating.get("code", carrier_code),
+            "is_codeshare": operating.get("code", carrier_code) != carrier_code,
         }
 
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
 
-    def _parse_error(self, response) -> str:
-        """Extract error message from API response."""
+    def _parse_redbox_error(self, response) -> str:
+        """Extract error message from Redbox API response."""
         try:
             data = response.json()
-            if "error" in data:
-                err = data["error"]
-                if isinstance(err, dict):
-                    return err.get("message", f"HTTP {response.status_code}")
-                return str(err)
-            if "errors" in data:
-                errors = data["errors"]
-                if isinstance(errors, list) and errors:
-                    return errors[0].get("detail", errors[0].get("message", f"HTTP {response.status_code}"))
-            return data.get("message", f"HTTP {response.status_code}")
+            if "webServiceErrors" in data:
+                errors = data["webServiceErrors"]
+                if errors:
+                    desc = errors[0].get("description", "")
+                    detail = errors[0].get("detailMessages", [""])[0] if errors[0].get("detailMessages") else ""
+                    return f"{desc}: {detail}" if detail else desc
+            if "detail" in data:
+                return data["detail"]
+            return f"HTTP {response.status_code}"
         except Exception:
             return f"HTTP {response.status_code}"
 
-    def _parse_duration(self, duration_input) -> int:
-        """Parse duration to minutes. Handles ISO 8601 (PT14H30M) and plain minutes."""
-        if isinstance(duration_input, (int, float)):
-            return int(duration_input)
-        if not duration_input or not isinstance(duration_input, str):
+    def _parse_iso_duration(self, duration: str) -> int:
+        """Parse ISO 8601 duration (PT10H25M) to minutes."""
+        if not duration:
             return 0
-        try:
-            s = duration_input.replace("PT", "")
-            hours = 0
-            minutes = 0
-            if "H" in s:
-                parts = s.split("H")
-                hours = int(parts[0])
-                s = parts[1] if len(parts) > 1 else ""
-            if "M" in s:
-                minutes = int(s.replace("M", ""))
+        match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?', duration)
+        if match:
+            hours = int(match.group(1) or 0)
+            minutes = int(match.group(2) or 0)
             return hours * 60 + minutes
-        except (ValueError, IndexError):
-            return 0
+        return 0
 
-    def _format_duration(self, minutes: int) -> str:
-        """Format minutes to 'Xh Ym'."""
+    def _format_iso_duration(self, duration: str) -> str:
+        """Format ISO 8601 duration (PT10H25M) to 'Xh Ym'."""
+        minutes = self._parse_iso_duration(duration)
         if minutes <= 0:
             return ""
         h, m = divmod(minutes, 60)
@@ -668,8 +533,7 @@ class PicassoClient:
             return f"{h}h {m}m"
         elif h:
             return f"{h}h"
-        else:
-            return f"{m}m"
+        return f"{m}m"
 
 
 # ---------------------------------------------------------------------------
@@ -686,6 +550,11 @@ def _get_client() -> PicassoClient:
     return _client
 
 
+def search_airports(query: str, max_results: int = 10) -> List[Dict]:
+    """Search airports via public Solr geo service (no auth needed)."""
+    return _get_client().search_airports(query, max_results)
+
+
 def search_flights_multi_pos(
     origin: str,
     destination: str,
@@ -693,22 +562,15 @@ def search_flights_multi_pos(
     return_date: Optional[str] = None,
     adults: int = 1,
     cabin_class: str = "economy",
-    max_results: int = 15,
+    max_results: int = 20,
     nonstop_only: bool = False,
 ) -> Dict:
     """
-    Module-level convenience — search flights with multi-POS arbitrage.
+    Module-level convenience — search flights via Redbox.
 
     Drop-in replacement for amadeus_client.search_with_amadeus().
-    Returns the same flight dict shape with added arbitrage pricing fields.
     """
-    cabin_map = {
-        "economy": "ECONOMY",
-        "premium_economy": "PREMIUM_ECONOMY",
-        "business": "BUSINESS",
-        "first": "FIRST",
-    }
-    mapped_cabin = cabin_map.get(cabin_class.lower(), "ECONOMY")
+    mapped_cabin = CABIN_MAP.get(cabin_class.lower(), "ECONOMY")
 
     return _get_client().search_flights(
         origin=origin,
@@ -730,7 +592,7 @@ def search_with_picasso(
     adults: int = 1,
     cabin_class: str = "economy",
 ) -> Dict:
-    """Alias — same interface as amadeus_client.search_with_amadeus()."""
+    """Alias — same interface for backward compatibility."""
     return search_flights_multi_pos(
         origin=origin,
         destination=destination,

@@ -33,11 +33,27 @@ except ImportError:
     print("Note: Stripe not installed. Run: pip install stripe")
 
 
+def get_fee_percent(user=None):
+    """Get platform fee percentage based on membership status.
+
+    Members (authenticated users): 25% of savings
+    Non-members (anonymous/guest): 50% of savings
+    """
+    if user and getattr(user, 'is_authenticated', False):
+        return 0.25
+    try:
+        from flask_login import current_user
+        if current_user and current_user.is_authenticated:
+            return 0.25
+    except Exception:
+        pass
+    return 0.50
+
+
 class PaymentMethod(Enum):
     CARD = "card"           # Credit/Debit via Stripe
-    XRP = "xrp"             # Direct XRP payment
+    XRP = "xrp"             # Direct XRP payment on XRPL
     RLUSD = "rlusd"         # RLUSD stablecoin on XRPL
-    CRYPTO = "crypto"       # Any crypto via Coinbase Commerce
 
 
 class PaymentStatus(Enum):
@@ -57,9 +73,7 @@ PAYMENT_CONFIG = {
     "stripe_publishable_key": os.getenv("STRIPE_PUBLISHABLE_KEY", ""),
     "stripe_webhook_secret": os.getenv("STRIPE_WEBHOOK_SECRET", ""),
 
-    # Coinbase Commerce (for any cryptocurrency)
-    "coinbase_api_key": os.getenv("COINBASE_COMMERCE_API_KEY", ""),
-    "coinbase_webhook_secret": os.getenv("COINBASE_COMMERCE_WEBHOOK_SECRET", ""),
+    # Coinbase removed — Stripe + MoonPay only
 
     # XRPL
     "xrpl_network": os.getenv("XRPL_NETWORK", "testnet"),
@@ -115,24 +129,63 @@ def generate_destination_tag(deal_id, user_id=None):
     return abs(hash(data)) % 2147483647
 
 
+# --- STRIPE CUSTOMER LIFECYCLE ---
+
+def get_or_create_stripe_customer(user):
+    """
+    Get existing Stripe Customer or create one lazily.
+    Stores stripe_customer_id on User model (caller must commit).
+
+    Args:
+        user: User model instance (must have id, email, name, stripe_customer_id)
+
+    Returns:
+        stripe_customer_id string, or None on failure
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if not STRIPE_AVAILABLE or not PAYMENT_CONFIG["stripe_secret_key"]:
+        return None
+
+    if user.stripe_customer_id:
+        return user.stripe_customer_id
+
+    try:
+        customer = stripe.Customer.create(
+            email=user.email,
+            name=getattr(user, 'name', None) or user.email,
+            metadata={
+                "mystes_user_id": str(user.id),
+            }
+        )
+        user.stripe_customer_id = customer.id
+        return customer.id
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe Customer creation failed for user {user.id}: {e}")
+        return None
+
+
 # --- PAYMENT OPTIONS GENERATOR ---
 
-def generate_payment_options(deal_id, fee_usd, user_id=None):
+def generate_payment_options(deal_id, fee_usd, user_id=None,
+                              include_xrp=False, include_rlusd=False,
+                              include_crypto=False, include_moonpay=True):
     """
-    Generate all available payment options for a deal.
+    Generate available payment options for a deal.
 
     Args:
         deal_id: Unique deal identifier
         fee_usd: Platform fee in USD
         user_id: Optional user ID
+        include_xrp: Include XRP direct payment (Phase 2)
+        include_rlusd: Include RLUSD payment (Phase 2)
+        include_crypto: Include Coinbase Commerce crypto (Phase 2)
+        include_moonpay: Include MoonPay on/off ramp (Phase 1)
 
     Returns:
-        dict with payment options for each method
+        dict with payment options for each enabled method
     """
-    get_xrp_price()
-
-    destination_tag = generate_destination_tag(deal_id, user_id)
-    xrp_amount = usd_to_xrp(fee_usd)
     expires_at = datetime.utcnow() + timedelta(minutes=PAYMENT_CONFIG["payment_expiry_minutes"])
 
     options = {
@@ -143,7 +196,7 @@ def generate_payment_options(deal_id, fee_usd, user_id=None):
         "methods": {}
     }
 
-    # --- CARD PAYMENT (Stripe) ---
+    # --- CARD PAYMENT (Stripe) — always available in Phase 1 ---
     if STRIPE_AVAILABLE and PAYMENT_CONFIG["stripe_secret_key"]:
         options["methods"]["card"] = {
             "enabled": True,
@@ -159,8 +212,28 @@ def generate_payment_options(deal_id, fee_usd, user_id=None):
             "reason": "Card payments not configured"
         }
 
-    # --- XRP DIRECT ---
-    if XRPL_AVAILABLE:
+    # --- MOONPAY (On/Off Ramp — Phase 1) ---
+    if include_moonpay:
+        moonpay_key = os.getenv("MOONPAY_API_KEY", "")
+        if moonpay_key:
+            options["methods"]["moonpay"] = {
+                "enabled": True,
+                "provider": "moonpay",
+                "amount_usd": round(fee_usd, 2),
+                "description": f"MYSTES Deal Access - {deal_id}",
+                "supported_methods": ["card", "bank_transfer", "paypal", "venmo", "ach", "sepa"],
+            }
+        else:
+            options["methods"]["moonpay"] = {
+                "enabled": False,
+                "reason": "MoonPay not configured"
+            }
+
+    # --- XRP DIRECT (Phase 2) ---
+    if include_xrp and XRPL_AVAILABLE:
+        get_xrp_price()
+        destination_tag = generate_destination_tag(deal_id, user_id)
+        xrp_amount = usd_to_xrp(fee_usd)
         options["methods"]["xrp"] = {
             "enabled": True,
             "destination": PAYMENT_CONFIG["platform_xrp_address"],
@@ -171,50 +244,29 @@ def generate_payment_options(deal_id, fee_usd, user_id=None):
             "network": PAYMENT_CONFIG["xrpl_network"],
             "qr_data": f"xrpl:{PAYMENT_CONFIG['platform_xrp_address']}?amount={xrp_amount}&dt={destination_tag}",
         }
-    else:
-        options["methods"]["xrp"] = {
-            "enabled": False,
-            "reason": "XRP payments not available"
-        }
 
-    # --- RLUSD (Stablecoin on XRPL) ---
-    if XRPL_AVAILABLE:
+    # --- RLUSD Stablecoin (Phase 2) ---
+    if include_rlusd and XRPL_AVAILABLE:
+        destination_tag = generate_destination_tag(deal_id, user_id)
         options["methods"]["rlusd"] = {
             "enabled": True,
             "destination": PAYMENT_CONFIG["platform_xrp_address"],
             "destination_tag": destination_tag,
-            "amount_rlusd": round(fee_usd, 2),  # 1:1 with USD
+            "amount_rlusd": round(fee_usd, 2),
             "currency": "RLUSD",
             "issuer": PAYMENT_CONFIG["rlusd_issuer"],
             "network": PAYMENT_CONFIG["xrpl_network"],
         }
-    else:
-        options["methods"]["rlusd"] = {
-            "enabled": False,
-            "reason": "RLUSD payments not available"
-        }
 
-    # --- ANY CRYPTOCURRENCY (Coinbase Commerce) ---
-    if PAYMENT_CONFIG["coinbase_api_key"]:
-        options["methods"]["crypto"] = {
-            "enabled": True,
-            "provider": "coinbase_commerce",
-            "amount_usd": round(fee_usd, 2),
-            "supported_coins": ["BTC", "ETH", "LTC", "DOGE", "BCH", "USDC", "DAI", "SHIB"],
-            "description": f"MYSTES Deal Access - {deal_id}",
-        }
-    else:
-        options["methods"]["crypto"] = {
-            "enabled": False,
-            "reason": "Crypto payments not configured"
-        }
+    # Coinbase removed — Stripe + MoonPay only
 
     return options
 
 
 # --- STRIPE CARD PAYMENTS ---
 
-def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, cancel_url, user_id=None):
+def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, cancel_url,
+                                    user_id=None, user=None):
     """
     Create a Stripe Checkout session for card payment.
 
@@ -225,6 +277,7 @@ def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, ca
         success_url: Redirect URL after payment
         cancel_url: Redirect URL on cancel
         user_id: User ID (stored in metadata for webhook attribution)
+        user: User model instance (if provided, creates/uses Stripe Customer for saved cards)
 
     Returns:
         dict with session_id and checkout_url
@@ -240,12 +293,12 @@ def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, ca
         if user_id is not None:
             metadata["user_id"] = str(user_id)
 
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{
+        session_params = {
+            "payment_method_types": ["card"],
+            "line_items": [{
                 "price_data": {
                     "currency": "usd",
-                    "unit_amount": int(fee_usd * 100),  # Stripe uses cents
+                    "unit_amount": int(fee_usd * 100),
                     "product_data": {
                         "name": "MYSTES Deal Access",
                         "description": f"Unlock flight savings - Deal {deal_id}",
@@ -253,13 +306,27 @@ def create_stripe_checkout_session(deal_id, fee_usd, user_email, success_url, ca
                 },
                 "quantity": 1,
             }],
-            mode="payment",
-            success_url=success_url + f"?session_id={{CHECKOUT_SESSION_ID}}&deal_id={deal_id}",
-            cancel_url=cancel_url,
-            customer_email=user_email,
-            metadata=metadata,
-            expires_at=int((datetime.utcnow() + timedelta(minutes=30)).timestamp()),
-        )
+            "mode": "payment",
+            "success_url": success_url + f"?session_id={{CHECKOUT_SESSION_ID}}&deal_id={deal_id}",
+            "cancel_url": cancel_url,
+            "metadata": metadata,
+            "expires_at": int((datetime.utcnow() + timedelta(minutes=30)).timestamp()),
+        }
+
+        # Resolve Stripe Customer for saved-card support
+        customer_id = None
+        if user:
+            customer_id = get_or_create_stripe_customer(user)
+
+        if customer_id:
+            session_params["customer"] = customer_id
+            session_params["payment_intent_data"] = {
+                "setup_future_usage": "on_session",
+            }
+        else:
+            session_params["customer_email"] = user_email
+
+        session = stripe.checkout.Session.create(**session_params)
 
         return {
             "session_id": session.id,
@@ -380,225 +447,28 @@ def create_stripe_refund(payment_intent_id, amount_cents=None, reason="requested
         return {"error": str(e)}
 
 
-# --- COINBASE COMMERCE (Any Cryptocurrency) ---
-
-COINBASE_API_URL = "https://api.commerce.coinbase.com"
+# Coinbase Commerce section removed — Stripe + MoonPay only
 
 
-def create_coinbase_charge(deal_id, fee_usd, user_email, redirect_url, cancel_url):
-    """
-    Create a Coinbase Commerce charge for cryptocurrency payment.
-
-    Supports: BTC, ETH, LTC, DOGE, BCH, USDC, DAI, SHIB, and more.
-
-    Args:
-        deal_id: Unique deal identifier
-        fee_usd: Amount in USD
-        user_email: Customer email
-        redirect_url: URL after successful payment
-        cancel_url: URL if payment cancelled
-
-    Returns:
-        dict with charge_id and hosted_url
-    """
-    import requests
-
-    api_key = PAYMENT_CONFIG["coinbase_api_key"]
-    if not api_key:
-        return {"error": "Coinbase Commerce not configured"}
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-CC-Api-Key": api_key,
-        "X-CC-Version": "2018-03-22"
-    }
-
-    payload = {
-        "name": "MYSTES Deal Access",
-        "description": f"Unlock flight savings - Deal {deal_id}",
-        "pricing_type": "fixed_price",
-        "local_price": {
-            "amount": str(round(fee_usd, 2)),
-            "currency": "USD"
-        },
-        "metadata": {
-            "deal_id": deal_id,
-            "user_email": user_email,
-            "fee_usd": str(fee_usd)
-        },
-        "redirect_url": redirect_url + f"?deal_id={deal_id}",
-        "cancel_url": cancel_url
-    }
-
-    try:
-        response = requests.post(
-            f"{COINBASE_API_URL}/charges",
-            json=payload,
-            headers=headers,
-            timeout=30
-        )
-
-        if response.status_code == 201:
-            data = response.json().get("data", {})
-            return {
-                "charge_id": data.get("id"),
-                "charge_code": data.get("code"),
-                "hosted_url": data.get("hosted_url"),
-                "expires_at": data.get("expires_at"),
-                "supported_coins": list(data.get("addresses", {}).keys()),
-            }
-        else:
-            return {"error": f"Coinbase API error: {response.status_code} - {response.text}"}
-
-    except Exception as e:
-        return {"error": str(e)}
+def _coinbase_removed():
+    """Coinbase Commerce has been permanently removed. Stripe + MoonPay only."""
+    return {"error": "Coinbase Commerce is not available"}
 
 
-def get_coinbase_charge(charge_code):
-    """
-    Get the status of a Coinbase Commerce charge.
-
-    Args:
-        charge_code: The charge code from create_coinbase_charge
-
-    Returns:
-        dict with charge details and status
-    """
-    import requests
-
-    api_key = PAYMENT_CONFIG["coinbase_api_key"]
-    if not api_key:
-        return {"error": "Coinbase Commerce not configured"}
-
-    headers = {
-        "X-CC-Api-Key": api_key,
-        "X-CC-Version": "2018-03-22"
-    }
-
-    try:
-        response = requests.get(
-            f"{COINBASE_API_URL}/charges/{charge_code}",
-            headers=headers,
-            timeout=30
-        )
-
-        if response.status_code == 200:
-            data = response.json().get("data", {})
-            timeline = data.get("timeline", [])
-            latest_status = timeline[-1].get("status") if timeline else "NEW"
-
-            # Check for confirmed payment
-            payments = data.get("payments", [])
-            confirmed_payment = None
-            for payment in payments:
-                if payment.get("status") == "CONFIRMED":
-                    confirmed_payment = payment
-                    break
-
-            return {
-                "charge_id": data.get("id"),
-                "charge_code": data.get("code"),
-                "status": latest_status,
-                "metadata": data.get("metadata", {}),
-                "confirmed": latest_status == "COMPLETED",
-                "payment": confirmed_payment,
-            }
-        else:
-            return {"error": f"Coinbase API error: {response.status_code}"}
-
-    except Exception as e:
-        return {"error": str(e)}
+# Legacy aliases for any remaining references
+def create_coinbase_charge(*args, **kwargs):
+    return _coinbase_removed()
 
 
-def verify_coinbase_charge(charge_code):
-    """
-    Verify a Coinbase Commerce charge was completed.
-
-    Args:
-        charge_code: The charge code to verify
-
-    Returns:
-        dict with verification result
-    """
-    result = get_coinbase_charge(charge_code)
-
-    if "error" in result:
-        return {"verified": False, "error": result["error"]}
-
-    if result.get("confirmed") or result.get("status") == "COMPLETED":
-        payment = result.get("payment", {})
-        return {
-            "verified": True,
-            "method": "crypto",
-            "deal_id": result.get("metadata", {}).get("deal_id"),
-            "amount_usd": float(result.get("metadata", {}).get("fee_usd", 0)),
-            "charge_code": charge_code,
-            "crypto_currency": payment.get("value", {}).get("crypto", {}).get("currency"),
-            "crypto_amount": payment.get("value", {}).get("crypto", {}).get("amount"),
-            "tx_hash": payment.get("transaction_id"),
-        }
-
-    return {
-        "verified": False,
-        "status": result.get("status"),
-        "error": "Payment not yet confirmed"
-    }
+def verify_coinbase_charge(*args, **kwargs):
+    return _coinbase_removed()
 
 
-def handle_coinbase_webhook(payload, signature):
-    """
-    Handle Coinbase Commerce webhook events.
+def handle_coinbase_webhook(*args, **kwargs):
+    return _coinbase_removed()
 
-    Args:
-        payload: Raw request body
-        signature: X-CC-Webhook-Signature header
 
-    Returns:
-        dict with event details
-    """
-    import hmac
-    import hashlib
-    import json
-
-    webhook_secret = PAYMENT_CONFIG["coinbase_webhook_secret"]
-    if not webhook_secret:
-        return {"error": "Webhook secret not configured"}
-
-    # Verify signature
-    expected_sig = hmac.new(
-        webhook_secret.encode(),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
-
-    if not hmac.compare_digest(signature, expected_sig):
-        return {"error": "Invalid webhook signature"}
-
-    try:
-        data = json.loads(payload)
-        event = data.get("event", {})
-        event_type = event.get("type")
-        charge_data = event.get("data", {})
-
-        if event_type == "charge:confirmed":
-            return {
-                "event": "payment_completed",
-                "deal_id": charge_data.get("metadata", {}).get("deal_id"),
-                "amount_usd": float(charge_data.get("metadata", {}).get("fee_usd", 0)),
-                "charge_code": charge_data.get("code"),
-                "charge_id": charge_data.get("id"),
-            }
-        elif event_type == "charge:failed":
-            return {
-                "event": "payment_failed",
-                "deal_id": charge_data.get("metadata", {}).get("deal_id"),
-                "charge_code": charge_data.get("code"),
-            }
-
-        return {"event": event_type}
-
-    except Exception as e:
-        return {"error": str(e)}
+    # Original Coinbase functions removed
 
 
 # --- XRPL PAYMENTS (XRP & RLUSD) ---
@@ -766,10 +636,7 @@ def verify_payment(method, destination_tag=None, expected_amount=None,
             return {"verified": False, "error": "Destination tag and amount required"}
         return verify_rlusd_payment(destination_tag, expected_amount)
 
-    elif method == PaymentMethod.CRYPTO:
-        if not charge_code:
-            return {"verified": False, "error": "Charge code required for crypto payment"}
-        return verify_coinbase_charge(charge_code)
+    # Coinbase CRYPTO method removed — Stripe + MoonPay only
 
     return {"verified": False, "error": f"Unknown payment method: {method}"}
 

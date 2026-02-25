@@ -149,32 +149,22 @@ VERTICAL_CLASSIFIERS = {
 ARBITRAGE_FEE_CONFIG = {
     "flight": {
         "fee_percent": 0.25,
-        "min_fee_usd": 3.0,
-        "max_fee_usd": 50.0,
         "min_savings_threshold_usd": 10.0,
     },
     "hotel": {
         "fee_percent": 0.25,
-        "min_fee_usd": 2.0,
-        "max_fee_usd": 75.0,
         "min_savings_threshold_usd": 8.0,
     },
     "cruise": {
         "fee_percent": 0.25,
-        "min_fee_usd": 10.0,
-        "max_fee_usd": 200.0,
         "min_savings_threshold_usd": 50.0,
     },
     "rental": {
         "fee_percent": 0.25,
-        "min_fee_usd": 2.0,
-        "max_fee_usd": 40.0,
         "min_savings_threshold_usd": 5.0,
     },
     "package": {
         "fee_percent": 0.22,
-        "min_fee_usd": 5.0,
-        "max_fee_usd": 100.0,
         "min_savings_threshold_usd": 20.0,
     },
 }
@@ -1079,10 +1069,10 @@ class ArbitrageSearchEngine:
     # Fee Calculation
     # ------------------------------------------------------------------
 
-    def _calculate_fee(self, vertical: str, gross_savings: float) -> Dict:
+    def _calculate_fee(self, vertical: str, gross_savings: float, user=None) -> Dict:
         """Calculate the platform fee for a given vertical and gross savings amount.
 
-        The fee is a percentage of gross savings, clamped between min and max.
+        Members: 25% of gross savings. Non-members: 50%.
 
         Returns:
             dict with keys: platform_fee_usd, fee_percent, gross_savings_usd,
@@ -1090,18 +1080,14 @@ class ArbitrageSearchEngine:
         """
         config = ARBITRAGE_FEE_CONFIG.get(vertical, ARBITRAGE_FEE_CONFIG["flight"])
 
-        raw_fee = gross_savings * config["fee_percent"]
-        clamped_fee = max(config["min_fee_usd"], min(raw_fee, config["max_fee_usd"]))
-
-        # If the fee would consume all savings, cap it
-        if clamped_fee >= gross_savings:
-            clamped_fee = gross_savings * 0.5  # Never take more than 50%
-
+        from payments import get_fee_percent
+        fee_percent = get_fee_percent(user)
+        platform_fee = gross_savings * fee_percent
         meets_threshold = gross_savings >= config["min_savings_threshold_usd"]
 
         return {
-            "platform_fee_usd": round(clamped_fee, 2),
-            "fee_percent": config["fee_percent"],
+            "platform_fee_usd": round(platform_fee, 2),
+            "fee_percent": fee_percent,
             "gross_savings_usd": round(gross_savings, 2),
             "meets_threshold": meets_threshold,
         }

@@ -353,7 +353,7 @@ MYSTES_AI_SYSTEM_PROMPT = (
     "The user wants results fast. Search first, then offer to refine.\n\n"
 
     "You have access to powerful tools that connect to live MYSTES data:\n"
-    "- search_flights: Search flights with real-time price comparison engine\n"
+    "- search_flights: Search flights via Picasso/Redbox consolidator (102 countries, IATA-ticketed)\n"
     "- search_hotels: Search hotels via liteAPI — returns names, room types, prices per night, savings vs Google\n"
     "- search_cruises, search_rentals: Cross-market travel search\n"
     "- search_products: Product price comparison across markets\n"

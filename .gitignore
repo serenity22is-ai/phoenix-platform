@@ -52,6 +52,9 @@ instance/
 .mid.py
 font_samples.html
 
+# Picasso auth token cache (contains session credentials)
+.picasso_token.json
+
 # Build output
 build/
 session_archive_full.md

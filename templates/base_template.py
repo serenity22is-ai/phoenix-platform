@@ -1384,9 +1384,115 @@ BASE_TEMPLATE = '''
             font-size: 12px;
             color: var(--text-muted);
         }
+
+        /* ============================================
+           TOAST NOTIFICATION SYSTEM
+           ============================================ */
+        #toast-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            pointer-events: auto;
+            min-width: 300px;
+            max-width: 420px;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-family: var(--font-sans);
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.4;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transform: translateX(120%);
+            opacity: 0;
+            transition: all 0.4s var(--ease-out);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .toast.hiding {
+            transform: translateX(120%);
+            opacity: 0;
+        }
+
+        .toast-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .toast-content {
+            flex: 1;
+            color: #fff;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .toast-close:hover {
+            color: #fff;
+        }
+
+        .toast-success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.85));
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+
+        .toast-error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(185, 28, 28, 0.85));
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .toast-info {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.9), rgba(109, 40, 217, 0.85));
+            border: 1px solid rgba(167, 139, 250, 0.3);
+        }
+
+        .toast-warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(217, 119, 6, 0.85));
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        @media (max-width: 600px) {
+            #toast-container {
+                top: 70px;
+                right: 10px;
+                left: 10px;
+            }
+            .toast {
+                min-width: unset;
+                max-width: unset;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
     <!-- 3D Aurora Background — Three.js WebGL -->
     <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
 
@@ -1663,6 +1769,60 @@ BASE_TEMPLATE = '''
         window.hideLoadingScreen = function() {
             document.getElementById('loadingScreen').classList.add('hidden');
         };
+
+        // Toast notification system — replaces all alert() calls globally
+        window._originalAlert = window.alert;
+        window.alert = function(msg) {
+            if (typeof window.showToast === 'function') {
+                // Detect toast type from message content
+                var type = 'info';
+                var lmsg = (msg || '').toLowerCase();
+                if (lmsg.indexOf('error') !== -1 || lmsg.indexOf('failed') !== -1 || lmsg.indexOf('could not') !== -1) type = 'error';
+                else if (lmsg.indexOf('success') !== -1 || lmsg.indexOf('verified') !== -1 || lmsg.indexOf('saved') !== -1 || lmsg.indexOf('completed') !== -1) type = 'success';
+                else if (lmsg.indexOf('please') !== -1 || lmsg.indexOf('warning') !== -1) type = 'warning';
+                window.showToast(msg, type);
+            } else {
+                window._originalAlert(msg);
+            }
+        };
+
+        window.showToast = function(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 4000;
+            var icons = { success: '&#10003;', error: '&#10007;', warning: '&#9888;', info: '&#8505;' };
+            var container = document.getElementById('toast-container');
+            var toast = document.createElement('div');
+            toast.className = 'toast toast-' + type;
+            toast.innerHTML = '<span class="toast-icon">' + (icons[type] || icons.info) + '</span>' +
+                '<span class="toast-content">' + message + '</span>' +
+                '<button class="toast-close" onclick="this.parentElement.classList.add(\'hiding\');setTimeout(function(){this.remove()}.bind(this.parentElement),400)">&times;</button>';
+            container.appendChild(toast);
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    toast.classList.add('show');
+                });
+            });
+            setTimeout(function() {
+                if (toast.parentElement) {
+                    toast.classList.add('hiding');
+                    toast.classList.remove('show');
+                    setTimeout(function() { if (toast.parentElement) toast.remove(); }, 400);
+                }
+            }, duration);
+        };
+
+        // Auto-convert Flask flash messages to toasts
+        (function() {
+            var alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                var type = 'info';
+                if (alert.classList.contains('alert-success')) type = 'success';
+                else if (alert.classList.contains('alert-error') || alert.classList.contains('alert-danger')) type = 'error';
+                else if (alert.classList.contains('alert-warning')) type = 'warning';
+                showToast(alert.textContent.trim(), type, 5000);
+                alert.style.display = 'none';
+            });
+        })();
 
         // PWA Service Worker registration — force update on every load
         if ('serviceWorker' in navigator) {

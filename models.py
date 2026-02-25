@@ -70,10 +70,13 @@ class User(UserMixin, db.Model):
     ai_month_reset_date = db.Column(db.DateTime, nullable=True)
     last_comparison_date = db.Column(db.Date, nullable=True)  # Build #73: daily comparison quota
 
-    # XRPL wallet (auto-generated on signup — Build #75)
+    # XRPL wallet (user-provided address for Phase 2 node payouts — no custody)
     xrpl_wallet_address = db.Column(db.String(100), unique=True, nullable=True)
-    xrpl_wallet_seed_encrypted = db.Column(db.Text, nullable=True)
+    xrpl_wallet_seed_encrypted = db.Column(db.Text, nullable=True)  # Legacy — no longer populated
     xrpl_wallet_created_at = db.Column(db.DateTime, nullable=True)
+
+    # Stripe Customer (for saved payment methods — Phase 1)
+    stripe_customer_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
 
     # Node referral (Build #75)
     node_referral_code = db.Column(db.String(20), unique=True, nullable=True, index=True)
@@ -201,6 +204,10 @@ class Deal(db.Model):
 
     # Status
     is_active = db.Column(db.Boolean, default=True)
+    deal_status = db.Column(db.String(20), default='available', index=True)
+    # available → claimed → booked → expired → cancelled
+    claimed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    claimed_at = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime)
 
     # Timestamps
@@ -268,6 +275,7 @@ class Deal(db.Model):
             'destination_tag': self.destination_tag,
             'booking_url': self.booking_url,
             'is_active': self.is_active,
+            'deal_status': self.deal_status or 'available',
             'is_multi_leg': self.is_multi_leg,
             'total_legs': self.total_legs,
         }
@@ -333,7 +341,7 @@ class Payment(db.Model):
 
     # Status
     status = db.Column(db.String(20), default='pending', index=True)
-    # pending, processing, verified, expired, refunded, failed
+    # pending, processing, verified, fulfillment_triggered, expired, refunded, failed
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -359,6 +367,9 @@ class Payment(db.Model):
 class Booking(db.Model):
     """User booking history model with vendor fulfillment tracking."""
     __tablename__ = 'bookings'
+    __table_args__ = (
+        db.UniqueConstraint('deal_id', 'payment_id', name='uq_booking_deal_payment'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -4072,7 +4083,7 @@ class FeatureFlag(db.Model):
         default_flags = [
             # Layer 1 - Launch
             ('vertical_flights', 'Flights Vertical', 'Search and book flights via Amadeus', 1, True),
-            ('vertical_hotels', 'Hotels Vertical', 'Search and book hotels via Amadeus', 1, True),
+            ('vertical_hotels', 'Hotels Vertical', 'Search and book hotels via liteAPI', 1, False),
             ('tier_system', 'Tier System', 'Bronze/Silver/Gold/Platinum user tiers', 1, True),
             ('node_onboarding', 'Node Onboarding', 'Allow users to join the Mystes Network', 1, True),
             ('proxy_b2b_sales', 'Proxy B2B Sales', 'Sell proxy access to enterprise customers', 1, True),
@@ -4083,6 +4094,10 @@ class FeatureFlag(db.Model):
             ('vertical_cruises', 'Cruises Vertical', 'Cruise booking and comparison', 2, False),
             ('node_network_active', 'Node Network Active', 'Use node network for user searches', 2, False),
             ('node_payments', 'Node Payments', 'Pay nodes for bandwidth/proxy usage', 2, False),
+            # Coinbase removed — Stripe + MoonPay only
+            ('xrpl_direct_payments', 'Direct XRP/RLUSD', 'Accept direct XRP and RLUSD payments', 2, False),
+            ('xrpl_escrow', 'XRPL Escrow', 'Trustless booking via XRPL escrow payments', 2, False),
+            ('wallet_auto_generation', 'Auto Wallet Generation', 'Generate XRPL wallets on signup (custody)', 2, False),
 
             # Layer 3 - Scale
             ('citizenserp_active', 'CitizenSERP Active', 'Use own SERP infrastructure', 3, False),

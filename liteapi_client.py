@@ -66,6 +66,7 @@ class LiteAPIHotelClient:
         currency: str = "USD",
         ratings: Optional[List[int]] = None,
         max_hotels: int = 20,
+        user=None,
     ) -> Dict:
         """
         Search hotels by IATA city/airport code via liteAPI.
@@ -222,8 +223,9 @@ class LiteAPIHotelClient:
             # Calculate savings vs Google benchmark
             if google_price > 0:
                 savings_raw = google_price - price_base
-                # MYSTES fee: 25% of savings, min $3, max $50
-                platform_fee = min(50.0, max(3.0, savings_raw * 0.25))
+                # MYSTES fee based on membership status
+                from payments import get_fee_percent
+                platform_fee = round(savings_raw * get_fee_percent(user), 2)
                 mystes_price = price_base + platform_fee
                 user_savings = google_price - mystes_price
                 savings_pct = round((user_savings / google_price * 100), 1) if google_price > 0 else 0
@@ -496,6 +498,7 @@ def search_hotels(
     currency: str = "USD",
     ratings: Optional[List[int]] = None,
     max_hotels: int = 20,
+    user=None,
 ) -> Dict:
     """Module-level convenience — drop-in replacement for amadeus_hotel_client.search_hotels."""
     return _get_client().search_hotels(
@@ -507,4 +510,5 @@ def search_hotels(
         currency=currency,
         ratings=ratings,
         max_hotels=max_hotels,
+        user=user,
     )

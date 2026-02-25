@@ -574,7 +574,8 @@ def register_mystes_ai_routes(app, csrf=None):
         savings = float(data.get("savings", 0) or data.get("price_difference", 0) or 0)
         if savings == 0 and home_price > arbitrage_price:
             savings = home_price - arbitrage_price
-        platform_fee = round(savings * 0.25, 2) if savings > 0 else 0
+        from payments import get_fee_percent
+        platform_fee = round(savings * get_fee_percent(), 2) if savings > 0 else 0
         savings_pct = float(data.get("savings_pct", 0) or 0)
 
         # Store Amadeus raw offer if present

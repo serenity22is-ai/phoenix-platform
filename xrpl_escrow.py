@@ -123,12 +123,82 @@ class XRPLEscrowManager:
         # Escrow settings
         self.default_timeout_hours = int(os.getenv("ESCROW_TIMEOUT_HOURS", "24"))
 
-        # MYSTES-specific escrow storage (maps to database in production)
-        self._escrows: Dict[str, EscrowPayment] = {}
-
         # Register callbacks for escrow events
         self._escrow.on_release(self._on_escrow_released)
         self._escrow.on_cancel(self._on_escrow_cancelled)
+
+    def _get_db_escrow(self, escrow_id: str):
+        """Load escrow from database. Returns (db_model, EscrowPayment) or (None, None)."""
+        try:
+            from models import Escrow as EscrowModel, db as app_db
+            record = EscrowModel.query.filter_by(escrow_id=escrow_id).first()
+            if not record:
+                return None, None
+            # Convert DB record to dataclass for compatibility
+            payment = EscrowPayment(
+                escrow_id=record.escrow_id,
+                booking_id=record.booking_id,
+                deal_id=record.deal_id,
+                sender_address=record.sender_address,
+                destination_address=record.destination_address,
+                amount_xrp=record.amount_xrp,
+                amount_drops=record.amount_drops or "",
+                sequence=record.sequence,
+                condition=record.condition or "",
+                fulfillment=record.fulfillment or "",
+                cancel_after=record.cancel_after or datetime.utcnow(),
+                finish_after=record.finish_after,
+                status=EscrowStatus(record.status) if record.status else EscrowStatus.PENDING,
+                create_tx_hash=record.create_tx_hash,
+                finish_tx_hash=record.finish_tx_hash,
+                cancel_tx_hash=record.cancel_tx_hash,
+                created_at=record.created_at or datetime.utcnow(),
+                updated_at=record.updated_at or datetime.utcnow(),
+            )
+            return record, payment
+        except Exception as e:
+            logger.error(f"Failed to load escrow {escrow_id} from DB: {e}")
+            return None, None
+
+    def _save_escrow_to_db(self, escrow_payment: EscrowPayment, user_id: int = None):
+        """Persist escrow to database."""
+        try:
+            from models import Escrow as EscrowModel, db as app_db
+            record = EscrowModel(
+                escrow_id=escrow_payment.escrow_id,
+                booking_id=escrow_payment.booking_id,
+                deal_id=escrow_payment.deal_id,
+                user_id=user_id,
+                sender_address=escrow_payment.sender_address,
+                destination_address=escrow_payment.destination_address,
+                amount_xrp=escrow_payment.amount_xrp,
+                amount_drops=escrow_payment.amount_drops,
+                sequence=escrow_payment.sequence,
+                condition=escrow_payment.condition,
+                fulfillment=escrow_payment.fulfillment,
+                cancel_after=escrow_payment.cancel_after,
+                finish_after=escrow_payment.finish_after,
+                status=escrow_payment.status.value if hasattr(escrow_payment.status, 'value') else str(escrow_payment.status),
+                create_tx_hash=escrow_payment.create_tx_hash,
+                finish_tx_hash=escrow_payment.finish_tx_hash,
+                cancel_tx_hash=escrow_payment.cancel_tx_hash,
+            )
+            app_db.session.add(record)
+            app_db.session.commit()
+            logger.info(f"Escrow {escrow_payment.escrow_id} saved to database")
+        except Exception as e:
+            logger.error(f"Failed to save escrow to DB: {e}")
+
+    def _update_escrow_status(self, escrow_id: str, **kwargs):
+        """Atomically update escrow status in database."""
+        try:
+            from models import Escrow as EscrowModel, db as app_db
+            EscrowModel.query.filter_by(escrow_id=escrow_id).update(
+                {**kwargs, 'updated_at': datetime.utcnow()}
+            )
+            app_db.session.commit()
+        except Exception as e:
+            logger.error(f"Failed to update escrow {escrow_id} in DB: {e}")
 
     def _on_escrow_released(self, data: Dict[str, Any]) -> None:
         """Handle escrow release events."""
@@ -208,8 +278,8 @@ class XRPLEscrowManager:
                 updated_at=now,
             )
 
-            # Store locally
-            self._escrows[escrow_id] = escrow_payment
+            # Persist to database
+            self._save_escrow_to_db(escrow_payment)
 
             # Return customer-facing response (no fulfillment!)
             return {
@@ -252,7 +322,7 @@ class XRPLEscrowManager:
         Returns:
             Confirmation result
         """
-        escrow = self._escrows.get(escrow_id)
+        db_record, escrow = self._get_db_escrow(escrow_id)
         if not escrow:
             return {"success": False, "error": "Escrow not found"}
 
@@ -264,10 +334,12 @@ class XRPLEscrowManager:
         )
 
         if result.get("success"):
-            # Update local record
-            escrow.create_tx_hash = tx_hash
-            escrow.sequence = sequence
-            escrow.updated_at = datetime.utcnow()
+            # Update database record
+            self._update_escrow_status(
+                escrow_id,
+                create_tx_hash=tx_hash,
+                sequence=sequence,
+            )
 
             logger.info(f"Escrow {escrow_id} confirmed on-chain: {tx_hash}")
 
@@ -301,7 +373,7 @@ class XRPLEscrowManager:
         Returns:
             Release result
         """
-        escrow = self._escrows.get(escrow_id)
+        db_record, escrow = self._get_db_escrow(escrow_id)
         if not escrow:
             return {"success": False, "error": "Escrow not found"}
 
@@ -320,17 +392,21 @@ class XRPLEscrowManager:
         )
 
         if result.get("success"):
-            escrow.status = EscrowStatus.RELEASED
-            escrow.finish_tx_hash = result.get("tx_hash")
-            escrow.updated_at = datetime.utcnow()
+            # Atomically update status in database
+            self._update_escrow_status(
+                escrow_id,
+                status='released',
+                finish_tx_hash=result.get("tx_hash"),
+                confirmation_code=confirmation_code,
+            )
 
-            logger.info(f"Escrow {escrow_id} released: {escrow.finish_tx_hash}")
+            logger.info(f"Escrow {escrow_id} released: {result.get('tx_hash')}")
 
             return {
                 "success": True,
                 "escrow_id": escrow_id,
                 "status": "released",
-                "tx_hash": escrow.finish_tx_hash,
+                "tx_hash": result.get("tx_hash"),
                 "amount_xrp": escrow.amount_xrp,
                 "confirmation_code": confirmation_code,
                 "explorer_url": result.get("explorer_url"),
@@ -356,7 +432,7 @@ class XRPLEscrowManager:
         Returns:
             Cancellation result
         """
-        escrow = self._escrows.get(escrow_id)
+        db_record, escrow = self._get_db_escrow(escrow_id)
         if not escrow:
             return {"success": False, "error": "Escrow not found"}
 
@@ -383,17 +459,21 @@ class XRPLEscrowManager:
         )
 
         if result.get("success"):
-            escrow.status = EscrowStatus.CANCELLED
-            escrow.cancel_tx_hash = result.get("tx_hash")
-            escrow.updated_at = datetime.utcnow()
+            # Atomically update status in database
+            self._update_escrow_status(
+                escrow_id,
+                status='cancelled',
+                cancel_tx_hash=result.get("tx_hash"),
+                failure_reason=reason,
+            )
 
-            logger.info(f"Escrow {escrow_id} cancelled: {escrow.cancel_tx_hash}")
+            logger.info(f"Escrow {escrow_id} cancelled: {result.get('tx_hash')}")
 
             return {
                 "success": True,
                 "escrow_id": escrow_id,
                 "status": "cancelled",
-                "tx_hash": escrow.cancel_tx_hash,
+                "tx_hash": result.get("tx_hash"),
                 "amount_xrp": escrow.amount_xrp,
                 "refunded_to": escrow.sender_address,
                 "reason": reason,
@@ -405,12 +485,13 @@ class XRPLEscrowManager:
 
     def get_escrow_status(self, escrow_id: str) -> Dict[str, Any]:
         """Get current status of an escrow."""
-        escrow = self._escrows.get(escrow_id)
+        db_record, escrow = self._get_db_escrow(escrow_id)
         if not escrow:
             return {"success": False, "error": "Escrow not found"}
 
         # Check if expired
         if escrow.status == EscrowStatus.PENDING and datetime.utcnow() > escrow.cancel_after:
+            self._update_escrow_status(escrow_id, status='expired')
             escrow.status = EscrowStatus.EXPIRED
 
         return {
@@ -420,10 +501,26 @@ class XRPLEscrowManager:
 
     def get_pending_escrows_for_booking(self, booking_id: int) -> list:
         """Get all pending escrows for a booking."""
-        return [
-            e.to_dict() for e in self._escrows.values()
-            if e.booking_id == booking_id and e.status == EscrowStatus.PENDING
-        ]
+        try:
+            from models import Escrow as EscrowModel
+            records = EscrowModel.query.filter_by(
+                booking_id=booking_id, status='pending'
+            ).all()
+            return [
+                {
+                    "escrow_id": r.escrow_id,
+                    "booking_id": r.booking_id,
+                    "deal_id": r.deal_id,
+                    "amount_xrp": r.amount_xrp,
+                    "status": r.status,
+                    "cancel_after": r.cancel_after.isoformat() if r.cancel_after else None,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in records
+            ]
+        except Exception as e:
+            logger.error(f"Failed to query escrows for booking {booking_id}: {e}")
+            return []
 
 
 # --- INTEGRATION WITH BOOKING SYSTEM ---

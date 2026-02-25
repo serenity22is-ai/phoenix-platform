@@ -61,10 +61,9 @@ class Config:
     TRANSAK_API_KEY = os.environ.get('TRANSAK_API_KEY')
     COINBASE_ONRAMP_APP_ID = os.environ.get('COINBASE_ONRAMP_APP_ID')
 
-    # Platform
-    PLATFORM_FEE_PERCENT = 25
-    PLATFORM_FEE_MIN_USD = 3.00
-    PLATFORM_FEE_MAX_USD = 50.00
+    # Platform fee by membership status
+    MEMBER_FEE_PERCENT = 25       # Members: 25% of savings
+    NON_MEMBER_FEE_PERCENT = 50   # Non-members: 50% of savings
     MIN_SAVINGS_THRESHOLD = 20.00
 
     # Proxy
@@ -81,10 +80,15 @@ class Config:
     # liteAPI (Hotel Search — replaces Amadeus Hotel Self-Service)
     LITEAPI_KEY = os.environ.get('LITEAPI_KEY')
 
-    # Picasso Travel / AERTiCKET (Flight Search + Ticketing — replaces Amadeus)
-    PICASSO_API_KEY = os.environ.get('PICASSO_API_KEY')
-    PICASSO_API_SECRET = os.environ.get('PICASSO_API_SECRET')
-    PICASSO_API_URL = os.environ.get('PICASSO_API_URL', 'https://cockpit.picassotravel.com/api/v1')
+    # Picasso Travel / AERTiCKET Redbox (Flight Search + Ticketing — replaces Amadeus)
+    PICASSO_SESSION_TOKEN = os.environ.get('PICASSO_SESSION_TOKEN')
+    PICASSO_REDBOX_URL = os.environ.get('PICASSO_REDBOX_URL', 'https://aerpackit.flightconex.de/redbox')
+    PICASSO_AGENCY_ID = os.environ.get('PICASSO_AGENCY_ID', '629818')
+    PICASSO_BRANCH = os.environ.get('PICASSO_BRANCH', 'PICL_707')
+    PICASSO_USERNAME = os.environ.get('PICASSO_USERNAME')
+    PICASSO_PASSWORD = os.environ.get('PICASSO_PASSWORD')
+    PICASSO_TOTP_SECRET = os.environ.get('PICASSO_TOTP_SECRET')
+    PICASSO_COCKPIT_URL = os.environ.get('PICASSO_COCKPIT_URL', 'https://cockpit.thegoodconsolidator.com')
 
 
 class DevelopmentConfig(Config):

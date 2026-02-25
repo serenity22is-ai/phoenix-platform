@@ -123,7 +123,7 @@ class BookingFulfillmentManager:
                 "message": "Booking already exists"
             }
 
-        # Create new booking
+        # Create new booking (unique constraint on deal_id+payment_id prevents duplicates)
         booking = Booking(
             user_id=getattr(user, 'id', None),
             deal_id=deal.id,
@@ -136,8 +136,27 @@ class BookingFulfillmentManager:
             created_at=datetime.utcnow()
         )
 
-        self.db.add(booking)
-        self.db.commit()
+        try:
+            self.db.add(booking)
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            # Unique constraint violation — another thread beat us
+            if 'UNIQUE constraint' in str(e) or 'IntegrityError' in type(e).__name__:
+                logger.info(f"Duplicate booking caught by DB constraint for deal {deal.deal_id}")
+                existing = Booking.query.filter_by(
+                    deal_id=deal.id,
+                    payment_id=payment.id
+                ).first()
+                if existing:
+                    return {
+                        "success": True,
+                        "booking_id": existing.id,
+                        "booking": existing,
+                        "status": existing.status,
+                        "message": "Booking already exists (concurrent request)"
+                    }
+            raise
 
         logger.info(f"Created booking {booking.id} for deal {deal.deal_id}, fulfillment: {fulfillment_type}")
 

@@ -27,7 +27,116 @@ from main import (
     search_amadeus_with_proxy_prices,
     AMADEUS_AVAILABLE,
     AMADEUS_CONFIGURED,
+    PICASSO_AVAILABLE,
+    PICASSO_CONFIGURED,
 )
+
+import re as _re
+
+
+# --- FLIGHT MATCHING HELPERS (Picasso ↔ Google) ---
+
+def _extract_hhmm(time_str):
+    """Parse time string to minutes since midnight for matching."""
+    if not time_str:
+        return None
+    m = _re.search(r'(\d{1,2}):(\d{2})', str(time_str))
+    if m:
+        h, mi = int(m.group(1)), int(m.group(2))
+        ampm = _re.search(r'(AM|PM)', str(time_str), _re.IGNORECASE)
+        if ampm:
+            period = ampm.group(1).upper()
+            if period == "PM" and h != 12:
+                h += 12
+            if period == "AM" and h == 12:
+                h = 0
+        return h * 60 + mi
+    return None
+
+
+def _norm_airline(name):
+    """Normalize airline name for cross-source matching."""
+    if not name:
+        return ""
+    n = name.strip().lower()
+    for remove in ["airlines", "air lines", "airways", " air ", " intl"]:
+        n = n.replace(remove, " ")
+    n = " ".join(n.split())
+
+    mapping = {
+        "american": "american", "aa": "american",
+        "delta": "delta", "dl": "delta",
+        "united": "united", "ua": "united",
+        "air france": "air france", "af": "air france",
+        "british": "british", "ba": "british",
+        "lufthansa": "lufthansa", "lh": "lufthansa",
+        "virgin atlantic": "virgin", "virgin": "virgin", "vs": "virgin",
+        "jetblue": "jetblue", "b6": "jetblue",
+        "klm": "klm", "kl": "klm",
+        "swiss": "swiss", "lx": "swiss",
+        "iberia": "iberia", "ib": "iberia",
+        "turkish": "turkish", "tk": "turkish",
+        "ana": "ana", "nh": "ana", "all nippon": "ana",
+        "jal": "jal", "jl": "jal", "japan": "jal",
+        "tap portugal": "tap", "tap": "tap", "tp": "tap",
+        "aer lingus": "aer lingus", "ei": "aer lingus",
+        "lot": "lot", "lo": "lot", "lot polish": "lot",
+        "ita": "ita", "az": "ita",
+        "austrian": "austrian", "os": "austrian",
+        "condor": "condor", "de": "condor",
+        "icelandair": "icelandair", "fi": "icelandair",
+        "norwegian": "norwegian", "dy": "norwegian",
+        "air canada": "air canada", "ac": "air canada",
+        "cathay": "cathay", "cx": "cathay",
+        "singapore": "singapore", "sq": "singapore",
+        "korean": "korean", "ke": "korean",
+        "zipair": "zipair",
+    }
+
+    for key, val in mapping.items():
+        if key in n or n in key:
+            return val
+    return n
+
+
+def _match_picasso_to_google(picasso_flights, google_flights):
+    """Match Picasso flights to Google flights by airline + departure time (±15 min).
+
+    Returns list of (picasso_index, google_flight) tuples.
+    """
+    matches = []
+    used_google = set()
+
+    for p_idx, pf in enumerate(picasso_flights):
+        p_airline = _norm_airline(pf.get("airline_name") or pf.get("airline", ""))
+        p_time = _extract_hhmm(pf.get("departure_time", ""))
+        if not p_time or not p_airline:
+            continue
+
+        best_gf = None
+        best_g_idx = None
+        best_diff = 999
+
+        for g_idx, gf in enumerate(google_flights):
+            if g_idx in used_google:
+                continue
+            g_airline = _norm_airline(gf.get("airline", ""))
+            g_time = _extract_hhmm(gf.get("departure_time", ""))
+            if not g_time or not g_airline:
+                continue
+            if p_airline != g_airline:
+                continue
+            diff = abs(p_time - g_time)
+            if diff <= 15 and diff < best_diff:
+                best_diff = diff
+                best_gf = gf
+                best_g_idx = g_idx
+
+        if best_gf:
+            matches.append((p_idx, best_gf))
+            used_google.add(best_g_idx)
+
+    return matches
 
 
 # --- AIRPORT TO COUNTRY/MARKET MAPPING ---
@@ -284,7 +393,8 @@ def search_global(
     cabin_class: str = "economy",
     fast_mode: bool = True,
     search_options: dict = None,
-    use_direct_scraping: bool = True
+    use_direct_scraping: bool = True,
+    user=None
 ) -> Dict:
     """
     Search for flights from anywhere to anywhere with smart market selection.
@@ -306,6 +416,10 @@ def search_global(
     Returns:
         dict with flight comparisons, deals, and complete flight details
     """
+    # Resolve fee percentage based on membership
+    from payments import get_fee_percent
+    fee_pct = get_fee_percent(user)
+
     # Determine trip type
     is_round_trip = bool(return_date)
     trip_type_str = "ROUND-TRIP" if is_round_trip else "ONE-WAY"
@@ -321,6 +435,157 @@ def search_global(
     # Falls back to PROXY-ONLY if Amadeus not configured
     hybrid_result = None
     cabin_class = search_options.get("cabin_class", "economy") if search_options else "economy"
+
+    # --- PICASSO / REDBOX SEARCH (Priority — consolidator pricing) ---
+    if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
+        try:
+            from picasso_client import search_with_picasso
+            print(f"\n[PICASSO/REDBOX] Searching consolidator fares...")
+            print(f"  → Redbox API → Full flight details + NET/PUB consolidator pricing")
+
+            adults = 1
+            if search_options and search_options.get("passengers"):
+                adults = search_options["passengers"].get("adults", 1)
+
+            picasso_result = search_with_picasso(
+                origin=origin,
+                destination=destination,
+                departure_date=date,
+                return_date=return_date,
+                adults=adults,
+                cabin_class=cabin_class,
+            )
+
+            if picasso_result.get("success") and picasso_result.get("flights"):
+                picasso_flights = picasso_result["flights"]
+                print(f"  [PICASSO] Found {len(picasso_flights)} flights from {picasso_result.get('airlines_count', '?')} airlines")
+
+                # Format Picasso flights into MYSTES display format
+                formatted_flights = []
+                for pf in picasso_flights:
+                    flight_dep = pf.get("departure_time", "")
+                    flight_num = pf.get("segments", [{}])[0].get("flight_number", "") if pf.get("segments") else ""
+
+                    formatted_flight = {
+                        "flight_id": pf.get("fare_id") or f"{pf.get('airline', 'XX')}_{origin}_{destination}_{date}",
+                        "airline": pf.get("airline_name") or pf.get("airline", "Various Airlines"),
+                        "flight_number": flight_num,
+                        "departure_time": flight_dep,
+                        "arrival_time": pf.get("arrival_time"),
+                        "duration": pf.get("duration_formatted") or pf.get("duration"),
+                        "stops": pf.get("stops", 0),
+                        "layovers": pf.get("stop_airports", []),
+                        "legs": pf.get("legs", []),
+                        "segments": pf.get("segments", []),
+                        "cheapest_price": pf.get("price", 0),
+                        "cheapest_market": "Mystes",
+                        "converted_prices": {},
+                        "origin": origin,
+                        "destination": destination,
+                        "route": f"{origin} → {destination}",
+                        "date": date,
+                        "return_date": return_date,
+                        "is_round_trip": is_round_trip,
+                        "deal": None,
+                        "savings": 0,
+                        "savings_pct": 0,
+                        "travel_class": pf.get("cabin_class", "ECONOMY"),
+                        "baggage_info": pf.get("baggage_info"),
+                        "fare_family": pf.get("fare_family"),
+                        "fare_type": pf.get("fare_type"),
+                        "return_flight": {
+                            "departure_time": pf.get("return_departure_time"),
+                            "arrival_time": pf.get("return_arrival_time"),
+                            "duration": pf.get("return_duration"),
+                            "stops": pf.get("return_stops"),
+                        } if pf.get("return_departure_time") else None,
+                        "raw_offer": {"fare_id": pf.get("fare_id"), "source": "picasso"},
+                    }
+                    formatted_flights.append(formatted_flight)
+
+                # --- Compare Picasso prices against Google Flights ---
+                google_flights = []
+                try:
+                    from google_flights_scraper import scrape_flights_sync
+                    print(f"\n  [GOOGLE] Scraping Google Flights (US) for price comparison...")
+                    google_result = scrape_flights_sync(
+                        origin=origin, destination=destination, date=date,
+                        markets=["US"], cabin_class=cabin_class, return_date=return_date,
+                    )
+                    google_flights = google_result.get("all_results", {}).get("US", {}).get("flights", [])
+                    print(f"  [GOOGLE] Found {len(google_flights)} US flights")
+                except Exception as e:
+                    print(f"  [GOOGLE] Scrape failed: {e}")
+
+                # Match Picasso flights to Google flights and populate deal objects
+                matched_count = 0
+                if google_flights:
+                    matches = _match_picasso_to_google(picasso_flights, google_flights)
+                    print(f"  [MATCH] Matched {len(matches)} flights by airline+time")
+
+                    for p_idx, gf in matches:
+                        if p_idx >= len(formatted_flights):
+                            continue
+                        google_price = gf.get("price", 0)
+                        picasso_price = picasso_flights[p_idx].get("price", 0)
+                        gross_savings = google_price - picasso_price
+
+                        if gross_savings >= 10:
+                            platform_fee = round(gross_savings * fee_pct, 2)
+                            flight_num = formatted_flights[p_idx].get("flight_number", "")
+                            formatted_flights[p_idx]["deal"] = {
+                                "deal_id": f"deal_{origin}_{destination}_{date}_{flight_num}",
+                                "home_price": round(google_price, 2),
+                                "arbitrage_price": round(picasso_price, 2),
+                                "gross_savings": round(gross_savings, 2),
+                                "price_difference": round(gross_savings, 2),
+                                "user_savings": round(gross_savings - platform_fee, 2),
+                                "platform_fee_usd": platform_fee,
+                                "user_saves_pct": round((gross_savings / google_price) * 100, 1),
+                                "cheapest_market": "Mystes",
+                                "is_good_deal": True,
+                                "proxy_verified": True,
+                            }
+                            formatted_flights[p_idx]["savings"] = round(gross_savings - platform_fee, 2)
+                            formatted_flights[p_idx]["savings_pct"] = round((gross_savings / google_price) * 100, 1)
+                            matched_count += 1
+
+                # Deals = flights with a populated deal object (savings vs Google)
+                deals = [f for f in formatted_flights if f.get("deal")]
+
+                print(f"\n{'='*60}")
+                print(f"PICASSO RESULTS: {len(formatted_flights)} flights, {matched_count} with Google savings")
+                print(f"{'='*60}")
+
+                return {
+                    "origin": origin,
+                    "destination": destination,
+                    "date": date,
+                    "return_date": return_date,
+                    "is_round_trip": is_round_trip,
+                    "markets_checked": 1,
+                    "total_flights": len(formatted_flights),
+                    "deals": deals,
+                    "flights": formatted_flights,
+                    "all_flights": formatted_flights,
+                    "price_comparison": [],
+                    "proxy_results": {
+                        "cheapest_market": "Mystes",
+                        "cheapest_price_usd": formatted_flights[0]["cheapest_price"] if formatted_flights else 0,
+                        "savings_vs_us": 0,
+                        "savings_pct": 0,
+                        "markets_checked": 1,
+                    },
+                    "data_sources": {"prices": "picasso_redbox", "flight_details": "picasso_redbox"},
+                }
+            else:
+                error = picasso_result.get("error", "No results")
+                print(f"  [PICASSO] No results: {error}")
+                # Fall through to Amadeus + Proxy search
+
+        except Exception as e:
+            print(f"  [PICASSO] Error: {e}")
+            # Fall through to Amadeus + Proxy search
 
     if use_direct_scraping and DIRECT_SCRAPER_AVAILABLE:
         try:
@@ -765,7 +1030,7 @@ def search_global(
 
             flight_deal = None
             if flight_savings >= 10:
-                platform_fee = round(flight_savings * 0.25, 2)
+                platform_fee = round(flight_savings * fee_pct, 2)
                 flight_deal = {
                     "deal_id": f"deal_{origin}_{destination}_{date}_{flight.get('flight_number', '')}",
                     "home_price": round(google_market_price, 2) if google_market_price else round(amadeus_booking_price, 2),
@@ -904,8 +1169,8 @@ def search_global(
                             "home_price": cheapest_us_matched,
                             "arbitrage_price": mf_price_usd,
                             "gross_savings": savings_vs_cheapest_us,
-                            "user_savings": round(savings_vs_cheapest_us * 0.75, 2),
-                            "platform_fee_usd": round(savings_vs_cheapest_us * 0.25, 2),
+                            "user_savings": round(savings_vs_cheapest_us * (1 - fee_pct), 2),
+                            "platform_fee_usd": round(savings_vs_cheapest_us * fee_pct, 2),
                             "user_saves_pct": savings_pct_vs_us,
                             "is_good_deal": True,
                             "proxy_verified": True,
@@ -939,8 +1204,8 @@ def search_global(
                     "home_price": us_price,
                     "arbitrage_price": cheapest_price,
                     "gross_savings": savings_vs_us,
-                    "user_savings": round(savings_vs_us * 0.75, 2),
-                    "platform_fee_usd": round(savings_vs_us * 0.25, 2),
+                    "user_savings": round(savings_vs_us * (1 - fee_pct), 2),
+                    "platform_fee_usd": round(savings_vs_us * fee_pct, 2),
                     "user_saves_pct": savings_pct,
                     "is_good_deal": True,
                     "proxy_verified": True,
@@ -984,10 +1249,11 @@ def search_global(
             "data_sources": hybrid_result.get("data_sources", {}),
         }
 
-    # Hybrid search failed — no Amadeus or proxy data available
-    print(f"\n[NO DATA] Amadeus + Proxy search unavailable.")
-    print(f"  Ensure AMADEUS_API_KEY and AMADEUS_API_SECRET are set in .env")
-    print(f"  and/or proxy scraper (playwright) is installed.")
+    # All search providers failed
+    print(f"\n[NO DATA] No flight search providers returned results.")
+    if not (PICASSO_AVAILABLE and PICASSO_CONFIGURED):
+        print(f"  Primary: Set PICASSO_SESSION_TOKEN for Picasso/Redbox consolidator search")
+    print(f"  Fallback: Amadeus + proxy scraping (legacy)")
 
     return {
         "origin": origin,
@@ -1001,7 +1267,7 @@ def search_global(
         "all_flights": [],
         "proxy_results": None,
         "data_sources": {"prices": "none", "flight_details": "none"},
-        "error": "No search providers available. Configure Amadeus API keys or install playwright for proxy scraping.",
+        "error": "No search providers available. Set PICASSO_SESSION_TOKEN for Picasso/Redbox consolidator flight search.",
     }
 
 

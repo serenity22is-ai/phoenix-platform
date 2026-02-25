@@ -356,11 +356,55 @@ async def extract_flights_from_dom(page, market: str, currency: str) -> List[Dic
                             // Don't continue — the same line might also contain the airline name
                         }
 
-                        // Airline name: alphabetic text, 3-40 chars, not a flight number alone
-                        // Filter out "round trip" translations that appear as text lines
-                        const roundTripTerms = /^(round trip|ida y vuelta|hin und r[üu]ck|retourticket|w obie strony|andata e ritorno|aller[- ]retour|viaje redondo|tur.retur|往復|왕복|ไปกลับ|ida e volta|return|Roundtrip)$/i;
-                        if (!airline && line.length > 2 && line.length < 50 && /^[A-Za-zÀ-ÿ\s\-\.]+$/.test(line) && !roundTripTerms.test(line)) {
-                            airline = line;
+                        // Airline name extraction with known-airline matching
+                        const skipTerms = /^(round trip|ida y vuelta|hin und r[üu]ck|retourticket|w obie strony|andata e ritorno|aller[- ]retour|viaje redondo|tur.retur|往復|왕복|ไปกลับ|ida e volta|return|Roundtrip)$/i;
+                        const envTerms = /emission|carbon|co2|avg |average|footprint|less than|typical|separate tickets/i;
+                        if (!airline && line.length > 2 && line.length < 60 && /[A-Za-zÀ-ÿ]/.test(line) && !skipTerms.test(line) && !envTerms.test(line)) {
+                            // Known airlines — longest match wins (handles "JetBlue", "Air France", etc.)
+                            const knownAirlines = [
+                                'American Airlines', 'American', 'Delta Air Lines', 'Delta',
+                                'United Airlines', 'United', 'Air France', 'British Airways',
+                                'Lufthansa', 'Virgin Atlantic', 'JetBlue', 'KLM',
+                                'SWISS', 'Swiss International', 'Iberia', 'Turkish Airlines',
+                                'ANA', 'All Nippon', 'JAL', 'Japan Airlines',
+                                'TAP Air Portugal', 'Tap Air Portugal', 'Aer Lingus',
+                                'LOT', 'LOT Polish', 'ITA Airways', 'Austrian',
+                                'Condor', 'Icelandair', 'Norwegian', 'Air Canada',
+                                'WestJet', 'Cathay Pacific', 'Singapore Airlines',
+                                'Korean Air', 'EVA Air', 'STARLUX', 'STARLUX Airlines',
+                                'China Airlines', 'Finnair', 'SAS', 'Eurowings',
+                                'PLAY', 'French Bee', 'Norse Atlantic', 'Zipair',
+                                'Edelweiss', 'Air Europa', 'LATAM', 'Avianca',
+                                'Copa Airlines', 'Volaris', 'Aeromexico',
+                            ];
+                            // Try to find a known airline name in the line
+                            let found = null;
+                            for (const known of knownAirlines) {
+                                const idx = line.indexOf(known);
+                                if (idx >= 0) {
+                                    // Prefer longer matches
+                                    if (!found || known.length > found.length) {
+                                        found = known;
+                                    }
+                                }
+                            }
+                            // Also try case-insensitive match
+                            if (!found) {
+                                const lineLower = line.toLowerCase();
+                                for (const known of knownAirlines) {
+                                    if (lineLower.includes(known.toLowerCase())) {
+                                        if (!found || known.length > found.length) {
+                                            found = known;
+                                        }
+                                    }
+                                }
+                            }
+                            if (found) {
+                                airline = found;
+                            } else if (/^[A-Za-zÀ-ÿ\s\-\.]+$/.test(line) && line.length < 40) {
+                                // Fallback: use the line if it's purely alphabetic
+                                airline = line;
+                            }
                         }
                     }
                 }

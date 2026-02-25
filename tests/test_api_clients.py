@@ -18,6 +18,13 @@ from unittest.mock import MagicMock, patch, PropertyMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def _mock_member():
+    """Return a mock authenticated user (member pricing = 25% fee)."""
+    user = MagicMock()
+    user.is_authenticated = True
+    return user
+
+
 # ===================================================================
 # liteAPI Hotel Client Tests
 # ===================================================================
@@ -182,11 +189,11 @@ class TestLiteAPIClient:
         client = LiteAPIHotelClient()
         client.api_key = "test_key"
 
-        result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16")
+        result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
         # Google price: $200, our cost: $100, savings_raw = $100
-        # Platform fee: 25% of $100 = $25 (within $3-$50 range)
+        # Member fee: 25% of $100 = $25
         # MYSTES price: $100 + $25 = $125
         # User savings: $200 - $125 = $75
         # Savings pct: 75/200 = 37.5%
@@ -199,8 +206,8 @@ class TestLiteAPIClient:
 
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
-    def test_platform_fee_min_cap(self, mock_get, mock_post):
-        """Platform fee has $3 minimum."""
+    def test_platform_fee_small_savings(self, mock_get, mock_post):
+        """Platform fee is flat 25% even on small savings."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -229,17 +236,17 @@ class TestLiteAPIClient:
         client = LiteAPIHotelClient()
         client.api_key = "test_key"
 
-        result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16")
+        result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # savings_raw = $5, 25% = $1.25, but min is $3
-        assert hotel["platform_fee"] == 3.00
-        assert hotel["price_total"] == 98.00  # $95 + $3
+        # savings_raw = $5, member 25% = $1.25
+        assert hotel["platform_fee"] == 1.25
+        assert hotel["price_total"] == 96.25  # $95 + $1.25
 
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
-    def test_platform_fee_max_cap(self, mock_get, mock_post):
-        """Platform fee has $50 maximum."""
+    def test_platform_fee_large_savings(self, mock_get, mock_post):
+        """Platform fee is flat 25% even on large savings (no cap)."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -268,12 +275,12 @@ class TestLiteAPIClient:
         client = LiteAPIHotelClient()
         client.api_key = "test_key"
 
-        result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16")
+        result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # savings_raw = $500, 25% = $125, but max is $50
-        assert hotel["platform_fee"] == 50.00
-        assert hotel["price_total"] == 550.00  # $500 + $50
+        # savings_raw = $500, member 25% = $125
+        assert hotel["platform_fee"] == 125.00
+        assert hotel["price_total"] == 625.00  # $500 + $125
 
     @patch("liteapi_client.requests.post")
     def test_validate_offer_returns_prebook_id(self, mock_post):
@@ -530,76 +537,9 @@ class TestPicassoClient:
         assert flight["mystes_price"] == 300.0
         assert flight["deal"] is None  # No deal object when no savings
 
-    @patch("picasso_client.requests.post")
-    def test_platform_fee_min_cap(self, mock_post):
-        """Platform fee minimum is $3."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {
-                "data": [{
-                    "id": "OFF-001",
-                    "pricing": [
-                        {"pos": "US", "amount": 205},
-                        {"pos": "DK", "amount": 200},
-                    ],
-                    "itineraries": [{"segments": [{
-                        "carrierCode": "AA", "number": "1",
-                        "departure": {"iataCode": "JFK", "at": "2026-03-15T08:00:00"},
-                        "arrival": {"iataCode": "LHR", "at": "2026-03-15T20:00:00"},
-                    }]}],
-                    "duration": "PT7H",
-                }],
-                "marketsSearched": 2,
-            }
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
-
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
-
-        result = client.search_flights("JFK", "LHR", "2026-03-15")
-        flight = result["flights"][0]
-
-        # savings_raw = $5, 25% = $1.25, min $3
-        assert flight["platform_fee"] == 3.0
-        assert flight["mystes_price"] == 203.0
-
-    @patch("picasso_client.requests.post")
-    def test_platform_fee_max_cap(self, mock_post):
-        """Platform fee maximum is $50."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {
-                "data": [{
-                    "id": "OFF-001",
-                    "pricing": [
-                        {"pos": "US", "amount": 1500},
-                        {"pos": "PL", "amount": 1000},
-                    ],
-                    "itineraries": [{"segments": [{
-                        "carrierCode": "LO", "number": "1",
-                        "departure": {"iataCode": "JFK", "at": "2026-03-15T08:00:00"},
-                        "arrival": {"iataCode": "WAW", "at": "2026-03-16T06:00:00"},
-                    }]}],
-                    "duration": "PT10H",
-                }],
-                "marketsSearched": 2,
-            }
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
-
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
-
-        result = client.search_flights("JFK", "WAW", "2026-03-15")
-        flight = result["flights"][0]
-
-        # savings_raw = $500, 25% = $125, max $50
-        assert flight["platform_fee"] == 50.0
-        assert flight["mystes_price"] == 1050.0
-        assert flight["savings"] == 450.0
+    # Note: platform_fee is NOT computed in picasso_client.py — it's computed
+    # in search.py when comparing Picasso prices against Google prices.
+    # Fee invariant tests are in TestPricingInvariants below.
 
     def test_parse_duration_iso(self):
         """Duration parser handles ISO 8601 format."""
@@ -825,14 +765,14 @@ class TestNewRoutes:
         resp = auth_client.post('/api/hotels/search',
                                 data=json.dumps({}),
                                 content_type='application/json')
-        assert resp.status_code in (200, 400, 422)
+        assert resp.status_code in (200, 400, 410, 422)  # 410 when vertical_hotels disabled
 
     def test_hotel_select_api_requires_auth(self, client):
-        """Hotel select endpoint requires authentication or rejects bad data."""
+        """Hotel select endpoint requires auth or rejects bad data (410 when disabled)."""
         resp = client.post('/api/hotels/select',
                            data=json.dumps({"offer_id": "test"}),
                            content_type='application/json')
-        assert resp.status_code in (302, 400, 401, 403)
+        assert resp.status_code in (302, 400, 401, 403, 410)
 
     def test_mystes_ai_page_loads(self, auth_client):
         """MYSTES AI chat page loads for authenticated users."""
@@ -923,9 +863,21 @@ class TestHotelSessionCaching:
 class TestPricingInvariants:
     """Test core pricing model invariants that must always hold."""
 
-    def test_user_always_saves_on_arbitrage(self):
-        """When there IS arbitrage, the user ALWAYS pays less than Google."""
-        from picasso_client import PLATFORM_FEE_PERCENT, PLATFORM_FEE_MIN_USD, PLATFORM_FEE_MAX_USD
+    def test_member_fee_is_25_percent(self):
+        """Authenticated members get 25% platform fee."""
+        from payments import get_fee_percent
+        assert get_fee_percent(_mock_member()) == 0.25
+
+    def test_non_member_fee_is_50_percent(self):
+        """Anonymous/guest users get 50% platform fee."""
+        from payments import get_fee_percent
+        assert get_fee_percent(None) == 0.50
+        assert get_fee_percent() == 0.50
+
+    def test_member_always_saves_on_arbitrage(self):
+        """Members ALWAYS pay less than Google when there IS arbitrage."""
+        from payments import get_fee_percent
+        fee_pct = get_fee_percent(_mock_member())
 
         test_cases = [
             (450, 350),   # Normal savings
@@ -936,17 +888,37 @@ class TestPricingInvariants:
 
         for us_price, cheapest_price in test_cases:
             savings_raw = us_price - cheapest_price
-            platform_fee = savings_raw * PLATFORM_FEE_PERCENT
-            platform_fee = max(PLATFORM_FEE_MIN_USD, min(PLATFORM_FEE_MAX_USD, platform_fee))
+            platform_fee = savings_raw * fee_pct
             mystes_price = cheapest_price + platform_fee
 
             assert mystes_price < us_price, (
-                f"User should save: US=${us_price}, MYSTES=${mystes_price}"
+                f"Member should save: US=${us_price}, MYSTES=${mystes_price}"
+            )
+
+    def test_non_member_always_saves_on_arbitrage(self):
+        """Non-members ALWAYS pay less than Google when there IS arbitrage."""
+        from payments import get_fee_percent
+        fee_pct = get_fee_percent(None)
+
+        test_cases = [
+            (450, 350),   # Normal savings
+            (205, 200),   # Tiny savings
+            (1500, 1000), # Large savings
+            (100, 50),    # 50% savings
+        ]
+
+        for us_price, cheapest_price in test_cases:
+            savings_raw = us_price - cheapest_price
+            platform_fee = savings_raw * fee_pct
+            mystes_price = cheapest_price + platform_fee
+
+            assert mystes_price < us_price, (
+                f"Non-member should save: US=${us_price}, MYSTES=${mystes_price}"
             )
 
     def test_platform_always_earns_on_arbitrage(self):
-        """When there IS arbitrage, the platform ALWAYS earns a fee."""
-        from picasso_client import PLATFORM_FEE_PERCENT, PLATFORM_FEE_MIN_USD, PLATFORM_FEE_MAX_USD
+        """Platform ALWAYS earns a fee when there IS arbitrage."""
+        from payments import get_fee_percent
 
         test_cases = [
             (450, 350),
@@ -954,20 +926,12 @@ class TestPricingInvariants:
             (1500, 1000),
         ]
 
-        for us_price, cheapest_price in test_cases:
-            savings_raw = us_price - cheapest_price
-            platform_fee = savings_raw * PLATFORM_FEE_PERCENT
-            platform_fee = max(PLATFORM_FEE_MIN_USD, min(PLATFORM_FEE_MAX_USD, platform_fee))
-
-            assert platform_fee >= PLATFORM_FEE_MIN_USD
-            assert platform_fee <= PLATFORM_FEE_MAX_USD
-
-    def test_platform_fee_bounds(self):
-        """Platform fee stays within $3-$50 range."""
-        from picasso_client import PLATFORM_FEE_MIN_USD, PLATFORM_FEE_MAX_USD
-
-        assert PLATFORM_FEE_MIN_USD == 3.00
-        assert PLATFORM_FEE_MAX_USD == 50.00
+        for user in [_mock_member(), None]:
+            fee_pct = get_fee_percent(user)
+            for us_price, cheapest_price in test_cases:
+                savings_raw = us_price - cheapest_price
+                platform_fee = savings_raw * fee_pct
+                assert platform_fee > 0
 
     def test_hotel_margin_filter_prevents_loss(self):
         """Margin filter ensures we never sell hotels at a loss."""

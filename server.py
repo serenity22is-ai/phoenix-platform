@@ -70,9 +70,7 @@ from payments import (
     create_stripe_checkout_session,
     verify_stripe_session,
     create_stripe_refund,
-    create_coinbase_charge,
-    verify_coinbase_charge,
-    handle_coinbase_webhook,
+    get_or_create_stripe_customer,
     verify_payment,
     handle_stripe_webhook,
     PaymentMethod,
@@ -217,6 +215,13 @@ def _inject_feature_flags():
         "feature_proxy_b2b": is_feature_enabled("proxy_b2b_sales"),
         "feature_citizenserp": is_feature_enabled("citizenserp_active"),
         "feature_data_marketplace": is_feature_enabled("data_marketplace"),
+        # Coinbase removed — Stripe + MoonPay only
+        # XRP/RLUSD direct payments are Phase 2 — gated behind feature flags (default off)
+        "feature_xrp_payments": is_feature_enabled("xrpl_direct_payments"),
+        "feature_rlusd_payments": is_feature_enabled("xrpl_direct_payments"),
+        "feature_xrpl_direct_payments": is_feature_enabled("xrpl_direct_payments"),
+        "feature_xrpl_escrow": is_feature_enabled("xrpl_escrow"),
+        "feature_wallet_auto_generation": is_feature_enabled("wallet_auto_generation"),
     }
 
 # Initialize database (resilient — app starts even if DB is unreachable)
@@ -1178,10 +1183,10 @@ HOME_CONTENT = """
 
 <section class="mystes-landing">
     <div class="mystes-logo-mark">MYSTES</div>
-    <p class="mystes-tagline">Find flights and hotels at the best prices across 195 markets.</p>
+    <p class="mystes-tagline">Find flights at the best prices across 195 markets.</p>
 
     <div class="mystes-search-bar">
-        <input type="text" id="homeSearchInput" placeholder="Search flights and hotels..." autocomplete="off">
+        <input type="text" id="homeSearchInput" placeholder="Search flights..." autocomplete="off">
         <button class="mystes-search-btn" onclick="homeSearch()" aria-label="Search">&#10132;</button>
     </div>
 
@@ -2318,7 +2323,8 @@ BOOK_CONTENT = """
             </div>
         </div>
 
-        <!-- XRP Direct -->
+        {% if feature_xrp_payments %}
+        <!-- XRP Direct (Phase 2) -->
         <div class="payment-method-card" onclick="selectPayment('xrp')" id="method-xrp">
             <div class="method-header">
                 <span class="method-icon">⚡</span>
@@ -2363,8 +2369,10 @@ BOOK_CONTENT = """
                 </form>
             </div>
         </div>
+        {% endif %}
 
-        <!-- RLUSD Stablecoin -->
+        {% if feature_rlusd_payments %}
+        <!-- RLUSD Stablecoin (Phase 2) -->
         <div class="payment-method-card" onclick="selectPayment('rlusd')" id="method-rlusd">
             <div class="method-header">
                 <span class="method-icon">💵</span>
@@ -2403,33 +2411,7 @@ BOOK_CONTENT = """
                 </form>
             </div>
         </div>
-
-        <!-- Any Cryptocurrency -->
-        <div class="payment-method-card" onclick="selectPayment('crypto')" id="method-crypto">
-            <div class="method-header">
-                <span class="method-icon">🪙</span>
-                <div>
-                    <div class="method-title">Other Cryptocurrency</div>
-                    <div class="method-subtitle">Bitcoin, Ethereum, Litecoin, Dogecoin, USDC & more</div>
-                </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
-                    ${{ "%.2f"|format((deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)) }}
-                </div>
-            </div>
-            <div class="payment-details-panel" id="details-crypto">
-                <p>Pay with any major cryptocurrency via Coinbase Commerce:</p>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0;">
-                    <span style="background: #f7931a; color: white; padding: 5px 12px; border-radius: 20px;">₿ Bitcoin</span>
-                    <span style="background: #627eea; color: white; padding: 5px 12px; border-radius: 20px;">Ξ Ethereum</span>
-                    <span style="background: #345d9d; color: white; padding: 5px 12px; border-radius: 20px;">Ł Litecoin</span>
-                    <span style="background: #c3a634; color: white; padding: 5px 12px; border-radius: 20px;">Ð Dogecoin</span>
-                    <span style="background: #2775ca; color: white; padding: 5px 12px; border-radius: 20px;">USDC</span>
-                </div>
-                <button class="btn" onclick="payWithCrypto(event)" style="width: 100%;">
-                    Pay with Cryptocurrency
-                </button>
-            </div>
-        </div>
+        {% endif %}
 
         <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
             🔒 All payments are secure and encrypted<br>
@@ -2540,37 +2522,7 @@ function payWithCard(event) {
     });
 }
 
-function payWithCrypto(event) {
-    event.stopPropagation();
-
-    // Validate guest email if not authenticated
-    if (!validateGuestEmail()) return;
-
-    showProcessing('Creating Crypto Payment...', 'You will be redirected to Coinbase Commerce.');
-
-    fetch('/api/payment/coinbase/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            deal_id: dealId,
-            amount: totalAmount,
-            guest_email: getGuestEmail()
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.hosted_url) {
-            window.location.href = data.hosted_url;
-        } else {
-            hideProcessing();
-            alert('Error: ' + (data.error || 'Could not create crypto payment'));
-        }
-    })
-    .catch(err => {
-        hideProcessing();
-        alert('Error connecting to payment service. Please try again.');
-    });
-}
+// Coinbase crypto payments removed — Stripe + MoonPay only
 
 // Auto-expand first payment method
 document.addEventListener('DOMContentLoaded', function() {
@@ -2682,14 +2634,17 @@ def register():
         except Exception as hp_err:
             logger.warning(f"HelperProfile creation failed for user {user.id} (non-blocking): {hp_err}")
 
-        # --- Node Consent Economy: Auto-onboard new user as node ---
+        # --- Node Consent Economy: Auto-onboard new user ---
         try:
             from node_consent_economy import node_consent_economy
-            onboard_result = node_consent_economy.onboard_new_user(user.id)
-            if onboard_result.get("success"):
+            if is_feature_enabled('wallet_auto_generation'):
+                # Phase 2: Full onboarding including wallet generation
+                onboard_result = node_consent_economy.onboard_new_user(user.id)
                 logger.info(f"Node onboarded for user {user.id}: wallet={onboard_result.get('wallet_address', 'N/A')}")
             else:
-                logger.warning(f"Node onboarding partial for user {user.id}: {onboard_result.get('error', 'unknown')}")
+                # Phase 1: Create consent profile only — no wallet generation (users provide their own)
+                node_consent_economy.create_default_profile(user.id)
+                logger.info(f"Node consent profile created for user {user.id} (no wallet — Phase 1)")
         except Exception as onboard_err:
             logger.warning(f"Node onboarding failed for user {user.id} (non-blocking): {onboard_err}")
 
@@ -2908,10 +2863,13 @@ def _oauth_provision_user(provider_id_field, provider_id_value, email, name):
             db.session.flush()
             logger.info(f"Created user {user.id} from OAuth ({provider_id_field}): {email}")
 
-            # Auto-onboard node
+            # Auto-onboard node (Phase 1: consent profile only, no wallet generation)
             try:
                 from node_consent_economy import node_consent_economy
-                node_consent_economy.onboard_new_user(user.id)
+                if is_feature_enabled('wallet_auto_generation'):
+                    node_consent_economy.onboard_new_user(user.id)
+                else:
+                    node_consent_economy.create_default_profile(user.id)
             except Exception as e:
                 logger.error(f"Auto-onboarding failed for user {user.id}: {e}")
 
@@ -4074,6 +4032,8 @@ def api_travelers_set_primary(traveler_id):
 @app.route("/hotels")
 def hotels():
     """Hotel search page."""
+    if not is_feature_enabled("vertical_hotels"):
+        return redirect(url_for("home"))
     return render_template_string(
         BASE_TEMPLATE,
         title="Hotels",
@@ -4085,7 +4045,9 @@ def hotels():
 @app.route("/api/hotels/search", methods=["POST"])
 @csrf.exempt
 def api_hotel_search():
-    """Search hotels via Amadeus API."""
+    """Search hotels via liteAPI."""
+    if not is_feature_enabled("vertical_hotels"):
+        return jsonify({"success": False, "error": "Hotel search is not available yet"}), 410
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "No data provided"}), 400
@@ -4115,6 +4077,7 @@ def api_hotel_search():
             currency="USD",
             ratings=ratings,
             max_hotels=20,
+            user=current_user,
         )
 
         # Track hotel search metric
@@ -4172,6 +4135,8 @@ def api_hotel_search():
 @csrf.exempt
 def api_hotel_select():
     """Create a Deal record from a selected hotel offer for checkout."""
+    if not is_feature_enabled("vertical_hotels"):
+        return jsonify({"success": False, "error": "Hotel booking is not available yet"}), 410
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "No data provided"}), 400
@@ -4508,9 +4473,59 @@ def book(deal_id):
     )
 
 
+def claim_deal_for_payment(deal, user_id):
+    """
+    Atomically claim a deal for a user before payment begins.
+
+    Returns (success, error_message). If the deal is already claimed by
+    the same user, allows re-entry (idempotent for retries/refreshes).
+    """
+    if not deal or not deal.is_active:
+        return False, "Deal is no longer available"
+
+    # Already claimed by this user — allow re-entry
+    if deal.deal_status == 'claimed' and deal.claimed_by == user_id:
+        return True, None
+
+    # Already claimed by someone else or already booked
+    if deal.deal_status in ('claimed', 'booked'):
+        return False, "This deal has already been taken by another user"
+
+    # Atomic claim: only succeed if deal is still 'available'
+    rows = Deal.query.filter_by(
+        id=deal.id, deal_status='available'
+    ).update({
+        'deal_status': 'claimed',
+        'claimed_by': user_id,
+        'claimed_at': datetime.utcnow()
+    })
+    db.session.commit()
+
+    if rows == 0:
+        # Another thread claimed it between our check and update
+        db.session.refresh(deal)
+        if deal.claimed_by == user_id:
+            return True, None  # We actually own it (race with ourselves)
+        return False, "This deal has already been taken by another user"
+
+    return True, None
+
+
+def release_deal_claim(deal):
+    """Release a claim on a deal (e.g., payment timeout or cancellation)."""
+    if deal and deal.deal_status == 'claimed':
+        deal.deal_status = 'available'
+        deal.claimed_by = None
+        deal.claimed_at = None
+        db.session.commit()
+
+
 def trigger_booking_fulfillment(deal, payment, guest_email=None):
     """
     Trigger the booking fulfillment process after payment is verified.
+
+    Idempotent: uses atomic Payment status transition as a database-level lock.
+    Only the first caller proceeds; concurrent calls are safely skipped.
 
     This initiates the full fulfillment flow:
     1. Creates a booking record
@@ -4523,6 +4538,18 @@ def trigger_booking_fulfillment(deal, payment, guest_email=None):
         payment: The Payment object
         guest_email: Email for guest checkouts (when user is not authenticated)
     """
+    # Idempotency gate: atomically transition verified → fulfillment_triggered.
+    # Only one thread/process can succeed; others get rows=0 and exit.
+    rows = Payment.query.filter_by(
+        id=payment.id, status='verified'
+    ).update({'status': 'fulfillment_triggered'})
+    db.session.commit()
+
+    if rows == 0:
+        # Already triggered (by webhook, verify route, or prior call) — skip silently
+        logger.info(f"Fulfillment already triggered for payment {payment.id}, skipping")
+        return
+
     try:
         from booking_fulfillment import BookingFulfillmentManager
 
@@ -4547,6 +4574,9 @@ def trigger_booking_fulfillment(deal, payment, guest_email=None):
         result = manager.create_booking(deal, payment, user)
 
         if result.get("success"):
+            # Mark deal as booked — no longer available for other users
+            deal.deal_status = 'booked'
+            db.session.commit()
             logger.info(f"Booking fulfillment initiated: {result}")
         else:
             logger.error(f"Booking fulfillment failed: {result}")
@@ -4565,6 +4595,7 @@ def trigger_booking_fulfillment(deal, payment, guest_email=None):
                 created_at=datetime.utcnow()
             )
             db.session.add(booking)
+            deal.deal_status = 'booked'
             db.session.commit()
 
             # Determine recipient email
@@ -5623,7 +5654,8 @@ HOTEL_BOOK_CONTENT = """
             </div>
         </div>
 
-        <!-- XRP Direct -->
+        {% if feature_xrp_payments %}
+        <!-- XRP Direct (Phase 2) -->
         <div class="payment-method-card" onclick="selectPayment('xrp')" id="method-xrp">
             <div class="method-header">
                 <span class="method-icon">&#9889;</span>
@@ -5658,8 +5690,10 @@ HOTEL_BOOK_CONTENT = """
                 </form>
             </div>
         </div>
+        {% endif %}
 
-        <!-- RLUSD Stablecoin -->
+        {% if feature_rlusd_payments %}
+        <!-- RLUSD Stablecoin (Phase 2) -->
         <div class="payment-method-card" onclick="selectPayment('rlusd')" id="method-rlusd">
             <div class="method-header">
                 <span class="method-icon">&#128181;</span>
@@ -5690,24 +5724,7 @@ HOTEL_BOOK_CONTENT = """
                 </form>
             </div>
         </div>
-
-        <!-- Crypto -->
-        <div class="payment-method-card" onclick="selectPayment('crypto')" id="method-crypto">
-            <div class="method-header">
-                <span class="method-icon">&#129689;</span>
-                <div>
-                    <div class="method-title">Other Cryptocurrency</div>
-                    <div class="method-subtitle">Bitcoin, Ethereum, Litecoin, USDC & more</div>
-                </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
-                    ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
-                </div>
-            </div>
-            <div class="payment-details-panel" id="details-crypto">
-                <p>Pay with any major cryptocurrency via Coinbase Commerce.</p>
-                <button class="btn" onclick="payWithCrypto(event)" style="width: 100%;">Pay with Cryptocurrency</button>
-            </div>
-        </div>
+        {% endif %}
 
         <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
             All payments are secure and encrypted<br>
@@ -5767,23 +5784,7 @@ async function payWithCard(event) {
     } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
 }
 
-async function payWithCrypto(event) {
-    event.stopPropagation();
-    const overlay = document.getElementById('processing-overlay');
-    overlay.classList.add('active');
-    document.getElementById('processing-title').textContent = 'Creating crypto payment...';
-    try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-        const resp = await fetch('/api/payment/coinbase/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ deal_id: dealId, amount: totalAmount })
-        });
-        const data = await resp.json();
-        if (data.hosted_url) { window.location.href = data.hosted_url; }
-        else { overlay.classList.remove('active'); alert('Error: ' + (data.error || 'Failed to create crypto payment')); }
-    } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
-}
+// Coinbase crypto payments removed — Stripe + MoonPay only
 </script>
 """
 
@@ -6471,38 +6472,67 @@ def api_stripe_create():
             "publishable_key": "pk_xxx"
         }
     """
-    if not current_user.is_authenticated:
-        return jsonify({"error": "Login required"}), 401
-
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
     deal_id = data.get("deal_id")
     amount = data.get("amount", 0)
+    guest_email = data.get("guest_email")
 
     if not deal_id:
         return jsonify({"error": "Deal ID required"}), 400
+
+    # Determine user context (authenticated or guest)
+    is_authenticated = current_user.is_authenticated
+    user_email = current_user.email if is_authenticated else guest_email
+    user_id = current_user.id if is_authenticated else None
+
+    if not user_email:
+        return jsonify({"error": "Email address required"}), 400
+
+    # For guests, use a negative hash of session ID as a stable claim identifier
+    # This prevents None==None matching bugs in claim_deal_for_payment
+    claim_id = user_id
+    if not claim_id:
+        import hashlib
+        session_key = session.get('_id') or guest_email or ''
+        claim_id = -abs(int(hashlib.md5(session_key.encode()).hexdigest()[:8], 16))
 
     # Get the deal
     deal = Deal.query.filter_by(deal_id=deal_id).first()
     if not deal:
         return jsonify({"error": "Deal not found"}), 404
 
+    # Claim the deal atomically — prevents another user from paying simultaneously
+    claimed, claim_error = claim_deal_for_payment(deal, claim_id)
+    if not claimed:
+        return jsonify({"error": claim_error}), 409
+
     # Calculate total if not provided
     if not amount:
         amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
 
     try:
-        # Create Stripe checkout session with user_id for webhook attribution
+        # Create Stripe checkout session
         result = create_stripe_checkout_session(
             deal_id=deal_id,
             fee_usd=amount,
-            user_email=current_user.email,
+            user_email=user_email,
             success_url=request.host_url.rstrip('/') + f"/payment/success?deal_id={deal_id}",
             cancel_url=request.host_url.rstrip('/') + f"/book/{deal_id}",
-            user_id=current_user.id
+            user_id=user_id,
+            user=current_user if is_authenticated else None,
         )
+
+        # Commit stripe_customer_id if it was just created (authenticated only)
+        if is_authenticated and current_user.stripe_customer_id:
+            db.session.commit()
+
+        # Store guest email in session for post-payment flow
+        if not is_authenticated and guest_email:
+            session['guest_email'] = guest_email
+            session['guest_deal_id'] = deal_id
 
         if "error" in result:
             return jsonify({"error": result["error"]}), 400
@@ -6514,26 +6544,17 @@ def api_stripe_create():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/payment/coinbase/create", methods=["POST"])
+@app.route("/api/payment/stripe/charge-saved", methods=["POST"])
 @csrf.exempt
-def api_coinbase_create():
+def api_stripe_charge_saved():
     """
-    Create a Coinbase Commerce charge for cryptocurrency payment.
-
-    Supports: BTC, ETH, LTC, DOGE, BCH, USDC, DAI, SHIB, and more.
+    Charge a saved payment method for a returning customer.
 
     Request JSON:
         {
             "deal_id": "abc123",
+            "card_id": 5,
             "amount": 752.50
-        }
-
-    Response JSON:
-        {
-            "charge_id": "xxx",
-            "charge_code": "ABC123",
-            "hosted_url": "https://commerce.coinbase.com/charges/...",
-            "supported_coins": ["BTC", "ETH", ...]
         }
     """
     if not current_user.is_authenticated:
@@ -6544,41 +6565,112 @@ def api_coinbase_create():
         return jsonify({"error": "No data provided"}), 400
 
     deal_id = data.get("deal_id")
-    amount = data.get("amount", 0)
+    card_id = data.get("card_id")
 
-    if not deal_id:
-        return jsonify({"error": "Deal ID required"}), 400
+    if not deal_id or not card_id:
+        return jsonify({"error": "deal_id and card_id required"}), 400
 
     # Get the deal
     deal = Deal.query.filter_by(deal_id=deal_id).first()
     if not deal:
         return jsonify({"error": "Deal not found"}), 404
 
-    # Calculate total if not provided
-    if not amount:
-        amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
+    # Claim the deal atomically
+    claimed, claim_error = claim_deal_for_payment(deal, current_user.id)
+    if not claimed:
+        return jsonify({"error": claim_error}), 409
+
+    # Get the saved card
+    card = UserCard.query.filter_by(
+        id=card_id, user_id=current_user.id, is_active=True
+    ).first()
+    if not card or not card.stripe_payment_method_id:
+        release_deal_claim(deal)
+        return jsonify({"error": "Saved card not found or not linked to Stripe"}), 404
+
+    # Ensure user has Stripe Customer
+    if not current_user.stripe_customer_id:
+        release_deal_claim(deal)
+        return jsonify({"error": "No Stripe customer on file. Please make an initial payment via checkout."}), 400
+
+    amount = data.get("amount") or ((deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0))
 
     try:
-        # Create Coinbase Commerce charge
-        result = create_coinbase_charge(
-            deal_id=deal_id,
-            fee_usd=amount,
-            user_email=current_user.email,
-            redirect_url=request.host_url.rstrip('/') + f"/payment/success",
-            cancel_url=request.host_url.rstrip('/') + f"/book/{deal_id}"
+        import stripe as stripe_mod
+        intent = stripe_mod.PaymentIntent.create(
+            amount=int(amount * 100),
+            currency="usd",
+            customer=current_user.stripe_customer_id,
+            payment_method=card.stripe_payment_method_id,
+            off_session=False,
+            confirm=True,
+            metadata={
+                "deal_id": deal_id,
+                "fee_usd": str(amount),
+                "user_id": str(current_user.id),
+            },
+            return_url=request.host_url.rstrip('/') + f"/payment/success?deal_id={deal_id}",
         )
 
-        if "error" in result:
-            return jsonify({"error": result["error"]}), 400
+        if intent.status == "succeeded":
+            # Create verified payment record
+            payment = Payment(
+                user_id=current_user.id,
+                deal_id=deal.id,
+                payment_method='card',
+                amount_usd=amount,
+                tx_hash=intent.id,
+                stripe_payment_intent=intent.id,
+                status='verified',
+                verified_at=datetime.utcnow()
+            )
+            db.session.add(payment)
+            deal.deal_status = 'booked'
+            db.session.commit()
 
-        # Store charge code in session for verification
-        session[f'coinbase_charge_{deal_id}'] = result.get('charge_code')
+            # Trigger booking fulfillment
+            trigger_booking_fulfillment(deal, payment)
 
-        return jsonify(result)
+            # Track payment metric
+            try:
+                from monitoring import track_payment
+                track_payment(method="card", amount_usd=amount, status="verified")
+            except Exception:
+                pass
+
+            return jsonify({
+                "success": True,
+                "payment_intent_id": intent.id,
+                "status": "succeeded",
+                "redirect_url": f"/deal/{deal_id}/access"
+            })
+
+        elif intent.status == "requires_action":
+            # 3D Secure required
+            return jsonify({
+                "success": False,
+                "requires_action": True,
+                "client_secret": intent.client_secret,
+                "payment_intent_id": intent.id,
+            })
+
+        else:
+            release_deal_claim(deal)
+            return jsonify({
+                "success": False,
+                "status": intent.status,
+                "error": f"Payment status: {intent.status}"
+            }), 400
 
     except Exception as e:
-        logger.error(f"Coinbase create error: {e}")
+        release_deal_claim(deal)
+        if hasattr(e, 'user_message'):
+            return jsonify({"error": f"Card declined: {e.user_message}"}), 402
+        logger.error(f"Stripe saved-card charge error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+    # Coinbase Commerce routes removed — Stripe + MoonPay only
 
 
 @app.route("/api/payment/verify", methods=["POST"])
@@ -6590,10 +6682,9 @@ def api_payment_verify():
 
     Request JSON:
         {
-            "method": "card|xrp|rlusd|crypto",
+            "method": "card|xrp|rlusd",
             "deal_id": "abc123",
             "session_id": "cs_xxx",        # For Stripe
-            "charge_code": "ABC123",       # For Coinbase
             "destination_tag": 12345       # For XRP/RLUSD
         }
 
@@ -6668,30 +6759,34 @@ def api_payment_verify():
 
 
 @app.route("/payment/success")
-@login_required
 def payment_success_handler():
-    """Handle successful payment redirects from Stripe/Coinbase."""
+    """Handle successful payment redirects from Stripe."""
     deal_id = request.args.get("deal_id")
     session_id = request.args.get("session_id")
-    charge_code = request.args.get("charge_code")
 
     if not deal_id:
         flash("Missing deal information", "error")
-        return redirect("/dashboard")
+        return redirect("/")
 
     deal = Deal.query.filter_by(deal_id=deal_id).first()
     if not deal:
         flash("Deal not found", "error")
-        return redirect("/dashboard")
+        return redirect("/")
 
     total_amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
 
+    # Determine user context
+    is_authenticated = current_user.is_authenticated
+    user_id = current_user.id if is_authenticated else None
+
     # Check if payment already verified
-    existing_payment = Payment.query.filter_by(
-        user_id=current_user.id,
-        deal_id=deal.id,
-        status='verified'
-    ).first()
+    existing_payment = None
+    if user_id:
+        existing_payment = Payment.query.filter_by(
+            user_id=user_id,
+            deal_id=deal.id,
+            status='verified'
+        ).first()
 
     if existing_payment:
         flash("Payment already verified!", "success")
@@ -6719,15 +6814,6 @@ def payment_success_handler():
             tx_ref = result.get("payment_intent")
             stripe_intent = result.get("payment_intent")
 
-    elif charge_code or session.get(f'coinbase_charge_{deal_id}'):
-        # Coinbase payment
-        code = charge_code or session.get(f'coinbase_charge_{deal_id}')
-        result = verify_coinbase_charge(code)
-        if result.get("verified"):
-            verified = True
-            payment_method = "crypto"
-            tx_ref = result.get("charge_code")
-
     if verified:
         # Check for duplicate by tx_hash (prevents double-creation from refresh)
         existing_by_tx = None
@@ -6740,7 +6826,7 @@ def payment_success_handler():
         else:
             # Create payment record with Stripe-specific fields
             payment = Payment(
-                user_id=current_user.id,
+                user_id=user_id,
                 deal_id=deal.id,
                 payment_method=payment_method,
                 amount_usd=total_amount,
@@ -6756,7 +6842,7 @@ def payment_success_handler():
             # Trigger booking fulfillment only for new payments
             trigger_booking_fulfillment(deal, payment)
 
-            audit_log("payment_verified", user_id=current_user.id,
+            audit_log("payment_verified", user_id=user_id,
                       deal_id=deal_id, method=payment_method, amount=total_amount)
 
         flash("Payment verified successfully! You can now book your flight.", "success")
@@ -6772,27 +6858,10 @@ def payment_success_handler():
 @csrf.exempt
 @limiter.limit("10 per hour")
 def api_escrow_create():
-    """
-    Create an escrow payment for trustless booking.
+    """Create an escrow payment for trustless booking. (Phase 2)"""
+    if not is_feature_enabled('xrpl_escrow'):
+        return jsonify({"error": "XRPL escrow payments are not available in the current release", "phase": 2}), 410
 
-    Request JSON:
-        {
-            "deal_id": "abc123",
-            "sender_address": "rXXX...",  # Customer's XRP wallet
-            "amount_xrp": 100.0           # Optional, calculates from deal if not provided
-        }
-
-    Response JSON:
-        {
-            "success": true,
-            "escrow_id": "ESC-123-ABCD",
-            "amount_xrp": 100.0,
-            "destination": "rPlatformWallet...",
-            "condition": "A025...",
-            "transaction": { ... },        # Unsigned EscrowCreate tx
-            "cancel_after": "2024-01-15T12:00:00"
-        }
-    """
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -6859,24 +6928,10 @@ def api_escrow_create():
 @app.route("/api/escrow/confirm", methods=["POST"])
 @csrf.exempt
 def api_escrow_confirm():
-    """
-    Confirm an escrow was created on-chain.
+    """Confirm an escrow was created on-chain. (Phase 2)"""
+    if not is_feature_enabled('xrpl_escrow'):
+        return jsonify({"error": "XRPL escrow payments are not available in the current release", "phase": 2}), 410
 
-    Request JSON:
-        {
-            "escrow_id": "ESC-123-ABCD",
-            "tx_hash": "ABC123...",
-            "sequence": 12345
-        }
-
-    Response JSON:
-        {
-            "success": true,
-            "escrow_id": "ESC-123-ABCD",
-            "status": "confirmed",
-            "message": "Escrow confirmed. Booking will proceed."
-        }
-    """
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -6967,15 +7022,10 @@ def api_escrow_confirm():
 @app.route("/api/escrow/release", methods=["POST"])
 @csrf.exempt
 def api_escrow_release():
-    """
-    Release escrow after successful booking (admin/system only).
+    """Release escrow after successful booking. (Phase 2)"""
+    if not is_feature_enabled('xrpl_escrow'):
+        return jsonify({"error": "XRPL escrow payments are not available in the current release", "phase": 2}), 410
 
-    Request JSON:
-        {
-            "escrow_id": "ESC-123-ABCD",
-            "confirmation_code": "ABC123"
-        }
-    """
     # Check admin or system access
     if not current_user.is_authenticated or not current_user.is_admin:
         return jsonify({"error": "Admin access required"}), 403
@@ -7049,15 +7099,10 @@ def api_escrow_release():
 @app.route("/api/escrow/cancel", methods=["POST"])
 @csrf.exempt
 def api_escrow_cancel():
-    """
-    Cancel escrow and refund customer (after timeout).
+    """Cancel escrow and refund customer. (Phase 2)"""
+    if not is_feature_enabled('xrpl_escrow'):
+        return jsonify({"error": "XRPL escrow payments are not available in the current release", "phase": 2}), 410
 
-    Request JSON:
-        {
-            "escrow_id": "ESC-123-ABCD",
-            "reason": "Booking failed"
-        }
-    """
     data = request.get_json()
     escrow_id = data.get("escrow_id")
     reason = data.get("reason", "Booking failed")
@@ -7131,7 +7176,10 @@ def api_escrow_cancel():
 
 @app.route("/api/escrow/<escrow_id>", methods=["GET"])
 def api_escrow_status(escrow_id):
-    """Get status of an escrow payment."""
+    """Get status of an escrow payment. (Phase 2)"""
+    if not is_feature_enabled('xrpl_escrow'):
+        return jsonify({"error": "XRPL escrow payments are not available in the current release", "phase": 2}), 410
+
     escrow = Escrow.query.filter_by(escrow_id=escrow_id).first()
     if not escrow:
         return jsonify({"error": "Escrow not found"}), 404
@@ -7252,6 +7300,41 @@ def webhook_stripe():
                         # Trigger booking fulfillment
                         trigger_booking_fulfillment(deal, payment)
 
+                        # Auto-save card for future use if payment method was captured
+                        if payment_intent and user_id:
+                            try:
+                                import stripe as stripe_mod
+                                pi = stripe_mod.PaymentIntent.retrieve(payment_intent)
+                                pm_id = pi.payment_method
+                                if pm_id:
+                                    pm = stripe_mod.PaymentMethod.retrieve(pm_id)
+                                    card_data = pm.card
+                                    if card_data:
+                                        existing_card = UserCard.query.filter_by(
+                                            user_id=user_id,
+                                            stripe_payment_method_id=pm_id
+                                        ).first()
+                                        if not existing_card:
+                                            has_cards = UserCard.query.filter_by(
+                                                user_id=user_id, is_active=True
+                                            ).count() > 0
+                                            new_card = UserCard(
+                                                user_id=user_id,
+                                                card_label=f"{card_data.brand.title()} ****{card_data.last4}",
+                                                card_last_four=card_data.last4,
+                                                card_brand=card_data.brand,
+                                                card_exp_month=card_data.exp_month,
+                                                card_exp_year=card_data.exp_year,
+                                                stripe_payment_method_id=pm_id,
+                                                is_primary=not has_cards,
+                                                is_active=True,
+                                            )
+                                            db.session.add(new_card)
+                                            db.session.commit()
+                                            logger.info(f"Saved card ****{card_data.last4} for user {user_id}")
+                            except Exception as card_err:
+                                logger.warning(f"Failed to save card after checkout: {card_err}")
+
                         audit_log("payment_verified_webhook", user_id=user_id,
                                   deal_id=deal_id, amount=amount_usd)
                         logger.info(f"Stripe payment verified via webhook: deal={deal_id} user={user_id}")
@@ -7277,61 +7360,7 @@ def webhook_stripe():
         return jsonify({"received": True, "processing_error": True})
 
 
-@app.route("/webhooks/coinbase", methods=["POST"])
-@csrf.exempt
-def webhook_coinbase():
-    """
-    Handle Coinbase Commerce webhook events for crypto payment confirmations.
-
-    Events handled:
-    - charge:confirmed: Payment confirmed on blockchain
-    - charge:failed: Payment failed or expired
-    """
-    payload = request.get_data()
-    signature = request.headers.get("X-CC-Webhook-Signature", "")
-
-    try:
-        result = handle_coinbase_webhook(payload, signature)
-
-        if "error" in result:
-            logger.error(f"Coinbase webhook error: {result['error']}")
-            return jsonify({"error": result["error"]}), 400
-
-        if result.get("event") == "payment_completed":
-            deal_id = result.get("deal_id")
-            amount_usd = result.get("amount_usd", 0)
-
-            if deal_id:
-                deal = Deal.query.filter_by(deal_id=deal_id).first()
-                if deal:
-                    payment = Payment(
-                        deal_id=deal.id,
-                        payment_method='crypto',
-                        amount_usd=amount_usd,
-                        tx_hash=result.get("charge_code"),
-                        status='verified',
-                        verified_at=datetime.utcnow()
-                    )
-                    db.session.add(payment)
-                    db.session.commit()
-
-                    # Track payment metric
-                    try:
-                        from monitoring import track_payment
-                        track_payment(method="crypto", amount_usd=amount_usd, status="verified")
-                    except Exception:
-                        pass
-
-                    logger.info(f"Coinbase payment verified via webhook for deal {deal_id}")
-                    audit_log("payment_verified", user_id=deal.user_id,
-                              method="coinbase", deal_id=deal_id,
-                              amount_usd=amount_usd)
-
-        return jsonify({"received": True})
-
-    except Exception as e:
-        logger.error(f"Coinbase webhook exception: {e}")
-        return jsonify({"error": str(e)}), 500
+    # Coinbase webhook removed — Stripe + MoonPay only
 
 
 @app.route("/api/translate", methods=["POST"])
@@ -7407,22 +7436,28 @@ def api_languages():
 # --- ERROR HANDLERS ---
 
 ERROR_404_CONTENT = """
-<div class="card" style="max-width: 500px; margin: 60px auto; text-align: center;">
-    <h1 style="font-size: 72px; margin: 0; color: #7c3aed;">404</h1>
-    <h2>Page Not Found</h2>
-    <p style="color: #666;">The page you're looking for doesn't exist or has been moved.</p>
-    <a href="/" class="btn">Go Home</a>
-    <a href="/deals" class="btn btn-secondary" style="margin-left: 10px;">Browse Deals</a>
+<div style="max-width: 500px; margin: 80px auto; text-align: center; padding: 40px 24px;">
+    <div style="font-size: 100px; margin-bottom: 10px; opacity: 0.8;">&#9992;</div>
+    <h1 style="font-size: 64px; margin: 0; background: linear-gradient(135deg, #7c3aed, #6d28d9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 800;">404</h1>
+    <h2 style="color: #fff; margin: 10px 0 16px; font-size: 22px;">Flight Path Not Found</h2>
+    <p style="color: #aaa; margin-bottom: 30px; line-height: 1.6;">The page you're looking for has departed. It may have been moved or no longer exists.</p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <a href="/" class="btn" style="padding: 12px 28px;">Search Flights</a>
+        <a href="/deals" class="btn btn-secondary" style="padding: 12px 28px;">Browse Deals</a>
+    </div>
 </div>
 """
 
 ERROR_500_CONTENT = """
-<div class="card" style="max-width: 500px; margin: 60px auto; text-align: center;">
-    <h1 style="font-size: 72px; margin: 0; color: #dc3545;">500</h1>
-    <h2>Something Went Wrong</h2>
-    <p style="color: #666;">We're experiencing technical difficulties. Please try again later.</p>
-    <a href="/" class="btn">Go Home</a>
-    <a href="javascript:location.reload()" class="btn btn-secondary" style="margin-left: 10px;">Try Again</a>
+<div style="max-width: 500px; margin: 80px auto; text-align: center; padding: 40px 24px;">
+    <div style="font-size: 80px; margin-bottom: 10px;">&#9888;</div>
+    <h1 style="font-size: 64px; margin: 0; color: #ef4444; font-weight: 800;">500</h1>
+    <h2 style="color: #fff; margin: 10px 0 16px; font-size: 22px;">Turbulence Detected</h2>
+    <p style="color: #aaa; margin-bottom: 30px; line-height: 1.6;">We hit some unexpected turbulence. Our team has been notified and we're working on it.</p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <a href="/" class="btn" style="padding: 12px 28px;">Go Home</a>
+        <a href="javascript:location.reload()" class="btn btn-secondary" style="padding: 12px 28px;">Try Again</a>
+    </div>
 </div>
 """
 
@@ -7533,11 +7568,23 @@ def health_check():
     except Exception:
         services["proxy_scraper"] = "error"
 
-    # Amadeus
+    # Picasso / Redbox (primary flight search)
+    try:
+        from main import PICASSO_AVAILABLE, PICASSO_CONFIGURED
+        if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
+            services["picasso_redbox"] = "configured"
+        elif PICASSO_AVAILABLE:
+            services["picasso_redbox"] = "installed (session token not set)"
+        else:
+            services["picasso_redbox"] = "not installed"
+    except Exception:
+        services["picasso_redbox"] = "error"
+
+    # Amadeus (legacy fallback — Picasso handles Amadeus internally)
     try:
         from main import AMADEUS_AVAILABLE, AMADEUS_CONFIGURED
         if AMADEUS_AVAILABLE and AMADEUS_CONFIGURED:
-            services["amadeus"] = "configured"
+            services["amadeus"] = "configured (legacy)"
         elif AMADEUS_AVAILABLE:
             services["amadeus"] = "installed (keys not set)"
         else:
@@ -7829,8 +7876,8 @@ ABOUT_CONTENT = """
                 <p style="color: #666; font-size: 13px;">Credit/debit via Stripe secure checkout</p>
             </div>
             <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center;">
-                <div style="font-size: 28px; margin-bottom: 8px;">Crypto</div>
-                <p style="color: #666; font-size: 13px;">BTC, ETH, USDC via Coinbase Commerce</p>
+                <div style="font-size: 28px; margin-bottom: 8px;">MoonPay</div>
+                <p style="color: #666; font-size: 13px;">Buy crypto with card via MoonPay</p>
             </div>
         </div>
     </div>
@@ -8004,7 +8051,7 @@ EARN_CONTENT = """
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <span style="background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">5</span>
-                    <span style="color: #555; font-size: 14px;">Use your RLUSD to book your own discounted flights &mdash; or cash out via Coinbase</span>
+                    <span style="color: #555; font-size: 14px;">Use your RLUSD to book your own discounted flights &mdash; or cash out via any exchange</span>
                 </div>
             </div>
         </div>
@@ -8034,7 +8081,7 @@ EARN_CONTENT = """
         <p style="color: #555; line-height: 1.8; font-size: 15px; margin-top: 20px;">
             Your earnings circulate in the MYSTES ecosystem. Use RLUSD to book your own flights at
             arbitrage prices, convert to XRP for other uses, or cash out to your local currency through
-            Coinbase Commerce, Binance, Kraken, Uphold, or any major exchange.
+            Binance, Kraken, Uphold, or any major exchange.
         </p>
     </div>
 
@@ -8125,7 +8172,7 @@ EARN_CONTENT = """
             <p style="color: #666; font-size: 14px; line-height: 1.7;">
                 Your earnings arrive as RLUSD in your XRPL wallet. You can spend RLUSD on your own
                 MYSTES flights, convert to XRP on-ledger, or cash out to local currency through
-                Coinbase, Binance, Kraken, Uphold, or other major exchanges.
+                Binance, Kraken, Uphold, or other major exchanges.
             </p>
         </div>
 
@@ -13225,6 +13272,243 @@ SEARCH_PAGE_CONTENT = """
 .savings-badge { background: #28a745; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; }
 .market-tag { background: #e9ecef; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 5px; }
 
+/* Search button spinner */
+.search-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Search loading state */
+.search-loading-state {
+    margin-top: 30px;
+    padding: 30px;
+    background: rgba(15, 10, 25, 0.6);
+    border-radius: 16px;
+    border: 1px solid rgba(124, 58, 237, 0.2);
+}
+.search-loading-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.search-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(124, 58, 237, 0.2);
+    border-top-color: #7c3aed;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+/* Skeleton cards */
+.skeleton-cards { display: flex; flex-direction: column; gap: 12px; }
+.skeleton-card {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.skeleton-line {
+    height: 14px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+}
+.skeleton-line.w40 { width: 40%; }
+.skeleton-line.w60 { width: 60%; }
+.skeleton-line.w80 { width: 80%; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Flight deal cards */
+.flight-cards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.flight-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 18px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+.flight-card:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(124, 58, 237, 0.3);
+    transform: translateY(-1px);
+}
+.flight-card-deal {
+    border-color: rgba(40, 167, 69, 0.4);
+    background: rgba(40, 167, 69, 0.05);
+}
+.flight-card-badge {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.flight-card-badge-exclusive {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+.flight-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+.flight-card-airline strong {
+    display: block;
+    color: #fff;
+    font-size: 15px;
+}
+.flight-card-number {
+    color: #999;
+    font-size: 12px;
+}
+.flight-card-stops {
+    color: #aaa;
+    font-size: 13px;
+    background: rgba(255,255,255,0.08);
+    padding: 3px 10px;
+    border-radius: 12px;
+}
+.flight-card-route {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.flight-card-time {
+    text-align: center;
+    min-width: 60px;
+}
+.flight-card-time-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+}
+.flight-card-route-line {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.flight-card-duration {
+    font-size: 11px;
+    color: #999;
+}
+.flight-card-line-visual {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 0;
+}
+.flight-card-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #7c3aed;
+    flex-shrink: 0;
+}
+.flight-card-dash {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(124,58,237,0.6), rgba(124,58,237,0.2));
+}
+.flight-card-plane-icon {
+    font-size: 14px;
+    color: #7c3aed;
+    margin: 0 4px;
+}
+.flight-card-pricing {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+.flight-card-our-price {
+    display: flex;
+    flex-direction: column;
+}
+.flight-card-price-label {
+    font-size: 11px;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.flight-card-price-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #4ade80;
+}
+.flight-card-normal-price {
+    display: flex;
+    flex-direction: column;
+}
+.flight-card-price-strikethrough {
+    font-size: 16px;
+    color: #888;
+    text-decoration: line-through;
+}
+.flight-card-cta {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    background: rgba(124, 58, 237, 0.1);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.flight-card-cta:hover {
+    background: rgba(124, 58, 237, 0.25);
+    border-color: #7c3aed;
+}
+.flight-card-cta-deal {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border: none;
+    color: white;
+}
+.flight-card-cta-deal:hover {
+    background: linear-gradient(135deg, #218838, #1aab8a);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+@media (max-width: 600px) {
+    .flight-card-route { gap: 8px; }
+    .flight-card-time-value { font-size: 15px; }
+    .flight-card-price-value { font-size: 22px; }
+    .search-row { flex-direction: column; gap: 10px; }
+    .search-row .form-group { min-width: unset; }
+    .search-options { flex-direction: column; align-items: stretch; }
+    .option-select { width: 100%; }
+    .search-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .search-tab { padding: 10px 16px; font-size: 14px; white-space: nowrap; }
+    .payment-method-card { padding: 14px; }
+    .method-header { flex-wrap: wrap; gap: 8px; }
+}
+
 /* Tab styles */
 .search-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #eee; }
 .search-tab { padding: 12px 24px; cursor: pointer; border: none; background: none; font-size: 16px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
@@ -13692,7 +13976,7 @@ tr.selected-flight .select-flight-btn::after {
 
             <div style="margin-top: 20px;">
                 <button type="submit" class="btn" id="search-btn" style="padding: 14px 32px; font-size: 16px;">
-                    Search All Markets
+                    Search Flights
                 </button>
                 <span id="search-status" style="margin-left: 15px; color: #666;"></span>
             </div>
@@ -14421,12 +14705,28 @@ async function searchFlights(e) {
 
     console.log('Search started');
     btn.disabled = true;
-    status.textContent = 'Searching markets...';
+    btn.innerHTML = '<span class="search-spinner"></span> Searching...';
+    status.textContent = '';
 
-    // Show loading screen
-    if (window.showLoadingScreen) {
-        window.showLoadingScreen('Searching global markets for the best deals...');
-    }
+    // Show skeleton loading cards in results area
+    const resultsContainer = document.getElementById('results-container');
+    resultsContainer.innerHTML = `
+        <div class="search-loading-state">
+            <div class="search-loading-header">
+                <div class="search-loading-spinner"></div>
+                <div>
+                    <h3 style="margin:0;color:#fff;">Searching global markets...</h3>
+                    <p style="margin:4px 0 0;color:#ccc;font-size:14px;">Comparing prices across 195+ markets for the best deals</p>
+                </div>
+            </div>
+            <div class="skeleton-cards">
+                <div class="skeleton-card"><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div><div class="skeleton-line w40"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line w80"></div><div class="skeleton-line w60"></div><div class="skeleton-line w40"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line w40"></div><div class="skeleton-line w80"></div><div class="skeleton-line w60"></div></div>
+            </div>
+        </div>
+    `;
+    resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     const tripType = document.getElementById('trip-type').value;
     const cabinClass = form.querySelector('[name="cabin_class"]').value;
@@ -14484,31 +14784,31 @@ async function searchFlights(e) {
     console.log('Search options:', searchOptions);
     console.log('Legs:', legs);
 
-    if (legs.length === 0) {
-        status.textContent = 'Please fill in all fields.';
+    function resetSearchBtn(msg) {
+        status.textContent = msg;
         btn.disabled = false;
-        if (window.hideLoadingScreen) window.hideLoadingScreen();
+        btn.innerHTML = 'Search Flights';
+        resultsContainer.innerHTML = '';
+        if (msg) showToast(msg, 'warning');
+    }
+
+    if (legs.length === 0) {
+        resetSearchBtn('Please fill in all fields.');
         return;
     }
 
     // Validate legs have proper airport codes (3 letters)
     for (const leg of legs) {
         if (!leg.origin || leg.origin.length !== 3) {
-            status.textContent = `Invalid origin airport: "${leg.origin || 'empty'}". Please select from the dropdown.`;
-            btn.disabled = false;
-            if (window.hideLoadingScreen) window.hideLoadingScreen();
+            resetSearchBtn(`Invalid origin airport: "${leg.origin || 'empty'}". Please select from the dropdown.`);
             return;
         }
         if (!leg.destination || leg.destination.length !== 3) {
-            status.textContent = `Invalid destination airport: "${leg.destination || 'empty'}". Please select from the dropdown.`;
-            btn.disabled = false;
-            if (window.hideLoadingScreen) window.hideLoadingScreen();
+            resetSearchBtn(`Invalid destination airport: "${leg.destination || 'empty'}". Please select from the dropdown.`);
             return;
         }
         if (!leg.date) {
-            status.textContent = 'Please select a departure date.';
-            btn.disabled = false;
-            if (window.hideLoadingScreen) window.hideLoadingScreen();
+            resetSearchBtn('Please select a departure date.');
             return;
         }
     }
@@ -14542,11 +14842,9 @@ async function searchFlights(e) {
             </div>
         `;
     } finally {
-        // Always hide loading screen and re-enable button
-        if (window.hideLoadingScreen) {
-            window.hideLoadingScreen();
-        }
+        // Always re-enable button
         btn.disabled = false;
+        btn.innerHTML = 'Search Flights';
         console.log('Search completed');
     }
 }
@@ -14777,29 +15075,9 @@ function displayResults(data) {
                 deal: f.deal
             })).sort((a, b) => (a.cheapest_price || 9999) - (b.cheapest_price || 9999));
 
-            // Determine price column header based on trip type
-            const priceColHeader = isActualRoundTrip ? 'Best Round-Trip' : 'Best Price';
-            const usPriceHeader = isActualRoundTrip ? 'Google US' : 'Google US';
+            html += `<div class="flight-cards-grid">`;
 
-            html += `
-                <table class="price-table">
-                    <thead>
-                        <tr>
-                            <th>Flight</th>
-                            <th>Time</th>
-                            <th>Duration</th>
-                            <th>Stops</th>
-                            <th>${priceColHeader}</th>
-                            <th>Source</th>
-                            <th>Normal Price</th>
-                            <th>Savings</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            // Show flights
+            // Show flights as cards
             for (const flight of flightList.slice(0, 10)) {
                 const usPrice = flight.deal?.home_price || flight.cheapest_price;
                 const cheapestPrice = flight.cheapest_price || usPrice;
@@ -14827,35 +15105,57 @@ function displayResults(data) {
                     converted_prices: {},
                 }));
 
-                const flightRowId = `${(flight.airline || 'unknown').replace(/\\s/g, '_')}_${(flight.flight_number || 'unknown').replace(/\\s/g, '_')}`;
+                const stopsText = flight.stops === 0 ? 'Nonstop' : (flight.stops !== undefined ? flight.stops + ' stop' + (flight.stops > 1 ? 's' : '') : '');
 
                 html += `
-                    <tr class="${hasSavings ? 'cheapest' : ''}" data-flight-id="${flightRowId}" data-leg="${legNum}">
-                        <td>
-                            <strong>${flight.airline || 'Multiple'}</strong>
-                            ${flight.flight_number ? `<br><span style="color: #666; font-size: 12px;">${flight.flight_number}</span>` : ''}
-                            ${isExclusive ? `<br><span style="background: #7c3aed; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px;">🔥 MYSTES Exclusive</span>` : ''}
-                        </td>
-                        <td>${flight.departure_time || 'N/A'} - ${flight.arrival_time || 'N/A'}</td>
-                        <td>${flight.duration || 'N/A'}</td>
-                        <td>${flight.stops === 0 ? 'Nonstop' : (flight.stops !== undefined ? flight.stops + ' stop' + (flight.stops > 1 ? 's' : '') : 'N/A')}</td>
-                        <td style="font-weight: bold; color: #28a745;">$${cheapestPrice?.toFixed(0) || 'N/A'}</td>
-                        <td><span class="market-tag">MYSTES</span></td>
-                        <td>${isExclusive ? '<span style="color: #fff; font-size: 11px;">Not available</span>' : `$${usPrice?.toFixed(0) || 'N/A'}`}</td>
-                        <td>${hasSavings ? `<span style="color: #28a745; font-weight: bold;">$${savings.toFixed(0)} (${savingsPct}%)</span>` : (isExclusive ? `<span style="color: #7c3aed; font-weight: bold;">Exclusive Deal</span>` : '<span style="color: #fff;">-</span>')}</td>
-                        <td>
-                            <button class="btn select-flight-btn" onclick="selectFlightForLeg(${legNum}, '${flightData}')" style="padding: 8px 16px; font-size: 12px;">
-                                ${hasSavings || isExclusive ? 'Book & Save' : 'Select'}
-                            </button>
-                        </td>
-                    </tr>
+                    <div class="flight-card ${hasSavings ? 'flight-card-deal' : ''}" data-leg="${legNum}">
+                        ${hasSavings ? `<div class="flight-card-badge">Save $${savings.toFixed(0)} (${savingsPct}%)</div>` : ''}
+                        ${isExclusive ? `<div class="flight-card-badge flight-card-badge-exclusive">MYSTES Exclusive</div>` : ''}
+                        <div class="flight-card-header">
+                            <div class="flight-card-airline">
+                                <strong>${flight.airline || 'Multiple Airlines'}</strong>
+                                ${flight.flight_number ? `<span class="flight-card-number">${flight.flight_number}</span>` : ''}
+                            </div>
+                            <div class="flight-card-stops">${stopsText}</div>
+                        </div>
+                        <div class="flight-card-route">
+                            <div class="flight-card-time">
+                                <span class="flight-card-time-value">${flight.departure_time || '--:--'}</span>
+                            </div>
+                            <div class="flight-card-route-line">
+                                <div class="flight-card-duration">${flight.duration || ''}</div>
+                                <div class="flight-card-line-visual">
+                                    <span class="flight-card-dot"></span>
+                                    <span class="flight-card-dash"></span>
+                                    <span class="flight-card-plane-icon">&#9992;</span>
+                                    <span class="flight-card-dash"></span>
+                                    <span class="flight-card-dot"></span>
+                                </div>
+                            </div>
+                            <div class="flight-card-time">
+                                <span class="flight-card-time-value">${flight.arrival_time || '--:--'}</span>
+                            </div>
+                        </div>
+                        <div class="flight-card-pricing">
+                            <div class="flight-card-our-price">
+                                <span class="flight-card-price-label">MYSTES Price</span>
+                                <span class="flight-card-price-value">$${cheapestPrice?.toFixed(0) || 'N/A'}</span>
+                            </div>
+                            ${!isExclusive && usPrice > cheapestPrice ? `
+                                <div class="flight-card-normal-price">
+                                    <span class="flight-card-price-label">Normal</span>
+                                    <span class="flight-card-price-strikethrough">$${usPrice?.toFixed(0)}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <button class="flight-card-cta ${hasSavings || isExclusive ? 'flight-card-cta-deal' : ''}" onclick="selectFlightForLeg(${legNum}, '${flightData}')">
+                            ${hasSavings ? 'Book & Save $' + savings.toFixed(0) : (isExclusive ? 'Book Exclusive Deal' : 'Select Flight')}
+                        </button>
+                    </div>
                 `;
             }
 
-            html += `
-                    </tbody>
-                </table>
-            `;
+            html += `</div>`;
 
             // Market breakdown removed — MYSTES price intelligence is proprietary
 
@@ -15377,10 +15677,6 @@ function showPaymentModal(dealData) {
                     <span class="payment-icon">💎</span>
                     <span>XRP / RLUSD</span>
                 </button>
-                <button onclick="payWithCrypto()" class="payment-option-btn">
-                    <span class="payment-icon">🪙</span>
-                    <span>Crypto (BTC, ETH)</span>
-                </button>
             </div>
 
             <p style="text-align: center; color: #666; font-size: 13px; margin-top: 20px;">
@@ -15409,9 +15705,7 @@ function payWithXRP() {
     }
 }
 
-function payWithCrypto() {
-    alert('Crypto payment via Coinbase Commerce coming soon!');
-}
+// Coinbase crypto removed — Stripe + MoonPay only
 
 // Tab switching
 function switchTab(tab) {
@@ -16065,7 +16359,7 @@ def api_search():
         return jsonify({"error": "origin, destination, and date are required"}), 400
 
     try:
-        results = search_global(origin, destination, date, fast_mode=True)
+        results = search_global(origin, destination, date, fast_mode=True, user=current_user)
 
         # Track search metric
         try:
@@ -16214,6 +16508,7 @@ def api_search_itinerary():
                             destination=destination,
                             date=date_str,
                             fast_mode=True,
+                            user=current_user,
                         )
                         if isinstance(flex_result, dict) and flex_result.get("deals"):
                             prices_list = [
@@ -16273,7 +16568,8 @@ def api_search_itinerary():
                 date=outbound_date,
                 return_date=return_date,  # ACTUAL round-trip search!
                 fast_mode=True,
-                search_options=search_options
+                search_options=search_options,
+                user=current_user
             )
 
             # Get the best deal from round-trip results
@@ -16844,16 +17140,7 @@ PAYMENT_PAGE_CONTENT = """
             </div>
             {% endif %}
 
-            {% if options.methods.crypto.enabled %}
-            <div class="payment-method" onclick="selectMethod('crypto')">
-                <div class="method-icon">🪙</div>
-                <div class="method-info">
-                    <strong>Other Crypto</strong>
-                    <span>BTC, ETH, LTC, DOGE, USDC & more - ${{ "%.2f"|format(options.fee_usd) }}</span>
-                </div>
-                <button class="btn btn-secondary" id="crypto-btn" onclick="payWithCrypto(event)">Pay with Crypto</button>
-            </div>
-            {% endif %}
+            <!-- Coinbase crypto removed — Stripe + MoonPay only -->
         </div>
 
         <!-- XRP Payment Details -->
@@ -16943,11 +17230,7 @@ function showRlusdDetails(e) {
     document.getElementById('xrp-details').classList.remove('show');
 }
 
-function payWithCrypto(e) {
-    e.stopPropagation();
-    // Redirect to Coinbase Commerce checkout
-    window.location.href = '/pay/crypto/' + dealId;
-}
+// Coinbase crypto removed — Stripe + MoonPay only
 
 function copyToClipboard(elementId) {
     const text = document.getElementById(elementId).innerText;
@@ -17056,8 +17339,13 @@ def pay_with_card(deal_id):
         user_email=current_user.email,
         success_url=request.host_url + "pay/success",
         cancel_url=request.host_url + f"pay/{deal_id}",
-        user_id=current_user.id
+        user_id=current_user.id,
+        user=current_user,
     )
+
+    # Commit stripe_customer_id if it was just created
+    if current_user.stripe_customer_id:
+        db.session.commit()
 
     if "error" in result:
         flash(f"Card payment error: {result['error']}", "error")
@@ -17143,7 +17431,10 @@ def payment_success():
 @app.route("/pay/verify/xrp", methods=["POST"])
 @login_required
 def verify_xrp_payment_route():
-    """Verify XRP payment."""
+    """Verify XRP payment. (Phase 2)"""
+    if not is_feature_enabled('xrpl_direct_payments'):
+        return jsonify({"error": "Direct XRP payments are not available in the current release", "phase": 2}), 410
+
     data = request.get_json()
     deal_id = data.get("deal_id")
     destination_tag = data.get("destination_tag")
@@ -17181,7 +17472,10 @@ def verify_xrp_payment_route():
 @app.route("/pay/verify/rlusd", methods=["POST"])
 @login_required
 def verify_rlusd_payment_route():
-    """Verify RLUSD payment."""
+    """Verify RLUSD payment. (Phase 2)"""
+    if not is_feature_enabled('xrpl_direct_payments'):
+        return jsonify({"error": "Direct RLUSD payments are not available in the current release", "phase": 2}), 410
+
     data = request.get_json()
     deal_id = data.get("deal_id")
     destination_tag = data.get("destination_tag")
@@ -17243,137 +17537,7 @@ def stripe_webhook():
     return jsonify({"received": True})
 
 
-# --- COINBASE COMMERCE CRYPTO PAYMENTS ---
-
-@app.route("/pay/crypto/<deal_id>")
-@login_required
-def pay_with_crypto(deal_id):
-    """Create Coinbase Commerce charge and redirect."""
-    deal = Deal.query.filter_by(deal_id=deal_id, is_active=True).first()
-    if not deal:
-        flash("Deal not found or expired.", "error")
-        return redirect("/deals")
-
-    result = create_coinbase_charge(
-        deal_id=deal_id,
-        fee_usd=deal.platform_fee_usd,
-        user_email=current_user.email,
-        redirect_url=request.host_url + "pay/crypto/success",
-        cancel_url=request.host_url + f"pay/{deal_id}"
-    )
-
-    if "error" in result:
-        flash(f"Crypto payment error: {result['error']}", "error")
-        return redirect(f"/pay/{deal_id}")
-
-    # Store pending payment with charge code
-    payment = Payment(
-        user_id=current_user.id,
-        deal_id=deal.id,
-        expected_xrp=0,  # Crypto payment, tracked differently
-        status='pending',
-        destination_tag=0,
-        tx_hash=result.get("charge_code")  # Store charge code temporarily
-    )
-    db.session.add(payment)
-    db.session.commit()
-
-    # Redirect to Coinbase Commerce hosted checkout
-    return redirect(result["hosted_url"])
-
-
-@app.route("/pay/crypto/success")
-@login_required
-def crypto_payment_success():
-    """Handle successful Coinbase Commerce payment."""
-    deal_id = request.args.get("deal_id")
-
-    if not deal_id:
-        flash("Invalid payment session.", "error")
-        return redirect("/deals")
-
-    # Find the pending payment with charge code
-    deal = Deal.query.filter_by(deal_id=deal_id).first()
-    if deal:
-        payment = Payment.query.filter_by(
-            user_id=current_user.id,
-            deal_id=deal.id,
-            status='pending'
-        ).first()
-
-        if payment and payment.tx_hash:
-            # Verify the charge
-            result = verify_coinbase_charge(payment.tx_hash)
-
-            if result.get("verified"):
-                payment.status = 'verified'
-                payment.verified_at = datetime.utcnow()
-                db.session.commit()
-
-                flash("Crypto payment successful! Here's your deal.", "success")
-                return redirect(f"/deal/{deal_id}/access")
-
-    flash("Payment verification pending. It may take a few minutes to confirm.", "info")
-    return redirect(f"/pay/{deal_id}")
-
-
-@app.route("/pay/verify/crypto", methods=["POST"])
-@login_required
-def verify_crypto_payment_route():
-    """Verify Coinbase Commerce payment."""
-    data = request.get_json()
-    charge_code = data.get("charge_code")
-    deal_id = data.get("deal_id")
-
-    result = verify_coinbase_charge(charge_code)
-
-    if result.get("verified"):
-        # Update payment record
-        deal = Deal.query.filter_by(deal_id=deal_id).first()
-        if deal:
-            payment = Payment.query.filter_by(
-                user_id=current_user.id,
-                deal_id=deal.id,
-                status='pending'
-            ).first()
-
-            if payment:
-                payment.status = 'verified'
-                payment.verified_at = datetime.utcnow()
-                payment.tx_hash = result.get("tx_hash", charge_code)
-                db.session.commit()
-
-    return jsonify(result)
-
-
-@app.route("/pay/webhook/coinbase", methods=["POST"])
-def coinbase_webhook():
-    """Handle Coinbase Commerce webhook events."""
-    payload = request.get_data()
-    signature = request.headers.get("X-CC-Webhook-Signature", "")
-
-    result = handle_coinbase_webhook(payload, signature)
-
-    if result.get("event") == "payment_completed":
-        deal_id = result.get("deal_id")
-        charge_code = result.get("charge_code")
-
-        deal = Deal.query.filter_by(deal_id=deal_id).first()
-        if deal:
-            # Find payment by charge code
-            payment = Payment.query.filter_by(
-                deal_id=deal.id,
-                tx_hash=charge_code,
-                status='pending'
-            ).first()
-
-            if payment:
-                payment.status = 'verified'
-                payment.verified_at = datetime.utcnow()
-                db.session.commit()
-                logger.info(f"Coinbase webhook: Payment verified for deal {deal_id}")
-
-    return jsonify({"received": True})
+    # Coinbase Commerce routes removed — Stripe + MoonPay only
 
 
 # --- P2P BOOKING FLOW ---

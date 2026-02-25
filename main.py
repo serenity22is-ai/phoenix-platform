@@ -31,6 +31,17 @@ except ImportError:
     AMADEUS_CONFIGURED = False
     print("Note: Amadeus client not available")
 
+# Picasso / AERTiCKET Redbox API — consolidator flight search (replaces Amadeus)
+try:
+    from picasso_client import PicassoClient, search_with_picasso
+    PICASSO_AVAILABLE = True
+    _picasso_client = PicassoClient()
+    PICASSO_CONFIGURED = _picasso_client.is_configured()
+except ImportError:
+    PICASSO_AVAILABLE = False
+    PICASSO_CONFIGURED = False
+    print("Note: Picasso/Redbox client not available")
+
 # Scraping mode: "hybrid" (default, Amadeus + proxies), "direct" (proxies only)
 SCRAPING_MODE = os.getenv("SCRAPING_MODE", "hybrid")
 
@@ -76,11 +87,10 @@ INTERNATIONAL_ROUTES = [
 ]
 
 # --- PLATFORM FEE CONFIGURATION ---
-# Your platform takes a percentage of the savings as a service fee
+# Member: 25% of savings, Non-member: 50% of savings
 PLATFORM_FEE_CONFIG = {
-    "savings_cut_pct": 25.0,         # Platform takes 25% of the user's savings
-    "min_fee_usd": 3.00,             # Minimum fee charged
-    "max_fee_usd": 50.00,            # Cap on fees
+    "member_pct": 25.0,
+    "non_member_pct": 50.0,
 }
 
 # Minimum savings to show a deal (after platform fee)
@@ -1695,29 +1705,11 @@ def calculate_deal(home_price, arbitrage_price, airline, cheapest_market,
     if gross_savings <= 0:
         return None
 
-    # Platform fee: percentage of savings, with min/max caps
-    fee_pct = PLATFORM_FEE_CONFIG["savings_cut_pct"] / 100
-
-    # Apply node tier arbitrage discount if user has a NodeConsentProfile (Build #107)
-    try:
-        from flask import g
-        user_id = getattr(g, 'user_id', None) or getattr(getattr(g, '_login_user', None), 'id', None)
-        if user_id:
-            from models import NodeConsentProfile
-            ncp = NodeConsentProfile.query.filter_by(user_id=user_id).first()
-            if ncp and ncp.current_tier:
-                from node_consent_economy import get_tier_benefits
-                benefits = get_tier_benefits()
-                tier_b = benefits.get(ncp.current_tier, {})
-                discount = tier_b.get('arbitrage_discount', 0)
-                if discount > 0:
-                    fee_pct = max(0.05, fee_pct - discount)  # Floor at 5%
-    except Exception:
-        pass  # Never block deal calculation on tier lookup
+    # Platform fee based on membership status
+    from payments import get_fee_percent
+    fee_pct = get_fee_percent()
 
     platform_fee = gross_savings * fee_pct
-    platform_fee = max(platform_fee, PLATFORM_FEE_CONFIG["min_fee_usd"])
-    platform_fee = min(platform_fee, PLATFORM_FEE_CONFIG["max_fee_usd"])
 
     # User's net savings after our fee
     user_savings = gross_savings - platform_fee
@@ -2236,7 +2228,7 @@ def run():
 
     print("\n" + "="*70)
     print(f"FLIGHT DEALS - Save by booking from cheaper markets")
-    print(f"Platform fee: {PLATFORM_FEE_CONFIG['savings_cut_pct']}% of savings (min ${PLATFORM_FEE_CONFIG['min_fee_usd']}, max ${PLATFORM_FEE_CONFIG['max_fee_usd']})")
+    print(f"Platform fee: {PLATFORM_FEE_CONFIG['member_pct']}% (members) / {PLATFORM_FEE_CONFIG['non_member_pct']}% (non-members)")
     print(f"Showing deals with ${MIN_USER_SAVINGS_USD}+ savings")
     print("="*70)
 

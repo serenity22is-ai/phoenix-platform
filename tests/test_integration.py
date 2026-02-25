@@ -530,7 +530,7 @@ class TestPaymentAPI:
     def test_escrow_create_requires_data(self, auth_client):
         resp = auth_client.post('/api/escrow/create', data=json.dumps({}),
                                 content_type='application/json')
-        assert resp.status_code in (200, 400, 422)
+        assert resp.status_code in (200, 400, 410, 422)  # 410 when xrpl_escrow feature flag disabled (Phase 1)
 
 
 # ===================================================================
