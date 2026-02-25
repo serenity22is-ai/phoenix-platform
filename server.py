@@ -9981,7 +9981,7 @@ function renderHotelCards(r) {
 
         if (offerId && hotelId) {
             html += '<div class="ai-card-actions">';
-            html += '<button class="ai-card-btn primary" onclick="bookHotel(\'' + esc(offerId) + '\',\'' + esc(hotelId) + '\')">Book This Hotel</button>';
+            html += '<button class="ai-card-btn primary" onclick="bookHotel(&apos;' + esc(offerId) + '&apos;,&apos;' + esc(hotelId) + '&apos;)">Book This Hotel</button>';
             html += '</div>';
         }
         html += '</div>';
@@ -10304,6 +10304,15 @@ document.getElementById('chatInput').addEventListener('input', function() {
         loadConversations();
     }
     loadSavedDealsCount();
+
+    // Auto-send query from ?q= URL parameter (from homepage search)
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q && q.trim()) {
+        document.getElementById('chatInput').value = q.trim();
+        setTimeout(function() { sendMessage(); }, 500);
+        window.history.replaceState({}, '', '/ai');
+    }
 })();
 </script>
 """

@@ -1751,12 +1751,10 @@ BASE_TEMPLATE = '''
             }
         })();
 
-        // Hide loading screen
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                document.getElementById('loadingScreen').classList.add('hidden');
-            }, 1000);
-        });
+        // Hide loading screen — runs immediately (script is at bottom of body, DOM is ready)
+        setTimeout(function() {
+            document.getElementById('loadingScreen').classList.add('hidden');
+        }, 1200);
 
         // Loading screen controls
         window.showLoadingScreen = function(message) {
@@ -1795,7 +1793,7 @@ BASE_TEMPLATE = '''
             toast.className = 'toast toast-' + type;
             toast.innerHTML = '<span class="toast-icon">' + (icons[type] || icons.info) + '</span>' +
                 '<span class="toast-content">' + message + '</span>' +
-                '<button class="toast-close" onclick="this.parentElement.classList.add(\'hiding\');setTimeout(function(){this.remove()}.bind(this.parentElement),400)">&times;</button>';
+                '<button class="toast-close" onclick="this.parentElement.classList.add(&apos;hiding&apos;);setTimeout(function(){this.remove()}.bind(this.parentElement),400)">&times;</button>';
             container.appendChild(toast);
             requestAnimationFrame(function() {
                 requestAnimationFrame(function() {
@@ -1864,7 +1862,7 @@ BASE_TEMPLATE = '''
     {% endif %}
 
     <!-- Three.js 3D Aurora Scene -->
-    <script src="/static/js/aurora-scene.js?v=3" defer></script>
+    <script src="/static/js/aurora-scene.js?v=4" defer></script>
 
     <!-- GSAP Scroll Animations -->
     <script>
