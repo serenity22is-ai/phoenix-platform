@@ -466,35 +466,87 @@ def send_ticket_confirmation(user_email: str, deal, booking, confirmation_code: 
     Returns:
         True if sent successfully
     """
+    # Build itinerary rows from segments
+    segments = deal.get_segments() if hasattr(deal, 'get_segments') else []
+    itinerary_html = ""
+    if segments:
+        for seg in segments:
+            dep = seg.get("departure_airport", deal.origin or "")
+            arr = seg.get("arrival_airport", deal.destination or "")
+            carrier = seg.get("carrier_name") or seg.get("carrier", deal.airline or "")
+            fnum = seg.get("flight_number", "")
+            itinerary_html += f"""
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">{carrier} {fnum}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">{dep} → {arr}</td>
+            </tr>"""
+    else:
+        itinerary_html = f"""
+        <tr>
+            <td style="padding: 8px;">{deal.airline or 'N/A'} {deal.flight_number or ''}</td>
+            <td style="padding: 8px;">{deal.origin} → {deal.destination}</td>
+        </tr>"""
+
+    # Get manage booking URL
+    try:
+        from main import get_manage_booking_url
+        manage_url = get_manage_booking_url(deal.airline or "")
+    except Exception:
+        manage_url = "https://www.google.com/travel/flights"
+
+    # Fare detail tags
+    fare_tags = []
+    if getattr(deal, 'fare_family', None):
+        fare_tags.append(deal.fare_family)
+    if getattr(deal, 'baggage_info', None):
+        bag = deal.baggage_info
+        fare_tags.append("No checked bag" if bag == "0PC" else bag)
+    if getattr(deal, 'seat_selection_available', None):
+        fare_tags.append("Seat selection available")
+    if getattr(deal, 'flight_cancellation_policy', None) == 'NOT_POSSIBLE':
+        fare_tags.append("Non-refundable")
+    fare_line = " · ".join(fare_tags) if fare_tags else ""
+
+    savings = deal.user_savings_usd or deal.gross_savings_usd or 0
+
     html_content = f"""
     <h2 style="color: #28a745;">Your Ticket is Confirmed!</h2>
 
     <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
         <p style="margin: 0; font-size: 14px; color: #155724;">Confirmation Code</p>
-        <p style="margin: 10px 0; font-size: 32px; font-weight: bold; color: #155724; letter-spacing: 2px;">
+        <p style="margin: 10px 0; font-size: 32px; font-weight: bold; color: #155724; letter-spacing: 4px;">
             {confirmation_code}
         </p>
     </div>
 
-    <h3>Flight Details</h3>
-    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-        <p><strong>Airline:</strong> {deal.airline or 'N/A'}</p>
-        <p><strong>Route:</strong> {deal.origin} → {deal.destination}</p>
-        <p><strong>Date:</strong> {deal.departure_date}</p>
-    </div>
+    <h3>Flight Itinerary</h3>
+    <table style="width: 100%; border-collapse: collapse; background: #f8f9fa; border-radius: 8px;">
+        <tr style="background: #e9ecef;">
+            <th style="padding: 10px; text-align: left;">Flight</th>
+            <th style="padding: 10px; text-align: left;">Route</th>
+        </tr>
+        {itinerary_html}
+    </table>
+    <p style="color: #666; font-size: 13px; margin-top: 8px;">
+        {deal.departure_date or ''} · {deal.duration or ''}
+        {(' · ' + fare_line) if fare_line else ''}
+    </p>
 
-    <div style="margin-top: 20px;">
-        <p style="color: #28a745; font-size: 18px;">
-            <strong>You saved ${deal.gross_savings_usd or deal.user_savings_usd or 0:.2f} with MYSTES!</strong>
-        </p>
-    </div>
+    {'<p style="color: #28a745; font-size: 18px; margin-top: 15px;"><strong>You saved $' + f"{savings:.0f}" + ' with MYSTES!</strong></p>' if savings else ''}
 
-    <h3>What's Next?</h3>
-    <ul>
-        <li>Check your email for the e-ticket from {deal.airline or 'the airline'}</li>
-        <li>Use the confirmation code above to manage your booking on the airline's website</li>
-        <li>Arrive at the airport with valid ID and your confirmation code</li>
-    </ul>
+    <h3>What's Next</h3>
+    <ol style="line-height: 2;">
+        <li><strong>Visit <a href="{manage_url}">{deal.airline or 'the airline'}'s website</a></strong> or download their app</li>
+        <li>Go to <strong>"Manage Booking"</strong> and enter your confirmation code + last name</li>
+        <li><strong>Select your seats</strong> and add checked bags if needed</li>
+        <li><strong>Check in online</strong> 24 hours before departure</li>
+    </ol>
+
+    <div style="text-align: center; margin: 25px 0;">
+        <a href="{manage_url}" style="display: inline-block; padding: 12px 30px; background: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Manage Your Booking
+        </a>
+    </div>
 
     <p style="color: #666; font-size: 14px;">
         Have a great flight! Thank you for using MYSTES.

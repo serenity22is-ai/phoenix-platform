@@ -240,6 +240,24 @@ class Deal(db.Model):
     cancellation_policy = db.Column(db.Text, nullable=True)
     room_description = db.Column(db.Text, nullable=True)
 
+    # Picasso / Redbox API references (critical for booking flow)
+    fare_id = db.Column(db.String(100), nullable=True)  # Redbox fareId from search
+    fare_search_id = db.Column(db.String(100), nullable=True)  # Redbox fareSearchId
+    picasso_gds = db.Column(db.String(20), nullable=True)  # GDS: AMADEUS, AER_DC, SABRE
+    fare_type = db.Column(db.String(10), nullable=True)  # PUB/NET/NEG
+
+    # Flight detail fields (from Picasso)
+    cabin_class = db.Column(db.String(20), nullable=True)  # ECONOMY/BUSINESS/FIRST
+    fare_family = db.Column(db.String(100), nullable=True)  # "Basic Economy", "Main Cabin"
+    baggage_info = db.Column(db.String(50), nullable=True)  # "0PC", "1x23kg"
+    seat_selection_available = db.Column(db.Boolean, nullable=True)
+    flight_cancellation_policy = db.Column(db.String(20), nullable=True)  # POSSIBLE/NOT_POSSIBLE/UNKNOWN
+    flight_rebooking_policy = db.Column(db.String(20), nullable=True)
+    ticket_deadline = db.Column(db.String(30), nullable=True)  # ISO timestamp
+    duration = db.Column(db.String(20), nullable=True)  # "5h 30m"
+    segments_json = db.Column(db.Text, nullable=True)  # JSON of segment details
+    layovers = db.Column(db.String(200), nullable=True)  # comma-separated airport codes
+
     # Relationships
     payments = db.relationship('Payment', backref='deal', lazy='dynamic')
     bookings = db.relationship('Booking', backref='deal', lazy='dynamic')
@@ -250,6 +268,16 @@ class Deal(db.Model):
             import json
             try:
                 return json.loads(self.flight_legs)
+            except:
+                return []
+        return []
+
+    def get_segments(self):
+        """Get flight segments as a Python list."""
+        if self.segments_json:
+            import json
+            try:
+                return json.loads(self.segments_json)
             except:
                 return []
         return []
@@ -278,9 +306,23 @@ class Deal(db.Model):
             'deal_status': self.deal_status or 'available',
             'is_multi_leg': self.is_multi_leg,
             'total_legs': self.total_legs,
+            'fare_id': self.fare_id,
+            'fare_search_id': self.fare_search_id,
         }
         if self.is_multi_leg:
             result['flight_legs'] = self.get_flight_legs()
+        if self.deal_type != 'hotel':
+            result.update({
+                'cabin_class': self.cabin_class,
+                'fare_family': self.fare_family,
+                'baggage_info': self.baggage_info,
+                'seat_selection_available': self.seat_selection_available,
+                'flight_cancellation_policy': self.flight_cancellation_policy,
+                'flight_rebooking_policy': self.flight_rebooking_policy,
+                'ticket_deadline': self.ticket_deadline,
+                'duration': self.duration,
+                'layovers': self.layovers,
+            })
         if self.deal_type == 'hotel':
             result.update({
                 'hotel_name': self.hotel_name,
@@ -405,6 +447,26 @@ class Booking(db.Model):
     eticket_sent = db.Column(db.Boolean, default=False)
     eticket_sent_at = db.Column(db.DateTime)
 
+    # Picasso / Redbox booking references
+    picasso_super_pnr_id = db.Column(db.String(100), nullable=True)
+    picasso_cart_id = db.Column(db.String(100), nullable=True)
+    pnr_locator = db.Column(db.String(20), nullable=True)  # Airline PNR from Redbox
+    eticket_number = db.Column(db.String(20), nullable=True)
+
+    # Passenger details (for automated Picasso booking)
+    passenger_first_name = db.Column(db.String(100), nullable=True)
+    passenger_last_name = db.Column(db.String(100), nullable=True)
+    passenger_date_of_birth = db.Column(db.Date, nullable=True)
+    passenger_gender = db.Column(db.String(10), nullable=True)  # MALE/FEMALE
+    passenger_phone = db.Column(db.String(30), nullable=True)
+    passenger_passport_number = db.Column(db.String(30), nullable=True)
+    passenger_passport_expiry = db.Column(db.Date, nullable=True)
+    passenger_nationality = db.Column(db.String(3), nullable=True)  # ISO country code
+    passenger_title = db.Column(db.String(10), nullable=True)  # MR/MS/MRS
+
+    # Additional passengers (JSON array for multi-pax bookings)
+    additional_passengers_json = db.Column(db.Text, nullable=True)
+
     # Hotel-specific booking fields
     guest_title = db.Column(db.String(10), nullable=True)  # MR/MS/MRS
     check_in_date = db.Column(db.Date, nullable=True)
@@ -422,19 +484,55 @@ class Booking(db.Model):
     # Relationship
     payment = db.relationship('Payment', backref='booking', uselist=False)
 
+    def get_additional_passengers(self):
+        """Get additional passengers as a Python list."""
+        if self.additional_passengers_json:
+            import json
+            try:
+                return json.loads(self.additional_passengers_json)
+            except Exception:
+                return []
+        return []
+
+    def get_all_passengers(self):
+        """Get all passengers (primary + additional) as a list of dicts."""
+        passengers = []
+        if self.passenger_first_name:
+            passengers.append({
+                "firstName": self.passenger_first_name,
+                "lastName": self.passenger_last_name or "",
+                "paxType": "ADT",
+                "dateOfBirth": self.passenger_date_of_birth.isoformat() if self.passenger_date_of_birth else None,
+                "gender": self.passenger_gender,
+                "email": self.passenger_email,
+                "phone": self.passenger_phone,
+                "title": self.passenger_title,
+                "passportNumber": self.passenger_passport_number,
+                "passportExpiry": self.passenger_passport_expiry.isoformat() if self.passenger_passport_expiry else None,
+                "nationality": self.passenger_nationality,
+            })
+        passengers.extend(self.get_additional_passengers())
+        return passengers
+
     def to_dict(self):
-        return {
+        result = {
             'id': self.id,
             'deal_id': self.deal_id,
             'passenger_name': self.passenger_name,
+            'passenger_first_name': self.passenger_first_name,
+            'passenger_last_name': self.passenger_last_name,
             'confirmation_code': self.confirmation_code,
+            'pnr_locator': self.pnr_locator,
+            'eticket_number': self.eticket_number,
             'status': self.status,
             'vendor_payment_status': self.vendor_payment_status,
             'fulfillment_type': self.fulfillment_type,
             'eticket_url': self.eticket_url,
+            'picasso_super_pnr_id': self.picasso_super_pnr_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'booked_at': self.booked_at.isoformat() if self.booked_at else None,
         }
+        return result
 
 
 class PriceAlert(db.Model):

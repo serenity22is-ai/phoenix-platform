@@ -356,11 +356,33 @@ class PicassoClient:
             additional = result.get("additionalFareInfos", [])
             baggage_info = None
             is_cheapest = False
+            seat_selection = None
+            cancellation_policy = None
+            rebooking_policy = None
+            ticket_deadline = None
+            ancillaries_available = False
+            extras_available = False
             for info in additional:
-                if info.get("type") == "baggageInfo":
+                info_type = info.get("type")
+                if info_type == "baggageInfo":
                     baggage_info = info.get("weightInfo", "")
-                if info.get("type") == "cheapestFare":
+                elif info_type == "cheapestFare":
                     is_cheapest = True
+                elif info_type == "seatFeatureInfo":
+                    seat_selection = {
+                        "available": bool(info.get("reservable")),
+                        "seatmap": bool(info.get("seatmapAvailable")),
+                        "cancelable": bool(info.get("cancelable")),
+                    }
+                elif info_type == "fareInfo":
+                    cancellation_policy = info.get("cancellationInfo", "UNKNOWN")
+                    rebooking_policy = info.get("rebookingInfo", "UNKNOWN")
+                elif info_type == "ticketTimeLimitInfo":
+                    ticket_deadline = info.get("ticketTimeLimit")
+                elif info_type == "ancillariesBookable":
+                    ancillaries_available = True
+                elif info_type == "extrasAvailable":
+                    extras_available = bool(info.get("display", True))
 
             # Parse legs
             legs = []
@@ -415,6 +437,14 @@ class PicassoClient:
                 "fare_type": fare_chars[0] if fare_chars else "PUB",
                 "baggage_info": baggage_info,
                 "is_cheapest": is_cheapest,
+
+                # Policies and extras
+                "seat_selection": seat_selection,
+                "cancellation_policy": cancellation_policy,
+                "rebooking_policy": rebooking_policy,
+                "ticket_deadline": ticket_deadline,
+                "ancillaries_available": ancillaries_available,
+                "extras_available": extras_available,
 
                 # Pricing
                 "price": total,
@@ -490,6 +520,727 @@ class PicassoClient:
             "ground_time": seg.get("groundTime", ""),
             "operating_carrier": operating.get("code", carrier_code),
             "is_codeshare": operating.get("code", carrier_code) != carrier_code,
+        }
+
+    # -------------------------------------------------------------------------
+    # Fare Rules
+    # -------------------------------------------------------------------------
+
+    def get_fare_rules(self, fare_search_id: str, fare_id: str) -> Dict:
+        """
+        Get fare rules for a specific fare from search results.
+
+        Returns structured fare rules with categories like:
+        - RU (Rule Application), FL (Flight Application)
+        - AP (Advance Purchase), MN (Min Stay), MX (Max Stay)
+        - PE (Penalties), etc.
+
+        Each category contains HTML-formatted rule text.
+        """
+        try:
+            url = self._api_url(f"availableFare/{fare_search_id}/fareRules")
+            response = self._session.get(
+                url,
+                params={"fareId": fare_id},
+                headers={"Accept": "application/json"},
+                timeout=20,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            rules = {}
+            for rule in data if isinstance(data, list) else data.get("fareRules", data.get("rules", [])):
+                category = rule.get("category", rule.get("code", ""))
+                title = rule.get("title", rule.get("name", category))
+                text = rule.get("text", rule.get("content", ""))
+                if category:
+                    rules[category] = {"title": title, "text": text}
+
+            return {
+                "success": True,
+                "fare_id": fare_id,
+                "rules": rules,
+                "rule_count": len(rules),
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Fare rules error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # Seatmap
+    # -------------------------------------------------------------------------
+
+    def get_seatmap(
+        self,
+        airline_code: str,
+        flight_number: str,
+        departure: str,
+        destination: str,
+        departure_date: str,
+        booking_class: str = "Y",
+        cabin_class: str = "ECONOMY",
+        reservation_system: str = "AMADEUS",
+    ) -> Dict:
+        """
+        Get seatmap for a specific flight.
+
+        Args:
+            airline_code: Marketing airline IATA code (AA, DL, UA)
+            flight_number: Flight number (e.g., "1758")
+            departure: Departure airport IATA
+            destination: Destination airport IATA
+            departure_date: YYYY-MM-DD
+            booking_class: GDS booking class code (Y, B, M, etc.)
+            cabin_class: ECONOMY/PREMIUM_ECONOMY/BUSINESS/FIRST
+            reservation_system: GDS (AMADEUS, SABRE, etc.)
+
+        Returns:
+            Seatmap data with rows, columns, seat availability.
+        """
+        try:
+            response = self._session.post(
+                self._api_url("seatmap"),
+                json={
+                    "marketingAirline": airline_code.upper(),
+                    "flightNumber": str(flight_number),
+                    "departure": departure.upper(),
+                    "destination": destination.upper(),
+                    "departureDate": departure_date,
+                    "bookingClass": booking_class.upper(),
+                    "cabinClass": cabin_class.upper(),
+                    "reservationSystem": reservation_system.upper(),
+                },
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=20,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            return {
+                "success": True,
+                "airline": airline_code,
+                "flight_number": flight_number,
+                "seatmap": data,
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Seatmap error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # Shopping Cart
+    # -------------------------------------------------------------------------
+
+    def get_shopping_cart(self) -> Dict:
+        """Get current shopping cart contents."""
+        try:
+            response = self._session.get(
+                self._api_url("shoppingCart"),
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return {
+                "success": True,
+                "cart": data,
+                "cart_id": data.get("shoppingCartId"),
+                "expires": data.get("expirationTimestamp"),
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Get cart error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def create_shopping_cart(self, items: List[Dict] = None) -> Dict:
+        """
+        Create a new shopping cart, optionally with initial items.
+
+        Args:
+            items: Optional list of cart items to add immediately.
+
+        Returns:
+            Cart details including shoppingCartId.
+        """
+        try:
+            payload = {}
+            if items:
+                payload["cartItemList"] = items
+
+            response = self._session.post(
+                self._api_url("shoppingCart"),
+                json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return {
+                "success": True,
+                "cart": data,
+                "cart_id": data.get("shoppingCartId"),
+                "expires": data.get("expirationTimestamp"),
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Create cart error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def add_to_cart_and_checkout(
+        self,
+        fare_search_id: str,
+        fare_id: str,
+        passengers: List[Dict],
+        itinerary_ids: List[str] = None,
+        markup_amount: float = 0.0,
+    ) -> Dict:
+        """
+        Add flight + passengers to cart and checkout in one step.
+
+        This is the primary booking entry point — combines cart creation,
+        flight selection, passenger data, and checkout into one API call.
+
+        Args:
+            fare_search_id: From search results
+            fare_id: Selected fare from search results
+            passengers: List of passenger dicts with:
+                - firstName, lastName, paxType (ADT/CHD/INF)
+                - dateOfBirth (YYYY-MM-DD), gender (Male/Female)
+                - Optional: title, email, phone, passport fields
+            itinerary_ids: Itinerary IDs from the fare result (defaults to ["0"])
+            markup_amount: Platform fee to add via BOOKING_FEE_OVERRIDE so
+                the issued ticket reflects the customer-facing price (not
+                the wholesale fare). This hides wholesale pricing from
+                the end consumer and satisfies airline contractual
+                requirements. Max $999 per Redbox threshold.
+
+        Returns:
+            Cart with shoppingCartId for superPNR creation.
+        """
+        if itinerary_ids is None:
+            itinerary_ids = ["0"]
+
+        cart_items = []
+
+        # Flight item
+        flight_item = {
+            "type": "FLIGHT",
+            "fareSearchId": fare_search_id,
+            "fareIds": [fare_id],
+            "itineraryIds": itinerary_ids,
+        }
+        cart_items.append(flight_item)
+
+        # Passenger items
+        for pax in passengers:
+            pax_item = {
+                "type": "PASSENGER",
+                "firstName": pax.get("firstName", pax.get("first_name", "")),
+                "lastName": pax.get("lastName", pax.get("last_name", "")),
+                "paxType": pax.get("paxType", pax.get("pax_type", "ADT")),
+            }
+
+            # Optional passenger fields
+            if pax.get("dateOfBirth") or pax.get("date_of_birth"):
+                pax_item["dateOfBirth"] = pax.get("dateOfBirth", pax.get("date_of_birth"))
+            if pax.get("gender"):
+                # Redbox expects "Male"/"Female" (capitalized), not "MALE"/"FEMALE"
+                gender_raw = pax["gender"].strip()
+                pax_item["gender"] = gender_raw.capitalize()
+            if pax.get("title"):
+                pax_item["title"] = pax["title"]
+            if pax.get("salutation"):
+                pax_item["salutation"] = pax["salutation"]
+            if pax.get("middleNames") or pax.get("middle_name"):
+                pax_item["middleNames"] = pax.get("middleNames", pax.get("middle_name"))
+
+            # Contact data — Redbox uses nested contactData with specific field names:
+            # emailAddress (NOT email), phoneNumber, telCountryCode, ctc, travellerId
+            contact_data = {}
+            if pax.get("email"):
+                contact_data["emailAddress"] = pax["email"]
+            if pax.get("phone") or pax.get("phoneNumber"):
+                contact_data["phoneNumber"] = pax.get("phone", pax.get("phoneNumber"))
+            if contact_data:
+                pax_item["contactData"] = contact_data
+
+            # APIS document — passport/travel document for international flights
+            apis = {}
+            if pax.get("passportNumber") or pax.get("passport_number"):
+                apis["documentNumber"] = pax.get("passportNumber", pax.get("passport_number"))
+            if pax.get("passportExpiry") or pax.get("passport_expiry"):
+                apis["expiryDate"] = pax.get("passportExpiry", pax.get("passport_expiry"))
+            if pax.get("nationality"):
+                apis["nationality"] = pax["nationality"]
+            if apis:
+                pax_item["apisDocument"] = apis
+
+            cart_items.append(pax_item)
+
+        # Add BOOKING_FEE_OVERRIDE to mark up the ticket price so it
+        # matches what the customer paid (hides wholesale pricing).
+        if markup_amount and markup_amount > 0:
+            cart_items.append({
+                "type": "BOOKING_FEE_OVERRIDE",
+                "value": round(markup_amount, 2),
+                "flightIdList": [fare_id],
+            })
+
+        try:
+            markup_str = f", markup=${markup_amount:.2f}" if markup_amount else ""
+            print(f"[PICASSO] Adding to cart: fare={fare_id}, {len(passengers)} passengers{markup_str}")
+            response = self._session.post(
+                self._api_url("shoppingCart/addAndCheckOut"),
+                json={"cartItemList": cart_items},
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            cart_id = data.get("shoppingCartId")
+            expires = data.get("expirationTimestamp")
+            print(f"[PICASSO] Cart created: {cart_id}, expires: {expires}")
+
+            return {
+                "success": True,
+                "cart": data,
+                "cart_id": cart_id,
+                "expires": expires,
+                "items": data.get("cartItemList", []),
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            print(f"[PICASSO] Add to cart error: {error}")
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Add to cart error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def delete_shopping_cart(self, cart_id: str) -> Dict:
+        """Delete a shopping cart."""
+        try:
+            response = self._session.delete(
+                self._api_url(f"shoppingCart/{cart_id}"),
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            return {"success": True}
+        except Exception as e:
+            print(f"[PICASSO] Delete cart error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # SuperPNR — Booking Creation & Management
+    # -------------------------------------------------------------------------
+
+    def create_booking(
+        self,
+        shopping_cart_id: str,
+        order_tickets: bool = True,
+        optimize_fare: bool = False,
+    ) -> Dict:
+        """
+        Create a booking (superPNR) from a shopping cart.
+
+        This is the final step that actually books the flight and creates
+        the PNR in the airline's system.
+
+        Args:
+            shopping_cart_id: Cart ID from add_to_cart_and_checkout()
+            order_tickets: If True, issue tickets immediately. If False,
+                          create PNR only (tickets issued later).
+            optimize_fare: If True, attempt to optimize the fare.
+
+        Returns:
+            Booking details including PNR/locator, booking status.
+        """
+        try:
+            payload = {
+                "shoppingCartId": shopping_cart_id,
+                "orderTickets": order_tickets,
+            }
+            if optimize_fare:
+                payload["optimizeFare"] = True
+
+            print(f"[PICASSO] Creating booking from cart {shopping_cart_id}, orderTickets={order_tickets}")
+            response = self._session.post(
+                self._api_url("superPNR"),
+                json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=60,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract key booking data
+            super_pnr_id = data.get("superPnrId", data.get("id"))
+            locator = data.get("locator", data.get("pnrLocator", data.get("recordLocator")))
+            status = data.get("status", data.get("bookingStatus"))
+
+            print(f"[PICASSO] Booking created: superPnrId={super_pnr_id}, locator={locator}, status={status}")
+
+            return {
+                "success": True,
+                "booking": data,
+                "super_pnr_id": super_pnr_id,
+                "locator": locator,
+                "pnr": locator,
+                "status": status,
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            print(f"[PICASSO] Create booking error: {error}")
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Create booking error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def search_bookings(
+        self,
+        locator: str = None,
+        departure: str = None,
+        destination: str = None,
+        airline: str = None,
+        date_from: str = None,
+        date_to: str = None,
+        travel_date_from: str = None,
+        travel_date_to: str = None,
+        agent: str = None,
+        search_option: str = None,
+    ) -> Dict:
+        """
+        Search existing bookings (superPNR search).
+
+        Args:
+            locator: PNR locator/record locator to search for
+            departure: Departure airport code
+            destination: Destination airport code
+            airline: Validating airline code
+            date_from/date_to: Booking creation date range (YYYY-MM-DD)
+            travel_date_from/travel_date_to: Travel date range
+            agent: Agent name
+            search_option: Search option filter
+
+        Returns:
+            List of matching bookings with summary stats.
+        """
+        payload = {}
+        if locator:
+            payload["locator"] = locator
+        if departure:
+            payload["departure"] = departure
+        if destination:
+            payload["destination"] = destination
+        if airline:
+            payload["validatingAirline"] = airline
+        if date_from:
+            payload["from"] = date_from
+        if date_to:
+            payload["until"] = date_to
+        if travel_date_from:
+            payload["travelDateFrom"] = travel_date_from
+        if travel_date_to:
+            payload["travelDateUntil"] = travel_date_to
+        if agent:
+            payload["agent"] = agent
+        if search_option:
+            payload["superPnrSearchOption"] = search_option
+
+        try:
+            response = self._session.post(
+                self._api_url("superPNR/search"),
+                json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            search_id = data.get("superPnrSearchId")
+            summary = data.get("searchSummary", {})
+
+            return {
+                "success": True,
+                "search_id": search_id,
+                "summary": summary,
+                "bookings": data.get("results", data.get("superPnrs", [])),
+                "total_open": summary.get("openBookings", 0),
+                "total_issued": summary.get("issued", 0),
+                "total_cancelled": summary.get("cancelled", 0),
+                "raw": data,
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Search bookings error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # Documents — Itinerary, Offer, Confirmation, Travel Registration
+    # -------------------------------------------------------------------------
+
+    def generate_document(
+        self,
+        document_type: str,
+        shopping_cart_id: str = None,
+        super_pnr_id: str = None,
+        fare_search_id: str = None,
+        fare_ids: List[str] = None,
+        passenger_list: List[Dict] = None,
+        display_prices: bool = True,
+        language: str = "en",
+        email_recipients: List[str] = None,
+        hide_agency_fees: bool = False,
+        custom_reference: str = None,
+    ) -> Dict:
+        """
+        Generate a document (PDF/email) via Redbox.
+
+        Args:
+            document_type: ITINERARY, OFFER, CONFIRMATION, or TRAVEL_REGISTRATION
+            shopping_cart_id: Cart ID (for pre-booking docs)
+            super_pnr_id: SuperPNR ID (for post-booking docs)
+            fare_search_id: Search ID (for offer docs)
+            fare_ids: List of fare IDs to include
+            passenger_list: Passenger details for the document
+            display_prices: Whether to show prices on the document
+            language: ISO language code
+            email_recipients: Email addresses to send document to
+            hide_agency_fees: Whether to hide agency markup
+            custom_reference: Custom reference number on document
+
+        Returns:
+            Document data (may include download URL or raw content).
+        """
+        payload = {
+            "documentType": document_type.upper(),
+            "displayPrices": display_prices,
+            "languageIsoCode": language,
+        }
+
+        if shopping_cart_id:
+            payload["shoppingCartId"] = shopping_cart_id
+        if super_pnr_id:
+            payload["superPnrId"] = super_pnr_id
+        if fare_search_id:
+            payload["fareSearchId"] = fare_search_id
+        if fare_ids:
+            payload["fareIds"] = fare_ids
+        if passenger_list:
+            payload["passengerList"] = passenger_list
+        if email_recipients:
+            payload["emailRecipients"] = email_recipients
+        if hide_agency_fees:
+            payload["hideAgencyFees"] = True
+        if custom_reference:
+            payload["customReferenceNumber"] = custom_reference
+
+        try:
+            print(f"[PICASSO] Generating {document_type} document")
+            response = self._session.post(
+                self._api_url("document"),
+                json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=30,
+            )
+            response.raise_for_status()
+
+            # Document may return PDF bytes or JSON
+            content_type = response.headers.get("Content-Type", "")
+            if "application/pdf" in content_type:
+                return {
+                    "success": True,
+                    "document_type": document_type,
+                    "content_type": "pdf",
+                    "content": response.content,
+                }
+            else:
+                data = response.json()
+                return {
+                    "success": True,
+                    "document_type": document_type,
+                    "content_type": "json",
+                    "document": data,
+                }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Document generation error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # Traveler Profiles
+    # -------------------------------------------------------------------------
+
+    def search_profiles(self, search_term: str) -> Dict:
+        """
+        Search traveler profiles.
+
+        Args:
+            search_term: Name or identifier to search for.
+
+        Returns:
+            List of matching traveler profiles.
+        """
+        try:
+            response = self._session.get(
+                self._api_url("profile"),
+                params={"searchTerm": search_term},
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            profiles = data if isinstance(data, list) else data.get("profiles", [])
+            return {
+                "success": True,
+                "profiles": profiles,
+                "count": len(profiles),
+            }
+        except requests.exceptions.HTTPError as e:
+            error = self._parse_redbox_error(e.response)
+            return {"success": False, "error": error}
+        except Exception as e:
+            print(f"[PICASSO] Profile search error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # Session & Configuration
+    # -------------------------------------------------------------------------
+
+    def get_session_info(self) -> Dict:
+        """Get current session configuration and info."""
+        try:
+            response = self._session.get(
+                self._api_url("clientSession"),
+                headers={"Accept": "application/json"},
+                timeout=10,
+            )
+            response.raise_for_status()
+            return {"success": True, "session": response.json()}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_configuration(self) -> Dict:
+        """Get Redbox configuration for current session."""
+        try:
+            response = self._session.get(
+                self._api_url("configuration"),
+                headers={"Accept": "application/json"},
+                timeout=10,
+            )
+            response.raise_for_status()
+            return {"success": True, "config": response.json()}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # -------------------------------------------------------------------------
+    # High-Level Booking Flow (Orchestrated)
+    # -------------------------------------------------------------------------
+
+    def book_flight(
+        self,
+        fare_search_id: str,
+        fare_id: str,
+        passengers: List[Dict],
+        order_tickets: bool = True,
+        itinerary_ids: List[str] = None,
+        markup_amount: float = 0.0,
+    ) -> Dict:
+        """
+        Complete end-to-end flight booking.
+
+        Orchestrates: addToCart → checkout → createBooking (superPNR).
+
+        Args:
+            fare_search_id: From search results
+            fare_id: Selected fare from search results
+            passengers: List of passenger dicts:
+                - firstName/first_name, lastName/last_name
+                - paxType/pax_type (ADT/CHD/INF)
+                - dateOfBirth/date_of_birth (YYYY-MM-DD)
+                - gender (Male/Female)
+                - email, phone (optional)
+                - passportNumber, passportExpiry, nationality (for intl flights)
+            order_tickets: If True, issue tickets immediately
+            itinerary_ids: Override itinerary selection
+            markup_amount: Platform fee to bake into ticket via
+                BOOKING_FEE_OVERRIDE so issued ticket matches customer price.
+
+        Returns:
+            Complete booking result with PNR, status, cart details.
+        """
+        markup_str = f", markup=${markup_amount:.2f}" if markup_amount else ""
+        print(f"[PICASSO] === BOOKING FLOW START ===")
+        print(f"[PICASSO] fare_search_id={fare_search_id}, fare_id={fare_id}")
+        print(f"[PICASSO] Passengers: {len(passengers)}, orderTickets={order_tickets}{markup_str}")
+
+        # Step 1: Add to cart and checkout (with markup if applicable)
+        cart_result = self.add_to_cart_and_checkout(
+            fare_search_id=fare_search_id,
+            fare_id=fare_id,
+            passengers=passengers,
+            itinerary_ids=itinerary_ids,
+            markup_amount=markup_amount,
+        )
+
+        if not cart_result.get("success"):
+            print(f"[PICASSO] Cart creation failed: {cart_result.get('error')}")
+            return {
+                "success": False,
+                "error": f"Cart creation failed: {cart_result.get('error')}",
+                "step": "cart",
+            }
+
+        cart_id = cart_result["cart_id"]
+        print(f"[PICASSO] Cart created: {cart_id}")
+
+        # Step 2: Create booking (superPNR)
+        booking_result = self.create_booking(
+            shopping_cart_id=cart_id,
+            order_tickets=order_tickets,
+        )
+
+        if not booking_result.get("success"):
+            # Try to clean up cart
+            self.delete_shopping_cart(cart_id)
+            print(f"[PICASSO] Booking creation failed: {booking_result.get('error')}")
+            return {
+                "success": False,
+                "error": f"Booking failed: {booking_result.get('error')}",
+                "step": "booking",
+                "cart_id": cart_id,
+            }
+
+        pnr = booking_result.get("pnr") or booking_result.get("locator")
+        super_pnr_id = booking_result.get("super_pnr_id")
+
+        print(f"[PICASSO] === BOOKING FLOW COMPLETE ===")
+        print(f"[PICASSO] PNR: {pnr}, SuperPNR: {super_pnr_id}")
+
+        return {
+            "success": True,
+            "pnr": pnr,
+            "locator": pnr,
+            "super_pnr_id": super_pnr_id,
+            "status": booking_result.get("status"),
+            "cart_id": cart_id,
+            "booking_data": booking_result.get("booking"),
+            "step": "complete",
         }
 
     # -------------------------------------------------------------------------
@@ -601,3 +1352,100 @@ def search_with_picasso(
         adults=adults,
         cabin_class=cabin_class,
     )
+
+
+# --- Fare Rules ---
+
+def get_fare_rules(fare_search_id: str, fare_id: str) -> Dict:
+    """Get fare rules for a specific fare."""
+    return _get_client().get_fare_rules(fare_search_id, fare_id)
+
+
+# --- Seatmap ---
+
+def get_seatmap(
+    airline_code: str,
+    flight_number: str,
+    departure: str,
+    destination: str,
+    departure_date: str,
+    booking_class: str = "Y",
+    cabin_class: str = "ECONOMY",
+) -> Dict:
+    """Get seatmap for a specific flight."""
+    return _get_client().get_seatmap(
+        airline_code, flight_number, departure, destination,
+        departure_date, booking_class, cabin_class,
+    )
+
+
+# --- Shopping Cart ---
+
+def get_shopping_cart() -> Dict:
+    """Get current shopping cart."""
+    return _get_client().get_shopping_cart()
+
+
+def add_to_cart_and_checkout(
+    fare_search_id: str,
+    fare_id: str,
+    passengers: List[Dict],
+    itinerary_ids: List[str] = None,
+    markup_amount: float = 0.0,
+) -> Dict:
+    """Add flight + passengers to cart and checkout."""
+    return _get_client().add_to_cart_and_checkout(
+        fare_search_id, fare_id, passengers, itinerary_ids, markup_amount,
+    )
+
+
+# --- Booking (SuperPNR) ---
+
+def create_booking(shopping_cart_id: str, order_tickets: bool = True) -> Dict:
+    """Create a booking from a shopping cart."""
+    return _get_client().create_booking(shopping_cart_id, order_tickets)
+
+
+def search_bookings(locator: str = None, **kwargs) -> Dict:
+    """Search existing bookings."""
+    return _get_client().search_bookings(locator=locator, **kwargs)
+
+
+def book_flight(
+    fare_search_id: str,
+    fare_id: str,
+    passengers: List[Dict],
+    order_tickets: bool = True,
+    markup_amount: float = 0.0,
+) -> Dict:
+    """Complete end-to-end flight booking (cart → book → PNR)."""
+    return _get_client().book_flight(
+        fare_search_id, fare_id, passengers, order_tickets,
+        markup_amount=markup_amount,
+    )
+
+
+# --- Documents ---
+
+def generate_document(document_type: str, **kwargs) -> Dict:
+    """Generate a document (ITINERARY, OFFER, CONFIRMATION, TRAVEL_REGISTRATION)."""
+    return _get_client().generate_document(document_type, **kwargs)
+
+
+# --- Profiles ---
+
+def search_profiles(search_term: str) -> Dict:
+    """Search traveler profiles."""
+    return _get_client().search_profiles(search_term)
+
+
+# --- Session ---
+
+def get_session_info() -> Dict:
+    """Get current Redbox session info."""
+    return _get_client().get_session_info()
+
+
+def get_configuration() -> Dict:
+    """Get Redbox configuration."""
+    return _get_client().get_configuration()

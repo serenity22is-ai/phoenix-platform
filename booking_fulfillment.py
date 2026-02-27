@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 class FulfillmentType(Enum):
     SELF_SERVICE = "self_service"       # Customer books via proxy
-    AUTOMATED = "automated"             # Automated API booking
+    AUTOMATED = "automated"             # Automated Picasso API booking
+    PICASSO_AUTO = "picasso_auto"       # Picasso end-to-end (cart → superPNR)
     MANUAL_AGENT = "manual_agent"       # Human agent books
 
 
@@ -107,6 +108,13 @@ class BookingFulfillmentManager:
 
         fulfillment_type = fulfillment_type or FULFILLMENT_CONFIG["default_type"]
 
+        # Auto-upgrade to Picasso automated if deal has fare_id
+        if (fulfillment_type == FulfillmentType.SELF_SERVICE.value
+                and getattr(deal, 'fare_id', None)
+                and getattr(deal, 'fare_search_id', None)):
+            fulfillment_type = FulfillmentType.AUTOMATED.value
+            logger.info(f"Auto-upgrading to automated (Picasso) for deal {deal.deal_id}")
+
         # Check if booking already exists
         existing = Booking.query.filter_by(
             user_id=getattr(user, 'id', None),
@@ -187,7 +195,7 @@ class BookingFulfillmentManager:
         """
         if booking.fulfillment_type == FulfillmentType.SELF_SERVICE.value:
             return self._fulfillment_self_service(booking, deal, user)
-        elif booking.fulfillment_type == FulfillmentType.AUTOMATED.value:
+        elif booking.fulfillment_type in (FulfillmentType.AUTOMATED.value, FulfillmentType.PICASSO_AUTO.value):
             return self._fulfillment_automated(booking, deal, user)
         elif booking.fulfillment_type == FulfillmentType.MANUAL_AGENT.value:
             return self._fulfillment_manual_agent(booking, deal, user)
@@ -302,101 +310,125 @@ class BookingFulfillmentManager:
     def _check_automation_availability(self, deal) -> bool:
         """
         Check if automated booking is available for this deal.
-        """
-        import os
-        has_payment_config = bool(os.getenv("PLATFORM_CARD_NUMBER"))
 
-        # Hotels: can be booked via Amadeus API directly (no proxy needed)
+        For flights: requires Picasso fare_id + fare_search_id on the Deal.
+        For hotels: requires liteAPI offer_id.
+        """
+        # Hotels: require liteAPI offer_id
         if getattr(deal, 'deal_type', 'flight') == 'hotel':
             has_offer_id = bool(getattr(deal, 'hotel_offer_id', None))
-            logger.info(f"Hotel automation check - payment: {has_payment_config}, offer_id: {has_offer_id}")
-            return has_payment_config and has_offer_id
+            logger.info(f"Hotel automation check - offer_id: {has_offer_id}")
+            return has_offer_id
 
-        # Flights: need proxy + payment config
-        from proxy_manager import is_proxy_configured
-        has_proxy = is_proxy_configured()
+        # Flights: require Picasso fare_id and fare_search_id
+        has_fare_id = bool(getattr(deal, 'fare_id', None))
+        has_search_id = bool(getattr(deal, 'fare_search_id', None))
 
-        supported_airlines = [
-            "jal", "japan airlines", "ana", "all nippon airways",
-            "iberia", "air france", "klm", "lufthansa",
-            "british airways", "american airlines", "delta", "united"
-        ]
-        airline_supported = deal.airline and deal.airline.lower() in supported_airlines
+        # Check if Picasso is configured
+        picasso_available = False
+        try:
+            from picasso_client import _get_client
+            picasso_available = _get_client().is_configured()
+        except Exception:
+            pass
 
-        logger.info(f"Automation check - payment: {has_payment_config}, proxy: {has_proxy}, airline: {airline_supported}")
+        logger.info(
+            f"Picasso automation check - fare_id: {has_fare_id}, "
+            f"search_id: {has_search_id}, picasso: {picasso_available}"
+        )
 
-        return has_payment_config and has_proxy
+        return has_fare_id and has_search_id and picasso_available
 
     def _execute_automated_booking(self, booking, deal, user) -> Dict[str, Any]:
         """
-        Execute an automated booking using Playwright browser automation.
+        Execute an automated booking via Picasso/Redbox API.
 
         Flow:
-        1. Get passenger details from booking
-        2. Use AirlineBooker to navigate airline site via proxy
-        3. Fill passenger and payment information
-        4. Complete booking and capture confirmation code
+        1. Get passenger details from Booking model
+        2. Call picasso_client.book_flight() (cart → superPNR)
+        3. Store PNR, superPnrId on booking record
+        4. Return confirmation code
+
+        Requires deal.fare_id and deal.fare_search_id to be set.
         """
         try:
-            from airline_booker import book_flight_sync
+            from picasso_client import _get_client
+            client = _get_client()
 
-            # Prepare deal data
-            deal_data = {
-                "origin": deal.origin,
-                "destination": deal.destination,
-                "departure_date": deal.departure_date.isoformat() if deal.departure_date else "",
-                "airline": deal.airline or "",
-                "flight_number": deal.flight_number,
-                "departure_time": deal.departure_time,
-                "booking_url": deal.booking_url,
-                "arbitrage_market": deal.arbitrage_market or "US",
-            }
+            # Build passenger list from booking record
+            passengers = booking.get_all_passengers()
 
-            # Get passenger data from booking
-            # Parse passenger name into first/last
-            name_parts = (booking.passenger_name or "Guest User").split(" ", 1)
-            first_name = name_parts[0]
-            last_name = name_parts[1] if len(name_parts) > 1 else ""
+            if not passengers:
+                # Fallback: parse from passenger_name field
+                name_parts = (booking.passenger_name or "Guest User").split(" ", 1)
+                passengers = [{
+                    "firstName": name_parts[0],
+                    "lastName": name_parts[1] if len(name_parts) > 1 else "",
+                    "paxType": "ADT",
+                    "email": booking.passenger_email or getattr(user, 'email', ''),
+                }]
 
-            passenger_data = {
-                "first_name": first_name,
-                "last_name": last_name,
-                "email": booking.passenger_email or user.email,
-                "phone": "",  # Would need to be stored in booking
-                "date_of_birth": "",  # Would need to be stored
-                "gender": "M",  # Would need to be stored
-            }
+            # Calculate markup so ticket price matches what customer paid.
+            # This hides wholesale pricing from the consumer and satisfies
+            # airline contractual requirements re: NET fare exposure.
+            markup_amount = 0.0
+            platform_fee = getattr(deal, 'platform_fee_usd', None)
+            if platform_fee and platform_fee > 0:
+                markup_amount = round(platform_fee, 2)
 
-            logger.info(f"Executing automated booking for {deal.airline} flight to {deal.destination}")
+            logger.info(
+                f"Executing Picasso booking: fare_id={deal.fare_id}, "
+                f"search_id={deal.fare_search_id}, {len(passengers)} pax, "
+                f"markup=${markup_amount:.2f}"
+            )
 
-            # Execute the automated booking
-            result = book_flight_sync(deal_data, passenger_data, booking.id)
+            # Execute full booking flow through Picasso
+            result = client.book_flight(
+                fare_search_id=deal.fare_search_id,
+                fare_id=deal.fare_id,
+                passengers=passengers,
+                order_tickets=True,
+                markup_amount=markup_amount,
+            )
 
-            if result.success:
-                logger.info(f"Automated booking successful: {result.confirmation_code}")
+            if result.get("success"):
+                pnr = result.get("pnr") or result.get("locator")
+                super_pnr_id = result.get("super_pnr_id")
+
+                # Store Picasso booking references
+                booking.pnr_locator = pnr
+                booking.picasso_super_pnr_id = super_pnr_id
+                booking.picasso_cart_id = result.get("cart_id")
+                self.db.commit()
+
+                logger.info(f"Picasso booking successful: PNR={pnr}, superPNR={super_pnr_id}")
                 return {
                     "success": True,
-                    "confirmation_code": result.confirmation_code,
-                    "payment_reference": result.booking_url,
+                    "confirmation_code": pnr,
+                    "payment_reference": super_pnr_id,
+                    "pnr": pnr,
+                    "super_pnr_id": super_pnr_id,
                 }
             else:
-                logger.warning(f"Automated booking failed: {result.error_message}")
+                step = result.get("step", "unknown")
+                error = result.get("error", "Booking failed")
+                logger.warning(f"Picasso booking failed at step '{step}': {error}")
                 return {
                     "success": False,
-                    "error": result.error_message or "Booking failed"
+                    "error": f"Picasso booking failed ({step}): {error}",
                 }
 
         except ImportError as e:
-            logger.error(f"airline_booker module not available: {e}")
+            logger.error(f"picasso_client not available: {e}")
             return {
                 "success": False,
-                "error": "Automated booking system not available"
+                "error": "Picasso booking system not available",
             }
         except Exception as e:
-            logger.error(f"Automated booking execution error: {e}")
+            logger.error(f"Picasso booking execution error: {e}")
             return {
                 "success": False,
-                "error": str(e)
+                "error": str(e),
             }
 
     def _generate_booking_urls(self, deal) -> list:

@@ -237,6 +237,46 @@ AIRLINE_BOOKING_URLS = {
     }
 }
 
+# Airline "Manage My Booking" page URLs (IATA code → URL)
+AIRLINE_MANAGE_BOOKING_URLS = {
+    "AA": "https://www.aa.com/reservation/view/find-your-trip",
+    "DL": "https://www.delta.com/mytrips/",
+    "UA": "https://www.united.com/en/us/manageres/mytrips",
+    "BA": "https://www.britishairways.com/travel/managebooking/public/en_us",
+    "LH": "https://www.lufthansa.com/us/en/my-bookings",
+    "AF": "https://www.airfrance.us/US/en/local/process/mpoBooking498498Action.do",
+    "KL": "https://www.klm.us/manage-booking",
+    "VS": "https://www.virginatlantic.com/manage-your-booking",
+    "EK": "https://www.emirates.com/us/english/manage-booking/",
+    "SQ": "https://www.singaporeair.com/en_UK/us/manage-booking/",
+    "QR": "https://www.qatarairways.com/en/trip-planner.html",
+    "TK": "https://www.turkishairlines.com/en-us/any-content/my-trips/",
+    "NK": "https://www.spirit.com/my-trips",
+    "B6": "https://www.jetblue.com/manage-trips",
+    "WN": "https://www.southwest.com/air/manage-reservation/",
+    "AS": "https://www.alaskaair.com/booking/manage-trip",
+    "F9": "https://www.flyfrontier.com/manage-my-booking/",
+    "QF": "https://www.qantas.com/au/en/manage-booking.html",
+    "CX": "https://www.cathaypacific.com/cx/en_US/manage-trip.html",
+    "NH": "https://www.ana.co.jp/en/us/book-plan/reservation/",
+    "JL": "https://www.jal.co.jp/en/inter/reservation/",
+    "IB": "https://www.iberia.com/us/manage-your-booking/",
+    "AY": "https://www.finnair.com/us-en/manage-booking",
+    "SK": "https://www.flysas.com/us-en/manage-my-booking/",
+    "TP": "https://www.flytap.com/en-us/manage-bookings",
+    "EI": "https://www.aerlingus.com/manage-trip/my-trips/",
+}
+
+
+def get_manage_booking_url(airline_code):
+    """Get airline's 'Manage My Booking' URL by IATA code."""
+    if not airline_code:
+        return "https://www.google.com/travel/flights"
+    return AIRLINE_MANAGE_BOOKING_URLS.get(
+        airline_code.upper().strip(),
+        "https://www.google.com/travel/flights"
+    )
+
 
 def fetch_live_currency_rates():
     """

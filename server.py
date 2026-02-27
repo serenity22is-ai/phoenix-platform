@@ -1798,7 +1798,7 @@ DEALS_CONTENT = """
                     <div style="color: #ccc; font-size: 14px;">${{ "%.0f"|format(d.price_total_usd or 0) }} total</div>
                 {% else %}
                     <div style="font-size: 24px; font-weight: bold; color: #4caf50;">
-                        Save ${{ "%.0f"|format(d.gross_savings_usd or d.user_savings_usd or 0) }}
+                        Save ${{ "%.0f"|format(d.user_savings_usd or d.gross_savings_usd or 0) }}
                     </div>
                     <div style="color: #81c784; font-size: 14px;">
                         {{ "%.0f"|format(d.savings_percent or 0) }}% off
@@ -1815,11 +1815,11 @@ DEALS_CONTENT = """
             </div>
             <div>
                 <div style="color: #fff; font-size: 12px; text-transform: uppercase;">MYSTES Price</div>
-                <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.arbitrage_price_usd or 0) }}</div>
+                <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format((d.arbitrage_price_usd or 0) + (d.platform_fee_usd or 0)) }}</div>
             </div>
             <div>
                 <div style="color: #fff; font-size: 12px; text-transform: uppercase;">You Save</div>
-                <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.gross_savings_usd or d.user_savings_usd or 0) }}</div>
+                <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.user_savings_usd or d.gross_savings_usd or 0) }}</div>
             </div>
         </div>
         {% endif %}
@@ -5110,40 +5110,154 @@ def notify_agents_for_booking(booking, deal, passenger_data):
 # --- BOOKING STATUS AND CONFIRMATION PAGES ---
 
 BOOKING_CONFIRMATION_CONTENT = """
-<div class="card" style="max-width: 600px; margin: 40px auto; text-align: center;">
-    <span style="font-size: 64px;">&#127881;</span>
-    <h2 style="color: #28a745; margin: 20px 0;">Booking Confirmed!</h2>
-
-    <div style="background: #d4edda; padding: 25px; border-radius: 12px; margin: 25px 0;">
-        <h3 style="margin: 0 0 15px 0;">Confirmation Code</h3>
-        <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #155724;">
-            {{ booking.confirmation_code or 'PENDING' }}
-        </div>
+<div class="card" style="max-width: 680px; margin: 40px auto;">
+    <!-- Header -->
+    <div style="text-align: center; margin-bottom: 25px;">
+        <div style="font-size: 48px; margin-bottom: 10px;">&#10003;</div>
+        <h2 style="color: #28a745; margin: 0; font-family: Cinzel, serif;">Booking Confirmed</h2>
+        <p style="color: #999; margin: 5px 0 0;">{{ booking.passenger_name }}</p>
     </div>
 
-    <div style="text-align: left; background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        {% if is_hotel %}
-            <p><strong>Guest:</strong> {{ booking.passenger_name }}</p>
-            <p><strong>Hotel:</strong> {{ deal.hotel_name }}</p>
-            <p><strong>Location:</strong> {{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }}</p>
-            <p><strong>Check-in:</strong> {{ deal.check_in_date }}</p>
-            <p><strong>Check-out:</strong> {{ deal.check_out_date }}</p>
-            <p><strong>Room:</strong> {{ deal.room_type or 'Standard' }}</p>
-            <p><strong>Nights:</strong> {{ deal.nights }}</p>
-        {% else %}
-            <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
-            <p><strong>Route:</strong> {{ deal.origin }} &rarr; {{ deal.destination }}</p>
-            <p><strong>Date:</strong> {{ deal.departure_date }}</p>
-            <p><strong>Airline:</strong> {{ deal.airline or 'N/A' }}</p>
-            {% if deal.user_savings_usd %}
-            <p style="color: #28a745;"><strong>You saved:</strong> ${{ "%.2f"|format(deal.user_savings_usd) }}</p>
-            {% endif %}
+    <!-- PNR Block -->
+    <div style="background: rgba(40,167,69,0.15); border: 1px solid rgba(40,167,69,0.3); padding: 25px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
+        <div style="color: #81c784; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px;">Confirmation Code</div>
+        <div id="pnr-code" style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #4caf50; font-family: monospace;">
+            {{ booking.confirmation_code or 'PENDING' }}
+        </div>
+        {% if booking.confirmation_code %}
+        <button onclick="navigator.clipboard.writeText(&apos;{{ booking.confirmation_code }}&apos;);this.textContent=&apos;Copied!&apos;;setTimeout(()=>this.textContent=&apos;Copy Code&apos;,2000)" style="margin-top: 12px; padding: 6px 20px; background: transparent; border: 1px solid rgba(76,175,80,0.4); color: #81c784; border-radius: 6px; cursor: pointer; font-size: 12px;">Copy Code</button>
+        {% endif %}
+        {% if booking.eticket_url %}
+        <div style="margin-top: 10px; font-size: 13px; color: #999;">E-ticket: <a href="{{ booking.eticket_url }}" style="color: #81c784;">Download</a></div>
         {% endif %}
     </div>
 
-    <p style="color: #666;">A confirmation email has been sent to {{ booking.passenger_email }}.</p>
+    {% if is_hotel %}
+    <!-- Hotel Details -->
+    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Hotel:</strong> {{ deal.hotel_name }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Location:</strong> {{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Check-in:</strong> {{ deal.check_in_date }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Check-out:</strong> {{ deal.check_out_date }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Room:</strong> {{ deal.room_type or 'Standard' }}</p>
+    </div>
+    {% else %}
+    <!-- Flight Itinerary -->
+    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #999;">Flight Itinerary</h3>
+        {% if segments %}
+        {% for seg in segments %}
+        <div style="display: flex; align-items: center; gap: 15px; padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid rgba(255,255,255,0.06);{% endif %}">
+            <div style="min-width: 55px;">
+                <div style="font-size: 16px; font-weight: 600; color: #f5f5f5;">{{ seg.carrier or deal.airline }}</div>
+                <div style="font-size: 11px; color: #777;">{{ seg.flight_number or deal.flight_number }}</div>
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: 600; color: #f5f5f5;">{{ seg.departure_airport or deal.origin }}</div>
+                    <div style="font-size: 11px; color: #777;">{{ seg.departure_time[:5] if seg.departure_time and 'T' in seg.departure_time else (deal.departure_time or '') }}</div>
+                </div>
+                <div style="flex: 1; text-align: center; position: relative;">
+                    <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 0 10px;"></div>
+                    <div style="font-size: 10px; color: #666; margin-top: 4px;">{{ seg.cabin_class or deal.cabin_class or '' }}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: 600; color: #f5f5f5;">{{ seg.arrival_airport or deal.destination }}</div>
+                    <div style="font-size: 11px; color: #777;">{{ seg.arrival_time[:5] if seg.arrival_time and 'T' in seg.arrival_time else (deal.arrival_time or '') }}</div>
+                </div>
+            </div>
+        </div>
+        {% if seg.is_codeshare %}
+        <div style="font-size: 11px; color: #888; padding: 2px 0 8px 0;">Operated by {{ seg.operating_carrier }}</div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        <!-- Fallback: no segments data -->
+        <div style="display: flex; align-items: center; gap: 15px; padding: 12px 0;">
+            <div style="min-width: 55px;">
+                <div style="font-size: 16px; font-weight: 600; color: #f5f5f5;">{{ deal.airline or 'N/A' }}</div>
+                <div style="font-size: 11px; color: #777;">{{ deal.flight_number or '' }}</div>
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: 600; color: #f5f5f5;">{{ deal.origin }}</div>
+                    <div style="font-size: 11px; color: #777;">{{ deal.departure_time or '' }}</div>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                    <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 0 10px;"></div>
+                    <div style="font-size: 10px; color: #666; margin-top: 4px;">{{ deal.duration or '' }}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 18px; font-weight: 600; color: #f5f5f5;">{{ deal.destination }}</div>
+                    <div style="font-size: 11px; color: #777;">{{ deal.arrival_time or '' }}</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <div style="font-size: 12px; color: #888; margin-top: 8px;">{{ deal.departure_date }}{% if deal.layovers %} &middot; {{ deal.layovers }}{% endif %}</div>
+    </div>
 
-    <a href="/dashboard" class="btn" style="margin-top: 20px;">View My Bookings</a>
+    <!-- Fare Details Tags -->
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px;">
+        {% if deal.fare_family %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1);">{{ deal.fare_family }}</span>{% endif %}
+        {% if deal.baggage_info %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1);">{{ 'No checked bag' if deal.baggage_info == '0PC' else deal.baggage_info }}</span>{% endif %}
+        {% if deal.seat_selection_available %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(76,175,80,0.15); color: #81c784; border: 1px solid rgba(76,175,80,0.2);">Seat selection available</span>{% endif %}
+        {% if deal.flight_cancellation_policy == 'NOT_POSSIBLE' %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(229,115,115,0.15); color: #e57373; border: 1px solid rgba(229,115,115,0.2);">Non-refundable</span>{% endif %}
+        {% if deal.flight_cancellation_policy == 'POSSIBLE' %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(76,175,80,0.15); color: #81c784; border: 1px solid rgba(76,175,80,0.2);">Refundable</span>{% endif %}
+        {% if deal.flight_rebooking_policy == 'POSSIBLE' %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(76,175,80,0.15); color: #81c784; border: 1px solid rgba(76,175,80,0.2);">Changeable</span>{% endif %}
+        {% if deal.cabin_class %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1);">{{ deal.cabin_class }}</span>{% endif %}
+    </div>
+
+    <!-- Savings Summary -->
+    {% if deal.user_savings_usd %}
+    <div style="background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.2); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="font-size: 12px; color: #81c784; text-transform: uppercase;">You saved</div>
+            <div style="font-size: 24px; font-weight: bold; color: #4caf50;">${{ "%.0f"|format(deal.user_savings_usd) }}</div>
+        </div>
+        <div style="text-align: right; font-size: 13px; color: #999;">
+            <div>Normal: <span style="text-decoration: line-through;">${{ "%.0f"|format(deal.home_price_usd or 0) }}</span></div>
+            <div>MYSTES: <span style="color: #4caf50; font-weight: 600;">${{ "%.0f"|format((deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)) }}</span></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Next Steps -->
+    <div style="background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff;">What&apos;s Next</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">1</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Visit the airline&apos;s website</strong> or download their app</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">2</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Go to &quot;Manage Booking&quot;</strong> and enter your confirmation code + last name</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">3</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Select your seats</strong> and add checked bags if needed</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">4</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Check in online</strong> 24 hours before your departure</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Booking CTA -->
+    {% if manage_booking_url %}
+    <a href="{{ manage_booking_url }}" target="_blank" rel="noopener" class="btn" style="display: block; text-align: center; padding: 14px; margin-bottom: 15px; background: linear-gradient(135deg, #7c3aed, #a855f7);">
+        Manage Booking on {{ deal.airline or 'Airline' }} Website
+    </a>
+    {% endif %}
+    {% endif %}
+
+    <!-- Footer -->
+    <div style="text-align: center; margin-top: 20px;">
+        <p style="color: #777; font-size: 13px;">Confirmation sent to {{ booking.passenger_email }}</p>
+        <a href="/dashboard" class="btn btn-secondary" style="margin-top: 10px;">View My Bookings</a>
+    </div>
 </div>
 """
 
@@ -5163,20 +5277,34 @@ BOOKING_STATUS_CONTENT = """
         {% endif %}
     </div>
 
-    <div style="text-align: left; background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <p><strong>Booking ID:</strong> #{{ booking.id }}</p>
+    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left;">
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Booking ID:</strong> #{{ booking.id }}</p>
         {% if is_hotel %}
-            <p><strong>Guest:</strong> {{ booking.passenger_name }}</p>
-            <p><strong>Hotel:</strong> {{ deal.hotel_name }}</p>
-            <p><strong>Location:</strong> {{ deal.city_code }}</p>
-            <p><strong>Check-in:</strong> {{ deal.check_in_date }}</p>
-            <p><strong>Check-out:</strong> {{ deal.check_out_date }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Guest:</strong> {{ booking.passenger_name }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Hotel:</strong> {{ deal.hotel_name }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Location:</strong> {{ deal.city_code }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Check-in:</strong> {{ deal.check_in_date }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Check-out:</strong> {{ deal.check_out_date }}</p>
         {% else %}
-            <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
-            <p><strong>Route:</strong> {{ deal.origin }} &rarr; {{ deal.destination }}</p>
-            <p><strong>Date:</strong> {{ deal.departure_date }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Passenger:</strong> {{ booking.passenger_name }}</p>
+            <div style="display: flex; align-items: center; gap: 15px; padding: 15px 0; margin: 10px 0; border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #f5f5f5;">{{ deal.origin }}</div>
+                    <div style="font-size: 11px; color: #777;">{{ deal.departure_time or '' }}</div>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                    <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 0 10px;"></div>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">{{ deal.duration or '' }}{% if deal.layovers %} &middot; {{ deal.layovers }}{% endif %}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #f5f5f5;">{{ deal.destination }}</div>
+                    <div style="font-size: 11px; color: #777;">{{ deal.arrival_time or '' }}</div>
+                </div>
+            </div>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Date:</strong> {{ deal.departure_date }}</p>
+            <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Airline:</strong> {{ deal.airline or 'N/A' }}{% if deal.flight_number %} {{ deal.flight_number }}{% endif %}</p>
+            {% if deal.fare_family %}<p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Fare:</strong> {{ deal.fare_family }}</p>{% endif %}
         {% endif %}
-        <p><strong>Fulfillment:</strong> {{ booking.fulfillment_type|replace('_', ' ')|title }}</p>
     </div>
 
     {% if booking.fulfillment_type == 'self_service' and not booking.confirmation_code and not is_hotel %}
@@ -5813,6 +5941,18 @@ def booking_confirmation(booking_id):
     deal_dict = deal.to_dict() if deal else {}
     is_hotel = (deal.deal_type == 'hotel') if deal else False
 
+    # Parse segments for itinerary display
+    segments = deal.get_segments() if deal and not is_hotel else []
+
+    # Get airline manage booking URL
+    from main import get_manage_booking_url
+    airline_code = ""
+    if segments:
+        airline_code = segments[0].get("carrier", "")
+    elif deal:
+        airline_code = deal.airline or ""
+    manage_url = get_manage_booking_url(airline_code) if not is_hotel else None
+
     return render_template_string(
         BASE_TEMPLATE,
         title="Hotel Confirmed" if is_hotel else "Booking Confirmed",
@@ -5820,7 +5960,9 @@ def booking_confirmation(booking_id):
             BOOKING_CONFIRMATION_CONTENT,
             booking=booking,
             deal=deal_dict,
-            is_hotel=is_hotel
+            is_hotel=is_hotel,
+            segments=segments,
+            manage_booking_url=manage_url,
         ),
         current_user=current_user
     )
@@ -6425,6 +6567,10 @@ def api_create_deal():
                 platform_fee_usd=service_fee,
                 user_savings_usd=user_savings,
                 savings_percent=round((savings / us_price * 100) if us_price > 0 else 0, 1),
+                fare_id=data.get("fare_id"),
+                fare_search_id=data.get("fare_search_id"),
+                picasso_gds=data.get("picasso_gds"),
+                fare_type=data.get("fare_type"),
                 is_multi_leg=False,
                 total_legs=1,
                 created_at=datetime.utcnow()
@@ -6448,6 +6594,192 @@ def api_create_deal():
 
     except Exception as e:
         logging.error(f"Error creating deal: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# --- PICASSO API ENDPOINTS ---
+
+@app.route("/api/picasso/fare-rules", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_picasso_fare_rules():
+    """Get fare rules for a specific fare from Picasso search results."""
+    data = request.get_json()
+    fare_search_id = data.get("fare_search_id")
+    fare_id = data.get("fare_id")
+    if not fare_search_id or not fare_id:
+        return jsonify({"error": "fare_search_id and fare_id required"}), 400
+    try:
+        from picasso_client import get_fare_rules
+        result = get_fare_rules(fare_search_id, fare_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/picasso/seatmap", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_picasso_seatmap():
+    """Get seatmap for a specific flight."""
+    data = request.get_json()
+    required = ["airline_code", "flight_number", "departure", "destination", "departure_date"]
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+    try:
+        from picasso_client import get_seatmap
+        result = get_seatmap(
+            airline_code=data["airline_code"],
+            flight_number=data["flight_number"],
+            departure=data["departure"],
+            destination=data["destination"],
+            departure_date=data["departure_date"],
+            booking_class=data.get("booking_class", "Y"),
+            cabin_class=data.get("cabin_class", "ECONOMY"),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/picasso/book", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_picasso_book():
+    """
+    Book a flight through Picasso (cart → superPNR).
+
+    Request JSON:
+        {
+            "deal_id": "abc123",
+            "passengers": [
+                {
+                    "firstName": "John",
+                    "lastName": "Doe",
+                    "paxType": "ADT",
+                    "dateOfBirth": "1990-01-15",
+                    "gender": "MALE",
+                    "email": "john@example.com",
+                    "phone": "+1234567890"
+                }
+            ]
+        }
+    """
+    data = request.get_json()
+    deal_id = data.get("deal_id")
+    passengers = data.get("passengers", [])
+
+    if not deal_id:
+        return jsonify({"error": "deal_id required"}), 400
+    if not passengers:
+        return jsonify({"error": "At least one passenger required"}), 400
+
+    deal = Deal.query.filter_by(deal_id=deal_id).first()
+    if not deal:
+        return jsonify({"error": "Deal not found"}), 404
+    if not deal.fare_id or not deal.fare_search_id:
+        return jsonify({"error": "Deal missing Picasso fare data — cannot book automatically"}), 400
+
+    try:
+        from picasso_client import book_flight
+
+        # Calculate markup so ticket price matches customer price
+        markup_amount = 0.0
+        if deal.platform_fee_usd and deal.platform_fee_usd > 0:
+            markup_amount = round(deal.platform_fee_usd, 2)
+
+        result = book_flight(
+            fare_search_id=deal.fare_search_id,
+            fare_id=deal.fare_id,
+            passengers=passengers,
+            order_tickets=True,
+            markup_amount=markup_amount,
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Picasso book error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/picasso/bookings", methods=["GET", "POST"])
+@csrf.exempt
+@login_required
+def api_picasso_bookings():
+    """Search Picasso bookings by locator, dates, airline, etc."""
+    if request.method == "GET":
+        locator = request.args.get("locator")
+    else:
+        data = request.get_json() or {}
+        locator = data.get("locator")
+
+    try:
+        from picasso_client import search_bookings
+        kwargs = {}
+        if request.method == "POST":
+            data = request.get_json() or {}
+            for key in ["departure", "destination", "airline", "date_from", "date_to",
+                        "travel_date_from", "travel_date_to"]:
+                if data.get(key):
+                    kwargs[key] = data[key]
+        result = search_bookings(locator=locator, **kwargs)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/picasso/document", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_picasso_document():
+    """
+    Generate a document (itinerary, offer, confirmation) via Picasso.
+
+    Request JSON:
+        {
+            "document_type": "ITINERARY",   (ITINERARY|OFFER|CONFIRMATION|TRAVEL_REGISTRATION)
+            "shopping_cart_id": "...",       (optional)
+            "super_pnr_id": "...",          (optional)
+            "fare_search_id": "...",        (optional)
+            "fare_ids": ["..."],            (optional)
+            "email_recipients": ["..."],    (optional)
+        }
+    """
+    data = request.get_json()
+    doc_type = data.get("document_type")
+    if not doc_type:
+        return jsonify({"error": "document_type required"}), 400
+
+    try:
+        from picasso_client import generate_document
+        result = generate_document(
+            document_type=doc_type,
+            shopping_cart_id=data.get("shopping_cart_id"),
+            super_pnr_id=data.get("super_pnr_id"),
+            fare_search_id=data.get("fare_search_id"),
+            fare_ids=data.get("fare_ids"),
+            email_recipients=data.get("email_recipients"),
+            display_prices=data.get("display_prices", True),
+            language=data.get("language", "en"),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/picasso/session")
+@login_required
+def api_picasso_session():
+    """Get current Picasso session info and configuration."""
+    try:
+        from picasso_client import get_session_info, get_configuration
+        session_info = get_session_info()
+        config = get_configuration()
+        return jsonify({
+            "session": session_info,
+            "configuration": config,
+        })
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
@@ -9894,9 +10226,9 @@ function renderFlightCards(r) {
             html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.85rem;">';
             if (deal.home_price && deal.arbitrage_price) {
                 html += '<div class="ai-card-row"><span class="label" style="color:#999;">Normal price</span><span class="value" style="color:#999;text-decoration:line-through;">$' + Math.round(deal.home_price) + '</span></div>';
-                html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">MYSTES price</span><span class="value" style="color:#00e676;font-weight:600;">$' + Math.round(deal.arbitrage_price) + '</span></div>';
+                html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">MYSTES price</span><span class="value" style="color:#00e676;font-weight:600;">$' + Math.round((deal.arbitrage_price || 0) + (deal.platform_fee_usd || 0)) + '</span></div>';
             }
-            html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">You save</span><span class="value" style="color:#00e676;font-weight:700;">-$' + Math.round(deal.price_difference) + ' (' + Math.round(deal.user_saves_pct || savings) + '%)</span></div>';
+            html += '<div class="ai-card-row"><span class="label" style="color:#00e676;">You save</span><span class="value" style="color:#00e676;font-weight:700;">-$' + Math.round(deal.user_savings || deal.price_difference || 0) + ' (' + Math.round(deal.user_saves_pct || savings) + '%)</span></div>';
             html += '</div>';
         }
 
@@ -9914,10 +10246,14 @@ function renderFlightCards(r) {
             arrival_time: f.arrival_time || '',
             stops: f.stops || 0,
             home_price: deal ? deal.home_price : price,
-            arbitrage_price: deal ? deal.arbitrage_price : price,
+            arbitrage_price: deal ? (deal.arbitrage_price || 0) + (deal.platform_fee_usd || 0) : price,
             price_difference: deal ? deal.price_difference : 0,
             cheapest_market: 'MYSTES',
             home_market: 'US',
+            fare_id: f.fare_id || (f.raw_offer ? f.raw_offer.fare_id : null),
+            fare_search_id: f.fare_search_id || (f.raw_offer ? f.raw_offer.fare_search_id : null),
+            picasso_gds: f.picasso_gds || null,
+            fare_type: f.fare_type || null,
             raw_offer: f.raw_offer || null,
         };
         html += dealActionButtons(dealPayload);
@@ -13504,6 +13840,21 @@ SEARCH_PAGE_CONTENT = """
     background: linear-gradient(135deg, #218838, #1aab8a);
     box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
 }
+.flight-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 8px 0;
+}
+.flight-card-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.08);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.1);
+    white-space: nowrap;
+}
 @media (max-width: 600px) {
     .flight-card-route { gap: 8px; }
     .flight-card-time-value { font-size: 15px; }
@@ -15089,7 +15440,8 @@ function displayResults(data) {
             // Show flights as cards
             for (const flight of flightList.slice(0, 10)) {
                 const usPrice = flight.deal?.home_price || flight.cheapest_price;
-                const cheapestPrice = flight.cheapest_price || usPrice;
+                const platformFee = flight.deal?.platform_fee_usd || 0;
+                const cheapestPrice = (flight.cheapest_price || usPrice) + platformFee;
                 const savings = usPrice - cheapestPrice;
                 const savingsPct = usPrice > 0 ? ((savings / usPrice) * 100).toFixed(0) : 0;
                 const hasSavings = savings > 5;
@@ -15116,6 +15468,28 @@ function displayResults(data) {
 
                 const stopsText = flight.stops === 0 ? 'Nonstop' : (flight.stops !== undefined ? flight.stops + ' stop' + (flight.stops > 1 ? 's' : '') : '');
 
+                // Build feature tags
+                const tags = [];
+                if (flight.fare_family) tags.push(flight.fare_family);
+                if (flight.baggage_info) {
+                    const bag = flight.baggage_info;
+                    if (bag === '0PC') tags.push('No checked bag');
+                    else if (bag.match(/\\d+PC/)) tags.push(bag.replace('PC', ' checked bag(s)'));
+                    else if (bag.match(/\\d+x\\d+kg/i)) tags.push(bag + ' checked');
+                    else tags.push(bag);
+                }
+                if (flight.seat_selection?.available) tags.push('Seat selection');
+                if (flight.cancellation_policy === 'NOT_POSSIBLE') tags.push('Non-refundable');
+                else if (flight.cancellation_policy === 'POSSIBLE') tags.push('Refundable');
+                if (flight.rebooking_policy === 'POSSIBLE') tags.push('Changeable');
+                else if (flight.rebooking_policy === 'NOT_POSSIBLE') tags.push('No changes');
+                if (flight.is_codeshare && flight.operating_carrier) tags.push('Operated by ' + flight.operating_carrier);
+                // Layover details
+                let layoverText = '';
+                if (flight.stops > 0 && flight.layovers?.length > 0) {
+                    layoverText = flight.layovers.join(', ');
+                }
+
                 html += `
                     <div class="flight-card ${hasSavings ? 'flight-card-deal' : ''}" data-leg="${legNum}">
                         ${hasSavings ? `<div class="flight-card-badge">Save $${savings.toFixed(0)} (${savingsPct}%)</div>` : ''}
@@ -15125,7 +15499,7 @@ function displayResults(data) {
                                 <strong>${flight.airline || 'Multiple Airlines'}</strong>
                                 ${flight.flight_number ? `<span class="flight-card-number">${flight.flight_number}</span>` : ''}
                             </div>
-                            <div class="flight-card-stops">${stopsText}</div>
+                            <div class="flight-card-stops">${stopsText}${layoverText ? ` <span style="color:#999;font-size:11px;">(${layoverText})</span>` : ''}</div>
                         </div>
                         <div class="flight-card-route">
                             <div class="flight-card-time">
@@ -15157,6 +15531,7 @@ function displayResults(data) {
                                 </div>
                             ` : ''}
                         </div>
+                        ${tags.length > 0 ? `<div class="flight-card-tags">${tags.map(t => `<span class="flight-card-tag">${t}</span>`).join('')}</div>` : ''}
                         <button class="flight-card-cta ${hasSavings || isExclusive ? 'flight-card-cta-deal' : ''}" onclick="selectFlightForLeg(${legNum}, '${flightData}')">
                             ${hasSavings ? 'Book & Save $' + savings.toFixed(0) : (isExclusive ? 'Book Exclusive Deal' : 'Select Flight')}
                         </button>
@@ -15182,7 +15557,7 @@ function displayResults(data) {
                     </div>
                     <div>
                         <span style="color: #666;">Our price:</span>
-                        <span style="color: #28a745; font-weight: bold;">$${deal.arbitrage_price?.toFixed(2) || 'N/A'}</span>
+                        <span style="color: #28a745; font-weight: bold;">$${((deal.arbitrage_price || 0) + (deal.platform_fee_usd || 0)).toFixed(2)}</span>
                     </div>
                 </div>
                 <span class="market-tag">Book via MYSTES</span>
@@ -16308,8 +16683,8 @@ function displayFlightComparison(data, flightNumber) {
             html += `
                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #c3e6cb;">
                     <div class="price-row">
-                        <span>Your price (after 25% platform fee):</span>
-                        <span style="font-weight: bold;">$${data.deal.arbitrage_price.toFixed(2)}</span>
+                        <span>Your price (after platform fee):</span>
+                        <span style="font-weight: bold;">$${((data.deal.arbitrage_price || 0) + (data.deal.platform_fee_usd || 0)).toFixed(2)}</span>
                     </div>
                     <div class="price-row">
                         <span>You save:</span>
@@ -16363,12 +16738,28 @@ def api_search():
     origin = data.get("origin", "").upper()
     destination = data.get("destination", "").upper()
     date = data.get("date")
+    return_date = data.get("return_date")
+    cabin_class = data.get("cabin_class", "economy")
+    adults = int(data.get("adults", 1))
+    children = int(data.get("children", 0))
+    infants = int(data.get("infants", 0))
 
     if not origin or not destination or not date:
         return jsonify({"error": "origin, destination, and date are required"}), 400
 
+    search_opts = None
+    if adults > 1 or children > 0 or infants > 0:
+        search_opts = {"passengers": {"adults": adults, "children": children, "infants": infants}}
+
     try:
-        results = search_global(origin, destination, date, fast_mode=True, user=current_user)
+        results = search_global(
+            origin, destination, date,
+            return_date=return_date,
+            cabin_class=cabin_class,
+            fast_mode=True,
+            search_options=search_opts,
+            user=current_user,
+        )
 
         # Track search metric
         try:
@@ -16400,6 +16791,23 @@ def api_search():
                     savings_percent=deal_info.get("user_saves_pct"),
                     booking_url=deal_info.get("booking_url"),
                     destination_tag=deal_info.get("payment", {}).get("payment_request", {}).get("destination_tag"),
+                    departure_time=deal_data.get("departure_time"),
+                    arrival_time=deal_data.get("arrival_time"),
+                    duration=deal_data.get("duration"),
+                    stops=deal_data.get("stops", 0),
+                    cabin_class=deal_data.get("travel_class"),
+                    fare_family=deal_data.get("fare_family"),
+                    baggage_info=deal_data.get("baggage_info"),
+                    seat_selection_available=deal_data.get("seat_selection", {}).get("available") if deal_data.get("seat_selection") else None,
+                    flight_cancellation_policy=deal_data.get("cancellation_policy"),
+                    flight_rebooking_policy=deal_data.get("rebooking_policy"),
+                    ticket_deadline=deal_data.get("ticket_deadline"),
+                    segments_json=json.dumps(deal_data.get("segments", [])) if deal_data.get("segments") else None,
+                    layovers=",".join(deal_data.get("layovers", [])) if deal_data.get("layovers") else None,
+                    fare_id=deal_data.get("fare_id") or deal_data.get("raw_offer", {}).get("fare_id"),
+                    fare_search_id=deal_data.get("fare_search_id") or deal_data.get("raw_offer", {}).get("fare_search_id"),
+                    picasso_gds=deal_data.get("picasso_gds"),
+                    fare_type=deal_data.get("fare_type"),
                     is_active=True,
                     expires_at=datetime.utcnow() + timedelta(hours=24)
                 )
@@ -16677,6 +17085,23 @@ def api_search_itinerary():
                         savings_percent=deal_info.get("user_saves_pct"),
                         booking_url=deal_info.get("booking_url"),
                         destination_tag=deal_info.get("payment", {}).get("payment_request", {}).get("destination_tag"),
+                        departure_time=deal_data.get("departure_time"),
+                        arrival_time=deal_data.get("arrival_time"),
+                        duration=deal_data.get("duration"),
+                        stops=deal_data.get("stops", 0),
+                        cabin_class=deal_data.get("travel_class"),
+                        fare_family=deal_data.get("fare_family"),
+                        baggage_info=deal_data.get("baggage_info"),
+                        seat_selection_available=deal_data.get("seat_selection", {}).get("available") if deal_data.get("seat_selection") else None,
+                        flight_cancellation_policy=deal_data.get("cancellation_policy"),
+                        flight_rebooking_policy=deal_data.get("rebooking_policy"),
+                        ticket_deadline=deal_data.get("ticket_deadline"),
+                        segments_json=json.dumps(deal_data.get("segments", [])) if deal_data.get("segments") else None,
+                        layovers=",".join(deal_data.get("layovers", [])) if deal_data.get("layovers") else None,
+                        fare_id=deal_data.get("fare_id") or deal_data.get("raw_offer", {}).get("fare_id"),
+                        fare_search_id=deal_data.get("fare_search_id") or deal_data.get("raw_offer", {}).get("fare_search_id"),
+                        picasso_gds=deal_data.get("picasso_gds"),
+                        fare_type=deal_data.get("fare_type"),
                         is_active=True,
                         expires_at=datetime.utcnow() + timedelta(hours=24)
                     )

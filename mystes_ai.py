@@ -333,82 +333,111 @@ NODE_OPERATOR_DISCOUNT = 0.30  # 30% discount for node operators on paid tiers
 # ===========================================================================
 
 MYSTES_AI_SYSTEM_PROMPT = (
-    "You are MYSTES AI, the intelligent assistant for the Mystes platform — "
-    "a geographic market intelligence system that finds price differences across "
-    "global markets for flights, hotels, products, and services.\n\n"
+    "You are MYSTES AI — the internal booking agent for the MYSTES platform. "
+    "You are NOT a user-facing chatbot. You are the intelligent backend that "
+    "understands airline booking APIs inside and out, orchestrates the entire "
+    "search → price → book → confirm pipeline, and manages bookings across "
+    "multiple provider APIs.\n\n"
 
-    "IMPORTANT — SEARCH IMMEDIATELY:\n"
-    "When a user asks to search for flights or hotels and provides enough info, "
-    "IMMEDIATELY call the appropriate tool. Do NOT ask clarifying questions first.\n\n"
+    "YOUR ROLE:\n"
+    "- You are the booking brain behind MYSTES. The user interacts with a normal "
+    "search UI — you power what happens under the hood.\n"
+    "- You understand the Picasso/Redbox API (flight consolidator, 102 countries), "
+    "liteAPI (hotels), and future vertical APIs deeply.\n"
+    "- You execute searches, compare prices, create shopping carts, book flights, "
+    "manage PNRs, generate documents, and handle post-booking operations.\n"
+    "- You learn from every interaction and build institutional knowledge of API "
+    "behaviors, edge cases, and optimal booking strategies.\n\n"
 
-    "For FLIGHTS — need origin, destination, and at least one date. Defaults:\n"
-    "- Trip type: one-way (unless they mention a return date)\n"
-    "- Cabin class: economy\n"
-    "- Passengers: 1\n\n"
+    "PICASSO/REDBOX API MASTERY (reverse-engineered, every endpoint verified):\n"
+    "ENDPOINTS (the ONLY ones that exist — all others return 404):\n"
+    "- POST /availableFare → fareSearchId, numberOfResults, numberOfAirlines\n"
+    "- POST /availableFare/{id} → paginated results (pageNumber 1-indexed, key='results')\n"
+    "  Body: {resultsPerPage, pageNumber, includeDetails, showFilters, sortingCriteria, filterCriteria}\n"
+    "- GET /availableFare/{id}/fareRules?fareId={fareId} → 16 rule categories (HTML)\n"
+    "- POST /seatmap → seat layout per segment\n"
+    "- GET /shoppingCart → current cart\n"
+    "- POST /shoppingCart/addAndCheckOut → cart + checkout (FLIGHT + PASSENGER + BOOKING_FEE_OVERRIDE)\n"
+    "- DELETE /shoppingCart/{id} → cleanup\n"
+    "- POST /superPNR → create booking from cart (PNR/locator returned)\n"
+    "- POST /superPNR/search → search bookings (requires >=1 filter: locator, dates, airline, route)\n"
+    "  Returns searchSummary with 13 statuses: openBookings, cancelled, voided, issued, refunded, flown, etc.\n"
+    "- POST /document → generate ITINERARY/OFFER/CONFIRMATION/TRAVEL_REGISTRATION (PDF or email)\n"
+    "- GET /profile?searchTerm=X → traveler profiles\n"
+    "- GET /configuration → session status\n\n"
 
-    "For HOTELS — need a city/location and check-in date. Defaults:\n"
-    "- Check-out: next day if not specified\n"
-    "- Adults: 1\n"
-    "- Rooms: 1\n"
-    "The user wants results fast. Search first, then offer to refine.\n\n"
+    "FARE DATA (from search results):\n"
+    "- Each fare has: fareId, gds (AMADEUS/AER_DC/SABRE/FARELOGIX), total, totalTax\n"
+    "- validatingAirline: {code, icao, name}\n"
+    "- fareFamilies: [{airlineName: 'Basic Economy'/'LIGHT'/etc, aerRank}]\n"
+    "- priceDetails per pax: gdsFarePerPax, taxPerPax, itemizedTaxPerPaxList (YQ/YR/Q/TAX/AY/US/XF/GB/UB),\n"
+    "  ticketFeeDetails.originalTicketFee ($0-$5), agentMarkup1/2/3, agentCommission\n"
+    "- additionalFareInfos (15+ types): baggageInfo (weightInfo: '0PC'/'1x23kg'),\n"
+    "  ticketTimeLimitInfo (booking deadline), priceGuaranteeTimeLimit (price hold),\n"
+    "  seatFeatureInfo (reservable, cancelable), fareInfo (cancellation/rebooking policy),\n"
+    "  cheapestFare, shortestTravelTime, upsellPossible, ancillariesBookable, directConnectFare\n"
+    "- Legs: outbound/inbound, each with itineraryList (alternative routings)\n"
+    "- Segments: airline, flight#, equipment (A321neo/787-9/etc), bookingClass,\n"
+    "  availableSeats, duration, groundTime (layover), fareBase, baggageAllowance\n"
+    "- 19 filter categories: airline, alliance, equipment, stops, price, fareFamily, GDS, etc.\n"
+    "- agentMarkup2Threshold: {min: 0, max: 999} — our markup cap\n\n"
 
-    "You have access to powerful tools that connect to live MYSTES data:\n"
-    "- search_flights: Search flights via Picasso/Redbox consolidator (102 countries, IATA-ticketed)\n"
-    "- search_hotels: Search hotels via liteAPI — returns names, room types, prices per night, savings vs Google\n"
-    "- search_cruises, search_rentals: Cross-market travel search\n"
-    "- search_products: Product price comparison across markets\n"
-    "- analyze_route, get_route_intelligence: Route analysis and market intelligence\n"
-    "- get_market_briefing, get_trending, get_price_history: Market data\n"
-    "- get_node_status, get_earnings: Node operator tools\n"
-    "- get_saved_travelers, prepare_booking: Booking and traveler management\n\n"
+    "PASSENGER FIELDS (RedboxPassenger — 19 properties, strict validation):\n"
+    "- Required: firstName, lastName, paxType (ADT/CHD/INF), type='PASSENGER'\n"
+    "- Optional: dateOfBirth, gender (Male/Female capitalized), title, salutation, middleNames\n"
+    "- Contact: nested contactData {emailAddress (NOT email), phoneNumber, telCountryCode}\n"
+    "- Passport: nested apisDocument {documentNumber, expiryDate, nationality}\n"
+    "- DO NOT use top-level email/phone/passportNumber — Redbox will 400\n\n"
 
-    "ALWAYS use the available tools to answer questions with real data. "
-    "Do not guess prices or make up data — call the appropriate tool first.\n\n"
+    "BOOKING FLOW:\n"
+    "1. SEARCH: search_flights → fareSearchId + fareId for each result\n"
+    "2. PRICE CHECK: Compare Picasso price vs Google/retail benchmark\n"
+    "3. FARE RULES: get_fare_rules → cancellation/change/min-max stay policy\n"
+    "4. SEAT CHECK: get_seatmap → seat availability per segment\n"
+    "5. COLLECT PASSENGERS: get_saved_travelers or collect new traveler details\n"
+    "   - Required: firstName, lastName, paxType, dateOfBirth, gender\n"
+    "   - International: passport (number, expiry, nationality) via apisDocument\n"
+    "   - Contact: email + phone via contactData\n"
+    "6. PREPARE: prepare_booking to validate all data\n"
+    "7. PAYMENT: initiate_payment (Stripe) → user pays\n"
+    "8. BOOK: execute_booking → Picasso cart + BOOKING_FEE_OVERRIDE (markup) + superPNR → PNR\n"
+    "   Markup = platform_fee_usd (hides wholesale pricing from consumer, airline compliance)\n"
+    "9. CONFIRM: generate_travel_document (CONFIRMATION) → email to customer\n"
+    "10. POST-BOOKING: search_picasso_bookings to check status; manage via airline website with PNR\n\n"
 
-    "PRESENTING FLIGHT RESULTS:\n"
-    "When presenting flight results, create a clear summary including:\n"
-    "- Airline name and flight number (if available)\n"
-    "- Departure and arrival times\n"
-    "- Duration and number of stops\n"
-    "- Price in the cheapest market found\n"
-    "- How much cheaper it is vs the US price (actual price difference)\n"
-    "The tool results include rich card data that will be displayed automatically — "
-    "your text should complement the cards, not repeat every detail. Focus on the "
-    "top 3-5 options and highlight the best deals.\n\n"
+    "HOTEL BOOKING (liteAPI):\n"
+    "- Search → prebook (validate) → book (needs prebookId)\n"
+    "- No passport needed, $15 flat fee, no proxy\n"
+    "- Guest info: name, email, phone, special requests\n\n"
 
-    "PRESENTING HOTEL RESULTS:\n"
-    "When presenting hotel results, summarize the top options:\n"
-    "- Hotel name, room type, and bed configuration\n"
-    "- Price per night and total price\n"
-    "- Number of nights\n"
-    "- Cancellation policy highlights\n"
-    "Rich hotel cards are displayed automatically. Complement them with a brief "
-    "summary and highlight the best value options. Users can click Book to proceed.\n\n"
+    "PRICING MODEL:\n"
+    "- Picasso wholesale price = MYSTES cost\n"
+    "- Google/retail price = customer benchmark\n"
+    "- Members: 25% of savings as platform fee (customer keeps 75%)\n"
+    "- Non-members: 50% of savings as platform fee (customer keeps 50%)\n"
+    "- Min $3, max $50 per deal\n"
+    "- When no Google benchmark: estimate at 1.55x Picasso price\n\n"
 
-    "BOOKING FLOW — FLIGHTS:\n"
-    "When a user wants to BOOK a flight (not just search), follow these steps:\n"
-    "1. SEARCH: Call search_flights to find options\n"
-    "2. SELECT: Let user choose a flight from results\n"
-    "3. TRAVELERS: Call get_saved_travelers to check for saved profiles\n"
-    "   - Ask how many passengers are traveling\n"
-    "   - Let them select from saved travelers OR collect new info\n"
-    "   - Required: name, date of birth, gender, email, phone\n"
-    "   - International flights also need passport details\n"
-    "4. PREPARE: Call prepare_booking to validate all traveler info\n"
-    "5. PAYMENT: Call initiate_payment to create payment session\n"
-    "   - Provide the payment link to the user\n"
-    "6. CONFIRM: After user pays, call execute_booking to finalize\n"
-    "   - Return the PNR/confirmation number\n"
-    "Do NOT ask for traveler info during searches — only when booking.\n\n"
+    "AIRLINE COMPLIANCE:\n"
+    "- NEVER expose POS market codes to consumers (arbitrage_market → 'MYSTES')\n"
+    "- B2C surfaces show 'MYSTES' not the actual arbitrage country\n"
+    "- Internal fields prefixed with _internal_ only\n\n"
 
-    "BOOKING FLOW — HOTELS:\n"
-    "Hotel booking is simpler than flights. After search results display:\n"
-    "- User clicks 'Book This Hotel' on a card → redirects to checkout page\n"
-    "- Guest info: name, email, phone, special requests (no passport needed)\n"
-    "- Payment: card or crypto, same as flights\n\n"
+    "TOOLS AVAILABLE:\n"
+    "- search_flights, search_hotels: Search via Picasso/liteAPI\n"
+    "- get_fare_rules: Detailed fare conditions from Picasso\n"
+    "- get_seatmap: Seat availability for specific flights\n"
+    "- get_saved_travelers, prepare_booking: Passenger management\n"
+    "- get_booking_requirements: What info is needed per route\n"
+    "- execute_booking: Complete the booking via Picasso\n"
+    "- initiate_payment, check_payment_status: Payment flow\n"
+    "- search_picasso_bookings: Look up existing bookings\n"
+    "- generate_travel_document: Generate itinerary/confirmation docs\n"
+    "- analyze_route, get_route_intelligence, get_market_briefing: Market data\n"
+    "- get_trending, get_price_history: Trend analysis\n\n"
 
-    "Format prices in USD unless the user specifies otherwise. "
-    "If a tool returns an error, explain what happened and suggest alternatives."
+    "ALWAYS use tools to get real data. Never guess prices or make up booking info. "
+    "Format prices in USD. Report errors clearly with what went wrong and next steps."
 )
 
 
@@ -1237,6 +1266,142 @@ MYSTES_AI_TOOLS = [
             "required": ["payment_session_id"],
         },
     },
+    # --- Picasso API Tools ---
+    {
+        "name": "get_fare_rules",
+        "description": (
+            "Get detailed fare rules for a specific flight fare. Returns cancellation "
+            "penalties, change fees, minimum/maximum stay rules, advance purchase "
+            "requirements, and other fare conditions. Use this when a customer asks "
+            "about cancellation policies, change fees, or fare restrictions."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "fare_search_id": {
+                    "type": "string",
+                    "description": "The fare search ID from search results",
+                },
+                "fare_id": {
+                    "type": "string",
+                    "description": "The specific fare ID to get rules for",
+                },
+            },
+            "required": ["fare_search_id", "fare_id"],
+        },
+    },
+    {
+        "name": "get_seatmap",
+        "description": (
+            "Get a seatmap showing available seats for a specific flight. Returns "
+            "seat layout with availability, seat types, and pricing. Use when a "
+            "customer wants to see or select seats."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "airline_code": {
+                    "type": "string",
+                    "description": "Airline IATA code (AA, DL, UA, etc.)",
+                },
+                "flight_number": {
+                    "type": "string",
+                    "description": "Flight number (e.g., '1758')",
+                },
+                "departure": {
+                    "type": "string",
+                    "description": "Departure airport IATA code",
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "Destination airport IATA code",
+                },
+                "departure_date": {
+                    "type": "string",
+                    "description": "Departure date (YYYY-MM-DD)",
+                },
+                "booking_class": {
+                    "type": "string",
+                    "description": "Booking class code (Y, B, M, etc.). Default: Y",
+                },
+                "cabin_class": {
+                    "type": "string",
+                    "description": "Cabin class (ECONOMY, BUSINESS, FIRST). Default: ECONOMY",
+                },
+            },
+            "required": ["airline_code", "flight_number", "departure", "destination", "departure_date"],
+        },
+    },
+    {
+        "name": "search_picasso_bookings",
+        "description": (
+            "Search for existing bookings in the Picasso/Redbox system. Can search by "
+            "PNR locator, date range, airline, route, etc. Use when a customer wants "
+            "to check on an existing booking or when you need to look up a reservation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "locator": {
+                    "type": "string",
+                    "description": "PNR locator / booking reference to search for",
+                },
+                "departure": {
+                    "type": "string",
+                    "description": "Departure airport code",
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "Destination airport code",
+                },
+                "airline": {
+                    "type": "string",
+                    "description": "Validating airline code",
+                },
+                "date_from": {
+                    "type": "string",
+                    "description": "Booking date range start (YYYY-MM-DD)",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "Booking date range end (YYYY-MM-DD)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "generate_travel_document",
+        "description": (
+            "Generate a travel document like an itinerary, offer letter, booking "
+            "confirmation, or travel registration form. Can be emailed directly to "
+            "the customer. Use when a customer needs their itinerary or booking docs."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "document_type": {
+                    "type": "string",
+                    "enum": ["ITINERARY", "OFFER", "CONFIRMATION", "TRAVEL_REGISTRATION"],
+                    "description": "Type of document to generate",
+                },
+                "super_pnr_id": {
+                    "type": "string",
+                    "description": "Booking SuperPNR ID (for post-booking docs)",
+                },
+                "shopping_cart_id": {
+                    "type": "string",
+                    "description": "Shopping cart ID (for pre-booking docs)",
+                },
+                "email_recipients": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Email addresses to send the document to",
+                },
+            },
+            "required": ["document_type"],
+        },
+    },
 ]
 
 
@@ -1519,11 +1684,28 @@ class MystesAI:
         try:
             if tool_name == "search_flights":
                 from search import search_global
-                origin = tool_input.get("origin", "").upper()
-                destination = tool_input.get("destination", "").upper()
-                date = tool_input.get("date", "")
+                origin = tool_input.get("origin", "").strip().upper()
+                destination = tool_input.get("destination", "").strip().upper()
+                date = tool_input.get("date", "").strip()
                 return_date = tool_input.get("return_date")
                 cabin_class = tool_input.get("cabin_class", "economy")
+                passengers = tool_input.get("passengers", 1)
+
+                # Validate required fields — return error so LLM asks the user
+                missing = []
+                if not origin:
+                    missing.append("origin airport or city")
+                if not destination:
+                    missing.append("destination airport or city")
+                if not date:
+                    missing.append("departure date (YYYY-MM-DD)")
+                if missing:
+                    return {"error": f"Missing required info: {', '.join(missing)}. Please ask the user to provide these."}
+
+                search_opts = None
+                if passengers and passengers > 1:
+                    search_opts = {"passengers": {"adults": passengers}}
+
                 result = search_global(
                     origin=origin,
                     destination=destination,
@@ -1531,6 +1713,7 @@ class MystesAI:
                     return_date=return_date,
                     cabin_class=cabin_class,
                     fast_mode=True,
+                    search_options=search_opts,
                 )
                 return result if isinstance(result, dict) else {"flights": result}
 
@@ -2156,6 +2339,62 @@ class MystesAI:
                     "message": "Awaiting payment. Please complete payment to confirm your booking.",
                 }
 
+            # ---------------------------------------------------------------
+            # Picasso API Tools
+            # ---------------------------------------------------------------
+
+            elif tool_name == "get_fare_rules":
+                from picasso_client import get_fare_rules
+                fare_search_id = tool_input.get("fare_search_id", "")
+                fare_id = tool_input.get("fare_id", "")
+                if not fare_search_id or not fare_id:
+                    return {"error": "fare_search_id and fare_id are required"}
+                result = get_fare_rules(fare_search_id, fare_id)
+                if result.get("success"):
+                    rules = result.get("rules", {})
+                    summary = []
+                    for code, rule in rules.items():
+                        title = rule.get("title", code)
+                        # Strip HTML tags for text summary
+                        import re as _re
+                        text = _re.sub(r'<[^>]+>', ' ', rule.get("text", ""))
+                        text = ' '.join(text.split())[:300]
+                        summary.append(f"**{title}**: {text}")
+                    result["rules_summary"] = summary
+                return result
+
+            elif tool_name == "get_seatmap":
+                from picasso_client import get_seatmap
+                return get_seatmap(
+                    airline_code=tool_input.get("airline_code", ""),
+                    flight_number=tool_input.get("flight_number", ""),
+                    departure=tool_input.get("departure", ""),
+                    destination=tool_input.get("destination", ""),
+                    departure_date=tool_input.get("departure_date", ""),
+                    booking_class=tool_input.get("booking_class", "Y"),
+                    cabin_class=tool_input.get("cabin_class", "ECONOMY"),
+                )
+
+            elif tool_name == "search_picasso_bookings":
+                from picasso_client import search_bookings
+                return search_bookings(
+                    locator=tool_input.get("locator"),
+                    departure=tool_input.get("departure"),
+                    destination=tool_input.get("destination"),
+                    airline=tool_input.get("airline"),
+                    date_from=tool_input.get("date_from"),
+                    date_to=tool_input.get("date_to"),
+                )
+
+            elif tool_name == "generate_travel_document":
+                from picasso_client import generate_document
+                return generate_document(
+                    document_type=tool_input.get("document_type", "ITINERARY"),
+                    super_pnr_id=tool_input.get("super_pnr_id"),
+                    shopping_cart_id=tool_input.get("shopping_cart_id"),
+                    email_recipients=tool_input.get("email_recipients"),
+                )
+
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
 
@@ -2242,6 +2481,31 @@ class MystesAI:
                 return self._format_initiate_payment(result)
             elif tool_name == "check_payment_status":
                 return result.get("message", json.dumps(result))
+            # Picasso API tools
+            elif tool_name == "get_fare_rules":
+                if result.get("success"):
+                    lines = [f"Fare rules ({result.get('rule_count', 0)} categories):"]
+                    for item in result.get("rules_summary", []):
+                        lines.append(item)
+                    return "\n".join(lines) if lines else json.dumps(result, default=str)
+                return f"Fare rules error: {result.get('error', 'Unknown')}"
+            elif tool_name == "get_seatmap":
+                if result.get("success"):
+                    return f"Seatmap for {result.get('airline', '')} {result.get('flight_number', '')}: {json.dumps(result.get('seatmap', {}), default=str)[:3000]}"
+                return f"Seatmap error: {result.get('error', 'Unknown')}"
+            elif tool_name == "search_picasso_bookings":
+                if result.get("success"):
+                    summary = result.get("summary", {})
+                    return (
+                        f"Booking search results: {summary.get('openBookings', 0)} open, "
+                        f"{summary.get('issued', 0)} issued, {summary.get('cancelled', 0)} cancelled. "
+                        f"Data: {json.dumps(result.get('bookings', []), default=str)[:3000]}"
+                    )
+                return f"Booking search error: {result.get('error', 'Unknown')}"
+            elif tool_name == "generate_travel_document":
+                if result.get("success"):
+                    return f"Document generated: {result.get('document_type', '')} ({result.get('content_type', '')})"
+                return f"Document error: {result.get('error', 'Unknown')}"
         except Exception as e:
             self.logger.warning("Format failed for %s: %s", tool_name, e)
 
@@ -2270,11 +2534,13 @@ class MystesAI:
             for i, deal_data in enumerate(deals[:5], 1):
                 d = deal_data.get("deal", deal_data)
                 savings = d.get("user_saves_pct", 0) or d.get("savings_percent", 0) or d.get("gross_savings_usd", 0)
-                price = d.get("arbitrage_price", d.get("arbitrage_price_usd", "N/A"))
+                arb = d.get("arbitrage_price", d.get("arbitrage_price_usd", 0)) or 0
+                fee = d.get("platform_fee_usd", 0) or 0
+                price = arb + fee if isinstance(arb, (int, float)) else arb
                 airline = deal_data.get("airline", d.get("airline", "Unknown"))
                 lines.append(
                     f"  {i}. {airline} — "
-                    f"${price} via Mystes "
+                    f"${price:.0f} via MYSTES "
                     f"(save {savings}{'%' if isinstance(savings, (int, float)) and savings < 100 else ''})"
                 )
 
