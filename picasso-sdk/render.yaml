@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: anastasia-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: pro
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+        # Set in Render dashboard — Claude API key
+      - key: ANASTASIA_MASTER_KEY
+        generateValue: true
+        # Auto-generated — master admin key for registering agencies
+      - key: AGENT_MODEL
+        value: "claude-haiku-4-5-20251001"
+      - key: STRIPE_SECRET_KEY
+        sync: false
+        # Set in Render dashboard — Stripe API key
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+        # Set in Render dashboard — Stripe webhook signing secret
+      - key: CONFIG_DIR
+        value: "/app/.agency_configs"
+      - key: GUNICORN_WORKERS
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: LOG_LEVEL
+        value: "INFO"
+    healthCheckPath: /api/v1/health
+    autoDeploy: false
+    disk:
+      name: anastasia-data
+      mountPath: /app/.agency_configs
+      sizeGB: 1

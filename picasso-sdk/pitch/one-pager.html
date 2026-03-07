@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Redbox Integration SDK — Product Overview</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: 'Inter', -apple-system, sans-serif;
+        color: #1a1a2e;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 40px;
+        line-height: 1.5;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 32px;
+        padding-bottom: 24px;
+        border-bottom: 3px solid #1a1a2e;
+    }
+
+    .header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px;
+    }
+
+    .header .subtitle {
+        font-size: 16px;
+        color: #555;
+        font-weight: 400;
+    }
+
+    .hero-stat {
+        display: flex;
+        justify-content: space-around;
+        margin: 28px 0;
+        padding: 20px 0;
+        border-top: 1px solid #eee;
+        border-bottom: 1px solid #eee;
+    }
+
+    .stat-box {
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 36px;
+        font-weight: 700;
+        color: #1a1a2e;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #777;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 4px;
+    }
+
+    h2 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 28px 0 12px;
+        color: #1a1a2e;
+    }
+
+    .problem-solution {
+        display: flex;
+        gap: 24px;
+        margin: 16px 0;
+    }
+
+    .problem, .solution {
+        flex: 1;
+        padding: 16px;
+        border-radius: 8px;
+    }
+
+    .problem {
+        background: #fef2f2;
+        border-left: 4px solid #dc2626;
+    }
+
+    .solution {
+        background: #f0fdf4;
+        border-left: 4px solid #16a34a;
+    }
+
+    .problem h3, .solution h3 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .problem h3 { color: #dc2626; }
+    .solution h3 { color: #16a34a; }
+
+    .problem ul, .solution ul {
+        font-size: 13px;
+        padding-left: 16px;
+        color: #444;
+    }
+
+    .problem li, .solution li {
+        margin-bottom: 4px;
+    }
+
+    .features {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 16px 0;
+    }
+
+    .feature {
+        padding: 12px 16px;
+        background: #f8f9fb;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .feature strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 2px;
+        color: #1a1a2e;
+    }
+
+    .feature span {
+        color: #666;
+    }
+
+    .endpoints {
+        font-size: 13px;
+        color: #444;
+        columns: 2;
+        margin: 8px 0 16px;
+        padding-left: 20px;
+    }
+
+    .endpoints li {
+        margin-bottom: 3px;
+    }
+
+    .cta {
+        text-align: center;
+        margin-top: 32px;
+        padding: 24px;
+        background: #1a1a2e;
+        color: white;
+        border-radius: 8px;
+    }
+
+    .cta h3 {
+        font-size: 18px;
+        margin-bottom: 8px;
+    }
+
+    .cta p {
+        font-size: 14px;
+        color: #ccc;
+    }
+
+    .cta .contact {
+        margin-top: 12px;
+        font-size: 14px;
+        color: #fff;
+    }
+
+    .footer {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 11px;
+        color: #999;
+    }
+
+    @media print {
+        body { padding: 20px; }
+        .cta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Redbox Integration SDK</h1>
+    <div class="subtitle">Accelerate Cockpit/Redbox API integration from months to hours</div>
+</div>
+
+<div class="hero-stat">
+    <div class="stat-box">
+        <div class="stat-number">12</div>
+        <div class="stat-label">API Endpoints Covered</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-number">1 day</div>
+        <div class="stat-label">Integration Time</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-number">0</div>
+        <div class="stat-label">Documentation Needed</div>
+    </div>
+</div>
+
+<div class="problem-solution">
+    <div class="problem">
+        <h3>Without SDK</h3>
+        <ul>
+            <li>2-month onboarding per agency</li>
+            <li>No public API documentation</li>
+            <li>Manual session token management</li>
+            <li>Trial-and-error field mapping</li>
+            <li>Undocumented error codes</li>
+            <li>High agency drop-off rate</li>
+        </ul>
+    </div>
+    <div class="solution">
+        <h3>With SDK</h3>
+        <ul>
+            <li>Same-day integration</li>
+            <li>Complete reference documentation</li>
+            <li>Automated authentication</li>
+            <li>Correct field mapping built-in</li>
+            <li>Structured error handling</li>
+            <li>Near-zero onboarding friction</li>
+        </ul>
+    </div>
+</div>
+
+<h2>What's Included</h2>
+
+<div class="features">
+    <div class="feature">
+        <strong>Flight Search</strong>
+        <span>Multi-GDS search across Amadeus, Sabre, NDC — parsed results with pricing, segments, baggage</span>
+    </div>
+    <div class="feature">
+        <strong>End-to-End Booking</strong>
+        <span>Search → cart → checkout → PNR in one call. Passenger mapping handled automatically.</span>
+    </div>
+    <div class="feature">
+        <strong>Automated Authentication</strong>
+        <span>Session token lifecycle — login, refresh, persistence, retry. Zero manual intervention.</span>
+    </div>
+    <div class="feature">
+        <strong>Complete Documentation</strong>
+        <span>Every endpoint, every field, every enum. The reference guide Redbox doesn't have.</span>
+    </div>
+    <div class="feature">
+        <strong>Agency Fee Management</strong>
+        <span>BOOKING_FEE_OVERRIDE integration — markup tickets to customer-facing price automatically.</span>
+    </div>
+    <div class="feature">
+        <strong>Production Ready</strong>
+        <span>Thread-safe, logging, error handling. Built for multi-threaded web servers.</span>
+    </div>
+</div>
+
+<h2>Full API Coverage</h2>
+<ul class="endpoints">
+    <li>Flight search &amp; pagination</li>
+    <li>Fare rules (16 categories)</li>
+    <li>Seatmap retrieval</li>
+    <li>Shopping cart (CRUD)</li>
+    <li>Add-and-checkout (one-step)</li>
+    <li>Booking creation (SuperPNR)</li>
+    <li>Booking search &amp; management</li>
+    <li>Document generation (PDF/email)</li>
+    <li>Traveler profiles</li>
+    <li>Session configuration</li>
+    <li>Airport search (public)</li>
+    <li>4 GDS channels supported</li>
+</ul>
+
+<h2>Integration</h2>
+<p style="font-size: 14px; color: #444; margin-bottom: 8px;">Python package — install and search flights in under 5 minutes:</p>
+<pre style="background: #1a1a2e; color: #e2e8f0; padding: 16px; border-radius: 8px; font-size: 13px; font-family: 'SF Mono', Monaco, monospace; overflow-x: auto;">
+pip install picasso-redbox-sdk
+
+<span style="color: #94a3b8;"># 5 lines to live flight search</span>
+from picasso import RedboxClient
+
+client = RedboxClient(agency_id=<span style="color: #fbbf24;">"YOUR_ID"</span>, branch=<span style="color: #fbbf24;">"YOUR_BRANCH"</span>)
+result = client.search_flights(<span style="color: #fbbf24;">"JFK"</span>, <span style="color: #fbbf24;">"LHR"</span>, <span style="color: #fbbf24;">"2026-06-15"</span>)
+</pre>
+
+<div class="cta">
+    <h3>Ready for a Live Demo?</h3>
+    <p>See the SDK search, book, and manage flights in real-time against the Redbox API.</p>
+    <div class="contact">MYSTES KYRIOS LLC &nbsp;|&nbsp; Contact for demo scheduling</div>
+</div>
+
+<div class="footer">
+    Confidential &mdash; MYSTES KYRIOS LLC &mdash; Tennessee LLC, EIN 41-4228758
+</div>
+
+</body>
+</html>
