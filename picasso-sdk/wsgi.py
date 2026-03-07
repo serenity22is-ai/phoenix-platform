@@ -9,7 +9,7 @@ Environment variables (required):
     ANASTASIA_MASTER_KEY   — Master admin key for registering agencies
 
 Environment variables (optional):
-    AGENT_MODEL            — Claude model ID (default: claude-haiku-4-5-20251001)
+    AGENT_MODEL            — Claude model ID (default: claude-opus-4-6)
     STRIPE_SECRET_KEY      — Stripe API key for billing
     STRIPE_WEBHOOK_SECRET  — Stripe webhook signing secret
     CONFIG_DIR             — Agency config storage dir (default: .agency_configs)
@@ -32,7 +32,7 @@ from picasso.agent.api import create_app
 
 config = {
     "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
-    "AGENT_MODEL": os.environ.get("AGENT_MODEL", "claude-haiku-4-5-20251001"),
+    "AGENT_MODEL": os.environ.get("AGENT_MODEL", "claude-opus-4-6"),
     "MASTER_KEY": os.environ.get("ANASTASIA_MASTER_KEY", ""),
     "CONFIG_DIR": os.environ.get("CONFIG_DIR", ".agency_configs"),
     "STRIPE_SECRET_KEY": os.environ.get("STRIPE_SECRET_KEY", ""),

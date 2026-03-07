@@ -13,7 +13,7 @@ services:
         generateValue: true
         # Auto-generated — master admin key for registering agencies
       - key: AGENT_MODEL
-        value: "claude-haiku-4-5-20251001"
+        value: "claude-opus-4-6"
       - key: STRIPE_SECRET_KEY
         sync: false
         # Set in Render dashboard — Stripe API key

@@ -301,9 +301,9 @@ class AnalyticsEngine:
                     if plan:
                         totals["estimated_revenue"] += plan.price_monthly_usd
 
-        # COGS estimation (Haiku pricing)
-        input_cost = (totals["total_ai_input_tokens"] / 1_000_000) * 0.80
-        output_cost = (totals["total_ai_output_tokens"] / 1_000_000) * 4.00
+        # COGS estimation (Opus 4.6 pricing)
+        input_cost = (totals["total_ai_input_tokens"] / 1_000_000) * 15.00
+        output_cost = (totals["total_ai_output_tokens"] / 1_000_000) * 75.00
         totals["estimated_cogs"] = round(input_cost + output_cost, 2)
         totals["estimated_revenue"] = round(totals["estimated_revenue"], 2)
         totals["estimated_margin"] = round(totals["estimated_revenue"] - totals["estimated_cogs"], 2)

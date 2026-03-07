@@ -40,7 +40,7 @@ from .integration_tools import INTEGRATION_TOOL_DEFINITIONS
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_MODEL = "claude-opus-4-6"
 MAX_AGENT_TURNS = 20
 MAX_CONVERSATION_MESSAGES = 100
 

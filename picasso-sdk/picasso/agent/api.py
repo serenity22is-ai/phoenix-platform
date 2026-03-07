@@ -47,7 +47,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
 
     Config keys:
         ANTHROPIC_API_KEY: str — Required. Anthropic API key.
-        AGENT_MODEL: str — Claude model ID (default: claude-haiku-4-5-20251001)
+        AGENT_MODEL: str — Claude model ID (default: claude-opus-4-6)
         MASTER_KEY: str — Master admin key for registering new agencies
         CONFIG_DIR: str — Directory for agency config files (default: .agency_configs)
         API_KEYS: dict — Map of API key hash -> agency config (inline alternative to files)
@@ -65,7 +65,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
     if not anthropic_key:
         raise ValueError("ANTHROPIC_API_KEY is required (config or env var)")
 
-    agent_model = app_config.get("AGENT_MODEL", "claude-haiku-4-5-20251001")
+    agent_model = app_config.get("AGENT_MODEL", "claude-opus-4-6")
     max_sessions = app_config.get("MAX_SESSIONS_PER_KEY", 50)
     session_ttl = app_config.get("SESSION_TTL_SECONDS", 3600)
     master_key = app_config.get("MASTER_KEY") or os.environ.get("ANASTASIA_MASTER_KEY", "") or os.environ.get("MYSTES_MASTER_KEY", "")

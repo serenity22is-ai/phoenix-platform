@@ -25,8 +25,8 @@ from .tools import TOOL_DEFINITIONS
 
 logger = logging.getLogger(__name__)
 
-# Default model — Haiku for cost efficiency at scale
-DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+# Default model — Opus 4.6 for maximum capability
+DEFAULT_MODEL = "claude-opus-4-6"
 MAX_AGENT_TURNS = 15  # Safety limit on tool-use loops
 MAX_CONVERSATION_MESSAGES = 100  # Trim old messages beyond this
 
@@ -56,7 +56,7 @@ class BookingAgent:
         Args:
             client: Configured RedboxClient instance with valid authentication
             anthropic_api_key: Anthropic API key for Claude calls
-            model: Claude model ID (default: Haiku for cost efficiency)
+            model: Claude model ID (default: Opus 4.6)
             agency_name: Optional agency name for personalized responses
             pricing: Optional PricingModel — when set, agent applies agency pricing to results
             system_prompt_extra: Optional additional instructions appended to knowledge base
@@ -431,12 +431,12 @@ Always use consumer_price when showing prices to the user."""
 
         Returns:
             Dict with input_tokens, output_tokens, total_requests,
-            and estimated_cost_usd (based on Haiku pricing).
+            and estimated_cost_usd (based on Opus 4.6 pricing).
         """
-        # Haiku 4.5 pricing: $0.80/MTok input, $4/MTok output
-        # With prompt caching: $0.08/MTok cached input
-        input_cost = (self.total_input_tokens / 1_000_000) * 0.80
-        output_cost = (self.total_output_tokens / 1_000_000) * 4.00
+        # Opus 4.6 pricing: $15/MTok input, $75/MTok output
+        # With prompt caching: $1.50/MTok cached input
+        input_cost = (self.total_input_tokens / 1_000_000) * 15.00
+        output_cost = (self.total_output_tokens / 1_000_000) * 75.00
         return {
             "input_tokens": self.total_input_tokens,
             "output_tokens": self.total_output_tokens,

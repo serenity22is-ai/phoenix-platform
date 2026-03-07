@@ -87,8 +87,8 @@ Commands during chat:
     )
     parser.add_argument(
         "--model",
-        default="claude-haiku-4-5-20251001",
-        help="Claude model to use (default: haiku for cost efficiency)",
+        default="claude-opus-4-6",
+        help="Claude model to use (default: Opus 4.6)",
     )
     parser.add_argument(
         "--auto-confirm",
