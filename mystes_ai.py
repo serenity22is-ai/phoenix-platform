@@ -106,7 +106,7 @@ QUERY_OVERAGE_PRICING = {
 PHASE1_NODE_QUERIES = {
     "bronze": {
         "free_queries_per_day": 5,
-        "max_tools_per_query": 3,   # 3 markets — enough to find a deal
+        "max_tools_per_query": 5,   # 5 tool calls — Opus needs room to reason
         "max_context_messages": 10,
         "platform_fee_pct": 0.25,   # 25% of savings
         "requires_data_sharing": False,
@@ -1462,7 +1462,7 @@ class MystesAI:
         messages.append({"role": "user", "content": user_message})
 
         # -- LLM tool-calling loop --
-        model_used = "claude-sonnet-4-20250514"
+        model_used = "claude-opus-4-6"
         final_content = ""
 
         for _iteration in range(max_tools + 1):
@@ -1630,7 +1630,7 @@ class MystesAI:
             api_messages.insert(0, {"role": "user", "content": "Hello."})
 
         body = {
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-opus-4-6",
             "system": system_content,
             "messages": api_messages,
             "max_tokens": 4096,
