@@ -1,0 +1,74 @@
+{
+  "module_id": "airgateway_ndc",
+  "name": "AirGateway NDC",
+  "vendor": "AirGateway",
+  "version": "1.2",
+  "vertical": "flights",
+  "source_type": "ndc",
+  "auth_type": "api_key_header",
+  "credential_env_vars": ["AIRGATEWAY_API_KEY"],
+  "auth_notes": "API key in Authorization header (raw key, NOT Bearer prefix). Sandbox key from airgateway.com dashboard. Production key requires commercial agreement. No token expiry — key is permanent until rotated.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": false,
+    "seat_map": true,
+    "ancillaries": true,
+    "fare_rules": false,
+    "multi_city": true,
+    "pos_arbitrage": true,
+    "virtual_interlining": false
+  },
+  "carrier_count": 25,
+  "coverage_notes": "25+ airlines via NDC-direct (A3, AA, AF, AV, AY, BA, EK, IB, KL, LH, QF, SQ) plus AERTiCKET consolidator GDS content (Amadeus, Sabre, Travelport). POS arbitrage via metadata.country — same 102-country network as Redbox.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "metadata.currency",
+  "passenger_format": {
+    "name_fields": ["nameGiven", "surname"],
+    "title_field": "nameTitle",
+    "title_values": ["MR", "MRS", "MS", "MISS"],
+    "gender_values": ["Male", "Female"],
+    "dob_format": "YYYY-MM-DD",
+    "dob_field": "birthdate",
+    "type_codes": ["ADT", "CHD", "INF"],
+    "type_field": "passengerType",
+    "reference_field": "travelerReference",
+    "contact_fields": ["emailContact", "phone"]
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Free search. Commission on bookings. Agency settles via AirGateway account (cash/card/ms).",
+  "priority": 85,
+  "strengths": [
+    "pos_arbitrage", "ndc_direct", "aertickket_partner",
+    "102_country_pos", "ancillaries", "seat_maps",
+    "json_rest_api", "swagger_docs", "sandbox_available"
+  ],
+  "weaknesses": [
+    "25_ndc_airlines_only", "no_fare_rules_api",
+    "no_change_support", "no_virtual_interlining"
+  ],
+  "best_for": [
+    "ndc_arbitrage", "ndc_direct_fares", "airline_partnerships",
+    "aa_ba_lh_af_kl_ek_fares", "aertickket_gds_via_ndc"
+  ],
+  "quirks": [
+    {"issue": "Auth header is raw key, NOT Bearer prefix", "workaround": "Send Authorization: {key} (not Bearer {key})"},
+    {"issue": "Cabin codes are numeric: 7=econ, 4=prem, 2=biz, 1=first", "workaround": "Client maps standard names to codes"},
+    {"issue": "All endpoints use POST (even retrieves)", "workaround": "Always use POST method"},
+    {"issue": "Gender must be 'Male'/'Female' (capitalized)", "workaround": "Map from common values"},
+    {"issue": "Title must be UPPERCASE (MR/MRS/MS/MISS)", "workaround": "Uppercase before sending"},
+    {"issue": "ShoppingResponseID is session-scoped and expires", "workaround": "Use promptly, search again if expired"},
+    {"issue": "AG-Providers header controls which airlines respond", "workaround": "Use '*' for all, or comma-separated IATA codes"}
+  ],
+  "booking_steps": ["search", "verify_price", "create_order"],
+  "booking_notes": "NDC booking via OrderCreate. Returns airline PNR via order. 10 NDC operations: AirShopping, OfferPrice, OrderCreate, OrderRetrieve, OrderCancel, OrderReshopRefund, OrderReshopReprice, SeatAvailability, ServiceList, AirDocIssue.",
+  "readiness": "tested",
+  "confidence": 0.90,
+  "learned_from": ["airgateway_docs", "airgateway_swagger", "airgateway_postman", "mystes_internal"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": "https://support.airgateway.com",
+  "sandbox_probe_endpoints": ["search_flights"]
+}

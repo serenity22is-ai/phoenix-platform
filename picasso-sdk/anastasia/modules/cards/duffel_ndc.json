@@ -1,0 +1,65 @@
+{
+  "module_id": "duffel_ndc",
+  "name": "Duffel NDC",
+  "vendor": "Duffel",
+  "version": "2.0",
+  "vertical": "flights",
+  "source_type": "ndc",
+  "auth_type": "bearer_token",
+  "credential_env_vars": ["DUFFEL_ACCESS_TOKEN"],
+  "auth_notes": "Static Bearer token. No expiry, no refresh. Test tokens: duffel_test_*, Live: duffel_live_*.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": true,
+    "seat_map": true,
+    "ancillaries": true,
+    "fare_rules": false,
+    "multi_city": true,
+    "pos_arbitrage": false,
+    "virtual_interlining": false
+  },
+  "carrier_count": 300,
+  "coverage_notes": "300+ airlines via NDC direct connections. NDC-exclusive fares.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {
+    "name_fields": ["given_name", "family_name"],
+    "gender_values": ["m", "f"],
+    "title_values": ["mr", "mrs", "ms", "miss", "dr"],
+    "dob_format": "YYYY-MM-DD",
+    "dob_field": "born_on",
+    "type_codes": ["adult", "child", "infant_without_seat"]
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Free search. $3 + 1% per confirmed booking.",
+  "priority": 80,
+  "strengths": [
+    "ndc_exclusive_fares", "300_airlines", "simple_auth",
+    "full_booking_lifecycle", "ancillary_services", "seat_maps"
+  ],
+  "weaknesses": [
+    "no_pos_arbitrage", "single_pos", "offer_expiry_15_30min"
+  ],
+  "best_for": [
+    "ndc_direct_fares", "airline_ancillaries", "simple_booking",
+    "order_management", "cancellation_changes"
+  ],
+  "quirks": [
+    {"issue": "Offers expire 15-30 min after search", "workaround": "Refresh via GET /air/offers/{id} before booking"},
+    {"issue": "Gender: m/f (not Male/Female)", "workaround": "Map from common values"},
+    {"issue": "Title: lowercase (mr/mrs, not MR/MRS)", "workaround": "Lowercase before sending"},
+    {"issue": "Cancellation is two-step (request then confirm)", "workaround": "Show refund amount before confirming"}
+  ],
+  "booking_steps": ["search", "refresh_offer", "create_order"],
+  "booking_notes": "Single-step booking. Returns airline PNR (booking_reference).",
+  "readiness": "tested",
+  "confidence": 0.90,
+  "learned_from": ["mystes_internal", "duffel_docs"],
+  "last_updated": "2026-03-09",
+  "changelog_url": "https://duffel.com/docs/changelog",
+  "docs_url": "https://duffel.com/docs/api",
+  "sandbox_probe_endpoints": ["search_flights", "search_places"]
+}

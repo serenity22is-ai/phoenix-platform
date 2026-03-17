@@ -1,0 +1,63 @@
+{
+  "module_id": "travelfusion",
+  "name": "Travelfusion",
+  "vendor": "Travelfusion (Travelport subsidiary)",
+  "version": "1.0",
+  "vertical": "flights",
+  "source_type": "direct",
+  "auth_type": "session_token",
+  "credential_env_vars": ["TRAVELFUSION_USERNAME", "TRAVELFUSION_PASSWORD"],
+  "auth_notes": "XML API. Token-based auth — login endpoint returns session token with 12-hour expiry. Docs at xmldocs.travelfusion.com (requires commercial agreement to access). Travelport subsidiary.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": false,
+    "seat_map": false,
+    "ancillaries": true,
+    "fare_rules": true,
+    "multi_city": false,
+    "pos_arbitrage": false,
+    "virtual_interlining": false
+  },
+  "carrier_count": 412,
+  "coverage_notes": "412+ airlines via direct screen-scraping connections. Includes both LCC and legacy carriers. Travelport subsidiary — enterprise distribution.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {
+    "name_fields": ["FirstName", "LastName"],
+    "gender_values": ["M", "F"],
+    "dob_format": "YYYY-MM-DD",
+    "type_codes": ["ADT", "CHD", "INF"]
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Commission per booking. Enterprise pricing — contact sales.",
+  "priority": 55,
+  "strengths": [
+    "412_airlines", "direct_connections", "lcc_and_legacy",
+    "travelport_subsidiary", "ancillaries", "fare_rules"
+  ],
+  "weaknesses": [
+    "xml_soap_api", "requires_commercial_agreement",
+    "12h_token_expiry", "no_arbitrage", "no_public_sandbox"
+  ],
+  "best_for": [
+    "direct_airline_fares", "lcc_routes", "legacy_carrier_fares",
+    "carrier_ancillaries", "enterprise_integrations"
+  ],
+  "quirks": [
+    {"issue": "XML/SOAP protocol (not JSON REST)", "workaround": "Need XML parser — xml.etree or lxml"},
+    {"issue": "Token expires every 12 hours", "workaround": "Auto-refresh via login endpoint"},
+    {"issue": "Docs require commercial agreement", "workaround": "Cannot build without partnership access"}
+  ],
+  "booking_steps": ["search", "get_details", "book", "confirm"],
+  "booking_notes": "Direct carrier booking. Returns airline PNR. XML request/response format throughout.",
+  "readiness": "discovered",
+  "confidence": 0.45,
+  "learned_from": ["travelfusion_website", "xmldocs_partial", "industry_research"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": "https://xmldocs.travelfusion.com",
+  "sandbox_probe_endpoints": []
+}

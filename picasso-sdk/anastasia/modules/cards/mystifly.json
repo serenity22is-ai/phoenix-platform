@@ -1,0 +1,64 @@
+{
+  "module_id": "mystifly",
+  "name": "Mystifly OnePoint",
+  "vendor": "Mystifly",
+  "version": "2.0",
+  "vertical": "flights",
+  "source_type": "gds",
+  "auth_type": "bearer_token",
+  "credential_env_vars": ["MYSTIFLY_API_KEY", "MYSTIFLY_ACCOUNT_ID"],
+  "auth_notes": "API key + account ID. Partnership registration at developer.mystifly.com required. All API docs gated behind partner login. REST v2 (JSON) or SOAP (XML). Cannot build client without partnership access.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": true,
+    "seat_map": false,
+    "ancillaries": true,
+    "fare_rules": true,
+    "multi_city": true,
+    "pos_arbitrage": true,
+    "virtual_interlining": false
+  },
+  "carrier_count": 700,
+  "coverage_notes": "700+ airlines via multi-GDS (Amadeus, Sabre, Galileo, Worldspan). 80+ POS for geographic arbitrage. Enterprise B2B focus, Singapore HQ.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {
+    "name_fields": ["firstName", "lastName"],
+    "gender_values": ["M", "F"],
+    "dob_format": "YYYY-MM-DD",
+    "type_codes": ["ADT", "CHD", "INF"]
+  },
+  "pricing_model": "net_fare",
+  "pricing_notes": "Net fare + markup. Multi-GDS comparison across 4 GDS systems.",
+  "priority": 90,
+  "strengths": [
+    "pos_arbitrage", "80_pos", "multi_gds",
+    "700_airlines", "fare_rules", "full_booking",
+    "rest_and_soap", "enterprise_grade"
+  ],
+  "weaknesses": [
+    "requires_partnership", "no_seat_maps",
+    "docs_gated_behind_login", "no_public_sandbox"
+  ],
+  "best_for": [
+    "multi_gds_arbitrage", "comprehensive_coverage",
+    "fare_rule_access", "booking_management",
+    "enterprise_integrations"
+  ],
+  "quirks": [
+    {"issue": "All docs require partnership login", "workaround": "Must register at developer.mystifly.com"},
+    {"issue": "Two API versions (REST v2 + SOAP)", "workaround": "Prefer REST v2 for new integrations"}
+  ],
+  "booking_steps": ["search", "price", "book", "ticket"],
+  "booking_notes": "Full booking lifecycle with airline PNR. Multi-GDS fare comparison.",
+  "readiness": "discovered",
+  "confidence": 0.55,
+  "learned_from": ["mystifly_website", "industry_research"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": "https://developer.mystifly.com",
+  "sandbox_probe_endpoints": []
+}

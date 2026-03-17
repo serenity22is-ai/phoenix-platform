@@ -1,0 +1,65 @@
+{
+  "module_id": "kiwi_tequila",
+  "name": "Kiwi Tequila",
+  "vendor": "Kiwi.com",
+  "version": "2.0",
+  "vertical": "flights",
+  "source_type": "aggregator",
+  "auth_type": "api_key_header",
+  "credential_env_vars": ["KIWI_API_KEY"],
+  "auth_notes": "API key in 'apikey' header. Partnership-based (invitation-only).",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": false,
+    "change": false,
+    "seat_map": false,
+    "ancillaries": false,
+    "fare_rules": false,
+    "multi_city": true,
+    "pos_arbitrage": false,
+    "virtual_interlining": true
+  },
+  "carrier_count": 750,
+  "coverage_notes": "750+ carriers including 150+ ground transport. Virtual interlining.",
+  "geographic_focus": "global",
+  "date_format": "DD/MM/YYYY",
+  "currency_param": "curr",
+  "passenger_format": {
+    "name_fields": ["name", "surname"],
+    "gender_values": null,
+    "dob_format": "DD/MM/YYYY",
+    "dob_field": "birthday",
+    "type_codes": ["adult", "child", "infant"]
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Free search. Commission on bookings. Kiwi is merchant of record.",
+  "priority": 60,
+  "strengths": [
+    "virtual_interlining", "750_carriers", "lcc_coverage",
+    "ground_transport", "widest_carrier_coverage"
+  ],
+  "weaknesses": [
+    "no_pos_arbitrage", "no_seat_maps", "no_ancillaries",
+    "kiwi_booking_id_not_pnr", "invitation_only"
+  ],
+  "best_for": [
+    "maximum_coverage", "lcc_routes", "virtual_interlining",
+    "creative_routing", "multi_carrier_itineraries"
+  ],
+  "quirks": [
+    {"issue": "Dates must be DD/MM/YYYY (not ISO)", "workaround": "Convert YYYY-MM-DD to DD/MM/YYYY"},
+    {"issue": "booking_token expires in ~30 min", "workaround": "Validate with check_flights promptly"},
+    {"issue": "Kiwi is merchant of record", "workaround": "Passengers get Kiwi booking_id, not airline PNR"},
+    {"issue": "May include buses/trains in results", "workaround": "Set vehicle_type=aircraft to filter"}
+  ],
+  "booking_steps": ["search", "check_flights", "save_booking", "confirm_payment"],
+  "booking_notes": "3-phase booking. Kiwi handles ticketing and support.",
+  "readiness": "tested",
+  "confidence": 0.85,
+  "learned_from": ["mystes_internal", "kiwi_tequila_docs"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": "https://tequila.kiwi.com/portal/docs",
+  "sandbox_probe_endpoints": ["search_flights", "search_places"]
+}

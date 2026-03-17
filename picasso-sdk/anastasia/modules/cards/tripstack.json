@@ -1,0 +1,57 @@
+{
+  "module_id": "tripstack",
+  "name": "TripStack",
+  "vendor": "TripStack (Hopper subsidiary)",
+  "version": "1.0",
+  "vertical": "flights",
+  "source_type": "aggregator",
+  "auth_type": "api_key_header",
+  "credential_env_vars": ["TRIPSTACK_API_KEY"],
+  "auth_notes": "Partnership-based access only. Minimal public API documentation. Contact sales for integration. Recently acquired by Hopper.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": false,
+    "change": false,
+    "seat_map": false,
+    "ancillaries": false,
+    "fare_rules": false,
+    "multi_city": true,
+    "pos_arbitrage": false,
+    "virtual_interlining": true
+  },
+  "carrier_count": 250,
+  "coverage_notes": "250+ carriers with Virtual Interlining (VI) Guarantee. Combines LCC + legacy + NDC carriers into protected itineraries. Montreal-based. Now part of Hopper.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {},
+  "pricing_model": "commission",
+  "pricing_notes": "Commission per booking. TripStack is merchant of record for VI bookings.",
+  "priority": 45,
+  "strengths": [
+    "virtual_interlining", "vi_guarantee", "lcc_ndc_combo",
+    "missed_connection_protection", "hopper_backing"
+  ],
+  "weaknesses": [
+    "minimal_public_docs", "partnership_only", "no_arbitrage",
+    "no_ancillaries", "no_seat_maps", "no_public_sandbox"
+  ],
+  "best_for": [
+    "creative_routing", "lcc_ndc_combinations",
+    "protected_virtual_interlining", "missed_connection_guarantee"
+  ],
+  "quirks": [
+    {"issue": "Minimal public API docs", "workaround": "Cannot build without partnership access"},
+    {"issue": "Now owned by Hopper", "workaround": "May integrate with Hopper's API in future"}
+  ],
+  "booking_steps": ["search", "validate", "book"],
+  "booking_notes": "TripStack is merchant of record for VI bookings. VI Guarantee protects against missed connections.",
+  "readiness": "discovered",
+  "confidence": 0.25,
+  "learned_from": ["tripstack_website", "industry_research"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": null,
+  "sandbox_probe_endpoints": []
+}

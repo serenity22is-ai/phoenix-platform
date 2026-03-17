@@ -1,0 +1,45 @@
+{
+  "module_id": "liteapi_hotels",
+  "name": "liteAPI Hotels",
+  "vendor": "liteAPI",
+  "version": "3.0",
+  "vertical": "hotels",
+  "source_type": "wholesaler",
+  "auth_type": "api_key_header",
+  "credential_env_vars": ["LITEAPI_KEY"],
+  "auth_notes": "API key in header. Self-serve dashboard.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": false,
+    "prebook_validate": true
+  },
+  "carrier_count": 2000000,
+  "coverage_notes": "2M+ hotel properties globally.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {
+    "name_fields": ["firstName", "lastName"]
+  },
+  "pricing_model": "net_fare",
+  "pricing_notes": "Net rate with built-in commission. No per-API-call fees.",
+  "priority": 80,
+  "strengths": ["2m_properties", "global_coverage", "net_rates", "self_serve"],
+  "weaknesses": ["no_change_support"],
+  "best_for": ["hotel_search", "hotel_booking", "wholesaler_rates"],
+  "quirks": [
+    {"issue": "Hotel names not in rate response", "workaround": "Fetch from /data/hotel endpoint"},
+    {"issue": "Booking requires prebookId from prebook step", "workaround": "Always prebook before booking"}
+  ],
+  "booking_steps": ["search", "prebook", "book"],
+  "booking_notes": "No passport needed for hotels. $15 flat fee.",
+  "readiness": "tested",
+  "confidence": 0.85,
+  "learned_from": ["mystes_internal", "liteapi_docs"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": "https://docs.liteapi.travel",
+  "sandbox_probe_endpoints": ["search"]
+}

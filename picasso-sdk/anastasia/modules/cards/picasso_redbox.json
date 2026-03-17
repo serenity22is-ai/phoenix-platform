@@ -1,0 +1,63 @@
+{
+  "module_id": "picasso_redbox",
+  "name": "Picasso/Redbox",
+  "vendor": "AERTiCKET (Picasso Travel)",
+  "version": "1.0",
+  "vertical": "flights",
+  "source_type": "gds",
+  "auth_type": "session_token",
+  "credential_env_vars": ["PICASSO_SESSION_TOKEN"],
+  "auth_notes": "Session-based auth via Cockpit SSO. TOTP + Playwright auto-login. Token persisted to .picasso_token.json (24h TTL).",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": false,
+    "change": false,
+    "seat_map": true,
+    "ancillaries": true,
+    "fare_rules": true,
+    "multi_city": true,
+    "pos_arbitrage": true,
+    "virtual_interlining": false
+  },
+  "carrier_count": 500,
+  "coverage_notes": "Airlines via Amadeus GDS. 102-country POS for geographic arbitrage.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "implicit",
+  "passenger_format": {
+    "name_fields": ["firstName", "lastName"],
+    "gender_values": ["Male", "Female"],
+    "dob_format": "YYYY-MM-DD",
+    "type_codes": ["ADT", "CHD", "INF"]
+  },
+  "pricing_model": "net_fare",
+  "pricing_notes": "Net consolidator fare + your markup. POS arbitrage creates savings.",
+  "priority": 100,
+  "strengths": [
+    "pos_arbitrage", "102_country_pos", "consolidator_fares",
+    "gds_content", "fare_rules", "seat_maps"
+  ],
+  "weaknesses": [
+    "session_based_auth", "complex_token_management",
+    "no_direct_cancel", "no_direct_change"
+  ],
+  "best_for": [
+    "international_arbitrage", "consolidator_fares",
+    "multi_pos_comparison", "gds_rich_content"
+  ],
+  "quirks": [
+    {"issue": "Session token expires every 24h", "workaround": "Auto-login via picasso_auth.py"},
+    {"issue": "Passenger types are GDS codes (ADT/CHD/INF)", "workaround": "Map from common names"},
+    {"issue": "Fare types: PUB/NET/NEG", "workaround": "Default to PUB for retail"}
+  ],
+  "booking_steps": ["search", "select_fare", "add_passengers", "book_superPNR", "issue_ticket"],
+  "booking_notes": "Produces airline PNR via superPNR system.",
+  "readiness": "production",
+  "confidence": 0.95,
+  "learned_from": ["mystes_internal", "reverse_engineering"],
+  "last_updated": "2026-03-09",
+  "changelog_url": null,
+  "docs_url": null,
+  "sandbox_probe_endpoints": ["search_flights"]
+}
