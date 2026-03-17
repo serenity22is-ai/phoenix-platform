@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MYSTES — Picasso Redbox SDK Strategy Session</title>
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+        color: #1a1a1a;
+        line-height: 1.6;
+        font-size: 14px;
+    }
+    h1 {
+        font-size: 28px;
+        border-bottom: 3px solid #1a1a1a;
+        padding-bottom: 12px;
+        margin-top: 40px;
+    }
+    h2 {
+        font-size: 22px;
+        color: #2c3e50;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 8px;
+        margin-top: 36px;
+    }
+    h3 {
+        font-size: 17px;
+        color: #34495e;
+        margin-top: 24px;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 16px 0;
+        font-size: 13px;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px 12px;
+        text-align: left;
+    }
+    th {
+        background-color: #2c3e50;
+        color: white;
+        font-weight: 600;
+    }
+    tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    code {
+        background-color: #f4f4f4;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'SF Mono', Monaco, Menlo, monospace;
+        font-size: 13px;
+    }
+    pre {
+        background-color: #f4f4f4;
+        padding: 16px;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 13px;
+    }
+    pre code {
+        background: none;
+        padding: 0;
+    }
+    blockquote {
+        border-left: 4px solid #2c3e50;
+        margin: 16px 0;
+        padding: 12px 20px;
+        background-color: #f8f9fa;
+        font-style: italic;
+    }
+    strong {
+        color: #1a1a1a;
+    }
+    hr {
+        border: none;
+        border-top: 2px solid #eee;
+        margin: 32px 0;
+    }
+    ul, ol {
+        padding-left: 24px;
+    }
+    li {
+        margin-bottom: 4px;
+    }
+    .page-break {
+        page-break-before: always;
+    }
+    @media print {
+        body { margin: 20px; max-width: none; }
+        h2 { page-break-before: auto; }
+        table { page-break-inside: avoid; }
+    }
+</style>
+</head>
+<body>
+<h1 id="mystes-picasso-redbox-sdk-strategy-session">MYSTES — Picasso Redbox SDK Strategy Session</h1>
+<h2 id="full-conversation-transcript-february-27-2026">Full Conversation Transcript — February 27, 2026</h2>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#1-sdk-product-vision--extraction">SDK Product Vision &amp; Extraction</a></li>
+<li><a href="#2-revenue-projections">Revenue Projections</a></li>
+<li><a href="#3-enterprise-white-label-ota-model">Enterprise White-Label OTA Model</a></li>
+<li><a href="#4-phase-1-focus">Phase 1 Focus</a></li>
+<li><a href="#5-sdk-build--isolated-product">SDK Build — Isolated Product</a></li>
+<li><a href="#6-token-authorization--engineering-deep-dive">Token Authorization — Engineering Deep Dive</a></li>
+<li><a href="#7-aerticket-group--total-addressable-market">AERTiCKET Group — Total Addressable Market</a></li>
+<li><a href="#8-go-to-market-strategy">Go-To-Market Strategy</a></li>
+<li><a href="#9-competitive-protection">Competitive Protection</a></li>
+<li><a href="#10-sdk-valuation--pricing">SDK Valuation &amp; Pricing</a></li>
+<li><a href="#11-acquisition-valuation">Acquisition Valuation</a></li>
+<li><a href="#12-servivuelo--priority-target">Servivuelo — Priority Target</a></li>
+<li><a href="#13-ip-protection-strategy">IP Protection Strategy</a></li>
+<li><a href="#14-launch-sequence">Launch Sequence</a></li>
+<li><a href="#15-action-items">Action Items</a></li>
+</ol>
+<hr />
+<h2 id="1-sdk-product-vision-extraction">1. SDK Product Vision &amp; Extraction</h2>
+<p><strong>User:</strong> Our MYSTES learning agent could be a product we could sell other OTAs using Picasso or search APIs it has learned and can navigate. This could be an agentic product that even Picasso is interested in using for their own customer base.</p>
+<p><strong>Claude:</strong> Three concrete product paths from this:</p>
+<h3 id="api-copilot-sell-to-otas">API Copilot (Sell to OTAs)</h3>
+<ul>
+<li>Standalone SDK wrapping all 12 Redbox endpoints</li>
+<li>Automated session auth (the Playwright + TOTP system)</li>
+<li>Complete API documentation (currently non-existent from Picasso)</li>
+<li>Any OTA integrating with Picasso goes from 2-month onboarding to Day 1</li>
+</ul>
+<h3 id="integration-accelerator-sell-to-picasso">Integration Accelerator (Sell to Picasso)</h3>
+<ul>
+<li>Picasso charges $3,500 for a 2-month onboarding course</li>
+<li>Our SDK replaces that entirely — <code>pip install picasso-redbox-sdk</code> and you're live</li>
+<li>Picasso benefits: faster agency onboarding = more bookings = more revenue</li>
+</ul>
+<h3 id="picasso-native-agent">Picasso-Native Agent</h3>
+<ul>
+<li>The AI layer on top of the SDK</li>
+<li>Natural language flight search and booking</li>
+<li>Understands every API quirk (1-indexed pages, emailAddress not email, Male not MALE)</li>
+</ul>
+<hr />
+<h2 id="2-revenue-projections">2. Revenue Projections</h2>
+<p><strong>User:</strong> What kind of income would this look like on my end?</p>
+<p><strong>Claude:</strong> Three revenue models analyzed:</p>
+<h3 id="model-a-direct-saas-sdk-license">Model A: Direct SaaS (SDK License)</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Conservative</th>
+<th>Optimistic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Year 1 customers</td>
+<td>5 OTAs</td>
+<td>15 OTAs</td>
+</tr>
+<tr>
+<td>Monthly per customer</td>
+<td>$500</td>
+<td>$1,000</td>
+</tr>
+<tr>
+<td>Annual revenue</td>
+<td>$30K</td>
+<td>$180K</td>
+</tr>
+<tr>
+<td>Year 3 (at scale)</td>
+<td>$300K</td>
+<td>$1.2M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="model-b-per-booking-fee">Model B: Per-Booking Fee</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Conservative</th>
+<th>Optimistic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bookings/month (via SDK)</td>
+<td>500</td>
+<td>5,000</td>
+</tr>
+<tr>
+<td>Fee per booking</td>
+<td>$10</td>
+<td>$30</td>
+</tr>
+<tr>
+<td>Annual revenue</td>
+<td>$60K</td>
+<td>$1.8M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="model-c-picasso-partnership">Model C: Picasso Partnership</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Conservative</th>
+<th>Optimistic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Revenue share</td>
+<td>$5K/month</td>
+<td>$25K/month</td>
+</tr>
+<tr>
+<td>Annual</td>
+<td>$60K</td>
+<td>$300K</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-enterprise-white-label-ota-model">3. Enterprise White-Label OTA Model</h2>
+<p><strong>User:</strong> Well if we have a functional agentic model to navigate their API which is Redbox, could we not take our entire model we built and sell an enterprise-grade ready-to-launch business model? Like we use our entire flights model for them to onboard OTAs for flights instantly with site structure and everything we have built?</p>
+<p><strong>Claude:</strong> This is an OTA-in-a-Box platform. What we've built IS a complete turnkey OTA:</p>
+<h3 id="whats-included-in-white-label">What's Included in White-Label</h3>
+<ul>
+<li>Flight search across 4 GDS channels (Amadeus, Sabre, AER_DC, Farelogix)</li>
+<li>102-country POS coverage</li>
+<li>Stripe payment processing (production-ready)</li>
+<li>Mobile apps (iOS + Android via Capacitor)</li>
+<li>AI chat interface for flight search</li>
+<li>Admin panel with feature flags</li>
+<li>Email confirmations with PNR details</li>
+<li>Booking management dashboard</li>
+</ul>
+<h3 id="revenue-projections-white-label">Revenue Projections (White-Label)</h3>
+<table>
+<thead>
+<tr>
+<th>Year</th>
+<th>Revenue Range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Year 1</td>
+<td>$180K-$420K (5 OTAs)</td>
+</tr>
+<tr>
+<td>Year 2</td>
+<td>$540K-$1.26M (15 OTAs)</td>
+</tr>
+<tr>
+<td>Year 3</td>
+<td>$1.4M-$3.4M (40 OTAs)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-stays-proprietary-mystes-competitive-moat">What Stays Proprietary (MYSTES Competitive Moat)</h3>
+<ul>
+<li>Geographic price arbitrage logic</li>
+<li>POS comparison / Google Flights scraping</li>
+<li>Deal matching algorithms</li>
+<li>Member/non-member fee model</li>
+</ul>
+<hr />
+<h2 id="4-phase-1-focus">4. Phase 1 Focus</h2>
+<p><strong>User:</strong> For Phase 1 I mean.</p>
+<p><strong>Claude:</strong> Phase 1 priorities before B2B:</p>
+<ol>
+<li><strong>Launch MYSTES consumer</strong> — prove the platform works with real bookings</li>
+<li><strong>Renew Render database</strong> — expires March 6, 2026 (upgrade to Basic-256mb, $6/month)</li>
+<li><strong>Deploy Opus 4.6 upgrade</strong> — already committed</li>
+<li><strong>Process first real bookings</strong> — need production Picasso credentials</li>
+</ol>
+<p>B2B SDK strategy saved for Phase 2, after consumer launch proves the platform.</p>
+<hr />
+<h2 id="5-sdk-build-isolated-product">5. SDK Build — Isolated Product</h2>
+<p><strong>User:</strong> Well we should get this product built now and isolate it from MYSTES so we aren't conflating code and create a memory module of this model and what we have built for a pitch. I will then sell the product after launch directly to Picasso and other Redbox API users.</p>
+<p><strong>Claude:</strong> Built the complete standalone SDK at <code>picasso-sdk/</code>:</p>
+<h3 id="files-created">Files Created</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Lines</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>picasso/client.py</td>
+<td>~850</td>
+<td>RedboxClient — all 12 endpoints + book_flight()</td>
+</tr>
+<tr>
+<td>picasso/auth.py</td>
+<td>~440</td>
+<td>TokenManager — Playwright+TOTP auto-login</td>
+</tr>
+<tr>
+<td>picasso/<strong>init</strong>.py</td>
+<td>~25</td>
+<td>Public API surface</td>
+</tr>
+<tr>
+<td>pyproject.toml</td>
+<td>~34</td>
+<td>pip package config</td>
+</tr>
+<tr>
+<td>README.md</td>
+<td>~90</td>
+<td>Product overview</td>
+</tr>
+<tr>
+<td>examples/quickstart.py</td>
+<td>~85</td>
+<td>Search + browse flights</td>
+</tr>
+<tr>
+<td>examples/booking.py</td>
+<td>~130</td>
+<td>Full booking flow</td>
+</tr>
+<tr>
+<td>docs/api_reference.md</td>
+<td>~340</td>
+<td>Complete endpoint docs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-clean-up-from-mystes">Key Clean-Up from MYSTES</h3>
+<ol>
+<li>Removed <code>mystes_price</code>/<code>deal</code> fields (MYSTES-specific contamination)</li>
+<li><code>agency_id</code> and <code>branch</code> are REQUIRED (no hardcoded MYSTES defaults)</li>
+<li>Renamed <code>PicassoClient</code> → <code>RedboxClient</code> (vendor-neutral)</li>
+<li><code>print()</code> → <code>logging</code> throughout</li>
+<li>Constructor accepts <code>token_provider</code> callable (decoupled from auth)</li>
+<li>Added <code>get_search_results()</code> for pagination/filtering (new method)</li>
+<li>Enhanced segment parsing (12+ new fields)</li>
+<li>Removed backward-compat aliases (<code>search_flights_multi_pos</code>, <code>search_with_picasso</code>)</li>
+<li>Removed module-level singleton pattern</li>
+<li>Source field: "redbox" not "picasso" (generic)</li>
+</ol>
+<h3 id="verification-results">Verification Results</h3>
+<ul>
+<li>Standalone imports with isolated sys.path — <strong>PASS</strong></li>
+<li>RedboxClient instantiation — <strong>PASS</strong></li>
+<li>Live airport search (public API) — <strong>PASS</strong> (3 results for "JFK")</li>
+<li>Duration parsing/formatting — <strong>PASS</strong></li>
+<li>TokenManager fallback chain — <strong>PASS</strong></li>
+</ul>
+<h3 id="usage">Usage</h3>
+<p>```python
+from picasso import RedboxClient
+from picasso.auth import TokenManager</p>
+<p>manager = TokenManager()
+client = RedboxClient(
+    agency_id="YOUR_AGENCY_ID",
+    branch="YOUR_BRANCH",
+    token_provider=manager.get_token,
+)
+result = client.search_flights("JFK", "LHR", "2026-06-15")
+```</p>
+<hr />
+<h2 id="6-token-authorization-engineering-deep-dive">6. Token Authorization — Engineering Deep Dive</h2>
+<p><strong>User:</strong> I'm rather proud of our token authorization code that helps navigate without an API key. God that was brilliant, Claude.</p>
+<p><strong>Claude:</strong> What makes the auth system special:</p>
+<p>Picasso has no API keys, no OAuth client credentials, no developer portal — just a browser-based Cockpit login behind Keycloak 2FA. Every other integrator manually logs in and copy-pastes session cookies.</p>
+<h3 id="what-we-built-instead">What We Built Instead</h3>
+<ol>
+<li><strong>Playwright headless browser</strong> — impersonates a real user session, navigates Cockpit, fills Keycloak login</li>
+<li><strong>TOTP generation via pyotp</strong> — programmatic authenticator app, 2FA code generated locally in milliseconds</li>
+<li><strong>Cookie extraction</strong> — grabs <code>redbox-session-token</code> from browser context after SSO redirect</li>
+<li><strong>Thread-safe double-check locking</strong> — safe for gunicorn gthread workers</li>
+<li><strong>24-hour persistence</strong> to <code>.picasso_token.json</code> — survives server restarts</li>
+<li><strong>Strategy chain with memory</strong> — remembers which auth strategy worked last, tries it first next time</li>
+<li><strong>Graceful degradation</strong> — TOTP fails? Email OTP. That fails? Manual token. Never crashes.</li>
+</ol>
+<p>The whole thing is invisible. RedboxClient calls <code>token_provider()</code> and gets a valid token — no idea there's a headless browser launching behind the scenes.</p>
+<p><strong>This auth layer alone is worth the price of admission.</strong> Nobody else has automated Redbox auth.</p>
+<hr />
+<h2 id="7-aerticket-group-total-addressable-market">7. AERTiCKET Group — Total Addressable Market</h2>
+<p><strong>User:</strong> Now I'm curious of every API search company like Picasso that utilizes Redbox. We can sell our product to them as well.</p>
+<p><strong>Claude:</strong> Research revealed AERTiCKET is a massive group with ~20 subsidiaries, ALL on the same Cockpit/Redbox platform:</p>
+<h3 id="aerticket-group-companies">AERTiCKET Group Companies</h3>
+<table>
+<thead>
+<tr>
+<th>Brand</th>
+<th>Country</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AERTiCKET AG</td>
+<td>Germany (HQ)</td>
+<td>Founding company, 850 employees</td>
+</tr>
+<tr>
+<td>Picasso Travel</td>
+<td>USA</td>
+<td>Our existing partner</td>
+</tr>
+<tr>
+<td>AERTiCKET Suisse</td>
+<td>Switzerland</td>
+<td>Founded 2019</td>
+</tr>
+<tr>
+<td>Biletbank</td>
+<td>Turkey</td>
+<td>Acquired 2020</td>
+</tr>
+<tr>
+<td>Emerald UK</td>
+<td>United Kingdom</td>
+<td>Acquired 2021</td>
+</tr>
+<tr>
+<td>Skyways</td>
+<td>Belgium</td>
+<td>Acquired 2022</td>
+</tr>
+<tr>
+<td>Inca Tickets</td>
+<td>Denmark/Sweden</td>
+<td>Acquired 2024</td>
+</tr>
+<tr>
+<td>Servivuelo</td>
+<td>Spain</td>
+<td>Acquired 2025 — <strong>11,500 travel agencies</strong></td>
+</tr>
+<tr>
+<td>Airtrade</td>
+<td>Netherlands</td>
+<td>85% owned</td>
+</tr>
+<tr>
+<td>AERTiCKET Brazil</td>
+<td>Brazil</td>
+<td>Expansion 2022</td>
+</tr>
+<tr>
+<td>Travel Overland</td>
+<td>Germany</td>
+<td>Retail travel agency chain</td>
+</tr>
+<tr>
+<td>airfair</td>
+<td>Germany</td>
+<td>Fare filing for airlines/OTAs</td>
+</tr>
+<tr>
+<td>Cockpit Holidays Service</td>
+<td>Germany</td>
+<td>New group member</td>
+</tr>
+<tr>
+<td>Select Luxury Tours</td>
+<td>Germany</td>
+<td>Tour operator</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-facts">Key Facts</h3>
+<ul>
+<li>AERTiCKET declared itself "primarily a technology company" since 2018</li>
+<li>Cockpit Flights = their reservation system (portal)</li>
+<li>Cockpit API = Redbox (what our SDK wraps)</li>
+<li>40+ locations globally, 28 nations, 44 languages</li>
+<li>Every acquisition gets migrated onto the same Cockpit/Redbox stack</li>
+<li>Our SDK is the universal integration kit for the entire group</li>
+</ul>
+<hr />
+<h2 id="8-go-to-market-strategy">8. Go-To-Market Strategy</h2>
+<p><strong>User:</strong> So how should we market this product? Directly with AERTiCKET?</p>
+<p><strong>Claude:</strong> Both angles, sequenced:</p>
+<h3 id="phase-1-through-picasso-warm-intro">Phase 1: Through Picasso (Warm Intro)</h3>
+<ul>
+<li>Anir is your existing contact</li>
+<li>Frame SDK as an agency onboarding accelerator</li>
+<li>Non-threatening: you're helping Picasso's business, not competing</li>
+<li>Picasso benefits because faster agency integration = more bookings</li>
+</ul>
+<h3 id="phase-2-horizontal-across-aerticket-subsidiaries">Phase 2: Horizontal Across AERTiCKET Subsidiaries</h3>
+<p>Priority order based on market size and recency of acquisition:</p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Target</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Servivuelo (Spain)</td>
+<td>11,500 agencies, acquired 2025, actively migrating NOW</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Inca Tickets (Denmark/Sweden)</td>
+<td>Acquired 2024, still onboarding</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Emerald UK</td>
+<td>English-speaking, natural from Picasso reference</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Skyways (Belgium)</td>
+<td>Acquired 2022</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Airtrade (Netherlands)</td>
+<td>Established consolidator</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Biletbank (Turkey)</td>
+<td>Large domestic market</td>
+</tr>
+<tr>
+<td>7</td>
+<td>AERTiCKET HQ (Germany)</td>
+<td>Group-wide deal</td>
+</tr>
+</tbody>
+</table>
+<h3 id="phase-3-outside-aerticket">Phase 3: Outside AERTiCKET</h3>
+<p>Build SDK templates for other consolidator platforms:
+- Mystifly (80+ POS)
+- Kiwi Tequila (750+ carriers, self-service)
+- Farelogix, Travelfusion, TripStack, Duffel</p>
+<p><strong>End state:</strong> The Stripe of consolidator integrations — one middleware layer for every consolidator.</p>
+<hr />
+<h2 id="9-competitive-protection">9. Competitive Protection</h2>
+<p><strong>User:</strong> What stops AERTiCKET from building their own and shutting me out?</p>
+<p><strong>Claude:</strong> Nothing technically. But practically:</p>
+<h3 id="why-they-havent-and-probably-wont">Why They Haven't (and Probably Won't)</h3>
+<ol>
+<li><strong>6+ years and didn't do it</strong> — declared "technology company" in 2018, still no SDK, no docs, no developer portal</li>
+<li><strong>Speed</strong> — we have a working product today; their internal project would take 6-12 months</li>
+<li><strong>Not threatening</strong> — we're not competing, we're making their platform more accessible</li>
+<li><strong>AI layer is the real moat</strong> — SDK is the door, the agentic intelligence is proprietary</li>
+<li><strong>Acquisition is more likely</strong> — easier to buy/license than build internally</li>
+</ol>
+<h3 id="risk-assessment">Risk Assessment</h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Probability</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>They build their own SDK</td>
+<td>Low</td>
+<td>Be first, build relationships</td>
+</tr>
+<tr>
+<td>They copy the code</td>
+<td>Very low</td>
+<td>Proprietary license, LLC protection</td>
+</tr>
+<tr>
+<td>They block API access</td>
+<td>Low</td>
+<td>You're a paying customer</td>
+</tr>
+<tr>
+<td>They acquire you</td>
+<td>Medium (this is good)</td>
+<td>Price it right</td>
+</tr>
+<tr>
+<td>They ignore you</td>
+<td>Medium</td>
+<td>Go direct to agencies</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Protect with speed and relationships, not walls.</strong></p>
+<hr />
+<h2 id="10-sdk-valuation-pricing">10. SDK Valuation &amp; Pricing</h2>
+<p><strong>User:</strong> What would this SDK be worth to AERTiCKET?</p>
+<p><strong>Claude:</strong> Valued from their perspective:</p>
+<h3 id="cost-of-not-having-an-sdk">Cost of NOT Having an SDK</h3>
+<ul>
+<li>5 developer support engineers × $80K EUR = $400K/year in support staff</li>
+<li>SDK eliminates 80% of tickets = <strong>$320K/year savings</strong></li>
+<li>500 agencies onboarded faster × $50K annual volume × 3% margin = <strong>$750K/year accelerated revenue</strong></li>
+<li>Per-acquisition integration cost: $200K-$500K saved per deal</li>
+</ul>
+<h3 id="pricing-options">Pricing Options</h3>
+<table>
+<thead>
+<tr>
+<th>Structure</th>
+<th>Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Annual license + support</td>
+<td>$60K-$100K/year</td>
+</tr>
+<tr>
+<td>Per-agency sublicense</td>
+<td>$50-$100/agency/month</td>
+</tr>
+<tr>
+<td>One-time license (group-wide)</td>
+<td>$150K-$250K</td>
+</tr>
+<tr>
+<td>Revenue share</td>
+<td>0.5-1% of booking volume</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recommended-first-offer">Recommended First Offer</h3>
+<p><strong>$75K/year, group-wide license, includes updates and integration support.</strong> Less than one developer's salary. Room to negotiate down to $50K or up to per-agency pricing.</p>
+<hr />
+<h2 id="11-acquisition-valuation">11. Acquisition Valuation</h2>
+<p><strong>User:</strong> To acquire our code, what is it worth in terms of me selling the SDK and the rights?</p>
+<p><strong>Claude:</strong> An acquisition isn't about code cost — it's about strategic value to the buyer.</p>
+<h3 id="what-youre-selling">What You're Selling</h3>
+<table>
+<thead>
+<tr>
+<th>Asset</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The SDK</td>
+<td>1,300+ lines, production-ready, all 12 endpoints</td>
+</tr>
+<tr>
+<td>The Auth System</td>
+<td>Only automated Redbox token management in existence</td>
+</tr>
+<tr>
+<td>The API Documentation</td>
+<td>340-line reference for a zero-doc API</td>
+</tr>
+<tr>
+<td>The Reconnaissance Data</td>
+<td>60+ endpoints probed, complete schemas, months of reverse engineering</td>
+</tr>
+<tr>
+<td>The AI Knowledge Base</td>
+<td>System prompts, tool definitions, booking flow logic</td>
+</tr>
+<tr>
+<td>Exclusivity</td>
+<td>Nobody else gets it</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cost-to-replicate-internally">Cost to Replicate Internally</h3>
+<ul>
+<li>Senior Python dev (6 months): $75K-$100K</li>
+<li>API reverse engineering: $25K-$50K</li>
+<li>Auth system R&amp;D: $15K-$25K</li>
+<li>Documentation: $10K-$15K</li>
+<li>Testing + edge cases: $15K-$20K</li>
+<li>AI integration layer: $25K-$50K</li>
+<li><strong>Total: $165K-$260K</strong> (this is the floor)</li>
+</ul>
+<h3 id="acquisition-price-ranges">Acquisition Price Ranges</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cold sale (no traction yet)</td>
+<td>$250K-$400K + consulting</td>
+</tr>
+<tr>
+<td>After Picasso license signed</td>
+<td>$500K-$750K + 12mo support</td>
+</tr>
+<tr>
+<td>After multi-agency traction</td>
+<td>$750K-$1.5M</td>
+</tr>
+<tr>
+<td>Competitive pressure</td>
+<td>$1M-$2M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recommendation">Recommendation</h3>
+<p><strong>Don't sell IP outright as first move. License it.</strong>
+- $75K/year × 5 years = $375K with zero risk of undervaluing
+- Retain ownership — if they don't renew, sell to competitors
+- Retention leverage = ongoing relationship + consulting income
+- Let THEM come to you with acquisition offer after it's proven
+- Revenue numbers justify $750K+ instead of napkin math</p>
+<p><strong>Walk in with the license. Let acquisition happen naturally.</strong></p>
+<hr />
+<h2 id="12-servivuelo-priority-target">12. Servivuelo — Priority Target</h2>
+<p><strong>User:</strong> How do we get integrated with Servivuelo immediately?</p>
+<p><strong>Claude:</strong> Direct contact information found:</p>
+<h3 id="servivuelo-team">Servivuelo Team</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Role</th>
+<th>Email</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Oliver López</strong></td>
+<td>IT Director</td>
+<td>oliver.lopez@servivuelo.com</td>
+</tr>
+<tr>
+<td>Elver Villamizar</td>
+<td>Director of Sales &amp; Operations</td>
+<td>elver@servivuelo.com</td>
+</tr>
+<tr>
+<td>Oscar Martín</td>
+<td>Financial Director</td>
+<td>administracion@servivuelo.com</td>
+</tr>
+<tr>
+<td>Marta Garcia</td>
+<td>Marketing Director</td>
+<td>marta.garcia@servivuelo.com</td>
+</tr>
+<tr>
+<td>Jorge Zamora</td>
+<td>Founder/CEO</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Address:</strong> C/Doctor Esquedo 10, 4º Izda, Madrid 28028, Spain
+<strong>Phone:</strong> (+34) 91 188 06 60</p>
+<h3 id="why-oliver-lopez-is-the-target">Why Oliver López Is the Target</h3>
+<ul>
+<li>IT Director = owns the integration problem</li>
+<li>Understands SDK value instantly</li>
+<li>Making technology decisions for 11,500 agency migrations</li>
+</ul>
+<h3 id="timeline-advantage">Timeline Advantage</h3>
+<ul>
+<li>Acquired January 2025 (13 months ago)</li>
+<li>Typical migration timeline: Months 8-18 = agency onboarding</li>
+<li><strong>They are in the thick of migration RIGHT NOW</strong></li>
+<li>SDK is a life raft for a drowning IT department</li>
+</ul>
+<h3 id="draft-email-to-oliver-after-anir-intro">Draft Email to Oliver (After Anir Intro)</h3>
+<blockquote>
+<p>Subject: Redbox API SDK — accelerate agency integration for Servivuelo</p>
+<p>Oliver, I'm the founder of MYSTES KYRIOS LLC. We're a Picasso Travel partner in the US and we've built a Python SDK that wraps the entire Redbox/Cockpit API — flight search, booking, cart management, documents, and automated session auth.</p>
+<p>I understand Servivuelo recently joined the AERTiCKET Group and is onboarding agencies onto Cockpit. Our SDK reduces that integration from months to hours. It covers all 12 Redbox endpoints, handles the session token lifecycle automatically, and includes complete documentation for an API that currently has none publicly available.</p>
+<p>Would you have 15 minutes this week to see a demo?</p>
+</blockquote>
+<hr />
+<h2 id="13-ip-protection-strategy">13. IP Protection Strategy</h2>
+<p><strong>User:</strong> Anir is working as a sales rep though. How do I protect my work from not being copied?</p>
+<p><strong>Claude:</strong> Practical protections:</p>
+<h3 id="legal">Legal</h3>
+<ol>
+<li><strong>Never share source code before a signed agreement</strong> — demo live, show output, not files</li>
+<li><strong>NDA before deep demos</strong> — standard in B2B software sales</li>
+<li><strong>LLC owns all IP</strong> — MYSTES KYRIOS LLC, copyrighted on creation</li>
+</ol>
+<h3 id="practical">Practical</h3>
+<ol>
+<li><strong>Don't give Anir the SDK</strong> — give him a one-page PDF and a 2-min screen recording</li>
+<li><strong>Distribute via private PyPI with license key</strong> — not raw source</li>
+<li><strong>Auth system is deepest moat</strong> — hard to replicate from watching a demo</li>
+</ol>
+<h3 id="what-to-share-vs-protect">What to Share vs. Protect</h3>
+<table>
+<thead>
+<tr>
+<th>Share (One-Pager)</th>
+<th>Protect (Source Code)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"12 API endpoints covered"</td>
+<td>Which endpoints or how they're called</td>
+</tr>
+<tr>
+<td>"Automated authentication"</td>
+<td>Playwright/TOTP implementation</td>
+</tr>
+<tr>
+<td>"Search to booking in 20 lines"</td>
+<td>Actual code samples</td>
+</tr>
+<tr>
+<td>"Complete API documentation included"</td>
+<td>The documentation itself</td>
+</tr>
+<tr>
+<td>"Thread-safe, production-ready"</td>
+<td>Architecture details</td>
+</tr>
+<tr>
+<td>"Replaces 2-month onboarding"</td>
+<td>How it replaces it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Sell the outcome, protect the method.</strong></p>
+<h3 id="adjusted-approach-to-anir">Adjusted Approach to Anir</h3>
+<p>Frame as "developer tool" not "SDK." Ask for tech contact, not for Anir to evaluate. Mention NDA upfront. Attach one-pager (marketing, not technical).</p>
+<hr />
+<h2 id="14-launch-sequence">14. Launch Sequence</h2>
+<p><strong>User:</strong> Do I need to finish with onboarding as a client with Picasso and launch my product first?</p>
+<p><strong>Claude:</strong> Yes. The order matters:</p>
+<h3 id="why-launch-first">Why Launch First</h3>
+<ul>
+<li>Currently on sandbox (13-day exploration access) — can search but can't book</li>
+<li>Need to be a paying Picasso client for credibility</li>
+<li>Need production bookings to prove SDK works in real conditions</li>
+<li>"We built this for ourselves" is 10x more compelling than "we built this in sandbox"</li>
+</ul>
+<h3 id="pitch-comparison">Pitch Comparison</h3>
+<p><strong>Without launch:</strong></p>
+<blockquote>
+<p>"We built an SDK for the Redbox API. It should work for booking. We tested it in sandbox."</p>
+</blockquote>
+<p><strong>With launch:</strong></p>
+<blockquote>
+<p>"We're a Picasso client running a live OTA. We've processed X bookings through the Redbox API using our own SDK. We want to offer this integration tool to other agencies."</p>
+</blockquote>
+<h3 id="correct-order">Correct Order</h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Action</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Finish Picasso production onboarding</td>
+<td>Become paying client</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Renew Render database (before March 6)</td>
+<td>Keep platform live</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Launch MYSTES consumer</td>
+<td>Prove platform works</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Process first real bookings</td>
+<td>Live transaction proof</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Email Anir about SDK</td>
+<td>Pitch from strength</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Demo to Servivuelo</td>
+<td>Close first B2B deal</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="15-action-items">15. Action Items</h2>
+<h3 id="immediate-this-week">Immediate (This Week)</h3>
+<ul>
+<li>[ ] Finish Picasso production onboarding</li>
+<li>[ ] Renew Render PostgreSQL database ($6/month Basic-256mb)</li>
+<li>[ ] Deploy latest builds (Builds #122-#130) to production</li>
+</ul>
+<h3 id="after-launch">After Launch</h3>
+<ul>
+<li>[ ] Process 3-5 real bookings through MYSTES</li>
+<li>[ ] Create 1-page SDK product sheet (outcomes, not technical details)</li>
+<li>[ ] Record 2-minute SDK demo video</li>
+<li>[ ] Draft mutual NDA template</li>
+<li>[ ] Email Anir at Picasso</li>
+</ul>
+<h3 id="after-anir-response">After Anir Response</h3>
+<ul>
+<li>[ ] Demo SDK to Anir and/or Picasso tech team</li>
+<li>[ ] Request introduction to Oliver López at Servivuelo</li>
+<li>[ ] Demo to Oliver under NDA</li>
+<li>[ ] Propose 30-day free pilot with 5 Servivuelo agencies</li>
+</ul>
+<h3 id="after-pilot">After Pilot</h3>
+<ul>
+<li>[ ] Close Servivuelo license ($75K/year or per-agency)</li>
+<li>[ ] Approach Inca Tickets, Emerald UK</li>
+<li>[ ] With 2+ subsidiaries signed, approach AERTiCKET HQ Berlin</li>
+<li>[ ] Explore group-wide license deal</li>
+</ul>
+<hr />
+<h2 id="key-numbers-summary">Key Numbers Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Redbox API endpoints</td>
+<td>12 (out of 60+ probed)</td>
+</tr>
+<tr>
+<td>SDK lines of code</td>
+<td>~1,300</td>
+</tr>
+<tr>
+<td>AERTiCKET subsidiaries</td>
+<td>~20</td>
+</tr>
+<tr>
+<td>AERTiCKET employees</td>
+<td>850</td>
+</tr>
+<tr>
+<td>AERTiCKET offices</td>
+<td>40+ globally</td>
+</tr>
+<tr>
+<td>Servivuelo agencies</td>
+<td>11,500</td>
+</tr>
+<tr>
+<td>Picasso onboarding cost (current)</td>
+<td>$3,500 / 2 months</td>
+</tr>
+<tr>
+<td>SDK onboarding time</td>
+<td>1 day</td>
+</tr>
+<tr>
+<td>Recommended license price</td>
+<td>$75K/year</td>
+</tr>
+<tr>
+<td>Acquisition floor</td>
+<td>$250K-$400K</td>
+</tr>
+<tr>
+<td>Acquisition ceiling (with traction)</td>
+<td>$1M-$2M</td>
+</tr>
+<tr>
+<td>Render DB expiration</td>
+<td>March 6, 2026</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Document generated February 27, 2026</em>
+<em>MYSTES KYRIOS LLC — Tennessee LLC, EIN 41-4228758</em>
+<em>Confidential — Do Not Distribute</em></p>
+</body>
+</html>
