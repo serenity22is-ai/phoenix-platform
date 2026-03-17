@@ -105,16 +105,37 @@ class LiteAPIHotelClient:
 
         # Resolve IATA code to city name + country code for liteAPI
         # liteAPI works best with cityName + countryCode (iataCode is unreliable)
+        # Hotels use city codes (PAR, NYC, LON) — airports module only has airport codes (CDG, JFK, LHR)
         city_name = None
         country_code = None
-        try:
-            from airports import AIRPORTS
-            info = AIRPORTS.get(city_code.upper())
-            if info:
-                city_name = info.get("city")
-                country_code = info.get("country_code")
-        except ImportError:
-            pass
+
+        # City code → city name mapping (hotel search form uses these)
+        CITY_CODES = {
+            "PAR": ("Paris", "FR"), "NYC": ("New York", "US"), "LON": ("London", "GB"),
+            "TYO": ("Tokyo", "JP"), "ROM": ("Rome", "IT"), "BCN": ("Barcelona", "ES"),
+            "BKK": ("Bangkok", "TH"), "DXB": ("Dubai", "AE"), "SIN": ("Singapore", "SG"),
+            "LAX": ("Los Angeles", "US"), "SFO": ("San Francisco", "US"), "MIA": ("Miami", "US"),
+            "CHI": ("Chicago", "US"), "SYD": ("Sydney", "AU"), "HKG": ("Hong Kong", "HK"),
+            "SEL": ("Seoul", "KR"), "AMS": ("Amsterdam", "NL"), "BER": ("Berlin", "DE"),
+            "MAD": ("Madrid", "ES"), "LIS": ("Lisbon", "PT"), "IST": ("Istanbul", "TR"),
+            "MEX": ("Mexico City", "MX"), "YTO": ("Toronto", "CA"), "OSA": ("Osaka", "JP"),
+            "MUC": ("Munich", "DE"), "VIE": ("Vienna", "AT"), "PRG": ("Prague", "CZ"),
+            "DUB": ("Dublin", "IE"), "ATH": ("Athens", "GR"), "HNL": ("Honolulu", "US"),
+        }
+
+        code_upper = city_code.upper()
+        if code_upper in CITY_CODES:
+            city_name, country_code = CITY_CODES[code_upper]
+        else:
+            # Try airports module (airport codes like CDG, JFK, LHR)
+            try:
+                from airports import AIRPORTS
+                info = AIRPORTS.get(code_upper)
+                if info:
+                    city_name = info.get("city")
+                    country_code = info.get("country_code")
+            except ImportError:
+                pass
 
         payload = {
             "checkin": check_in,
@@ -162,23 +183,27 @@ class LiteAPIHotelClient:
             raw_hotels = []
         print(f"[LITEAPI] Found {len(raw_hotels)} hotels in {city_code}")
 
-        # Fetch hotel names (rates endpoint doesn't include them)
+        # Fetch hotel names in one bulk call (rates endpoint doesn't include them)
         hotel_names = {}
-        hotel_ids_to_fetch = [h.get("hotelId") for h in raw_hotels[:max_hotels] if h.get("hotelId")]
-        for hid in hotel_ids_to_fetch:
-            try:
-                resp = requests.get(
-                    f"{BASE_URL}/data/hotel",
-                    params={"hotelId": hid},
-                    headers=self._headers(),
-                    timeout=10,
-                )
-                if resp.status_code == 200:
-                    hdata = resp.json().get("data", {})
-                    if hdata:
+        try:
+            name_params = {}
+            if city_name and country_code:
+                name_params = {"cityName": city_name, "countryCode": country_code}
+            else:
+                name_params = {"hotelId": ",".join(h.get("hotelId", "") for h in raw_hotels[:max_hotels] if h.get("hotelId"))}
+            resp = requests.get(
+                f"{BASE_URL}/data/hotels",
+                params=name_params,
+                headers=self._headers(),
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                for hdata in resp.json().get("data", []):
+                    hid = hdata.get("id", hdata.get("hotelId", ""))
+                    if hid:
                         hotel_names[hid] = hdata.get("name", "Unknown Hotel")
-            except Exception:
-                pass
+        except Exception:
+            pass  # Names are nice-to-have, not critical
 
         hotels = []
         for raw_hotel in raw_hotels[:max_hotels]:
@@ -212,8 +237,13 @@ class LiteAPIHotelClient:
             offer_retail = room_type_obj.get("offerRetailRate", {})
             price_base = float(offer_retail.get("amount", price_total))
 
-            # Google/retail benchmark (suggestedSellingPrice)
-            suggested = room_type_obj.get("offerInitialPrice", room_type_obj.get("suggestedSellingPrice", {}))
+            # Google/retail benchmark (suggestedSellingPrice — NOT offerInitialPrice which equals our cost)
+            suggested = room_type_obj.get("suggestedSellingPrice", {})
+            if not suggested or not isinstance(suggested, dict) or not suggested.get("amount"):
+                # Fallback: check inside retail rate
+                ssp_list = rate.get("retailRate", {}).get("suggestedSellingPrice", [])
+                if ssp_list and isinstance(ssp_list, list) and ssp_list:
+                    suggested = ssp_list[0]
             google_price = float(suggested.get("amount", 0)) if isinstance(suggested, dict) else 0
 
             # Margin filter: skip hotels where our cost >= Google price (no arbitrage)
@@ -380,19 +410,22 @@ class LiteAPIHotelClient:
         self,
         offer_id: str,
         guest: Dict,
-        payment: Dict,
+        payment: Optional[Dict] = None,
         prebook_id: Optional[str] = None,
+        client_reference: Optional[str] = None,
     ) -> Dict:
         """
         Book a hotel room via liteAPI.
 
         Requires prebook_id from validate_offer() — call validate first.
+        Payment uses ACC_CREDIT_CARD (charges the card on your liteAPI dashboard).
 
         Args:
-            offer_id: Offer ID (kept for interface compat, not sent to liteAPI)
-            guest: {title, first_name, last_name, email, phone}
-            payment: {vendor_code, card_number, expiry_date, cvc}
+            offer_id: Offer ID (kept for interface compat)
+            guest: {first_name, last_name, email, phone, special_requests}
+            payment: Optional override. Default: ACC_CREDIT_CARD
             prebook_id: From validate_offer() — required
+            client_reference: Optional booking reference for tracking
 
         Returns:
             Dict with success, booking_id, provider_confirmation
@@ -411,19 +444,27 @@ class LiteAPIHotelClient:
 
         payload = {
             "prebookId": prebook_id,
-            "guestInfo": {
-                "guestFirstName": first_name,
-                "guestLastName": last_name,
-                "guestEmail": guest.get("email", ""),
+            "holder": {
+                "firstName": first_name,
+                "lastName": last_name,
+                "email": guest.get("email", ""),
+                "phone": guest.get("phone", ""),
             },
-            "payment": {
-                "holderName": f"{first_name} {last_name}".strip(),
-                "number": payment.get("card_number", ""),
-                "expireDate": payment.get("expiry_date", ""),
-                "cvc": payment.get("cvc", ""),
-                "type": payment.get("vendor_code", "VI"),
-            },
+            "guests": [
+                {
+                    "occupancyNumber": 1,
+                    "firstName": first_name,
+                    "lastName": last_name,
+                    "email": guest.get("email", ""),
+                    "phone": guest.get("phone", ""),
+                    "remarks": guest.get("special_requests", ""),
+                }
+            ],
+            "payment": payment or {"method": "ACC_CREDIT_CARD"},
         }
+
+        if client_reference:
+            payload["clientReference"] = client_reference
 
         print(f"[LITEAPI] Booking with prebookId={prebook_id}...")
 

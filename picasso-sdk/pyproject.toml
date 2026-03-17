@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "anastasia-sdk"
 version = "0.3.0"
-description = "ANASTASiA — AI flight booking agent + OTA platform powered by Picasso Travel / AERTiCKET Redbox API"
+description = "ANASTASiA — Intelligent booking API with multi-provider credential routing, knowledge cards, and unified search"
 readme = "README.md"
 license = {text = "Proprietary"}
 requires-python = ">=3.9"
@@ -31,8 +31,12 @@ agent = [
 billing = [
     "stripe>=7.0",
 ]
+db = [
+    "flask-sqlalchemy>=3.1",
+    "psycopg2-binary>=2.9",
+]
 all = [
-    "anastasia-sdk[auth,agent,billing]",
+    "anastasia-sdk[auth,agent,billing,db]",
 ]
 dev = [
     "pytest>=7.0",
@@ -43,4 +47,4 @@ dev = [
 anastasia = "picasso.agent.assist_cli:main"
 
 [tool.setuptools.packages.find]
-include = ["picasso*"]
+include = ["picasso*", "clients*", "anastasia*"]

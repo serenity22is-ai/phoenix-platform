@@ -9,7 +9,12 @@ Tables:
 """
 
 import json
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
+
+
+def _utcnow():
+    """Timezone-aware UTC now — replaces deprecated datetime.now(timezone.utc)."""
+    return datetime.now(timezone.utc)
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 import bcrypt
@@ -55,13 +60,12 @@ class User(UserMixin, db.Model):
     # Commercial referral attribution
     referred_by_account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'))
     referral_code_used = db.Column(db.String(20))  # The referral code that brought them in
-    is_helper_node = db.Column(db.Boolean, default=False)  # Opted in as residential proxy node
 
     # Seller onboarding attribution (which deal link brought them to Mystes)
     onboarded_from_deal_id = db.Column(db.Integer, nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     last_login = db.Column(db.DateTime)
 
     # MYSTES AI tier (Build #72)
@@ -70,18 +74,13 @@ class User(UserMixin, db.Model):
     ai_month_reset_date = db.Column(db.DateTime, nullable=True)
     last_comparison_date = db.Column(db.Date, nullable=True)  # Build #73: daily comparison quota
 
-    # XRPL wallet (user-provided address for Phase 2 node payouts — no custody)
-    xrpl_wallet_address = db.Column(db.String(100), unique=True, nullable=True)
-    xrpl_wallet_seed_encrypted = db.Column(db.Text, nullable=True)  # Legacy — no longer populated
-    xrpl_wallet_created_at = db.Column(db.DateTime, nullable=True)
+    # Consumer referral code (Build #170 — every user gets one)
+    referral_code = db.Column(db.String(20), unique=True, nullable=True, index=True)
+    referred_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    total_referrals = db.Column(db.Integer, default=0)
 
     # Stripe Customer (for saved payment methods — Phase 1)
     stripe_customer_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
-
-    # Node referral (Build #75)
-    node_referral_code = db.Column(db.String(20), unique=True, nullable=True, index=True)
-    total_node_referrals = db.Column(db.Integer, default=0)
-    active_node_referrals = db.Column(db.Integer, default=0)
 
     # KYC (Build #75)
     kyc_status = db.Column(db.String(20), default='none')  # none/pending/verified/rejected
@@ -112,14 +111,14 @@ class User(UserMixin, db.Model):
         """Generate email verification token."""
         import secrets
         self.verification_token = secrets.token_urlsafe(32)
-        self.verification_token_expires = datetime.utcnow() + timedelta(hours=24)
+        self.verification_token_expires = datetime.now(timezone.utc) + timedelta(hours=24)
         return self.verification_token
 
     def verify_email(self, token):
         """Verify email with token."""
         if (self.verification_token == token and
             self.verification_token_expires and
-            self.verification_token_expires > datetime.utcnow()):
+            self.verification_token_expires > datetime.now(timezone.utc)):
             self.is_verified = True
             self.verification_token = None
             self.verification_token_expires = None
@@ -130,14 +129,14 @@ class User(UserMixin, db.Model):
         """Generate password reset token."""
         import secrets
         self.reset_token = secrets.token_urlsafe(32)
-        self.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+        self.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
         return self.reset_token
 
     def reset_password(self, token, new_password):
         """Reset password with token."""
         if (self.reset_token == token and
             self.reset_token_expires and
-            self.reset_token_expires > datetime.utcnow()):
+            self.reset_token_expires > datetime.now(timezone.utc)):
             self.set_password(new_password)
             self.reset_token = None
             self.reset_token_expires = None
@@ -211,8 +210,8 @@ class Deal(db.Model):
     expires_at = db.Column(db.DateTime)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     # Amadeus booking data (raw offer JSON for price_confirm + create_booking)
     amadeus_offer_data = db.Column(db.Text, nullable=True)
@@ -224,6 +223,7 @@ class Deal(db.Model):
     hotel_name = db.Column(db.String(300), nullable=True)
     hotel_id = db.Column(db.String(50), nullable=True)
     hotel_offer_id = db.Column(db.String(100), nullable=True)
+    hotel_prebook_id = db.Column(db.String(200), nullable=True)  # liteAPI prebookId
     city_code = db.Column(db.String(10), nullable=True, index=True)
     city_name = db.Column(db.String(100), nullable=True)
     check_in_date = db.Column(db.Date, nullable=True, index=True)
@@ -288,9 +288,12 @@ class Deal(db.Model):
             'deal_type': self.deal_type or 'flight',
             'airline': self.airline,
             'flight_number': self.flight_number,
+            'origin': self.origin,
+            'destination': self.destination,
             'route': f"{self.origin} → {self.destination}",
             'departure_date': self.departure_date.isoformat() if self.departure_date else None,
             'departure_time': self.departure_time,
+            'arrival_time': self.arrival_time,
             'home_market': self.home_market,
             'home_price_usd': self.home_price_usd,
             'arbitrage_market': 'MYSTES',  # B2C safe — real POS stays in DB only
@@ -308,6 +311,7 @@ class Deal(db.Model):
             'total_legs': self.total_legs,
             'fare_id': self.fare_id,
             'fare_search_id': self.fare_search_id,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
         }
         if self.is_multi_leg:
             result['flight_legs'] = self.get_flight_legs()
@@ -386,7 +390,7 @@ class Payment(db.Model):
     # pending, processing, verified, fulfillment_triggered, expired, refunded, failed
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     verified_at = db.Column(db.DateTime)
     expires_at = db.Column(db.DateTime)
 
@@ -467,6 +471,11 @@ class Booking(db.Model):
     # Additional passengers (JSON array for multi-pax bookings)
     additional_passengers_json = db.Column(db.Text, nullable=True)
 
+    # Insurance (Build #174)
+    insurance_policy_id = db.Column(db.String(100), nullable=True)
+    insurance_plan_name = db.Column(db.String(100), nullable=True)
+    insurance_amount_usd = db.Column(db.Float, nullable=True)
+
     # Hotel-specific booking fields
     guest_title = db.Column(db.String(10), nullable=True)  # MR/MS/MRS
     check_in_date = db.Column(db.Date, nullable=True)
@@ -476,8 +485,8 @@ class Booking(db.Model):
     provider_reference = db.Column(db.String(100), nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
     booked_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
@@ -561,7 +570,7 @@ class PriceAlert(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     last_triggered = db.Column(db.DateTime)
 
     # Relationship
@@ -625,8 +634,8 @@ class Escrow(db.Model):
     failure_reason = db.Column(db.Text)  # Reason if cancelled
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
     released_at = db.Column(db.DateTime)
     cancelled_at = db.Column(db.DateTime)
 
@@ -650,84 +659,6 @@ class Escrow(db.Model):
             'confirmation_code': self.confirmation_code,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
-
-
-# --- P2P NETWORK MODELS ---
-
-class HelperProfile(db.Model):
-    """
-    P2P helper profile — users who earn by granting Mystes browser access.
-    Extends the base User model with helper-specific fields.
-    """
-    __tablename__ = 'helper_profiles'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False, index=True)
-
-    # Helper status
-    is_active = db.Column(db.Boolean, default=False)  # Currently accepting requests
-    is_approved = db.Column(db.Boolean, default=False)  # Platform-approved
-    is_online = db.Column(db.Boolean, default=False)  # App running, browser available
-
-    # Location / market
-    country_code = db.Column(db.String(2), nullable=False, index=True)  # e.g., "ES", "UK", "JP"
-    zone_code = db.Column(db.String(10), nullable=True, index=True)  # e.g., "US-NE", "JP-KT" — sub-regional zone
-    city = db.Column(db.String(100))
-    timezone = db.Column(db.String(50))
-
-    # Google account (for price discovery + booking)
-    google_account_linked = db.Column(db.Boolean, default=False)
-
-    # Performance stats
-    total_transactions = db.Column(db.Integer, default=0)
-    successful_transactions = db.Column(db.Integer, default=0)
-    failed_transactions = db.Column(db.Integer, default=0)
-    total_earned_rlusd = db.Column(db.Float, default=0.0)
-    average_rating = db.Column(db.Float, default=5.0)
-
-    # Availability preferences
-    available_hours_start = db.Column(db.Integer, default=0)  # 0-23
-    available_hours_end = db.Column(db.Integer, default=24)  # 0-24
-    max_daily_transactions = db.Column(db.Integer, default=10)
-    transactions_today = db.Column(db.Integer, default=0)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_active = db.Column(db.DateTime)
-    last_transaction = db.Column(db.DateTime)
-
-    # Node service / extension fields (Build #67)
-    helper_token = db.Column(db.String(100), nullable=True, unique=True, index=True)
-    node_id = db.Column(db.String(50), nullable=True)
-    last_seen = db.Column(db.DateTime, nullable=True)
-
-    # Fleet membership (Build #75)
-    fleet_id = db.Column(db.String(50), nullable=True, index=True)
-
-    # Relationships
-    user = db.relationship('User', backref=db.backref('helper_profile', uselist=False))
-    transactions = db.relationship('P2PTransaction', backref='helper', lazy='dynamic',
-                                   foreign_keys='P2PTransaction.helper_id')
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'country_code': self.country_code,
-            'city': self.city,
-            'is_active': self.is_active,
-            'is_online': self.is_online,
-            'total_transactions': self.total_transactions,
-            'successful_transactions': self.successful_transactions,
-            'total_earned_rlusd': self.total_earned_rlusd,
-            'average_rating': self.average_rating,
-            'last_active': self.last_active.isoformat() if self.last_active else None,
-            'helper_token': self.helper_token,
-            'node_id': self.node_id,
-            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-        }
-
-
 class UserWallet(db.Model):
     """
     XRPL wallet linked to a user profile.
@@ -748,7 +679,7 @@ class UserWallet(db.Model):
     verification_tx_hash = db.Column(db.String(100))  # Micro-payment verification
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     last_used = db.Column(db.DateTime)
 
     # Relationships
@@ -795,7 +726,7 @@ class UserCard(db.Model):
     is_primary = db.Column(db.Boolean, default=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     # Relationships
     user = db.relationship('User', backref=db.backref('cards', lazy='dynamic'))
@@ -876,8 +807,8 @@ class TravelerProfile(db.Model):
     emergency_contact_relation = db.Column(db.String(30))  # SPOUSE, PARENT, FRIEND
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     # Relationships
     user = db.relationship('User', backref=db.backref('travelers', lazy='dynamic'))
@@ -999,264 +930,6 @@ class TravelerProfile(db.Model):
         )
 
 
-class P2PTransaction(db.Model):
-    """
-    P2P booking transaction — tracks the full lifecycle of a P2P purchase.
-
-    Flow:
-    1. Buyer requests booking → status: requested
-    2. Helper matched → status: matched
-    3. Buyer RLUSD locked in escrow → status: escrow_locked
-    4. Helper verifies escrow on-chain → status: helper_accepted
-    5. Mystes automates purchase on helper's browser → status: purchasing
-    6. Booking confirmed → status: confirmed
-    7. Escrow releases to helper + platform → status: completed
-    """
-    __tablename__ = 'p2p_transactions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    transaction_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-
-    # Participants
-    buyer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    helper_id = db.Column(db.Integer, db.ForeignKey('helper_profiles.id'), index=True)
-
-    # Flight details
-    origin = db.Column(db.String(10))
-    destination = db.Column(db.String(10))
-    departure_date = db.Column(db.Date)
-    airline = db.Column(db.String(50))
-    flight_number = db.Column(db.String(20))
-
-    # Pricing
-    us_price_usd = db.Column(db.Float)  # Price in buyer's market
-    target_price_usd = db.Column(db.Float)  # Price in helper's market
-    target_price_local = db.Column(db.Float)  # Price in local currency
-    target_currency = db.Column(db.String(3))
-    target_market = db.Column(db.String(2))  # Market code (ES, UK, etc.)
-    savings_usd = db.Column(db.Float)
-
-    # Escrow details
-    escrow_amount_rlusd = db.Column(db.Float)  # Total locked in escrow
-    helper_reimbursement_rlusd = db.Column(db.Float)  # Ticket cost reimbursed to helper
-    helper_earning_rlusd = db.Column(db.Float)  # Helper's cut
-    platform_fee_rlusd = db.Column(db.Float)  # Mystes fee
-    escrow_tx_hash = db.Column(db.String(100))  # XRPL escrow create tx
-    escrow_release_tx_hash = db.Column(db.String(100))  # XRPL escrow finish tx
-    escrow_sequence = db.Column(db.Integer)  # XRPL escrow sequence
-
-    # On-chain verification
-    escrow_verified_by_helper = db.Column(db.Boolean, default=False)
-    escrow_verified_at = db.Column(db.DateTime)
-
-    # Booking result
-    confirmation_code = db.Column(db.String(50))
-    passenger_name = db.Column(db.String(100))
-    passenger_email = db.Column(db.String(255))
-    eticket_url = db.Column(db.String(500))
-
-    # Status
-    status = db.Column(db.String(30), default='requested', index=True)
-    # requested, matched, escrow_locked, helper_accepted, purchasing,
-    # confirmed, completed, failed, cancelled, disputed
-
-    failure_reason = db.Column(db.Text)
-
-    # Browser session (for remote control)
-    browser_session_id = db.Column(db.String(100))
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    matched_at = db.Column(db.DateTime)
-    escrow_locked_at = db.Column(db.DateTime)
-    purchase_started_at = db.Column(db.DateTime)
-    confirmed_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
-    cancelled_at = db.Column(db.DateTime)
-
-    # Relationships
-    buyer = db.relationship('User', backref=db.backref('p2p_purchases', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'transaction_id': self.transaction_id,
-            'status': self.status,
-            'origin': self.origin,
-            'destination': self.destination,
-            'departure_date': self.departure_date.isoformat() if self.departure_date else None,
-            'airline': self.airline,
-            'us_price_usd': self.us_price_usd,
-            'target_price_usd': self.target_price_usd,
-            'target_market': self.target_market,
-            'savings_usd': self.savings_usd,
-            'escrow_amount_rlusd': self.escrow_amount_rlusd,
-            'helper_earning_rlusd': self.helper_earning_rlusd,
-            'confirmation_code': self.confirmation_code,
-            'escrow_tx_hash': self.escrow_tx_hash,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-        }
-
-
-class P2PEscrow(db.Model):
-    """
-    P2P-specific XRPL escrow for three-party transactions.
-    Extends the base Escrow model with P2P-specific fields.
-
-    Unlike standard escrow (buyer → platform), P2P escrow releases to:
-    - Helper wallet (reimbursement + earning cut)
-    - Platform wallet (fee)
-    """
-    __tablename__ = 'p2p_escrows'
-
-    id = db.Column(db.Integer, primary_key=True)
-    escrow_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-
-    # References
-    p2p_transaction_id = db.Column(db.Integer, db.ForeignKey('p2p_transactions.id'), index=True)
-
-    # Participants
-    buyer_address = db.Column(db.String(100), nullable=False)  # Buyer's XRPL wallet
-    helper_address = db.Column(db.String(100))  # Helper's XRPL wallet (set on match)
-    platform_address = db.Column(db.String(100), nullable=False)  # Mystes wallet
-
-    # Amounts
-    total_rlusd = db.Column(db.Float, nullable=False)  # Total locked
-    helper_amount_rlusd = db.Column(db.Float)  # Reimbursement + cut for helper
-    platform_amount_rlusd = db.Column(db.Float)  # Platform fee
-
-    # XRPL transaction details
-    create_tx_hash = db.Column(db.String(100))
-    create_sequence = db.Column(db.Integer)
-    condition = db.Column(db.String(200))
-    fulfillment = db.Column(db.String(200))
-
-    # Release transactions (two payments on escrow finish)
-    helper_release_tx_hash = db.Column(db.String(100))
-    platform_release_tx_hash = db.Column(db.String(100))
-
-    # Cancel transaction
-    cancel_tx_hash = db.Column(db.String(100))
-
-    # Timing
-    cancel_after = db.Column(db.DateTime)
-    finish_after = db.Column(db.DateTime)
-
-    # On-chain verification
-    on_chain_verified = db.Column(db.Boolean, default=False)
-    ledger_index = db.Column(db.Integer)  # XRPL ledger index for verification
-
-    # Status: pending, locked, released, cancelled, expired, disputed
-    status = db.Column(db.String(20), default='pending', index=True)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    locked_at = db.Column(db.DateTime)
-    released_at = db.Column(db.DateTime)
-    cancelled_at = db.Column(db.DateTime)
-
-    # Relationships
-    p2p_transaction = db.relationship('P2PTransaction',
-                                      backref=db.backref('escrow', uselist=False))
-
-    def to_dict(self):
-        return {
-            'escrow_id': self.escrow_id,
-            'status': self.status,
-            'buyer_address': self.buyer_address,
-            'helper_address': self.helper_address,
-            'total_rlusd': self.total_rlusd,
-            'helper_amount_rlusd': self.helper_amount_rlusd,
-            'platform_amount_rlusd': self.platform_amount_rlusd,
-            'create_tx_hash': self.create_tx_hash,
-            'on_chain_verified': self.on_chain_verified,
-            'cancel_after': self.cancel_after.isoformat() if self.cancel_after else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class Dispute(db.Model):
-    """
-    Dispute resolution for P2P transactions.
-
-    Flow:
-        opened → under_review → (resolved_buyer | resolved_helper | resolved_split | escalated)
-
-    Either buyer or helper can open a dispute. Admin reviews evidence and resolves.
-    """
-    __tablename__ = 'disputes'
-
-    id = db.Column(db.Integer, primary_key=True)
-    dispute_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    p2p_transaction_id = db.Column(db.Integer, db.ForeignKey('p2p_transactions.id'), index=True)
-
-    # Parties
-    opened_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
-    assigned_admin_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-
-    # Dispute details
-    reason = db.Column(db.String(50), nullable=False)  # wrong_ticket, no_ticket, price_mismatch, fraud, other
-    description = db.Column(db.Text, nullable=False)
-    evidence_urls = db.Column(db.Text)  # JSON list of uploaded evidence URLs
-
-    # Resolution
-    status = db.Column(db.String(30), default='opened', nullable=False, index=True)
-    resolution_type = db.Column(db.String(30))  # resolved_buyer, resolved_helper, resolved_split, escalated
-    resolution_notes = db.Column(db.Text)
-    refund_amount_rlusd = db.Column(db.Float)
-    refund_tx_hash = db.Column(db.String(100))
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    resolved_at = db.Column(db.DateTime)
-
-    # Relationships
-    p2p_transaction = db.relationship('P2PTransaction', backref='disputes')
-    opened_by = db.relationship('User', foreign_keys=[opened_by_user_id], backref='disputes_opened')
-    assigned_admin = db.relationship('User', foreign_keys=[assigned_admin_id])
-
-    def to_dict(self):
-        return {
-            'dispute_id': self.dispute_id,
-            'transaction_id': self.p2p_transaction.transaction_id if self.p2p_transaction else None,
-            'reason': self.reason,
-            'description': self.description,
-            'status': self.status,
-            'resolution_type': self.resolution_type,
-            'resolution_notes': self.resolution_notes,
-            'refund_amount_rlusd': self.refund_amount_rlusd,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'resolved_at': self.resolved_at.isoformat() if self.resolved_at else None,
-        }
-
-
-class DisputeMessage(db.Model):
-    """Messages in a dispute thread (buyer, helper, or admin)."""
-    __tablename__ = 'dispute_messages'
-
-    id = db.Column(db.Integer, primary_key=True)
-    dispute_id = db.Column(db.Integer, db.ForeignKey('disputes.id'), nullable=False, index=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    message = db.Column(db.Text, nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
-    attachment_url = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    dispute = db.relationship('Dispute', backref='messages')
-    sender = db.relationship('User')
-
-    def to_dict(self):
-        return {
-            'sender_id': self.sender_id,
-            'sender_name': self.sender.username if self.sender else None,
-            'message': self.message,
-            'is_admin': self.is_admin,
-            'attachment_url': self.attachment_url,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
 class SearchHistory(db.Model):
     """Persistent record of user searches for analytics and re-search."""
     __tablename__ = 'search_history'
@@ -1284,7 +957,7 @@ class SearchHistory(db.Model):
     search_duration_ms = db.Column(db.Integer)
     markets_searched = db.Column(db.Text)  # JSON list of market codes
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     user = db.relationship('User', backref='search_history')
 
@@ -1326,7 +999,7 @@ class PriceHistory(db.Model):
 
     # Snapshot context
     source = db.Column(db.String(20))  # proxy, amadeus, hybrid
-    recorded_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    recorded_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_price_history_route_date',
@@ -1358,7 +1031,7 @@ class CommercialAccount(db.Model):
     Referral system:
     - Each account gets a unique referral_code (e.g. "APEXTRAVEL")
     - Clients who sign up via /join/<code> are attributed to this account
-    - Referred users can become P2P helper nodes, expanding the network
+    - Referred users expand the network
     """
     __tablename__ = 'commercial_accounts'
 
@@ -1388,32 +1061,21 @@ class CommercialAccount(db.Model):
     # Referral system
     referral_code = db.Column(db.String(20), unique=True, index=True)  # e.g. "APEXTRAVEL"
     total_referred_users = db.Column(db.Integer, default=0)
-    total_referred_helpers = db.Column(db.Integer, default=0)  # How many referred users became helper nodes
-
-    # SERP API tier
-    serp_tier = db.Column(db.String(20), default='serp_free')
-    serp_monthly_credits = db.Column(db.Integer, default=100)
-    serp_credits_used_this_month = db.Column(db.Float, default=0.0)
-    serp_month_reset_date = db.Column(db.DateTime, nullable=True)
-
-    # Browsing Data tier (Build #70)
-    browsing_tier = db.Column(db.String(30), default='browsing_free')
-    browsing_events_used_this_month = db.Column(db.Integer, default=0)
-    browsing_month_reset_date = db.Column(db.DateTime, nullable=True)
-
-    # Data Marketplace tier (Build #74)
-    data_marketplace_tier = db.Column(db.String(30), default='data_free')
-    data_queries_used_this_month = db.Column(db.Integer, default=0)
-    data_month_reset_date = db.Column(db.DateTime, nullable=True)
 
     # Access controls
     is_active = db.Column(db.Boolean, default=True)
-    p2p_enabled = db.Column(db.Boolean, default=True)
     max_daily_searches = db.Column(db.Integer, default=500)
     max_concurrent_searches = db.Column(db.Integer, default=10)
 
+    # Stripe subscription (B2B monthly billing — Build #158)
+    stripe_customer_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
+    stripe_subscription_id = db.Column(db.String(100), unique=True, nullable=True)
+    subscription_status = db.Column(db.String(20), default='none')  # none/active/past_due/canceled
+    subscription_plan = db.Column(db.String(30), default='b2b_starter')
+    current_period_end = db.Column(db.DateTime, nullable=True)
+
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     activated_at = db.Column(db.DateTime)
     suspended_at = db.Column(db.DateTime)
     last_tier_review = db.Column(db.DateTime)
@@ -1433,10 +1095,10 @@ class CommercialAccount(db.Model):
             'total_tickets': self.total_tickets,
             'total_revenue_usd': round(self.total_revenue_usd, 2),
             'is_active': self.is_active,
-            'p2p_enabled': self.p2p_enabled,
             'referral_code': self.referral_code,
             'total_referred_users': self.total_referred_users or 0,
-            'total_referred_helpers': self.total_referred_helpers or 0,
+            'subscription_status': self.subscription_status,
+            'subscription_plan': self.subscription_plan,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -1461,7 +1123,7 @@ class CommercialAPIKey(db.Model):
     total_requests = db.Column(db.Integer, default=0)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     expires_at = db.Column(db.DateTime)
 
     # Relationships
@@ -1492,9 +1154,8 @@ class CommercialTransaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
 
-    # Reference to the underlying booking/P2P transaction
+    # Reference to the underlying booking
     booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'))
-    p2p_transaction_id = db.Column(db.Integer, db.ForeignKey('p2p_transactions.id'))
 
     # Pricing
     retail_price_usd = db.Column(db.Float, nullable=False)   # US market price
@@ -1514,7 +1175,7 @@ class CommercialTransaction(db.Model):
     # Status
     status = db.Column(db.String(20), default='completed', index=True)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     # Relationships
     account = db.relationship('CommercialAccount', backref='transactions')
@@ -1575,7 +1236,7 @@ class AirlineClient(db.Model):
     reports_generated = db.Column(db.Integer, default=0)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     activated_at = db.Column(db.DateTime)
     suspended_at = db.Column(db.DateTime)
 
@@ -1622,7 +1283,7 @@ class AirlineAPIKey(db.Model):
     last_used_at = db.Column(db.DateTime)
     total_requests = db.Column(db.Integer, default=0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     expires_at = db.Column(db.DateTime)
 
     def to_dict(self):
@@ -1665,7 +1326,7 @@ class AirlineReport(db.Model):
     status = db.Column(db.String(20), default='generating', index=True)
     error_message = db.Column(db.Text)
 
-    generated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    generated_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     def to_dict(self):
         return {
@@ -1712,7 +1373,7 @@ class AirlineAlert(db.Model):
     last_triggered = db.Column(db.DateTime)
     trigger_count = db.Column(db.Integer, default=0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     def to_dict(self):
         return {
@@ -1773,7 +1434,7 @@ class AncillarySnapshot(db.Model):
     source = db.Column(db.String(20))          # amadeus, scraped
     data_quality = db.Column(db.String(20))    # complete, partial, estimated
 
-    recorded_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    recorded_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_ancillary_route_date_market',
@@ -1825,7 +1486,7 @@ class CompetitorPricing(db.Model):
     market_rank = db.Column(db.Integer)
     price_vs_market_avg_pct = db.Column(db.Float)
 
-    calculated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    calculated_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_competitor_route_date_airline',
@@ -1846,286 +1507,6 @@ class CompetitorPricing(db.Model):
             'market_rank': self.market_rank,
             'price_vs_market_avg_pct': round(self.price_vs_market_avg_pct, 1) if self.price_vs_market_avg_pct else None,
         }
-
-
-# ============================================================
-# CitizenSERP Node Payout Models
-# ============================================================
-
-class NodeSession(db.Model):
-    """Individual node uptime session. Tracks when a residential proxy node goes online/offline."""
-    __tablename__ = 'node_sessions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-
-    # Session timing
-    start_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    end_time = db.Column(db.DateTime, nullable=True)
-    duration_minutes = db.Column(db.Float, nullable=True)
-
-    # Node identity
-    wallet_address = db.Column(db.String(100), nullable=False)
-    ip_country = db.Column(db.String(2), nullable=True, index=True)
-    ip_zone = db.Column(db.String(10), nullable=True, index=True)  # e.g., "US-NE" — sub-regional zone
-
-    # On-chain attestation
-    xrpl_attestation_tx = db.Column(db.String(100), nullable=True)
-    attestation_ledger_index = db.Column(db.Integer, nullable=True)
-
-    # Status: active, closed, stale
-    status = db.Column(db.String(20), default='active', index=True)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('node_sessions', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_node_sessions_user_status', 'user_id', 'status'),
-        db.Index('ix_node_sessions_start_end', 'start_time', 'end_time'),
-    )
-
-    def to_dict(self):
-        return {
-            'session_id': self.session_id,
-            'user_id': self.user_id,
-            'start_time': self.start_time.isoformat() if self.start_time else None,
-            'end_time': self.end_time.isoformat() if self.end_time else None,
-            'duration_minutes': round(self.duration_minutes, 1) if self.duration_minutes else None,
-            'ip_country': self.ip_country,
-            'status': self.status,
-            'xrpl_attestation_tx': self.xrpl_attestation_tx,
-        }
-
-
-class NodePayoutEpoch(db.Model):
-    """A single payout period (daily). Captures revenue pool and distribution metrics."""
-    __tablename__ = 'node_payout_epochs'
-
-    id = db.Column(db.Integer, primary_key=True)
-    epoch_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-
-    # Period
-    period_start = db.Column(db.DateTime, nullable=False)
-    period_end = db.Column(db.DateTime, nullable=False)
-
-    # Revenue pool
-    total_revenue_pool_usd = db.Column(db.Float, nullable=False)
-    payout_percentage = db.Column(db.Float, nullable=False)
-    total_payout_pool_usd = db.Column(db.Float, nullable=False)
-
-    # Distribution metrics
-    total_node_hours = db.Column(db.Float, nullable=False)
-    rate_per_hour_usd = db.Column(db.Float, nullable=False)
-    nodes_paid = db.Column(db.Integer, default=0)
-
-    # Status: calculating, calculated, distributing, completed, failed
-    status = db.Column(db.String(20), default='calculating', index=True)
-
-    distribution_tx_batch = db.Column(db.String(100), nullable=True)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-
-    def to_dict(self):
-        return {
-            'epoch_id': self.epoch_id,
-            'period_start': self.period_start.isoformat() if self.period_start else None,
-            'period_end': self.period_end.isoformat() if self.period_end else None,
-            'total_revenue_pool_usd': round(self.total_revenue_pool_usd, 2),
-            'payout_percentage': self.payout_percentage,
-            'total_payout_pool_usd': round(self.total_payout_pool_usd, 2),
-            'total_node_hours': round(self.total_node_hours, 1),
-            'rate_per_hour_usd': round(self.rate_per_hour_usd, 6),
-            'nodes_paid': self.nodes_paid,
-            'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-        }
-
-
-class NodePayout(db.Model):
-    """Individual payout record per node per epoch."""
-    __tablename__ = 'node_payouts'
-
-    id = db.Column(db.Integer, primary_key=True)
-    epoch_id = db.Column(db.Integer, db.ForeignKey('node_payout_epochs.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-
-    wallet_address = db.Column(db.String(100), nullable=False)
-    uptime_hours = db.Column(db.Float, nullable=False)
-    payout_amount_rlusd = db.Column(db.Float, nullable=False)
-
-    # XRPL transaction
-    tx_hash = db.Column(db.String(100), nullable=True)
-    status = db.Column(db.String(20), default='pending', index=True)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    paid_at = db.Column(db.DateTime, nullable=True)
-
-    epoch = db.relationship('NodePayoutEpoch', backref=db.backref('payouts', lazy='dynamic'))
-    user = db.relationship('User', backref=db.backref('node_payouts', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_node_payouts_epoch_user', 'epoch_id', 'user_id', unique=True),
-    )
-
-    def to_dict(self):
-        return {
-            'epoch_id': self.epoch_id,
-            'user_id': self.user_id,
-            'wallet_address': self.wallet_address,
-            'uptime_hours': round(self.uptime_hours, 2),
-            'payout_amount_rlusd': round(self.payout_amount_rlusd, 6),
-            'tx_hash': self.tx_hash,
-            'status': self.status,
-            'paid_at': self.paid_at.isoformat() if self.paid_at else None,
-        }
-
-
-# ============================================================
-# Node Data Extraction Tracking (Build #65)
-# ============================================================
-
-class NodeDataExtraction(db.Model):
-    """Per-task data extraction record — tracks what data categories
-    a node extracted during a task and the commercial value attributed.
-    Links to NodeSession for per-session yield visibility."""
-    __tablename__ = 'node_data_extractions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.Integer, db.ForeignKey('node_sessions.id'), nullable=True, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    task_id = db.Column(db.String(50), nullable=False, index=True)
-    task_type = db.Column(db.String(50), nullable=False, index=True)
-
-    # Data category extracted
-    # Categories: "flight_pricing", "hotel_pricing", "product_pricing",
-    # "ad_intelligence", "social_signals", "audience_data",
-    # "retail_shelf", "competitor_ads", "deep_pricing", "search_results"
-    data_category = db.Column(db.String(50), nullable=False, index=True)
-
-    # Volume metrics
-    records_extracted = db.Column(db.Integer, default=0)
-    data_points = db.Column(db.Integer, default=0)
-    data_size_bytes = db.Column(db.Integer, default=0)
-
-    # Commercial value attribution
-    commercial_value_usd = db.Column(db.Float, default=0.0)
-    payout_multiplier = db.Column(db.Float, default=1.0)
-    payout_earned_rlusd = db.Column(db.Float, default=0.0)
-
-    # Quality score (0-100)
-    quality_score = db.Column(db.Integer, default=50)
-
-    # Extraction metadata (JSON)
-    extraction_metadata = db.Column(db.Text, nullable=True)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationships
-    session = db.relationship('NodeSession', backref=db.backref('data_extractions', lazy='dynamic'))
-    user = db.relationship('User', backref=db.backref('data_extractions', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_node_data_ext_user_category', 'user_id', 'data_category'),
-        db.Index('ix_node_data_ext_created', 'created_at'),
-    )
-
-    def to_dict(self):
-        return {
-            'task_id': self.task_id,
-            'task_type': self.task_type,
-            'data_category': self.data_category,
-            'records_extracted': self.records_extracted,
-            'data_points': self.data_points,
-            'data_size_bytes': self.data_size_bytes,
-            'commercial_value_usd': round(self.commercial_value_usd, 4),
-            'payout_multiplier': self.payout_multiplier,
-            'payout_earned_rlusd': round(self.payout_earned_rlusd, 6),
-            'quality_score': self.quality_score,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class AdIntelligenceRecord(db.Model):
-    """Individual ad intelligence data point extracted by a node.
-    Stores normalized ad data with commercial value attribution for
-    the ad intelligence pipeline and commercial API."""
-    __tablename__ = 'ad_intelligence_records'
-
-    id = db.Column(db.Integer, primary_key=True)
-    record_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-
-    # Source
-    task_id = db.Column(db.String(50), nullable=False, index=True)
-    node_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    market = db.Column(db.String(5), nullable=False, index=True)
-    source_url = db.Column(db.String(500), nullable=True)
-
-    # Ad data
-    advertiser = db.Column(db.String(200), nullable=True, index=True)
-    ad_network = db.Column(db.String(100), nullable=True, index=True)
-    ad_format = db.Column(db.String(50), nullable=True)  # display, search, video, native, shopping
-    ad_position = db.Column(db.String(50), nullable=True)  # top, sidebar, inline, bottom
-    ad_text = db.Column(db.Text, nullable=True)
-    ad_destination_url = db.Column(db.String(500), nullable=True)
-    ad_image_hash = db.Column(db.String(64), nullable=True)  # SHA256 of ad creative
-
-    # Bid / targeting signals
-    estimated_bid_usd = db.Column(db.Float, nullable=True)
-    targeting_keywords = db.Column(db.Text, nullable=True)  # JSON list
-    targeting_demographics = db.Column(db.Text, nullable=True)  # JSON
-    targeting_geo = db.Column(db.String(50), nullable=True)
-
-    # Vertical / industry
-    vertical = db.Column(db.String(50), nullable=True, index=True)
-    sub_vertical = db.Column(db.String(50), nullable=True)
-
-    # Commercial value
-    commercial_value_usd = db.Column(db.Float, default=0.0)
-    is_sold = db.Column(db.Boolean, default=False)
-
-    # Quality / confidence
-    confidence_score = db.Column(db.Float, default=0.5)
-
-    # Timestamps
-    observed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relationships
-    node_user = db.relationship('User', backref=db.backref('ad_extractions', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_ad_intel_advertiser_market', 'advertiser', 'market'),
-        db.Index('ix_ad_intel_vertical_observed', 'vertical', 'observed_at'),
-        db.Index('ix_ad_intel_network_observed', 'ad_network', 'observed_at'),
-    )
-
-    def to_dict(self):
-        return {
-            'record_id': self.record_id,
-            'market': self.market,
-            'advertiser': self.advertiser,
-            'ad_network': self.ad_network,
-            'ad_format': self.ad_format,
-            'ad_position': self.ad_position,
-            'ad_text': self.ad_text,
-            'ad_destination_url': self.ad_destination_url,
-            'estimated_bid_usd': self.estimated_bid_usd,
-            'targeting_keywords': json.loads(self.targeting_keywords) if self.targeting_keywords else [],
-            'targeting_demographics': json.loads(self.targeting_demographics) if self.targeting_demographics else {},
-            'targeting_geo': self.targeting_geo,
-            'vertical': self.vertical,
-            'sub_vertical': self.sub_vertical,
-            'commercial_value_usd': round(self.commercial_value_usd, 4),
-            'is_sold': self.is_sold,
-            'confidence_score': self.confidence_score,
-            'observed_at': self.observed_at.isoformat() if self.observed_at else None,
-        }
-
-
 class FlightPriceRecord(db.Model):
     """Structured flight price observation from a specific market."""
     __tablename__ = 'flight_price_records'
@@ -2145,7 +1526,7 @@ class FlightPriceRecord(db.Model):
     stops = db.Column(db.Integer, default=0)
     duration_minutes = db.Column(db.Integer, nullable=True)
     cabin_class = db.Column(db.String(20), default='economy')
-    observed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    observed_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_flight_route_date', 'origin', 'destination', 'departure_date'),
@@ -2190,7 +1571,7 @@ class HotelPriceRecord(db.Model):
     star_rating = db.Column(db.Integer, nullable=True)
     amenities = db.Column(db.Text, nullable=True)  # JSON list
     source_platform = db.Column(db.String(100), nullable=True)
-    observed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    observed_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_hotel_name_market', 'hotel_name', 'market'),
@@ -2235,7 +1616,7 @@ class CruisePriceRecord(db.Model):
     price_local = db.Column(db.Float, nullable=True)
     currency = db.Column(db.String(5), nullable=True)
     price_per_night_usd = db.Column(db.Float, nullable=True)
-    observed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    observed_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_cruise_line_market', 'cruise_line', 'market'),
@@ -2280,7 +1661,7 @@ class ProductPriceRecord(db.Model):
     is_ecommerce = db.Column(db.Boolean, default=False)
     shipping_estimate_usd = db.Column(db.Float, nullable=True)
     landed_cost_usd = db.Column(db.Float, nullable=True)
-    observed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    observed_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_product_category_market', 'category', 'market'),
@@ -2327,7 +1708,7 @@ class MarketplaceListingRecord(db.Model):
     image_url = db.Column(db.String(500), nullable=True)
     is_bargain = db.Column(db.Boolean, default=False, index=True)
     pct_of_median = db.Column(db.Float, nullable=True)
-    observed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    observed_at = db.Column(db.DateTime, default=_utcnow, index=True)
 
     __table_args__ = (
         db.Index('ix_mktplace_market_location', 'market', 'location'),
@@ -2352,205 +1733,6 @@ class MarketplaceListingRecord(db.Model):
         }
 
 
-class BrowsingEvent(db.Model):
-    """
-    Browser extension event — passive data captured from node browsing.
-    Events flow: extension → local service → backend API → processor → hooks.
-    """
-    __tablename__ = 'browsing_events'
-
-    id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    node_id = db.Column(db.String(50), nullable=True, index=True)
-    session_id = db.Column(db.String(50), nullable=True)
-
-    # Event classification
-    event_type = db.Column(db.String(30), nullable=False)  # page_visit | search_query | ad_impression | price_observation | social_signal
-    url = db.Column(db.String(2000), nullable=True)
-    domain = db.Column(db.String(200), nullable=True, index=True)
-    title = db.Column(db.String(500), nullable=True)
-    event_data = db.Column(db.Text, nullable=True)  # JSON payload
-
-    # Processing state
-    is_processed = db.Column(db.Boolean, server_default='0')
-    processing_result = db.Column(db.String(20), nullable=True)  # routed | duplicate | low_quality | error
-
-    # Commercial value
-    commercial_value_usd = db.Column(db.Float, server_default='0.0')
-    data_category = db.Column(db.String(50), nullable=True)
-    quality_score = db.Column(db.Integer, server_default='50')
-
-    # Timestamps
-    captured_at = db.Column(db.DateTime, nullable=True)  # When extension captured it
-    ingested_at = db.Column(db.DateTime, default=datetime.utcnow)  # When backend received it
-    processed_at = db.Column(db.DateTime, nullable=True)
-
-    __table_args__ = (
-        db.Index('ix_browsing_evt_user_type', 'user_id', 'event_type'),
-        db.Index('ix_browsing_evt_captured', 'captured_at'),
-        db.Index('ix_browsing_evt_processed', 'is_processed', 'ingested_at'),
-    )
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'event_id': self.event_id,
-            'user_id': self.user_id,
-            'node_id': self.node_id,
-            'event_type': self.event_type,
-            'url': self.url,
-            'domain': self.domain,
-            'title': self.title,
-            'is_processed': self.is_processed,
-            'processing_result': self.processing_result,
-            'commercial_value_usd': self.commercial_value_usd,
-            'data_category': self.data_category,
-            'quality_score': self.quality_score,
-            'captured_at': self.captured_at.isoformat() if self.captured_at else None,
-            'ingested_at': self.ingested_at.isoformat() if self.ingested_at else None,
-            'processed_at': self.processed_at.isoformat() if self.processed_at else None,
-        }
-
-
-class DataQualityFeedback(db.Model):
-    """
-    Commercial buyer feedback on browsing data quality (Build #69).
-    Links back to BrowsingEvent via event_id and tracks per-node ratings.
-    """
-    __tablename__ = 'data_quality_feedback'
-
-    id = db.Column(db.Integer, primary_key=True)
-    feedback_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    event_id = db.Column(db.String(50), db.ForeignKey('browsing_events.event_id'), nullable=False)
-    account_id = db.Column(db.Integer, nullable=False, index=True)
-    node_id = db.Column(db.String(50), nullable=True, index=True)
-    rating = db.Column(db.String(10), nullable=False)  # good, neutral, poor
-    comment = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.Index('ix_dqf_event_id', 'event_id'),
-        db.Index('ix_dqf_node_rating', 'node_id', 'rating'),
-    )
-
-
-class ProxySession(db.Model):
-    """User proxy session for cross-market browsing via the Proxy Portal."""
-    __tablename__ = 'proxy_sessions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    country_code = db.Column(db.String(5), nullable=False)
-    target_site = db.Column(db.String(200), nullable=True)
-
-    # Proxy connection details
-    proxy_host = db.Column(db.String(200), nullable=False)
-    proxy_port = db.Column(db.String(10), nullable=False)
-    proxy_username = db.Column(db.String(200), nullable=False)
-    proxy_password = db.Column(db.String(200), nullable=False)
-    protocol = db.Column(db.String(10), default='socks5')
-
-    # Lifecycle
-    status = db.Column(db.String(20), default='active', index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    expires_at = db.Column(db.DateTime, nullable=False)
-    ended_at = db.Column(db.DateTime, nullable=True)
-
-    user = db.relationship('User', backref=db.backref('proxy_sessions', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_proxy_sessions_user_status', 'user_id', 'status'),
-    )
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'country_code': self.country_code,
-            'target_site': self.target_site,
-            'proxy_host': self.proxy_host,
-            'proxy_port': self.proxy_port,
-            'proxy_username': self.proxy_username,
-            'protocol': self.protocol,
-            'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
-            'ended_at': self.ended_at.isoformat() if self.ended_at else None,
-        }
-
-    @property
-    def is_expired(self):
-        return datetime.utcnow() > self.expires_at if self.expires_at else False
-
-
-# ---------------------------------------------------------------------------
-# Build #90 — Free Browse Sessions (node-based, replaces Webshare proxies)
-# ---------------------------------------------------------------------------
-
-class BrowseSession(db.Model):
-    """User browse session through a CitizenSERP node.
-
-    The user opens their own browser through the Mystes portal into a
-    network node.  Mystes acts as a monitoring window — passively observing
-    data (price observations, search queries, ad impressions) at zero cost.
-    Browsing is unlimited; no quota is consumed.
-    """
-    __tablename__ = 'browse_sessions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    node_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    zone_code = db.Column(db.String(10), nullable=False, index=True)
-    country_code = db.Column(db.String(5), nullable=True)
-    target_site = db.Column(db.String(200), nullable=True)
-
-    # Session type — 'free_browse' (unmetered) for now; extensible later
-    session_type = db.Column(db.String(20), default='free_browse')
-
-    # Lifecycle
-    status = db.Column(db.String(20), default='active', index=True)
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
-    ended_at = db.Column(db.DateTime, nullable=True)
-    last_activity = db.Column(db.DateTime, default=datetime.utcnow)
-    duration_seconds = db.Column(db.Integer, nullable=True)
-
-    # Data generated during session (passive monitoring)
-    events_captured = db.Column(db.Integer, default=0)
-    data_value_usd = db.Column(db.Float, default=0.0)
-    pages_visited = db.Column(db.Integer, default=0)
-    price_observations_count = db.Column(db.Integer, default=0)
-
-    # Relationships
-    user = db.relationship('User', foreign_keys=[user_id],
-                           backref=db.backref('browse_sessions', lazy='dynamic'))
-    node_user = db.relationship('User', foreign_keys=[node_user_id])
-
-    __table_args__ = (
-        db.Index('ix_browse_sessions_user_status', 'user_id', 'status'),
-        db.Index('ix_browse_sessions_node_status', 'node_user_id', 'status'),
-        db.Index('ix_browse_sessions_zone', 'zone_code', 'status'),
-    )
-
-    def to_dict(self):
-        return {
-            'session_id': self.session_id,
-            'zone_code': self.zone_code,
-            'country_code': self.country_code,
-            'target_site': self.target_site,
-            'session_type': self.session_type,
-            'status': self.status,
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'ended_at': self.ended_at.isoformat() if self.ended_at else None,
-            'last_activity': self.last_activity.isoformat() if self.last_activity else None,
-            'duration_seconds': self.duration_seconds,
-            'events_captured': self.events_captured,
-            'data_value_usd': round(self.data_value_usd or 0, 4),
-            'pages_visited': self.pages_visited,
-            'price_observations_count': self.price_observations_count,
-        }
-
-
 class AISearchQuery(db.Model):
     """Record of an AI ensemble search query."""
     __tablename__ = 'ai_search_queries'
@@ -2567,7 +1749,7 @@ class AISearchQuery(db.Model):
     total_tokens = db.Column(db.Integer, default=0)
     response_time_ms = db.Column(db.Integer, default=0)
     credits_used = db.Column(db.Float, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     user = db.relationship('User', backref=db.backref('ai_queries', lazy='dynamic'))
 
@@ -2602,7 +1784,7 @@ class UserAIProvider(db.Model):
     custom_model = db.Column(db.String(200), nullable=True)
     custom_endpoint = db.Column(db.String(500), nullable=True)  # for ollama custom host
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     user = db.relationship('User', backref=db.backref('ai_providers', lazy='dynamic'))
 
@@ -2633,8 +1815,8 @@ class AIConversation(db.Model):
     message_count = db.Column(db.Integer, default=0)
     total_credits_used = db.Column(db.Float, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_message_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    last_message_at = db.Column(db.DateTime, default=_utcnow)
 
     user = db.relationship('User', backref=db.backref('ai_conversations', lazy='dynamic'))
 
@@ -2666,7 +1848,7 @@ class AIMessage(db.Model):
     credits_used = db.Column(db.Float, default=0.0)
     model_used = db.Column(db.String(50), nullable=True)
     response_time_ms = db.Column(db.Integer, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     conversation = db.relationship('AIConversation', backref=db.backref('messages', lazy='dynamic'))
 
@@ -2709,7 +1891,7 @@ class StrategyObservation(db.Model):
     result_quality_score = db.Column(db.Float, default=0.0)  # 0-100
     markets_searched = db.Column(db.Text, nullable=True)  # JSON: list of market codes
     response_time_ms = db.Column(db.Integer, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     __table_args__ = (
         db.Index('ix_strat_obs_source', 'source_type'),
@@ -2747,8 +1929,8 @@ class StrategyInsight(db.Model):
     observation_count = db.Column(db.Integer, default=0)  # how many observations support this
     effectiveness_score = db.Column(db.Float, default=0.0)  # measured impact
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     __table_args__ = (
         db.Index('ix_strat_ins_category', 'category'),
@@ -2770,1240 +1952,6 @@ class StrategyInsight(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
 
-
-class PrivateMarketDeal(db.Model):
-    """Private market deal with XRPL escrow — trustless P2P transactions."""
-    __tablename__ = 'private_market_deals'
-
-    id = db.Column(db.Integer, primary_key=True)
-    buyer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    seller_wallet = db.Column(db.String(100), nullable=True)  # Nullable: set when seller accepts link
-    item_description = db.Column(db.Text, nullable=False)
-    agreed_price_rlusd = db.Column(db.Float, nullable=False)
-    market = db.Column(db.String(5), nullable=True)
-    deal_type = db.Column(db.String(20), default='goods')  # goods, services, vehicle, other
-
-    # Deal link (shareable P2P link for sellers without Mystes accounts)
-    link_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
-    seller_email = db.Column(db.String(256), nullable=True)
-    seller_name = db.Column(db.String(200), nullable=True)
-    link_expires_at = db.Column(db.DateTime, nullable=True)
-    seller_accepted_at = db.Column(db.DateTime, nullable=True)
-    link_viewed_at = db.Column(db.DateTime, nullable=True)
-
-    # XRPL escrow
-    escrow_tx_hash = db.Column(db.String(200), nullable=True)
-    escrow_sequence = db.Column(db.Integer, nullable=True)
-    escrow_condition = db.Column(db.String(500), nullable=True)
-    escrow_fulfillment = db.Column(db.String(500), nullable=True)
-
-    # Fees and AI assessment
-    escrow_fee_rlusd = db.Column(db.Float, default=0.0)
-    ai_fair_value_estimate = db.Column(db.Float, nullable=True)
-    risk_score = db.Column(db.Integer, default=5)  # 1-10, 10 = highest risk
-
-    # Status
-    status = db.Column(db.String(20), default='draft', index=True)
-    # draft → link_sent → seller_accepted → escrow_funded → delivered → completed
-    # draft → cancelled | link_sent → expired
-    # escrow_funded → disputed → completed/cancelled
-
-    # Deadlines
-    delivery_deadline = db.Column(db.DateTime, nullable=True)
-    dispute_window_end = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-
-    buyer = db.relationship('User', backref=db.backref('private_deals', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_private_deals_buyer_status', 'buyer_id', 'status'),
-    )
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'buyer_id': self.buyer_id,
-            'seller_wallet': self.seller_wallet,
-            'seller_email': self.seller_email,
-            'seller_name': self.seller_name,
-            'item_description': self.item_description,
-            'agreed_price_rlusd': self.agreed_price_rlusd,
-            'market': self.market,
-            'deal_type': self.deal_type,
-            'escrow_tx_hash': self.escrow_tx_hash,
-            'escrow_fee_rlusd': self.escrow_fee_rlusd,
-            'ai_fair_value_estimate': self.ai_fair_value_estimate,
-            'risk_score': self.risk_score,
-            'status': self.status,
-            'link_token': self.link_token,
-            'link_url': f"/deal/link/{self.link_token}" if self.link_token else None,
-            'link_expires_at': self.link_expires_at.isoformat() if self.link_expires_at else None,
-            'is_link_expired': (self.link_expires_at < datetime.utcnow()) if self.link_expires_at else False,
-            'link_viewed_at': self.link_viewed_at.isoformat() if self.link_viewed_at else None,
-            'seller_accepted_at': self.seller_accepted_at.isoformat() if self.seller_accepted_at else None,
-            'delivery_deadline': self.delivery_deadline.isoformat() if self.delivery_deadline else None,
-            'dispute_window_end': self.dispute_window_end.isoformat() if self.dispute_window_end else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-        }
-
-
-# ============================================================
-# SERP API Models
-# ============================================================
-
-class SERPAPIQuery(db.Model):
-    """Per-query tracking for the residential SERP API service."""
-    __tablename__ = 'serp_api_queries'
-
-    id = db.Column(db.Integer, primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
-    query_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-
-    # Query parameters
-    engine = db.Column(db.String(30), nullable=False)
-    market = db.Column(db.String(5), nullable=False)
-    query_text = db.Column(db.Text, nullable=False)
-    options = db.Column(db.Text, nullable=True)  # JSON
-
-    # Credits & status
-    credits_used = db.Column(db.Float, nullable=False, default=1.0)
-    status = db.Column(db.String(20), nullable=False, default='pending', index=True)
-    # pending, processing, completed, failed, expired
-
-    # Result
-    result = db.Column(db.Text, nullable=True)  # JSON
-    error_message = db.Column(db.Text, nullable=True)
-
-    # Execution metadata
-    node_id = db.Column(db.String(50), nullable=True)
-    callback_url = db.Column(db.String(500), nullable=True)
-    callback_status = db.Column(db.String(20), nullable=True)
-    response_time_ms = db.Column(db.Integer, nullable=True)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-
-    # Relationships
-    account = db.relationship('CommercialAccount', backref=db.backref('serp_queries', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_serp_queries_account_status', 'account_id', 'status'),
-    )
-
-    def to_dict(self):
-        return {
-            'query_id': self.query_id,
-            'engine': self.engine,
-            'market': self.market,
-            'query_text': self.query_text,
-            'options': json.loads(self.options) if self.options else None,
-            'credits_used': self.credits_used,
-            'status': self.status,
-            'result': json.loads(self.result) if self.result else None,
-            'error_message': self.error_message,
-            'node_id': self.node_id,
-            'response_time_ms': self.response_time_ms,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-        }
-
-
-class SERPAPIUsageSummary(db.Model):
-    """Daily usage aggregates for SERP API accounts."""
-    __tablename__ = 'serp_api_usage_summaries'
-
-    id = db.Column(db.Integer, primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False)
-
-    # Metrics
-    total_queries = db.Column(db.Integer, nullable=False, default=0)
-    total_credits = db.Column(db.Float, nullable=False, default=0)
-    successful_queries = db.Column(db.Integer, nullable=False, default=0)
-    failed_queries = db.Column(db.Integer, nullable=False, default=0)
-    avg_response_time_ms = db.Column(db.Integer, nullable=True)
-
-    # Breakdown (JSON)
-    engines_used = db.Column(db.Text, nullable=True)
-    markets_used = db.Column(db.Text, nullable=True)
-
-    # Relationships
-    account = db.relationship('CommercialAccount', backref=db.backref('serp_usage', lazy='dynamic'))
-
-    __table_args__ = (
-        db.UniqueConstraint('account_id', 'date', name='uq_serp_usage_account_date'),
-    )
-
-    def to_dict(self):
-        return {
-            'date': self.date.isoformat() if self.date else None,
-            'total_queries': self.total_queries,
-            'total_credits': round(self.total_credits, 2),
-            'successful_queries': self.successful_queries,
-            'failed_queries': self.failed_queries,
-            'avg_response_time_ms': self.avg_response_time_ms,
-            'engines_used': json.loads(self.engines_used) if self.engines_used else [],
-            'markets_used': json.loads(self.markets_used) if self.markets_used else [],
-        }
-
-
-# ============================================================
-# Data Marketplace Models (Build #74)
-# ============================================================
-
-class DataProduct(db.Model):
-    """Catalog entry for a sellable data product."""
-    __tablename__ = 'data_products'
-
-    id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    name = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    category = db.Column(db.String(50), nullable=False, index=True)
-    data_source_config = db.Column(db.Text, nullable=False)  # JSON: model, aggregation, etc.
-    delivery_formats = db.Column(db.Text, nullable=False)  # JSON: ["json_api", "csv_export", ...]
-    pricing_model = db.Column(db.String(30), nullable=False)  # per_query, subscription, per_record
-    credit_cost_per_query = db.Column(db.Float, default=1.0)
-    min_tier = db.Column(db.String(30), default='data_free')
-    sample_limit = db.Column(db.Integer, default=10)
-    available_fields = db.Column(db.Text, nullable=True)  # JSON: list of field names
-    supported_filters = db.Column(db.Text, nullable=True)  # JSON: list of filter params
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    def to_dict(self):
-        return {
-            'product_id': self.product_id,
-            'name': self.name,
-            'description': self.description,
-            'category': self.category,
-            'delivery_formats': json.loads(self.delivery_formats) if self.delivery_formats else [],
-            'pricing_model': self.pricing_model,
-            'credit_cost_per_query': self.credit_cost_per_query,
-            'min_tier': self.min_tier,
-            'sample_limit': self.sample_limit,
-            'available_fields': json.loads(self.available_fields) if self.available_fields else [],
-            'supported_filters': json.loads(self.supported_filters) if self.supported_filters else [],
-            'is_active': self.is_active,
-        }
-
-
-class DataSubscription(db.Model):
-    """Links a CommercialAccount to a data marketplace tier + add-ons."""
-    __tablename__ = 'data_subscriptions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    subscription_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
-    tier = db.Column(db.String(30), nullable=False, default='data_free')
-    selected_products = db.Column(db.Text, nullable=True)  # JSON: list of product_ids (starter: max 3)
-    addons = db.Column(db.Text, nullable=True)  # JSON: list of addon keys
-    queries_used_this_period = db.Column(db.Integer, default=0)
-    period_start = db.Column(db.DateTime, nullable=True)
-    period_end = db.Column(db.DateTime, nullable=True)
-    status = db.Column(db.String(20), default='active')  # active, paused, cancelled, expired
-    monthly_price_usd = db.Column(db.Float, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    account = db.relationship('CommercialAccount', backref=db.backref('data_subscriptions', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_data_sub_account_status', 'account_id', 'status'),
-    )
-
-    def to_dict(self):
-        return {
-            'subscription_id': self.subscription_id,
-            'account_id': self.account_id,
-            'tier': self.tier,
-            'selected_products': json.loads(self.selected_products) if self.selected_products else [],
-            'addons': json.loads(self.addons) if self.addons else [],
-            'queries_used_this_period': self.queries_used_this_period,
-            'period_start': self.period_start.isoformat() if self.period_start else None,
-            'period_end': self.period_end.isoformat() if self.period_end else None,
-            'status': self.status,
-            'monthly_price_usd': self.monthly_price_usd,
-        }
-
-
-class DataExport(db.Model):
-    """Bulk export request for CSV/JSON download."""
-    __tablename__ = 'data_exports'
-
-    id = db.Column(db.Integer, primary_key=True)
-    export_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
-    product_id = db.Column(db.String(80), nullable=False)
-    format = db.Column(db.String(10), nullable=False, default='csv')
-    filters = db.Column(db.Text, nullable=True)  # JSON
-    status = db.Column(db.String(20), default='pending', index=True)
-    total_records = db.Column(db.Integer, nullable=True)
-    file_size_bytes = db.Column(db.Integer, nullable=True)
-    download_url = db.Column(db.String(500), nullable=True)
-    error_message = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    started_at = db.Column(db.DateTime, nullable=True)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    expires_at = db.Column(db.DateTime, nullable=True)
-
-    account = db.relationship('CommercialAccount', backref=db.backref('data_exports', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'export_id': self.export_id,
-            'product_id': self.product_id,
-            'format': self.format,
-            'status': self.status,
-            'total_records': self.total_records,
-            'file_size_bytes': self.file_size_bytes,
-            'download_url': self.download_url,
-            'error_message': self.error_message,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
-        }
-
-
-class DataWebhook(db.Model):
-    """Webhook subscription for real-time data streaming."""
-    __tablename__ = 'data_webhooks'
-
-    id = db.Column(db.Integer, primary_key=True)
-    webhook_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
-    product_id = db.Column(db.String(80), nullable=False)
-    callback_url = db.Column(db.String(500), nullable=False)
-    secret = db.Column(db.String(128), nullable=False)
-    filters = db.Column(db.Text, nullable=True)  # JSON
-    is_active = db.Column(db.Boolean, default=True)
-    consecutive_failures = db.Column(db.Integer, default=0)
-    last_delivery_at = db.Column(db.DateTime, nullable=True)
-    last_delivery_status = db.Column(db.Integer, nullable=True)
-    total_deliveries = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    account = db.relationship('CommercialAccount', backref=db.backref('data_webhooks', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'webhook_id': self.webhook_id,
-            'product_id': self.product_id,
-            'callback_url': self.callback_url,
-            'filters': json.loads(self.filters) if self.filters else {},
-            'is_active': self.is_active,
-            'total_deliveries': self.total_deliveries,
-            'last_delivery_at': self.last_delivery_at.isoformat() if self.last_delivery_at else None,
-            'last_delivery_status': self.last_delivery_status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class DataUsageRecord(db.Model):
-    """Per-query usage tracking for data marketplace billing."""
-    __tablename__ = 'data_usage_records'
-
-    id = db.Column(db.Integer, primary_key=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
-    product_id = db.Column(db.String(80), nullable=False, index=True)
-    query_type = db.Column(db.String(20), nullable=False)  # api_query, sample, export, webhook
-    records_returned = db.Column(db.Integer, default=0)
-    credits_consumed = db.Column(db.Float, default=0.0)
-    filters_used = db.Column(db.Text, nullable=True)  # JSON
-    response_time_ms = db.Column(db.Integer, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    account = db.relationship('CommercialAccount', backref=db.backref('data_usage_records', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_data_usage_account_product', 'account_id', 'product_id'),
-        db.Index('ix_data_usage_created', 'created_at'),
-    )
-
-
-class NodeConsentProfile(db.Model):
-    """Per-user consent config and tier state. Created on signup. (Build #75)"""
-    __tablename__ = 'node_consent_profiles'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False, index=True)
-    node_id = db.Column(db.String(50), nullable=True)
-
-    # Data consent toggles
-    consent_location = db.Column(db.Boolean, default=True)  # Required baseline
-    consent_search_queries = db.Column(db.Boolean, default=False)
-    consent_price_observations = db.Column(db.Boolean, default=False)
-    consent_ad_impressions = db.Column(db.Boolean, default=False)
-    consent_social_signals = db.Column(db.Boolean, default=False)
-    consent_browsing_data = db.Column(db.Boolean, default=False)
-    consent_business_data = db.Column(db.Boolean, default=False)
-
-    # Tier state
-    current_tier = db.Column(db.String(20), default='bronze')
-    tier_score = db.Column(db.Float, default=0.0)
-    data_share_score = db.Column(db.Float, default=0.0)
-    referral_score = db.Column(db.Float, default=0.0)
-    quality_score = db.Column(db.Float, default=0.0)
-    longevity_score = db.Column(db.Float, default=0.0)
-
-    # Tier benefits (cached from last assessment)
-    payout_multiplier = db.Column(db.Float, default=1.0)
-    arbitrage_fee_discount = db.Column(db.Float, default=0.0)
-    mystes_suite_access = db.Column(db.Boolean, default=False)
-
-    # Background service
-    background_service_enabled = db.Column(db.Boolean, default=False)
-    background_service_hours_target = db.Column(db.Integer, default=8)
-
-    # Assessment
-    last_tier_assessment = db.Column(db.DateTime, nullable=True)
-    next_tier_threshold = db.Column(db.Float, default=25.0)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('consent_profile', uselist=False))
-
-    def to_dict(self):
-        return {
-            'user_id': self.user_id,
-            'node_id': self.node_id,
-            'consent': {
-                'location': self.consent_location,
-                'search_queries': self.consent_search_queries,
-                'price_observations': self.consent_price_observations,
-                'ad_impressions': self.consent_ad_impressions,
-                'social_signals': self.consent_social_signals,
-                'browsing_data': self.consent_browsing_data,
-                'business_data': self.consent_business_data,
-            },
-            'tier': {
-                'current': self.current_tier,
-                'score': round(self.tier_score, 2),
-                'breakdown': {
-                    'data_share': round(self.data_share_score, 2),
-                    'referral': round(self.referral_score, 2),
-                    'quality': round(self.quality_score, 2),
-                    'longevity': round(self.longevity_score, 2),
-                },
-                'next_threshold': self.next_tier_threshold,
-            },
-            'benefits': {
-                'payout_multiplier': self.payout_multiplier,
-                'arbitrage_fee_discount': self.arbitrage_fee_discount,
-                'mystes_suite_access': self.mystes_suite_access,
-            },
-            'last_assessment': self.last_tier_assessment.isoformat() if self.last_tier_assessment else None,
-        }
-
-
-class NodeReferral(db.Model):
-    """Per-referral tracking with activation and churn detection. (Build #75)"""
-    __tablename__ = 'node_referrals'
-
-    id = db.Column(db.Integer, primary_key=True)
-    referral_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    referrer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    referee_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    referral_code = db.Column(db.String(20), nullable=False, index=True)
-
-    # Activation
-    is_activated = db.Column(db.Boolean, default=False)
-    activated_at = db.Column(db.DateTime, nullable=True)
-
-    # Performance
-    referee_total_earnings = db.Column(db.Float, default=0.0)
-    referee_current_tier = db.Column(db.String(20), default='bronze')
-    referee_sessions_count = db.Column(db.Integer, default=0)
-
-    # Anti-gaming
-    is_churned = db.Column(db.Boolean, default=False)
-    churned_at = db.Column(db.DateTime, nullable=True)
-    clawback_applied = db.Column(db.Boolean, default=False)
-
-    # Bonus
-    activation_bonus_paid = db.Column(db.Boolean, default=False)
-    activation_bonus_amount = db.Column(db.Float, default=0.50)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    referrer = db.relationship('User', foreign_keys=[referrer_user_id], backref=db.backref('referrals_made', lazy='dynamic'))
-    referee = db.relationship('User', foreign_keys=[referee_user_id], backref=db.backref('referred_by_node', uselist=False))
-
-    def to_dict(self):
-        return {
-            'referral_id': self.referral_id,
-            'referrer_user_id': self.referrer_user_id,
-            'referee_user_id': self.referee_user_id,
-            'referral_code': self.referral_code,
-            'is_activated': self.is_activated,
-            'activated_at': self.activated_at.isoformat() if self.activated_at else None,
-            'referee_total_earnings': round(self.referee_total_earnings, 6),
-            'referee_current_tier': self.referee_current_tier,
-            'referee_sessions_count': self.referee_sessions_count,
-            'is_churned': self.is_churned,
-            'activation_bonus_paid': self.activation_bonus_paid,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class NodeTierHistory(db.Model):
-    """Audit trail for tier changes. (Build #75)"""
-    __tablename__ = 'node_tier_history'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    previous_tier = db.Column(db.String(20), nullable=False)
-    new_tier = db.Column(db.String(20), nullable=False)
-    tier_score = db.Column(db.Float, nullable=False)
-    data_share_score = db.Column(db.Float, default=0.0)
-    referral_score = db.Column(db.Float, default=0.0)
-    quality_score = db.Column(db.Float, default=0.0)
-    longevity_score = db.Column(db.Float, default=0.0)
-    reason = db.Column(db.String(200), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('tier_history', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'previous_tier': self.previous_tier,
-            'new_tier': self.new_tier,
-            'tier_score': round(self.tier_score, 2),
-            'breakdown': {
-                'data_share': round(self.data_share_score, 2),
-                'referral': round(self.referral_score, 2),
-                'quality': round(self.quality_score, 2),
-                'longevity': round(self.longevity_score, 2),
-            },
-            'reason': self.reason,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class FleetAccount(db.Model):
-    """Commercial fleet management. (Build #75)"""
-    __tablename__ = 'fleet_accounts'
-
-    id = db.Column(db.Integer, primary_key=True)
-    fleet_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    commercial_account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=True, index=True)
-    name = db.Column(db.String(200), nullable=False)
-    contact_email = db.Column(db.String(255), nullable=False)
-
-    # Node counts
-    max_nodes = db.Column(db.Integer, default=100)
-    active_node_count = db.Column(db.Integer, default=0)
-    total_node_count = db.Column(db.Integer, default=0)
-
-    # Fleet-level benefits
-    arbitrage_rate_discount = db.Column(db.Float, default=0.0)
-    data_marketplace_revenue_share = db.Column(db.Float, default=0.0)
-    priority_payout = db.Column(db.Boolean, default=False)
-
-    # Enrollment
-    enrollment_key = db.Column(db.String(50), unique=True, nullable=False)
-
-    # Aggregate stats
-    total_earnings_usd = db.Column(db.Float, default=0.0)
-    total_data_events = db.Column(db.Integer, default=0)
-
-    # Status
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    commercial_account = db.relationship('CommercialAccount', backref=db.backref('fleet_accounts', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'fleet_id': self.fleet_id,
-            'name': self.name,
-            'contact_email': self.contact_email,
-            'max_nodes': self.max_nodes,
-            'active_node_count': self.active_node_count,
-            'total_node_count': self.total_node_count,
-            'benefits': {
-                'arbitrage_rate_discount': self.arbitrage_rate_discount,
-                'data_marketplace_revenue_share': self.data_marketplace_revenue_share,
-                'priority_payout': self.priority_payout,
-            },
-            'enrollment_key': self.enrollment_key,
-            'total_earnings_usd': round(self.total_earnings_usd, 2),
-            'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class RevenueAllocation(db.Model):
-    """Per-booking fee allocation ledger — divides arbitrage fee. (Build #75)"""
-    __tablename__ = 'revenue_allocations'
-
-    id = db.Column(db.Integer, primary_key=True)
-    allocation_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    deal_id = db.Column(db.String(20), db.ForeignKey('deals.deal_id'), nullable=True, index=True)
-    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=True)
-
-    # Fee
-    total_fee_usd = db.Column(db.Float, nullable=False)
-
-    # Serving node
-    node_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
-    node_tier = db.Column(db.String(20), nullable=True)
-    node_share_pct = db.Column(db.Float, default=0.0)
-    node_share_usd = db.Column(db.Float, default=0.0)
-
-    # Referrer
-    referrer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    referral_share_usd = db.Column(db.Float, default=0.0)
-
-    # Platform
-    infra_share_usd = db.Column(db.Float, default=0.0)
-    platform_profit_usd = db.Column(db.Float, default=0.0)
-
-    # Payout status
-    node_payout_status = db.Column(db.String(20), default='pending')  # pending/queued/paid
-    referrer_payout_status = db.Column(db.String(20), default='na')  # pending/queued/paid/na
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    node_user = db.relationship('User', foreign_keys=[node_user_id], backref=db.backref('revenue_allocations', lazy='dynamic'))
-    referrer_user = db.relationship('User', foreign_keys=[referrer_user_id])
-
-    def to_dict(self):
-        return {
-            'allocation_id': self.allocation_id,
-            'deal_id': self.deal_id,
-            'total_fee_usd': round(self.total_fee_usd, 2),
-            'node_user_id': self.node_user_id,
-            'node_tier': self.node_tier,
-            'node_share_pct': self.node_share_pct,
-            'node_share_usd': round(self.node_share_usd, 4),
-            'referrer_user_id': self.referrer_user_id,
-            'referral_share_usd': round(self.referral_share_usd, 4),
-            'infra_share_usd': round(self.infra_share_usd, 4),
-            'platform_profit_usd': round(self.platform_profit_usd, 4),
-            'node_payout_status': self.node_payout_status,
-            'referrer_payout_status': self.referrer_payout_status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class CryptoConversion(db.Model):
-    """Per-conversion record for multi-crypto -> XRP/RLUSD. (Build #75)"""
-    __tablename__ = 'crypto_conversions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    conversion_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-
-    # Source
-    source_currency = db.Column(db.String(10), nullable=False)  # BTC, ETH, LTC, etc.
-    source_amount = db.Column(db.Float, nullable=False)
-    source_tx_hash = db.Column(db.String(200), nullable=True)
-
-    # Target
-    target_currency = db.Column(db.String(10), default='XRP')
-    target_amount = db.Column(db.Float, nullable=True)
-    conversion_rate = db.Column(db.Float, nullable=True)
-
-    # Fees
-    convenience_fee_pct = db.Column(db.Float, default=0.025)  # 2.5% default
-    convenience_fee_usd = db.Column(db.Float, default=0.0)
-
-    # Conversion vehicle
-    conversion_vehicle = db.Column(db.String(50), default='coinbase')
-    vehicle_tx_id = db.Column(db.String(200), nullable=True)
-
-    # Status
-    status = db.Column(db.String(20), default='pending_deposit')  # pending_deposit/converting/pre_funded/completed/failed
-    pre_funded = db.Column(db.Boolean, default=False)
-    pre_fund_tx_hash = db.Column(db.String(200), nullable=True)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-
-    user = db.relationship('User', backref=db.backref('crypto_conversions', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'conversion_id': self.conversion_id,
-            'user_id': self.user_id,
-            'source_currency': self.source_currency,
-            'source_amount': self.source_amount,
-            'target_currency': self.target_currency,
-            'target_amount': self.target_amount,
-            'conversion_rate': self.conversion_rate,
-            'convenience_fee_pct': self.convenience_fee_pct,
-            'convenience_fee_usd': round(self.convenience_fee_usd, 4) if self.convenience_fee_usd else 0,
-            'conversion_vehicle': self.conversion_vehicle,
-            'status': self.status,
-            'pre_funded': self.pre_funded,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-        }
-
-
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Build #78 — Location-Aware Pricing Zones
-# ---------------------------------------------------------------------------
-
-class PricingZone(db.Model):
-    """Auto-discovered geographic pricing zone.
-
-    Hierarchy: country → region → city → district → micro.
-    Seeded from geographic_zones.ZONE_REGISTRY, refined by node density.
-    """
-    __tablename__ = 'pricing_zones'
-
-    id = db.Column(db.Integer, primary_key=True)
-    zone_id = db.Column(db.String(30), unique=True, nullable=False, index=True)
-    parent_zone_id = db.Column(db.String(30), nullable=True, index=True)
-    resolution = db.Column(db.String(20), nullable=False, index=True)
-    name = db.Column(db.String(200), nullable=False)
-    country_code = db.Column(db.String(2), nullable=False, index=True)
-    lat_center = db.Column(db.Float, nullable=False)
-    lon_center = db.Column(db.Float, nullable=False)
-    radius_km = db.Column(db.Float, nullable=False)
-    active_node_count = db.Column(db.Integer, default=0)
-    total_observations = db.Column(db.Integer, default=0)
-    density_score = db.Column(db.Float, default=0.0)
-    avg_price_deviation_pct = db.Column(db.Float, nullable=True)
-    is_seeded = db.Column(db.Boolean, default=False)
-    is_auto_discovered = db.Column(db.Boolean, default=False)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    __table_args__ = (
-        db.Index('ix_pricing_zone_country_res', 'country_code', 'resolution'),
-        db.Index('ix_pricing_zone_latlon', 'lat_center', 'lon_center'),
-    )
-
-    def to_dict(self):
-        return {
-            'zone_id': self.zone_id,
-            'parent_zone_id': self.parent_zone_id,
-            'resolution': self.resolution,
-            'name': self.name,
-            'country_code': self.country_code,
-            'lat_center': self.lat_center,
-            'lon_center': self.lon_center,
-            'radius_km': self.radius_km,
-            'active_node_count': self.active_node_count,
-            'total_observations': self.total_observations,
-            'density_score': self.density_score,
-            'avg_price_deviation_pct': self.avg_price_deviation_pct,
-            'is_seeded': self.is_seeded,
-            'is_auto_discovered': self.is_auto_discovered,
-            'is_active': self.is_active,
-        }
-
-
-class PriceObservation(db.Model):
-    """Location-tagged price data point — the core primitive for the
-    spatial-temporal pricing index."""
-    __tablename__ = 'price_observations'
-
-    id = db.Column(db.Integer, primary_key=True)
-    observation_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    zone_id = db.Column(db.String(30), nullable=True, index=True)
-    node_id = db.Column(db.String(50), nullable=True, index=True)
-    lat = db.Column(db.Float, nullable=True)
-    lon = db.Column(db.Float, nullable=True)
-    country_code = db.Column(db.String(2), nullable=False, index=True)
-    vertical = db.Column(db.String(20), nullable=False, index=True)
-    item_key = db.Column(db.String(300), nullable=False, index=True)
-    price_usd = db.Column(db.Float, nullable=False)
-    price_local = db.Column(db.Float, nullable=True)
-    currency = db.Column(db.String(5), nullable=True)
-    is_promoted = db.Column(db.Boolean, default=False)
-    promotion_type = db.Column(db.String(50), nullable=True)
-    source_tier = db.Column(db.Integer, nullable=True)
-    source_url = db.Column(db.String(500), nullable=True)
-    observed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-
-    __table_args__ = (
-        db.Index('ix_obs_vertical_item', 'vertical', 'item_key'),
-        db.Index('ix_obs_zone_time', 'zone_id', 'observed_at'),
-        db.Index('ix_obs_country_vertical', 'country_code', 'vertical'),
-    )
-
-    def to_dict(self):
-        return {
-            'observation_id': self.observation_id,
-            'zone_id': self.zone_id,
-            'node_id': self.node_id,
-            'country_code': self.country_code,
-            'vertical': self.vertical,
-            'item_key': self.item_key,
-            'price_usd': self.price_usd,
-            'price_local': self.price_local,
-            'currency': self.currency,
-            'is_promoted': self.is_promoted,
-            'promotion_type': self.promotion_type,
-            'source_tier': self.source_tier,
-            'observed_at': self.observed_at.isoformat() if self.observed_at else None,
-        }
-
-
-class NodeLocationHistory(db.Model):
-    """Location pings from nodes (consent-gated).
-
-    Used for zone auto-discovery clustering and node location verification.
-    """
-    __tablename__ = 'node_location_history'
-
-    id = db.Column(db.Integer, primary_key=True)
-    node_id = db.Column(db.String(50), nullable=False, index=True)
-    user_id = db.Column(db.Integer, nullable=False, index=True)
-    lat = db.Column(db.Float, nullable=False)
-    lon = db.Column(db.Float, nullable=False)
-    accuracy_m = db.Column(db.Float, nullable=True)
-    source = db.Column(db.String(20), nullable=False)
-    resolved_zone_id = db.Column(db.String(30), nullable=True, index=True)
-    country_code = db.Column(db.String(2), nullable=True)
-    city = db.Column(db.String(100), nullable=True)
-    recorded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
-
-    __table_args__ = (
-        db.Index('ix_node_loc_latlon', 'lat', 'lon'),
-        db.Index('ix_node_loc_node_time', 'node_id', 'recorded_at'),
-    )
-
-    def to_dict(self):
-        return {
-            'node_id': self.node_id,
-            'user_id': self.user_id,
-            'lat': self.lat,
-            'lon': self.lon,
-            'accuracy_m': self.accuracy_m,
-            'source': self.source,
-            'resolved_zone_id': self.resolved_zone_id,
-            'country_code': self.country_code,
-            'city': self.city,
-            'recorded_at': self.recorded_at.isoformat() if self.recorded_at else None,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Build #79 — Autonomous Data Harvesting Scheduler
-# ---------------------------------------------------------------------------
-
-class HarvestExecution(db.Model):
-    """Tracks each autonomous harvest batch execution."""
-    __tablename__ = 'harvest_executions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    batch_id = db.Column(db.String(30), unique=True, nullable=False, index=True)
-    execution_type = db.Column(db.String(30), nullable=False, index=True)
-    vertical = db.Column(db.String(20), nullable=True)
-    zones_targeted = db.Column(db.Text, nullable=True)
-    tasks_generated = db.Column(db.Integer, default=0)
-    tasks_dispatched = db.Column(db.Integer, default=0)
-    tasks_completed = db.Column(db.Integer, default=0)
-    tasks_failed = db.Column(db.Integer, default=0)
-    observations_collected = db.Column(db.Integer, default=0)
-    total_payout_usd = db.Column(db.Float, default=0.0)
-    avg_quality_score = db.Column(db.Float, nullable=True)
-    started_at = db.Column(db.DateTime, nullable=True)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.Index('ix_harvest_executions_type_created', 'execution_type', 'created_at'),
-    )
-
-    def to_dict(self):
-        return {
-            'batch_id': self.batch_id,
-            'execution_type': self.execution_type,
-            'vertical': self.vertical,
-            'zones_targeted': json.loads(self.zones_targeted) if self.zones_targeted else [],
-            'tasks_generated': self.tasks_generated,
-            'tasks_dispatched': self.tasks_dispatched,
-            'tasks_completed': self.tasks_completed,
-            'tasks_failed': self.tasks_failed,
-            'observations_collected': self.observations_collected,
-            'total_payout_usd': self.total_payout_usd,
-            'avg_quality_score': self.avg_quality_score,
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class StandingOrder(db.Model):
-    """Commercial buyer standing order for continuous data harvesting."""
-    __tablename__ = 'standing_orders'
-
-    id = db.Column(db.Integer, primary_key=True)
-    order_id = db.Column(db.String(30), unique=True, nullable=False, index=True)
-    account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False, index=True)
-    vertical = db.Column(db.String(20), nullable=False, index=True)
-    filters = db.Column(db.Text, nullable=True)
-    zone_ids = db.Column(db.Text, nullable=True)
-    refresh_interval_hours = db.Column(db.Integer, default=6)
-    max_tasks_per_cycle = db.Column(db.Integer, default=10)
-    price_per_observation_usd = db.Column(db.Float, default=0.01)
-    max_spend_per_day_usd = db.Column(db.Float, default=50.0)
-    is_active = db.Column(db.Boolean, default=True)
-    last_executed_at = db.Column(db.DateTime, nullable=True)
-    total_observations_delivered = db.Column(db.Integer, default=0)
-    total_spent_usd = db.Column(db.Float, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    __table_args__ = (
-        db.Index('ix_standing_orders_active_vertical', 'is_active', 'vertical'),
-    )
-
-    def to_dict(self):
-        return {
-            'order_id': self.order_id,
-            'account_id': self.account_id,
-            'vertical': self.vertical,
-            'filters': json.loads(self.filters) if self.filters else {},
-            'zone_ids': json.loads(self.zone_ids) if self.zone_ids else [],
-            'refresh_interval_hours': self.refresh_interval_hours,
-            'max_tasks_per_cycle': self.max_tasks_per_cycle,
-            'price_per_observation_usd': self.price_per_observation_usd,
-            'max_spend_per_day_usd': self.max_spend_per_day_usd,
-            'is_active': self.is_active,
-            'last_executed_at': self.last_executed_at.isoformat() if self.last_executed_at else None,
-            'total_observations_delivered': self.total_observations_delivered,
-            'total_spent_usd': self.total_spent_usd,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-        }
-
-
-class HarvestBudget(db.Model):
-    """Per-zone per-vertical harvest rate limit budget."""
-    __tablename__ = 'harvest_budgets'
-
-    id = db.Column(db.Integer, primary_key=True)
-    zone_id = db.Column(db.String(30), nullable=False, index=True)
-    vertical = db.Column(db.String(20), nullable=False, index=True)
-    max_tasks_per_hour = db.Column(db.Integer, default=20)
-    max_tasks_per_day = db.Column(db.Integer, default=200)
-    tasks_this_hour = db.Column(db.Integer, default=0)
-    tasks_today = db.Column(db.Integer, default=0)
-    hour_reset_at = db.Column(db.DateTime, nullable=True)
-    day_reset_at = db.Column(db.DateTime, nullable=True)
-
-    __table_args__ = (
-        db.UniqueConstraint('zone_id', 'vertical', name='uq_harvest_budget_zone_vertical'),
-        db.Index('ix_harvest_budgets_zone_vertical', 'zone_id', 'vertical'),
-    )
-
-    def to_dict(self):
-        return {
-            'zone_id': self.zone_id,
-            'vertical': self.vertical,
-            'max_tasks_per_hour': self.max_tasks_per_hour,
-            'max_tasks_per_day': self.max_tasks_per_day,
-            'tasks_this_hour': self.tasks_this_hour,
-            'tasks_today': self.tasks_today,
-            'hour_reset_at': self.hour_reset_at.isoformat() if self.hour_reset_at else None,
-            'day_reset_at': self.day_reset_at.isoformat() if self.day_reset_at else None,
-        }
-
-
-# ============================================================
-# Payment Zone Compatibility (Build #85)
-# ============================================================
-
-class PaymentZoneRule(db.Model):
-    """Payment compatibility rule: card brand X issued in country Y accepted in country Z."""
-    __tablename__ = 'payment_zone_rules'
-
-    id = db.Column(db.Integer, primary_key=True)
-    payment_type = db.Column(db.String(20), nullable=False, index=True)
-    issuing_country = db.Column(db.String(2), nullable=False, index=True)  # ISO or '*'
-    merchant_country = db.Column(db.String(2), nullable=False, index=True)  # ISO or '*'
-    acceptance_level = db.Column(db.String(10), nullable=False, default='high')
-    vertical = db.Column(db.String(20), nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    __table_args__ = (
-        db.Index('idx_pzr_lookup', 'payment_type', 'issuing_country',
-                 'merchant_country', 'is_active'),
-    )
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'payment_type': self.payment_type,
-            'issuing_country': self.issuing_country,
-            'merchant_country': self.merchant_country,
-            'acceptance_level': self.acceptance_level,
-            'vertical': self.vertical,
-            'notes': self.notes,
-            'is_active': self.is_active,
-        }
-
-
-class PaymentInteropGroup(db.Model):
-    """Named group of countries with shared payment interoperability."""
-    __tablename__ = 'payment_interop_groups'
-
-    id = db.Column(db.Integer, primary_key=True)
-    group_code = db.Column(db.String(30), unique=True, nullable=False, index=True)
-    group_name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    countries = db.Column(db.Text, nullable=False)  # JSON array of 2-letter codes
-    payment_types = db.Column(db.Text, nullable=False)  # JSON array of card brands
-    default_acceptance = db.Column(db.String(10), default='high')
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def get_countries(self):
-        try:
-            return json.loads(self.countries)
-        except Exception:
-            return []
-
-    def get_payment_types(self):
-        try:
-            return json.loads(self.payment_types)
-        except Exception:
-            return []
-
-    def to_dict(self):
-        return {
-            'group_code': self.group_code,
-            'group_name': self.group_name,
-            'description': self.description,
-            'countries': self.get_countries(),
-            'payment_types': self.get_payment_types(),
-            'default_acceptance': self.default_acceptance,
-            'is_active': self.is_active,
-        }
-
-
-class RampProvider(db.Model):
-    """On-ramp/off-ramp provider configuration (Build #86)."""
-    __tablename__ = 'ramp_providers'
-
-    id = db.Column(db.Integer, primary_key=True)
-    provider_code = db.Column(db.String(30), unique=True, nullable=False, index=True)
-    provider_name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    widget_base_url = db.Column(db.String(500))
-    widget_type = db.Column(db.String(20), default='redirect')
-    supported_countries = db.Column(db.Text)
-    supported_fiat_methods = db.Column(db.Text)
-    supported_crypto_out = db.Column(db.Text)
-    fee_estimate_pct = db.Column(db.Float, default=0.0)
-    kyc_required = db.Column(db.Boolean, default=True)
-    api_key_env_var = db.Column(db.String(50))
-    priority = db.Column(db.Integer, default=10)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    def get_supported_countries(self):
-        import json
-        try:
-            return json.loads(self.supported_countries) if self.supported_countries else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-
-    def get_supported_fiat_methods(self):
-        import json
-        try:
-            return json.loads(self.supported_fiat_methods) if self.supported_fiat_methods else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-
-    def get_supported_crypto_out(self):
-        import json
-        try:
-            return json.loads(self.supported_crypto_out) if self.supported_crypto_out else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-
-    def to_dict(self):
-        return {
-            'provider_code': self.provider_code,
-            'provider_name': self.provider_name,
-            'description': self.description,
-            'widget_base_url': self.widget_base_url,
-            'widget_type': self.widget_type,
-            'supported_countries': self.get_supported_countries(),
-            'supported_fiat_methods': self.get_supported_fiat_methods(),
-            'supported_crypto_out': self.get_supported_crypto_out(),
-            'fee_estimate_pct': self.fee_estimate_pct,
-            'kyc_required': self.kyc_required,
-            'priority': self.priority,
-            'is_active': self.is_active,
-        }
-
-
-class VirtualCardTransaction(db.Model):
-    """Lifecycle tracking for crypto -> USDC -> virtual card -> vendor (Build #86)."""
-    __tablename__ = 'virtual_card_transactions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    transaction_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-
-    source_currency = db.Column(db.String(10))
-    source_amount = db.Column(db.Float)
-    source_tx_hash = db.Column(db.String(100))
-
-    usdc_amount = db.Column(db.Float)
-    usdc_settled_at = db.Column(db.DateTime)
-
-    stripe_card_id = db.Column(db.String(100))
-    card_funded_amount = db.Column(db.Float)
-    card_funded_at = db.Column(db.DateTime)
-
-    merchant_country = db.Column(db.String(2))
-    merchant_name = db.Column(db.String(200))
-    charge_amount_usd = db.Column(db.Float)
-    charge_currency = db.Column(db.String(3))
-    charge_amount_local = db.Column(db.Float)
-    charged_at = db.Column(db.DateTime)
-
-    deal_id = db.Column(db.String(50), nullable=True)
-    deal_type = db.Column(db.String(20))
-    purchase_context = db.Column(db.String(20), default='browsing')
-
-    status = db.Column(db.String(30), default='initiated', index=True)
-    failure_reason = db.Column(db.Text)
-    fx_spread_pct = db.Column(db.Float)
-    total_fees_usd = db.Column(db.Float)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime)
-
-    user = db.relationship('User', backref=db.backref('virtual_card_transactions', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'transaction_id': self.transaction_id,
-            'user_id': self.user_id,
-            'source_currency': self.source_currency,
-            'source_amount': self.source_amount,
-            'usdc_amount': self.usdc_amount,
-            'merchant_country': self.merchant_country,
-            'merchant_name': self.merchant_name,
-            'charge_amount_usd': self.charge_amount_usd,
-            'charge_currency': self.charge_currency,
-            'deal_id': self.deal_id,
-            'purchase_context': self.purchase_context,
-            'status': self.status,
-            'fx_spread_pct': self.fx_spread_pct,
-            'total_fees_usd': self.total_fees_usd,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-        }
-
-
-class UserRampPreference(db.Model):
-    """User's preferred on-ramp provider (Build #86)."""
-    __tablename__ = 'user_ramp_preferences'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    provider_code = db.Column(db.String(30), nullable=False)
-    is_default = db.Column(db.Boolean, default=False)
-    last_used_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('ramp_preferences', lazy='dynamic'))
-
-    def to_dict(self):
-        return {
-            'provider_code': self.provider_code,
-            'is_default': self.is_default,
-            'last_used_at': self.last_used_at.isoformat() if self.last_used_at else None,
-        }
-
-
-# ---------------------------------------------------------------------------
-# Build #90 — Zone Economics Snapshots (hot zone tracking)
-# ---------------------------------------------------------------------------
-
-class ZoneEconomicsSnapshot(db.Model):
-    """Daily snapshot of per-zone economic metrics.
-
-    Pre-computed hourly by a Celery task.  Powers the node earnings
-    dashboard, opportunity scores, and hot-zone onboarding ads.
-    """
-    __tablename__ = 'zone_economics_snapshots'
-
-    id = db.Column(db.Integer, primary_key=True)
-    zone_code = db.Column(db.String(10), nullable=False, index=True)
-    snapshot_date = db.Column(db.Date, nullable=False, index=True)
-
-    # Supply
-    active_nodes = db.Column(db.Integer, default=0)
-    total_node_hours = db.Column(db.Float, default=0.0)
-
-    # Demand
-    arbitrage_queries_served = db.Column(db.Integer, default=0)
-    browse_sessions_served = db.Column(db.Integer, default=0)
-    total_tasks = db.Column(db.Integer, default=0)
-
-    # Revenue
-    arbitrage_fee_revenue_usd = db.Column(db.Float, default=0.0)
-    browse_data_revenue_usd = db.Column(db.Float, default=0.0)
-    total_revenue_usd = db.Column(db.Float, default=0.0)
-
-    # Per-node economics
-    avg_earnings_per_node_usd = db.Column(db.Float, default=0.0)
-    top_node_earnings_usd = db.Column(db.Float, default=0.0)
-
-    # Signals
-    demand_supply_ratio = db.Column(db.Float, default=0.0)
-    saturation_score = db.Column(db.Float, default=0.0)
-    opportunity_score = db.Column(db.Integer, default=0)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('zone_code', 'snapshot_date',
-                            name='uq_zone_economics_zone_date'),
-    )
-
-    def to_dict(self):
-        return {
-            'zone_code': self.zone_code,
-            'snapshot_date': self.snapshot_date.isoformat() if self.snapshot_date else None,
-            'active_nodes': self.active_nodes,
-            'total_node_hours': round(self.total_node_hours, 1),
-            'arbitrage_queries_served': self.arbitrage_queries_served,
-            'browse_sessions_served': self.browse_sessions_served,
-            'total_tasks': self.total_tasks,
-            'arbitrage_fee_revenue_usd': round(self.arbitrage_fee_revenue_usd, 2),
-            'browse_data_revenue_usd': round(self.browse_data_revenue_usd, 2),
-            'total_revenue_usd': round(self.total_revenue_usd, 2),
-            'avg_earnings_per_node_usd': round(self.avg_earnings_per_node_usd, 2),
-            'top_node_earnings_usd': round(self.top_node_earnings_usd, 2),
-            'demand_supply_ratio': round(self.demand_supply_ratio, 2),
-            'saturation_score': round(self.saturation_score, 2),
-            'opportunity_score': self.opportunity_score,
-        }
-
-
-# ============================================================
-# Trip Bundle Models — Multi-Vertical Package Booking
-# ============================================================
 
 class TripBundle(db.Model):
     """
@@ -4036,7 +1984,7 @@ class TripBundle(db.Model):
     return_date = db.Column(db.Date, nullable=True)
     adults = db.Column(db.Integer, default=1)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     booked_at = db.Column(db.DateTime, nullable=True)
 
     items = db.relationship('BundleItem', backref='bundle', lazy='dynamic')
@@ -4096,7 +2044,7 @@ class BundleItem(db.Model):
     status = db.Column(db.String(20), default='selected')
 
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     booked_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
@@ -4118,9 +2066,8 @@ class BundleItem(db.Model):
 class FeatureFlag(db.Model):
     """Admin-controlled feature flags for phased rollout. (Build #95)
 
-    Layer 1 (Launch): Flights, Hotels, Tier System, Proxy B2B Sales
-    Layer 2 (Funded): Products, Rentals, Cruises, Node Payments
-    Layer 3 (Scale): Own SERP, Data Marketplace, 100% Node Revenue
+    Layer 1 (Launch): Flights, Hotels, Tier System, B2B, Travel+, Rewards, Trip Planner
+    Layer 2 (Funded): Activities, Products, Rentals, Cruises, Local Businesses
     """
     __tablename__ = 'feature_flags'
 
@@ -4134,8 +2081,8 @@ class FeatureFlag(db.Model):
     # Metadata
     enabled_at = db.Column(db.DateTime, nullable=True)
     enabled_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     def to_dict(self):
         return {
@@ -4166,7 +2113,7 @@ class FeatureFlag(db.Model):
         if flag:
             flag.is_enabled = enabled
             if enabled:
-                flag.enabled_at = datetime.utcnow()
+                flag.enabled_at = datetime.now(timezone.utc)
                 flag.enabled_by = admin_id
             else:
                 flag.enabled_at = None
@@ -4181,27 +2128,21 @@ class FeatureFlag(db.Model):
         default_flags = [
             # Layer 1 - Launch
             ('vertical_flights', 'Flights Vertical', 'Search and book flights via Amadeus', 1, True),
-            ('vertical_hotels', 'Hotels Vertical', 'Search and book hotels via liteAPI', 1, False),
+            ('vertical_hotels', 'Hotels Vertical', 'Search and book hotels via liteAPI', 1, True),
             ('tier_system', 'Tier System', 'Bronze/Silver/Gold/Platinum user tiers', 1, True),
-            ('node_onboarding', 'Node Onboarding', 'Allow users to join the Mystes Network', 1, True),
-            ('proxy_b2b_sales', 'Proxy B2B Sales', 'Sell proxy access to enterprise customers', 1, True),
+            ('b2b_accounts', 'B2B Accounts', 'Allow agencies to sign up for B2B accounts', 1, True),
+            ('travel_plus', 'Travel+ Subscription', 'Travel+ consumer subscription tier', 1, True),
+            ('rewards_points', 'Rewards Points', 'MYSTES rewards points system', 1, True),
+            ('trip_planner', 'Trip Planner', 'Collaborative trip planning', 2, False),
+            ('wishlist', 'Wishlist & Collections', 'Save items and create collections', 2, False),
+            ('friends_system', 'Friends System', 'Add friends and plan together', 2, False),
 
-            # Layer 2 - Funded
+            # Layer 2 - Funded (admin-enabled only until flights perfected)
+            ('local_businesses', 'Local Businesses', 'Restaurant and venue listings', 2, False),
+            ('vertical_activities', 'Activities Vertical', 'Tours and activities via Viator', 2, False),
             ('vertical_products', 'Products Vertical', 'Price comparison for physical products', 2, False),
             ('vertical_rentals', 'Rentals Vertical', 'Car and vacation rentals', 2, False),
             ('vertical_cruises', 'Cruises Vertical', 'Cruise booking and comparison', 2, False),
-            ('node_network_active', 'Node Network Active', 'Use node network for user searches', 2, False),
-            ('node_payments', 'Node Payments', 'Pay nodes for bandwidth/proxy usage', 2, False),
-            # Coinbase removed — Stripe + MoonPay only
-            ('xrpl_direct_payments', 'Direct XRP/RLUSD', 'Accept direct XRP and RLUSD payments', 2, False),
-            ('xrpl_escrow', 'XRPL Escrow', 'Trustless booking via XRPL escrow payments', 2, False),
-            ('wallet_auto_generation', 'Auto Wallet Generation', 'Generate XRPL wallets on signup (custody)', 2, False),
-
-            # Layer 3 - Scale
-            ('citizenserp_active', 'CitizenSERP Active', 'Use own SERP infrastructure', 3, False),
-            ('data_marketplace', 'Data Marketplace', 'Sell browsing data to enterprises', 3, False),
-            ('arbitrage_rewards', 'Arbitrage Rewards', 'Nodes earn from arbitrage discoveries', 3, False),
-            ('full_node_revenue', 'Full Node Revenue', '100% proxy revenue to nodes', 3, False),
         ]
 
         for flag_key, name, desc, layer, enabled in default_flags:
@@ -4213,7 +2154,7 @@ class FeatureFlag(db.Model):
                     description=desc,
                     layer=layer,
                     is_enabled=enabled,
-                    enabled_at=datetime.utcnow() if enabled else None,
+                    enabled_at=datetime.now(timezone.utc) if enabled else None,
                 )
                 db.session.add(flag)
 
@@ -4232,7 +2173,7 @@ class SystemSetting(db.Model):
     setting_value = db.Column(db.Text, nullable=True)
     setting_type = db.Column(db.String(20), default='string')  # string, int, float, bool, json
     description = db.Column(db.Text, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
     @classmethod
@@ -4289,6 +2230,522 @@ class SystemSetting(db.Model):
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+
+# ============================================================
+# Build #167 — Feature Foundation Models
+# Subscription, Rewards, Trip Planner, Social, Wishlist, Local Business
+# Each module is a pluggable vertical — sellable via ANASTASiA turnkey.
+# ============================================================
+
+
+class Subscription(db.Model):
+    """Travel+ and B2B subscription tracking."""
+    __tablename__ = 'subscriptions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tier = db.Column(db.String(30), nullable=False, default='free')  # free/travel_plus/b2b_starter/b2b_growth/b2b_volume
+    stripe_subscription_id = db.Column(db.String(255), unique=True, nullable=True)
+    stripe_price_id = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='active')  # active/cancelled/past_due/trialing
+    billing_cycle = db.Column(db.String(10), default='monthly')  # monthly/annual
+    current_period_start = db.Column(db.DateTime, nullable=True)
+    current_period_end = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('subscriptions', lazy='dynamic'))
+
+    def is_active(self):
+        return self.status == 'active'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tier': self.tier,
+            'status': self.status,
+            'billing_cycle': self.billing_cycle,
+            'current_period_end': self.current_period_end.isoformat() if self.current_period_end else None,
+        }
+
+
+class AISession(db.Model):
+    """Pay-per-session AI for free users ($2.99)."""
+    __tablename__ = 'ai_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    stripe_payment_id = db.Column(db.String(255), nullable=True)
+    paid_at = db.Column(db.DateTime, default=_utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    messages_used = db.Column(db.Integer, default=0)
+    max_messages = db.Column(db.Integer, default=30)
+    is_active = db.Column(db.Boolean, default=True)
+
+    user = db.relationship('User', backref=db.backref('ai_sessions', lazy='dynamic'))
+
+    def has_messages_left(self):
+        return self.messages_used < self.max_messages
+
+    def is_expired(self):
+        exp = self.expires_at
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) > exp
+
+
+class RewardsAccount(db.Model):
+    """One per user — tracks points balance and streaks."""
+    __tablename__ = 'rewards_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    points_balance = db.Column(db.Integer, default=0)
+    lifetime_earned = db.Column(db.Integer, default=0)
+    lifetime_redeemed = db.Column(db.Integer, default=0)
+    current_streak_months = db.Column(db.Integer, default=0)
+    longest_streak_months = db.Column(db.Integer, default=0)
+    badge_level = db.Column(db.String(20), default='none')  # none/gold/platinum
+    last_earning_at = db.Column(db.DateTime, nullable=True)
+    points_expire_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('rewards_account', uselist=False))
+
+    def to_dict(self):
+        return {
+            'points_balance': self.points_balance,
+            'lifetime_earned': self.lifetime_earned,
+            'current_streak_months': self.current_streak_months,
+            'badge_level': self.badge_level,
+            'points_expire_at': self.points_expire_at.isoformat() if self.points_expire_at else None,
+        }
+
+
+class PointsTransaction(db.Model):
+    """Ledger of all point movements."""
+    __tablename__ = 'points_transactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    amount = db.Column(db.Integer, nullable=False)  # positive = earn, negative = redeem/expire
+    transaction_type = db.Column(db.String(20), nullable=False)  # earn/redeem/bonus/expire/gift_sent/gift_received
+    source = db.Column(db.String(30), nullable=True)  # booking/referral/review/streak/bundle_bonus/first_booking/welcome
+    booking_id = db.Column(db.Integer, nullable=True)
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('points_transactions', lazy='dynamic'))
+
+
+class PointGift(db.Model):
+    """Gift transfers between members."""
+    __tablename__ = 'point_gifts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    amount = db.Column(db.Integer, nullable=False)
+    message = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('gifts_sent', lazy='dynamic'))
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref=db.backref('gifts_received', lazy='dynamic'))
+
+
+class PointsEscrow(db.Model):
+    """Guest booking point holds — 90-day claim window (PayPal growth model)."""
+    __tablename__ = 'points_escrow'
+
+    id = db.Column(db.Integer, primary_key=True)
+    guest_email = db.Column(db.String(255), nullable=False, index=True)
+    points_amount = db.Column(db.Integer, nullable=False)
+    booking_reference = db.Column(db.String(100), nullable=True)
+    claimed_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    claim_deadline = db.Column(db.DateTime, nullable=False)
+    reminder_sent_30d = db.Column(db.Boolean, default=False)
+    reminder_sent_60d = db.Column(db.Boolean, default=False)
+    reminder_sent_80d = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='pending')  # pending/claimed/expired
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+
+class TripPlan(db.Model):
+    """Collaborative trip planning workspace."""
+    __tablename__ = 'trip_plans'
+
+    id = db.Column(db.Integer, primary_key=True)
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    cover_image = db.Column(db.String(500), nullable=True)
+    status = db.Column(db.String(20), default='draft')  # draft/finalized/booked/completed
+    destinations_json = db.Column(db.Text, nullable=True)  # JSON array of destinations
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    is_template = db.Column(db.Boolean, default=False)
+    template_copies_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    creator = db.relationship('User', backref=db.backref('trip_plans', lazy='dynamic'))
+    members = db.relationship('TripMember', backref='trip_plan', lazy='dynamic', cascade='all, delete-orphan')
+    items = db.relationship('TripItem', backref='trip_plan', lazy='dynamic', cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'status': self.status,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'member_count': self.members.count(),
+            'item_count': self.items.count(),
+        }
+
+
+class TripMember(db.Model):
+    """Who's in the trip."""
+    __tablename__ = 'trip_members'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_plan_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    role = db.Column(db.String(10), nullable=False, default='viewer')  # owner/editor/viewer
+    budget_cap = db.Column(db.Float, nullable=True)
+    invitation_status = db.Column(db.String(10), default='pending')  # pending/accepted/declined
+    invited_at = db.Column(db.DateTime, default=_utcnow)
+    joined_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref=db.backref('trip_memberships', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('trip_plan_id', 'user_id', name='uq_trip_member'),
+    )
+
+
+class TripItem(db.Model):
+    """Items added to trip (flights, hotels, activities, events, dining)."""
+    __tablename__ = 'trip_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_plan_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    added_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    vertical = db.Column(db.String(20), nullable=False)  # flight/hotel/activity/car/event/dining
+    item_data_json = db.Column(db.Text, nullable=True)  # JSON — provider data, pricing, details
+    destination_index = db.Column(db.Integer, default=0)
+    day_number = db.Column(db.Integer, nullable=True)
+    is_alternative = db.Column(db.Boolean, default=False)
+    alternative_group_id = db.Column(db.String(50), nullable=True)
+    votes_json = db.Column(db.Text, nullable=True)  # JSON {user_id: "up"/"down"}
+    status = db.Column(db.String(20), default='proposed')  # proposed/approved/booked/cancelled
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    added_by = db.relationship('User', backref=db.backref('trip_items_added', lazy='dynamic'))
+
+
+class TripCart(db.Model):
+    """Checkout state for a trip."""
+    __tablename__ = 'trip_carts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_plan_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    status = db.Column(db.String(20), default='open')  # open/checkout/paid/partial
+    total_amount = db.Column(db.Float, default=0.0)
+    currency = db.Column(db.String(3), default='USD')
+    per_person_breakdown_json = db.Column(db.Text, nullable=True)
+    finalized_at = db.Column(db.DateTime, nullable=True)
+
+    trip_plan = db.relationship('TripPlan', backref=db.backref('carts', lazy='dynamic'))
+    assignments = db.relationship('TripCartAssignment', backref='cart', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class TripCartAssignment(db.Model):
+    """Who uses / who pays per item — the core of split payments."""
+    __tablename__ = 'trip_cart_assignments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_cart_id = db.Column(db.Integer, db.ForeignKey('trip_carts.id'), nullable=False, index=True)
+    trip_item_id = db.Column(db.Integer, db.ForeignKey('trip_items.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)     # who's USING this
+    payer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)     # who's PAYING
+    split_method = db.Column(db.String(15), default='even')  # even/custom/single/percentage
+    amount_owed = db.Column(db.Float, default=0.0)
+    percentage = db.Column(db.Float, nullable=True)
+    payment_status = db.Column(db.String(20), default='pending')  # pending/approved/paid/refunded
+    stripe_payment_intent_id = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    payer = db.relationship('User', foreign_keys=[payer_id])
+    trip_item = db.relationship('TripItem', backref=db.backref('assignments', lazy='dynamic'))
+
+
+class TripReceipt(db.Model):
+    """Structured receipt per person — PDF export, expense categories."""
+    __tablename__ = 'trip_receipts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_plan_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    trip_cart_assignment_id = db.Column(db.Integer, db.ForeignKey('trip_cart_assignments.id'), nullable=True)
+    receipt_number = db.Column(db.String(20), unique=True, nullable=False)  # MYS-YYYY-NNNNN
+    items_json = db.Column(db.Text, nullable=True)
+    subtotal = db.Column(db.Float, default=0.0)
+    savings = db.Column(db.Float, default=0.0)
+    points_applied = db.Column(db.Integer, default=0)
+    total_charged = db.Column(db.Float, default=0.0)
+    payment_method_last4 = db.Column(db.String(4), nullable=True)
+    company_name = db.Column(db.String(200), nullable=True)  # for business receipts
+    pdf_url = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('trip_receipts', lazy='dynamic'))
+
+
+class Friendship(db.Model):
+    """Friends system — social graph for trip planning and referrals."""
+    __tablename__ = 'friendships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    addressee_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    status = db.Column(db.String(10), default='pending')  # pending/accepted/blocked
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    accepted_at = db.Column(db.DateTime, nullable=True)
+
+    requester = db.relationship('User', foreign_keys=[requester_id], backref=db.backref('friend_requests_sent', lazy='dynamic'))
+    addressee = db.relationship('User', foreign_keys=[addressee_id], backref=db.backref('friend_requests_received', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('requester_id', 'addressee_id', name='uq_friendship'),
+    )
+
+
+class Collection(db.Model):
+    """Wishlist folders — organize saved items by trip or theme."""
+    __tablename__ = 'collections'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    cover_image = db.Column(db.String(500), nullable=True)
+    is_shared = db.Column(db.Boolean, default=False)
+    share_slug = db.Column(db.String(50), unique=True, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('collections', lazy='dynamic'))
+    items = db.relationship('SavedItem', backref='collection', lazy='dynamic')
+
+
+class SavedItem(db.Model):
+    """Saved search results — Airbnb-style wishlist across all verticals."""
+    __tablename__ = 'saved_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    collection_id = db.Column(db.Integer, db.ForeignKey('collections.id'), nullable=True)
+    vertical = db.Column(db.String(20), nullable=False)  # flight/hotel/activity/car/dining
+    item_data_json = db.Column(db.Text, nullable=True)  # JSON — route, hotel_id, dates, price, provider
+    price_at_save = db.Column(db.Float, nullable=True)
+    current_price = db.Column(db.Float, nullable=True)
+    price_alert_enabled = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('saved_items', lazy='dynamic'))
+
+
+class LocalBusiness(db.Model):
+    """Restaurants, venues, event spaces — free listings, booking commission."""
+    __tablename__ = 'local_businesses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    business_name = db.Column(db.String(200), nullable=False)
+    business_type = db.Column(db.String(30), nullable=False)  # restaurant/venue/event_space/tour_guide/other
+    description = db.Column(db.Text, nullable=True)
+    address = db.Column(db.String(500), nullable=True)
+    city = db.Column(db.String(100), nullable=True, index=True)
+    country = db.Column(db.String(2), nullable=True)
+    phone = db.Column(db.String(30), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    website = db.Column(db.String(500), nullable=True)
+    hours_json = db.Column(db.Text, nullable=True)  # JSON opening hours
+    menu_url = db.Column(db.String(500), nullable=True)
+    capacity = db.Column(db.Integer, nullable=True)
+    price_range = db.Column(db.Integer, default=2)  # 1-4 ($-$$$$)
+    tags_json = db.Column(db.Text, nullable=True)  # JSON array of tags
+    photos_json = db.Column(db.Text, nullable=True)  # JSON array of photo URLs
+    is_featured = db.Column(db.Boolean, default=False)
+    commission_percent = db.Column(db.Float, default=15.0)
+    is_verified = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    owner = db.relationship('User', backref=db.backref('local_businesses', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'business_name': self.business_name,
+            'business_type': self.business_type,
+            'city': self.city,
+            'price_range': self.price_range,
+            'is_featured': self.is_featured,
+            'is_verified': self.is_verified,
+        }
+
+
+class ConsumerReferral(db.Model):
+    """Tracks consumer-to-consumer referral events and point awards (Build #170)."""
+    __tablename__ = 'consumer_referrals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    referee_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    referral_code_used = db.Column(db.String(20), nullable=False)
+    # Milestone tracking
+    signup_rewarded = db.Column(db.Boolean, default=False)
+    first_booking_rewarded = db.Column(db.Boolean, default=False)
+    travel_plus_rewarded = db.Column(db.Boolean, default=False)
+    # Points awarded to referrer
+    total_points_awarded = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    referrer = db.relationship('User', foreign_keys=[referrer_id],
+                               backref=db.backref('referrals_made', lazy='dynamic'))
+    referee = db.relationship('User', foreign_keys=[referee_id],
+                              backref=db.backref('referred_by_rel', uselist=False,
+                                                 foreign_keys=[referee_id]))
+
+    __table_args__ = (
+        db.UniqueConstraint('referee_id', name='uq_consumer_referral_referee'),
+    )
+
+
+class SocialShare(db.Model):
+    """Tracks social shares for share-to-save discount (Build #170)."""
+    __tablename__ = 'social_shares'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    guest_email = db.Column(db.String(255), nullable=True)
+    deal_id = db.Column(db.String(20), nullable=False)
+    platform = db.Column(db.String(20), nullable=False)  # twitter/facebook/whatsapp/copy_link
+    share_token = db.Column(db.String(50), unique=True, nullable=False)
+    referral_code = db.Column(db.String(20), nullable=True)
+    clicks = db.Column(db.Integer, default=0)
+    discount_applied = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('social_shares', lazy='dynamic'))
+
+
+class GoogleReview(db.Model):
+    """Pre-generated savings review card for Google Reviews (Build #178).
+
+    Every booking generates a standard review card with real flight data,
+    MYSTES price, competitor prices, and full savings breakdown. Customer
+    taps 'Share & Review' — the card IS the review. Optional personal note.
+    """
+    __tablename__ = 'google_reviews'
+
+    id = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    guest_email = db.Column(db.String(255), nullable=True)
+
+    # Flight/deal data baked into the card
+    origin = db.Column(db.String(10), nullable=False)
+    destination = db.Column(db.String(10), nullable=False)
+    airline = db.Column(db.String(100), nullable=True)
+    flight_number = db.Column(db.String(20), nullable=True)
+    departure_date = db.Column(db.String(20), nullable=True)
+    cabin_class = db.Column(db.String(30), nullable=True)
+
+    # Pricing data
+    mystes_price_usd = db.Column(db.Float, nullable=False)
+    savings_usd = db.Column(db.Float, nullable=False, default=0)
+    savings_percent = db.Column(db.Float, nullable=False, default=0)
+    retail_price_usd = db.Column(db.Float, nullable=True)
+
+    # Competitor prices (JSON: [{"name": "Expedia", "price": 487}, ...])
+    competitor_prices_json = db.Column(db.Text, nullable=True)
+
+    # Tier/discount breakdown
+    tier_name = db.Column(db.String(30), nullable=True)
+    fee_breakdown_json = db.Column(db.Text, nullable=True)
+
+    # User content
+    personal_note = db.Column(db.Text, nullable=True)
+    referral_code = db.Column(db.String(20), nullable=True)
+
+    # Review lifecycle
+    review_token = db.Column(db.String(50), unique=True, nullable=False)
+    shared_to_google = db.Column(db.Boolean, default=False)
+    shared_to_social = db.Column(db.Boolean, default=False)
+    discount_applied = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    shared_at = db.Column(db.DateTime, nullable=True)
+
+    # Relationships
+    booking = db.relationship('Booking', backref=db.backref('google_review', uselist=False))
+    user = db.relationship('User', backref=db.backref('google_reviews', lazy='dynamic'))
+
+
+class ReferralCard(db.Model):
+    """Pre-generated referral card for sharing (Build #179).
+
+    Shareable visual card showing user's savings history + referral link.
+    B2B: earns sales revenue. B2C: earns points. Costs MYSTES $0.
+    Posted to social bios, stories, DMs — self-incentivizing.
+    """
+    __tablename__ = 'referral_cards'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    card_token = db.Column(db.String(50), unique=True, nullable=False)
+    referral_code = db.Column(db.String(20), nullable=False)
+
+    # Aggregate stats (updated on each generation)
+    total_bookings = db.Column(db.Integer, default=0)
+    total_savings_usd = db.Column(db.Float, default=0.0)
+    total_referrals = db.Column(db.Integer, default=0)
+    total_points_earned = db.Column(db.Integer, default=0)
+    member_since = db.Column(db.String(20), nullable=True)
+    favorite_destination = db.Column(db.String(50), nullable=True)
+    favorite_airline = db.Column(db.String(100), nullable=True)
+
+    # Card metadata
+    clicks = db.Column(db.Integer, default=0)
+    conversions = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('referral_card', uselist=False))
+
+
+def generate_referral_code(user_name=None):
+    """Generate a unique consumer referral code like MYS-ABCD1234."""
+    import secrets
+    import re
+    prefix = 'MYS'
+    if user_name:
+        clean = re.sub(r'[^A-Z]', '', user_name.upper())[:4]
+        if len(clean) >= 2:
+            prefix = clean
+
+    for _ in range(10):
+        code = f"{prefix}-{secrets.token_hex(3).upper()}"
+        existing = User.query.filter_by(referral_code=code).first()
+        if not existing:
+            return code
+    # Fallback
+    return f"MYS-{secrets.token_hex(4).upper()}"
 
 
 def init_db(app):

@@ -1,31 +1,18 @@
 """
-Picasso Redbox SDK — Python client for the Picasso Travel / AERTiCKET Redbox API.
+ANASTASiA SDK — Backward compatibility re-exports.
 
-Quick start:
-    from picasso import RedboxClient
+API client SDKs have moved to the clients/ package (Layer 1).
+This module re-exports for backward compatibility.
 
-    client = RedboxClient(
-        agency_id="YOUR_AGENCY_ID",
-        branch="YOUR_BRANCH",
-        session_token="YOUR_TOKEN",
-    )
-    result = client.search_flights("JFK", "LHR", "2026-06-15")
-
-With auto-login (requires `pip install picasso-redbox-sdk[auth]`):
-    from picasso import RedboxClient
-    from picasso.auth import TokenManager
-
-    manager = TokenManager()
-    client = RedboxClient(
-        agency_id="YOUR_AGENCY_ID",
-        branch="YOUR_BRANCH",
-        token_provider=manager.get_token,
-    )
+New code should import from clients/ directly:
+    from clients import RedboxClient, DuffelNDCClient, AirGatewayClient
+    from clients.redbox_auth import TokenManager
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
-from picasso.client import RedboxClient, CABIN_MAP, GEO_SOLR_URL
+# Re-export through stubs (picasso.client -> clients.redbox)
+from picasso.client import RedboxClient, CABIN_MAP, GEO_SOLR_URL  # noqa: F401
 
 __all__ = [
     "RedboxClient",

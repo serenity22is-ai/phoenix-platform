@@ -42,6 +42,28 @@ except ImportError:
     PICASSO_CONFIGURED = False
     print("Note: Picasso/Redbox client not available")
 
+# Duffel NDC — direct airline connections (300+ airlines, NDC-only fares)
+try:
+    from duffel_client import DuffelClient
+    DUFFEL_AVAILABLE = True
+    _duffel_client = DuffelClient()
+    DUFFEL_CONFIGURED = _duffel_client.is_configured()
+except ImportError:
+    DUFFEL_AVAILABLE = False
+    DUFFEL_CONFIGURED = False
+    print("Note: Duffel NDC client not available")
+
+# Kiwi Tequila — aggregator with virtual interlining (750+ carriers)
+try:
+    from kiwi_client import KiwiClient
+    KIWI_AVAILABLE = True
+    _kiwi_client = KiwiClient()
+    KIWI_CONFIGURED = _kiwi_client.is_configured()
+except ImportError:
+    KIWI_AVAILABLE = False
+    KIWI_CONFIGURED = False
+    print("Note: Kiwi Tequila client not available")
+
 # Scraping mode: "hybrid" (default, Amadeus + proxies), "direct" (proxies only)
 SCRAPING_MODE = os.getenv("SCRAPING_MODE", "hybrid")
 
@@ -86,15 +108,15 @@ INTERNATIONAL_ROUTES = [
     {"origin": "ORD", "destinations": ["LHR", "CDG", "FRA", "HND", "NRT", "ICN", "DUB", "MUC"]},
 ]
 
-# --- PLATFORM FEE CONFIGURATION ---
-# Member: 25% of savings, Non-member: 50% of savings
+# --- PLATFORM FEE CONFIGURATION (Build #156) ---
+# Loyal subscriber: 35% of savings, Consumer (anonymous): 50% of savings
 PLATFORM_FEE_CONFIG = {
-    "member_pct": 25.0,
+    "member_pct": 35.0,
     "non_member_pct": 50.0,
 }
 
-# Minimum savings to show a deal (after platform fee)
-MIN_USER_SAVINGS_USD = 10.00
+# No minimum savings threshold — sell tickets regardless
+MIN_USER_SAVINGS_USD = 0.0
 
 # --- XRPL CONFIGURATION ---
 XRPL_CONFIG = {

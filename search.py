@@ -29,6 +29,10 @@ from main import (
     AMADEUS_CONFIGURED,
     PICASSO_AVAILABLE,
     PICASSO_CONFIGURED,
+    DUFFEL_AVAILABLE,
+    DUFFEL_CONFIGURED,
+    KIWI_AVAILABLE,
+    KIWI_CONFIGURED,
 )
 
 import re as _re
@@ -436,6 +440,258 @@ def search_global(
     hybrid_result = None
     cabin_class = search_options.get("cabin_class", "economy") if search_options else "economy"
 
+    adults = 1
+    if search_options and search_options.get("passengers"):
+        adults = search_options["passengers"].get("adults", 1)
+
+    # === ANASTASiA SearchOrchestrator (Path 1 — card-guided multi-source) ===
+    # Parallel search across all APIs + cross-source dedup. Zero AI cost.
+    # Falls through to legacy per-source code if orchestrator fails.
+    try:
+        import sys as _sys, os as _os
+        _sdk_path = _os.path.join(_os.path.dirname(__file__), "picasso-sdk")
+        if _sdk_path not in _sys.path:
+            _sys.path.insert(0, _sdk_path)
+        from anastasia.dispatch import SearchOrchestrator
+
+        # Build orchestrator-compatible client adapters
+        _orch_clients = {}
+        if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
+            try:
+                from picasso_client import search_with_picasso as _swp
+                class _PicassoAdapter:
+                    def search_flights(self, origin, destination, departure_date, return_date=None, adults=1, cabin_class="economy", **kw):
+                        return _swp(origin=origin, destination=destination, departure_date=departure_date, return_date=return_date, adults=adults, cabin_class=cabin_class)
+                _orch_clients["picasso"] = _PicassoAdapter()
+            except ImportError:
+                pass
+        if DUFFEL_AVAILABLE and DUFFEL_CONFIGURED:
+            try:
+                from duffel_client import search_with_duffel as _swd
+                class _DuffelAdapter:
+                    def search_flights(self, origin, destination, departure_date, return_date=None, adults=1, cabin_class="economy", **kw):
+                        return _swd(origin=origin, destination=destination, departure_date=departure_date, return_date=return_date, passengers=adults, cabin_class=cabin_class)
+                _orch_clients["duffel_ndc"] = _DuffelAdapter()
+            except ImportError:
+                pass
+        if KIWI_AVAILABLE and KIWI_CONFIGURED:
+            try:
+                from kiwi_client import search_with_kiwi as _swk
+                class _KiwiAdapter:
+                    def search_flights(self, origin, destination, departure_date, return_date=None, adults=1, cabin_class="economy", **kw):
+                        return _swk(origin=origin, destination=destination, departure_date=departure_date, return_date=return_date, passengers=adults, cabin_class=cabin_class)
+                _orch_clients["kiwi_tequila"] = _KiwiAdapter()
+            except ImportError:
+                pass
+
+        if _orch_clients:
+            print(f"\n  [ANASTASiA] SearchOrchestrator dispatching to {list(_orch_clients.keys())}...")
+            _orchestrator = SearchOrchestrator()
+            _orch_result = _orchestrator.search(
+                origin=origin, destination=destination, departure_date=date,
+                return_date=return_date, adults=adults, cabin_class=cabin_class,
+                clients=_orch_clients,
+            )
+
+            if _orch_result.get("success") and _orch_result.get("flights"):
+                _orch_flights = _orch_result["flights"]
+                _sources_searched = _orch_result.get("sources_searched", [])
+                _sources_failed = _orch_result.get("sources_failed", [])
+                _source_meta = _orch_result.get("source_metadata", {})
+                print(f"  [ANASTASiA] {len(_orch_flights)} flights from {_sources_searched}, deduped")
+                if _sources_failed:
+                    print(f"  [ANASTASiA] Failed sources: {_sources_failed}")
+
+                # --- Map orchestrator source names to MYSTES display sources ---
+                _SOURCE_DISPLAY = {
+                    "picasso": "gds", "picasso_redbox": "gds",
+                    "duffel_ndc": "ndc",
+                    "kiwi_tequila": "aggregator",
+                    "airgateway_ndc": "ndc",
+                }
+
+                # --- Convert to MYSTES display format ---
+                formatted_flights = []
+                for of in _orch_flights:
+                    src = of.get("source", "")
+                    raw = of.get("raw_offer", {})
+                    price = of.get("price", 0)
+                    flight_num = of.get("flight_number", "")
+
+                    formatted_flights.append({
+                        "flight_id": raw.get("fare_id") or raw.get("offer_id") or raw.get("kiwi_id") or f"{src}_{origin}_{destination}_{date}_{flight_num}",
+                        "airline": of.get("airline", "Various Airlines"),
+                        "flight_number": flight_num,
+                        "departure_time": of.get("departure_time", ""),
+                        "arrival_time": of.get("arrival_time", ""),
+                        "duration": of.get("duration", ""),
+                        "stops": of.get("stops", 0),
+                        "layovers": of.get("layovers", []),
+                        "legs": of.get("segments", []),
+                        "segments": of.get("segments", []),
+                        "cheapest_price": price,
+                        "cheapest_market": "Mystes",
+                        "converted_prices": {},
+                        "origin": origin,
+                        "destination": destination,
+                        "route": f"{origin} \u2192 {destination}",
+                        "date": date,
+                        "return_date": return_date,
+                        "is_round_trip": is_round_trip,
+                        "deal": None,
+                        "savings": 0,
+                        "savings_pct": 0,
+                        "travel_class": of.get("cabin_class", "economy"),
+                        "baggage_info": of.get("baggage", ""),
+                        "fare_family": of.get("fare_family", ""),
+                        "cancellation_policy": of.get("cancellation_policy", ""),
+                        "rebooking_policy": of.get("rebooking_policy", ""),
+                        "ticket_deadline": of.get("ticket_deadline", ""),
+                        "fare_id": raw.get("fare_id"),
+                        "fare_search_id": raw.get("fare_search_id") or _source_meta.get(src, {}).get("fare_search_id"),
+                        "offer_id": raw.get("offer_id"),
+                        "raw_offer": raw,
+                        "source": _SOURCE_DISPLAY.get(src, src),
+                    })
+
+                # --- SerpAPI Google Flights price comparison ---
+                google_flights = []
+                serpapi_flights = []
+                try:
+                    from serpapi_client import get_serpapi_client
+                    serp = get_serpapi_client()
+                    if serp.is_configured:
+                        print(f"\n  [SERPAPI] Fetching Google Flights prices (cached 6hr)...")
+                        serp_result = serp.search_google_flights(
+                            origin=origin, destination=destination, date=date,
+                            return_date=return_date, cabin_class=cabin_class,
+                        )
+                        serpapi_flights = serp_result.get("flights", [])
+                        cache_hit = "CACHE HIT" if serp_result.get("cached") else "LIVE"
+                        print(f"  [SERPAPI] {cache_hit}: {len(serpapi_flights)} Google Flights results")
+
+                        for sf in serpapi_flights:
+                            google_flights.append({
+                                "airline": sf.get("airline", ""),
+                                "departure_time": sf.get("departure_time", ""),
+                                "price": sf.get("price", 0),
+                                "booking_token": sf.get("booking_token", ""),
+                            })
+                except Exception as _serp_err:
+                    if "not configured" not in str(_serp_err).lower():
+                        print(f"  [SERPAPI] Failed: {_serp_err}")
+
+                # Match orchestrator flights to Google flights for real deal pricing
+                matched_count = 0
+                if google_flights:
+                    # Build pseudo-picasso list for _match_picasso_to_google (uses airline_name + departure_time)
+                    _pseudo_picasso = [{"airline_name": f.get("airline", ""), "departure_time": f.get("departure_time", "")} for f in formatted_flights]
+                    matches = _match_picasso_to_google(_pseudo_picasso, google_flights)
+                    print(f"  [MATCH] Matched {len(matches)} flights by airline+time")
+
+                    for p_idx, gf in matches:
+                        if p_idx >= len(formatted_flights):
+                            continue
+                        google_price = gf.get("price", 0)
+                        our_price = formatted_flights[p_idx].get("cheapest_price", 0)
+                        gross_savings = google_price - our_price
+
+                        if gross_savings >= 10:
+                            platform_fee = round(gross_savings * fee_pct, 2)
+                            fn = formatted_flights[p_idx].get("flight_number", "")
+                            formatted_flights[p_idx]["deal"] = {
+                                "deal_id": f"deal_{origin}_{destination}_{date}_{fn}",
+                                "home_price": round(google_price, 2),
+                                "arbitrage_price": round(our_price, 2),
+                                "gross_savings": round(gross_savings, 2),
+                                "price_difference": round(gross_savings, 2),
+                                "user_savings": round(gross_savings - platform_fee, 2),
+                                "platform_fee_usd": platform_fee,
+                                "user_saves_pct": round((gross_savings / google_price) * 100, 1),
+                                "cheapest_market": "Mystes",
+                                "is_good_deal": True,
+                                "proxy_verified": True,
+                                "price_source": "serpapi" if serpapi_flights else "google_scraper",
+                                "booking_token": gf.get("booking_token", ""),
+                            }
+                            formatted_flights[p_idx]["savings"] = round(gross_savings - platform_fee, 2)
+                            formatted_flights[p_idx]["savings_pct"] = round((gross_savings / google_price) * 100, 1)
+                            matched_count += 1
+
+                # --- Estimated markup for unmatched flights (1.55x conservative) ---
+                ESTIMATED_RETAIL_MARKUP = 1.55
+                estimated_count = 0
+                for idx, ff in enumerate(formatted_flights):
+                    if ff.get("deal"):
+                        continue
+                    our_price = ff.get("cheapest_price") or 0
+                    if our_price <= 0:
+                        continue
+                    est_home_price = round(our_price * ESTIMATED_RETAIL_MARKUP, 2)
+                    est_gross = round(est_home_price - our_price, 2)
+                    if est_gross < 5:
+                        continue
+                    est_fee = round(est_gross * fee_pct, 2)
+                    fn = ff.get("flight_number", "")
+                    formatted_flights[idx]["deal"] = {
+                        "deal_id": f"deal_{origin}_{destination}_{date}_{fn}",
+                        "home_price": est_home_price,
+                        "arbitrage_price": round(our_price, 2),
+                        "gross_savings": est_gross,
+                        "price_difference": est_gross,
+                        "user_savings": round(est_gross - est_fee, 2),
+                        "platform_fee_usd": est_fee,
+                        "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
+                        "cheapest_market": "Mystes",
+                        "is_good_deal": True,
+                        "proxy_verified": False,
+                        "estimated": True,
+                    }
+                    formatted_flights[idx]["savings"] = round(est_gross - est_fee, 2)
+                    formatted_flights[idx]["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
+                    estimated_count += 1
+
+                deals = [f for f in formatted_flights if f.get("deal")]
+
+                # Summary
+                gds_count = sum(1 for f in formatted_flights if f.get("source") == "gds")
+                ndc_count = sum(1 for f in formatted_flights if f.get("source") == "ndc")
+                agg_count = sum(1 for f in formatted_flights if f.get("source") == "aggregator")
+                source_parts = []
+                if gds_count: source_parts.append(f"{gds_count} GDS")
+                if ndc_count: source_parts.append(f"{ndc_count} NDC")
+                if agg_count: source_parts.append(f"{agg_count} Kiwi")
+                source_str = " + ".join(source_parts) if source_parts else str(len(formatted_flights))
+                print(f"\n{'='*60}")
+                print(f"ANASTASiA RESULTS: {len(formatted_flights)} flights ({source_str}), {matched_count} Google-verified, {estimated_count} estimated")
+                print(f"{'='*60}")
+
+                return {
+                    "origin": origin,
+                    "destination": destination,
+                    "date": date,
+                    "return_date": return_date,
+                    "is_round_trip": is_round_trip,
+                    "markets_checked": 1,
+                    "total_flights": len(formatted_flights),
+                    "deals": deals,
+                    "flights": formatted_flights,
+                    "all_flights": formatted_flights,
+                    "price_comparison": [],
+                    "proxy_results": {
+                        "cheapest_market": "Mystes",
+                        "cheapest_price_usd": formatted_flights[0]["cheapest_price"] if formatted_flights else 0,
+                        "savings_vs_us": 0,
+                        "savings_pct": 0,
+                        "markets_checked": 1,
+                    },
+                    "data_sources": {"prices": "+".join(_sources_searched), "flight_details": "+".join(_sources_searched)},
+                }
+            else:
+                print(f"  [ANASTASiA] No results from orchestrator, falling through to legacy search")
+    except Exception as _orch_err:
+        print(f"  [ANASTASiA] Orchestrator unavailable: {_orch_err} — using legacy search")
+
     # --- PICASSO / REDBOX SEARCH (Priority — consolidator pricing) ---
     if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
         try:
@@ -513,22 +769,52 @@ def search_global(
                         "fare_search_id": picasso_result.get("fare_search_id"),
                         "picasso_gds": pf.get("gds"),
                         "raw_offer": {"fare_id": pf.get("fare_id"), "fare_search_id": picasso_result.get("fare_search_id"), "source": "picasso"},
+                        "source": "gds",
                     }
                     formatted_flights.append(formatted_flight)
 
-                # --- Compare Picasso prices against Google Flights ---
+                # --- Compare Picasso prices against Google Flights (SerpAPI + fallback) ---
                 google_flights = []
+                serpapi_flights = []
                 try:
-                    from google_flights_scraper import scrape_flights_sync
-                    print(f"\n  [GOOGLE] Scraping Google Flights (US) for price comparison...")
-                    google_result = scrape_flights_sync(
-                        origin=origin, destination=destination, date=date,
-                        markets=["US"], cabin_class=cabin_class, return_date=return_date,
-                    )
-                    google_flights = google_result.get("all_results", {}).get("US", {}).get("flights", [])
-                    print(f"  [GOOGLE] Found {len(google_flights)} US flights")
+                    from serpapi_client import get_serpapi_client
+                    serp = get_serpapi_client()
+                    if serp.is_configured:
+                        print(f"\n  [SERPAPI] Fetching Google Flights prices (cached 6hr)...")
+                        serp_result = serp.search_google_flights(
+                            origin=origin, destination=destination, date=date,
+                            return_date=return_date, cabin_class=cabin_class,
+                        )
+                        serpapi_flights = serp_result.get("flights", [])
+                        cache_hit = "CACHE HIT" if serp_result.get("cached") else "LIVE"
+                        print(f"  [SERPAPI] {cache_hit}: {len(serpapi_flights)} Google Flights results")
+
+                        # Convert SerpAPI flights to the format _match_picasso_to_google expects
+                        for sf in serpapi_flights:
+                            google_flights.append({
+                                "airline": sf.get("airline", ""),
+                                "departure_time": sf.get("departure_time", ""),
+                                "price": sf.get("price", 0),
+                                "booking_token": sf.get("booking_token", ""),
+                            })
+                    else:
+                        print(f"\n  [SERPAPI] Not configured — trying Playwright scraper")
+                        raise ImportError("SerpAPI not configured, try scraper")
                 except Exception as e:
-                    print(f"  [GOOGLE] Scrape failed: {e}")
+                    if "not configured" not in str(e).lower():
+                        print(f"  [SERPAPI] Failed: {e}")
+                    # Fallback to Playwright scraper (works locally, not in Docker)
+                    try:
+                        from google_flights_scraper import scrape_flights_sync
+                        print(f"  [GOOGLE] Scraping Google Flights (US) for price comparison...")
+                        google_result = scrape_flights_sync(
+                            origin=origin, destination=destination, date=date,
+                            markets=["US"], cabin_class=cabin_class, return_date=return_date,
+                        )
+                        google_flights = google_result.get("all_results", {}).get("US", {}).get("flights", [])
+                        print(f"  [GOOGLE] Found {len(google_flights)} US flights")
+                    except Exception as e2:
+                        print(f"  [GOOGLE] Scrape failed: {e2}")
 
                 # Match Picasso flights to Google flights and populate deal objects
                 matched_count = 0
@@ -558,6 +844,8 @@ def search_global(
                                 "cheapest_market": "Mystes",
                                 "is_good_deal": True,
                                 "proxy_verified": True,
+                                "price_source": "serpapi" if serpapi_flights else "google_scraper",
+                                "booking_token": gf.get("booking_token", ""),
                             }
                             formatted_flights[p_idx]["savings"] = round(gross_savings - platform_fee, 2)
                             formatted_flights[p_idx]["savings_pct"] = round((gross_savings / google_price) * 100, 1)
@@ -600,11 +888,245 @@ def search_global(
                     formatted_flights[idx]["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
                     estimated_count += 1
 
+                # --- DUFFEL NDC SEARCH (parallel source — NDC-direct fares) ---
+                duffel_count = 0
+                if DUFFEL_AVAILABLE and DUFFEL_CONFIGURED:
+                    try:
+                        from duffel_client import search_with_duffel
+                        print(f"\n  [DUFFEL/NDC] Searching NDC-direct airline fares...")
+
+                        duffel_result = search_with_duffel(
+                            origin=origin,
+                            destination=destination,
+                            departure_date=date,
+                            return_date=return_date,
+                            passengers=adults,
+                            cabin_class=cabin_class,
+                        )
+
+                        if duffel_result.get("success") and duffel_result.get("flights"):
+                            duffel_flights = duffel_result["flights"]
+                            print(f"  [DUFFEL] Found {len(duffel_flights)} NDC offers")
+
+                            # Merge: add Duffel flights that don't match existing Picasso flights
+                            for df in duffel_flights:
+                                df_airline = _norm_airline(df.get("airline", ""))
+                                df_time = _extract_hhmm(df.get("departure_time", ""))
+                                df_price = float(df.get("price", 0))
+
+                                # Check for duplicate: same airline + departure within 15 min
+                                is_duplicate = False
+                                for idx, pf_fmt in enumerate(formatted_flights):
+                                    pf_airline = _norm_airline(pf_fmt.get("airline", ""))
+                                    pf_time = _extract_hhmm(pf_fmt.get("departure_time", ""))
+                                    if pf_airline == df_airline and pf_time and df_time and abs(pf_time - df_time) <= 15:
+                                        is_duplicate = True
+                                        # If NDC price is cheaper, update the existing flight
+                                        pf_price = pf_fmt.get("cheapest_price", 0)
+                                        if df_price > 0 and pf_price > 0 and df_price < pf_price:
+                                            formatted_flights[idx]["cheapest_price"] = df_price
+                                            formatted_flights[idx]["source"] = "ndc"
+                                            formatted_flights[idx]["offer_id"] = df.get("offer_id")
+                                            formatted_flights[idx]["raw_offer"] = {"offer_id": df.get("offer_id"), "source": "duffel_ndc"}
+                                            print(f"    [NDC<GDS] {df_airline}: NDC ${df_price:.0f} < GDS ${pf_price:.0f} — using NDC price")
+                                        break
+
+                                if not is_duplicate and df_price > 0:
+                                    # New unique NDC flight — add to results
+                                    dep_time = df.get("departure_time", "")
+                                    flight_num = ""
+                                    if df.get("segments"):
+                                        flight_num = df["segments"][0].get("flight_number", "")
+
+                                    ndc_flight = {
+                                        "flight_id": df.get("offer_id") or f"ndc_{df.get('airline_code', 'XX')}_{origin}_{destination}_{date}",
+                                        "airline": df.get("airline", "Various Airlines"),
+                                        "flight_number": flight_num,
+                                        "departure_time": dep_time,
+                                        "arrival_time": df.get("arrival_time"),
+                                        "duration": df.get("duration"),
+                                        "stops": df.get("stops", 0),
+                                        "layovers": [],
+                                        "legs": [],
+                                        "segments": df.get("segments", []),
+                                        "cheapest_price": df_price,
+                                        "cheapest_market": "Mystes",
+                                        "converted_prices": {},
+                                        "origin": origin,
+                                        "destination": destination,
+                                        "route": f"{origin} → {destination}",
+                                        "date": date,
+                                        "return_date": return_date,
+                                        "is_round_trip": is_round_trip,
+                                        "deal": None,
+                                        "savings": 0,
+                                        "savings_pct": 0,
+                                        "travel_class": df.get("cabin_class", "economy"),
+                                        "baggage_info": ", ".join(f"{b['quantity']}x {b['type']}" for b in df.get("baggages", []) if b.get("quantity")),
+                                        "source": "ndc",
+                                        "offer_id": df.get("offer_id"),
+                                        "raw_offer": {"offer_id": df.get("offer_id"), "source": "duffel_ndc"},
+                                        "return_flight": df.get("return_slice"),
+                                        "expires_at": df.get("expires_at"),
+                                    }
+
+                                    # Apply estimated markup deal for NDC flights too
+                                    est_home_price = round(df_price * ESTIMATED_RETAIL_MARKUP, 2)
+                                    est_gross = round(est_home_price - df_price, 2)
+                                    if est_gross >= 5:
+                                        est_fee = round(est_gross * fee_pct, 2)
+                                        ndc_flight["deal"] = {
+                                            "deal_id": f"deal_ndc_{origin}_{destination}_{date}_{flight_num}",
+                                            "home_price": est_home_price,
+                                            "arbitrage_price": round(df_price, 2),
+                                            "gross_savings": est_gross,
+                                            "price_difference": est_gross,
+                                            "user_savings": round(est_gross - est_fee, 2),
+                                            "platform_fee_usd": est_fee,
+                                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
+                                            "cheapest_market": "Mystes",
+                                            "is_good_deal": True,
+                                            "proxy_verified": False,
+                                            "estimated": True,
+                                        }
+                                        ndc_flight["savings"] = round(est_gross - est_fee, 2)
+                                        ndc_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
+
+                                    formatted_flights.append(ndc_flight)
+                                    duffel_count += 1
+
+                            print(f"  [DUFFEL] Added {duffel_count} unique NDC flights to results")
+                        else:
+                            print(f"  [DUFFEL] No NDC results: {duffel_result.get('error', 'No offers')}")
+                    except Exception as e:
+                        print(f"  [DUFFEL] NDC search error: {e}")
+
+                # --- KIWI TEQUILA SEARCH (aggregator — 750+ carriers, virtual interlining) ---
+                kiwi_count = 0
+                if KIWI_AVAILABLE and KIWI_CONFIGURED:
+                    try:
+                        from kiwi_client import search_with_kiwi
+                        print(f"\n  [KIWI] Searching aggregator fares (750+ carriers)...")
+
+                        kiwi_result = search_with_kiwi(
+                            origin=origin,
+                            destination=destination,
+                            departure_date=date,
+                            return_date=return_date,
+                            passengers=adults,
+                            cabin_class=cabin_class,
+                        )
+
+                        if kiwi_result.get("success") and kiwi_result.get("flights"):
+                            kiwi_flights = kiwi_result["flights"]
+                            print(f"  [KIWI] Found {len(kiwi_flights)} aggregator offers")
+
+                            for kf in kiwi_flights:
+                                kf_airline = _norm_airline(kf.get("airline", ""))
+                                kf_time = _extract_hhmm(kf.get("departure_time", ""))
+                                kf_price = float(kf.get("price", 0))
+
+                                is_duplicate = False
+                                for idx, existing in enumerate(formatted_flights):
+                                    ex_airline = _norm_airline(existing.get("airline", ""))
+                                    ex_time = _extract_hhmm(existing.get("departure_time", ""))
+                                    if ex_airline == kf_airline and ex_time and kf_time and abs(ex_time - kf_time) <= 15:
+                                        is_duplicate = True
+                                        ex_price = existing.get("cheapest_price", 0)
+                                        if kf_price > 0 and ex_price > 0 and kf_price < ex_price:
+                                            formatted_flights[idx]["cheapest_price"] = kf_price
+                                            formatted_flights[idx]["source"] = "aggregator"
+                                            formatted_flights[idx]["raw_offer"] = {"booking_token": kf.get("booking_token"), "kiwi_id": kf.get("kiwi_id"), "source": "kiwi_tequila"}
+                                            print(f"    [KIWI<] {kf_airline}: Kiwi ${kf_price:.0f} < existing ${ex_price:.0f} — using Kiwi price")
+                                        break
+
+                                if not is_duplicate and kf_price > 0:
+                                    dep_time = kf.get("departure_time", "")
+                                    flight_num = ""
+                                    if kf.get("segments"):
+                                        flight_num = kf["segments"][0].get("flight_number", "")
+
+                                    kiwi_flight = {
+                                        "flight_id": kf.get("kiwi_id") or f"kiwi_{kf.get('airline_code', 'XX')}_{origin}_{destination}_{date}",
+                                        "airline": kf.get("airline", "Various Airlines"),
+                                        "flight_number": flight_num,
+                                        "departure_time": dep_time,
+                                        "arrival_time": kf.get("arrival_time"),
+                                        "duration": kf.get("duration"),
+                                        "stops": kf.get("stops", 0),
+                                        "layovers": [],
+                                        "legs": [],
+                                        "segments": kf.get("segments", []),
+                                        "cheapest_price": kf_price,
+                                        "cheapest_market": "Mystes",
+                                        "converted_prices": {},
+                                        "origin": origin,
+                                        "destination": destination,
+                                        "route": f"{origin} → {destination}",
+                                        "date": date,
+                                        "return_date": return_date,
+                                        "is_round_trip": is_round_trip,
+                                        "deal": None,
+                                        "savings": 0,
+                                        "savings_pct": 0,
+                                        "travel_class": kf.get("cabin_class", "economy"),
+                                        "baggage_info": ", ".join(f"{b['quantity']}x {b['type']}" for b in kf.get("baggages", []) if b.get("quantity")),
+                                        "source": "aggregator",
+                                        "raw_offer": {"booking_token": kf.get("booking_token"), "kiwi_id": kf.get("kiwi_id"), "source": "kiwi_tequila"},
+                                        "return_flight": kf.get("return_slice"),
+                                        "virtual_interlining": kf.get("virtual_interlining", False),
+                                    }
+
+                                    est_home_price = round(kf_price * ESTIMATED_RETAIL_MARKUP, 2)
+                                    est_gross = round(est_home_price - kf_price, 2)
+                                    if est_gross >= 5:
+                                        est_fee = round(est_gross * fee_pct, 2)
+                                        kiwi_flight["deal"] = {
+                                            "deal_id": f"deal_kiwi_{origin}_{destination}_{date}_{flight_num}",
+                                            "home_price": est_home_price,
+                                            "arbitrage_price": round(kf_price, 2),
+                                            "gross_savings": est_gross,
+                                            "price_difference": est_gross,
+                                            "user_savings": round(est_gross - est_fee, 2),
+                                            "platform_fee_usd": est_fee,
+                                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
+                                            "cheapest_market": "Mystes",
+                                            "is_good_deal": True,
+                                            "proxy_verified": False,
+                                            "estimated": True,
+                                        }
+                                        kiwi_flight["savings"] = round(est_gross - est_fee, 2)
+                                        kiwi_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
+
+                                    formatted_flights.append(kiwi_flight)
+                                    kiwi_count += 1
+
+                            print(f"  [KIWI] Added {kiwi_count} unique aggregator flights to results")
+                        else:
+                            print(f"  [KIWI] No aggregator results: {kiwi_result.get('error', 'No offers')}")
+                    except Exception as e:
+                        print(f"  [KIWI] Aggregator search error: {e}")
+
                 # Deals = flights with a populated deal object (verified or estimated)
                 deals = [f for f in formatted_flights if f.get("deal")]
 
+                # Determine data sources used
+                sources_used = ["picasso_redbox"]
+                if duffel_count > 0:
+                    sources_used.append("duffel_ndc")
+                if kiwi_count > 0:
+                    sources_used.append("kiwi_tequila")
+
                 print(f"\n{'='*60}")
-                print(f"PICASSO RESULTS: {len(formatted_flights)} flights, {matched_count} Google-verified, {estimated_count} estimated markup")
+                gds_count = sum(1 for f in formatted_flights if f.get("source") == "gds")
+                ndc_count = sum(1 for f in formatted_flights if f.get("source") == "ndc")
+                agg_count = sum(1 for f in formatted_flights if f.get("source") == "aggregator")
+                source_parts = []
+                if gds_count: source_parts.append(f"{gds_count} GDS")
+                if ndc_count: source_parts.append(f"{ndc_count} NDC")
+                if agg_count: source_parts.append(f"{agg_count} Kiwi")
+                source_str = " + ".join(source_parts) if source_parts else str(len(formatted_flights))
+                print(f"RESULTS: {len(formatted_flights)} flights ({source_str}), {matched_count} Google-verified, {estimated_count} estimated")
                 print(f"{'='*60}")
 
                 return {
@@ -626,7 +1148,7 @@ def search_global(
                         "savings_pct": 0,
                         "markets_checked": 1,
                     },
-                    "data_sources": {"prices": "picasso_redbox", "flight_details": "picasso_redbox"},
+                    "data_sources": {"prices": "+".join(sources_used), "flight_details": "+".join(sources_used)},
                 }
             else:
                 error = picasso_result.get("error", "No results")
@@ -636,6 +1158,248 @@ def search_global(
         except Exception as e:
             print(f"  [PICASSO] Error: {e}")
             # Fall through to Amadeus + Proxy search
+
+    # --- DUFFEL-ONLY FALLBACK (when Picasso is unavailable/failed) ---
+    if DUFFEL_AVAILABLE and DUFFEL_CONFIGURED:
+        try:
+            from duffel_client import search_with_duffel
+            print(f"\n[DUFFEL/NDC] Picasso unavailable — searching NDC-direct fares only...")
+
+            adults = 1
+            if search_options and search_options.get("passengers"):
+                adults = search_options["passengers"].get("adults", 1)
+
+            duffel_result = search_with_duffel(
+                origin=origin,
+                destination=destination,
+                departure_date=date,
+                return_date=return_date,
+                passengers=adults,
+                cabin_class=cabin_class,
+            )
+
+            if duffel_result.get("success") and duffel_result.get("flights"):
+                duffel_flights = duffel_result["flights"]
+                print(f"  [DUFFEL] Found {len(duffel_flights)} NDC offers")
+
+                formatted_flights = []
+                ESTIMATED_RETAIL_MARKUP = 1.55
+                for df in duffel_flights:
+                    df_price = float(df.get("price", 0))
+                    if df_price <= 0:
+                        continue
+                    dep_time = df.get("departure_time", "")
+                    flight_num = ""
+                    if df.get("segments"):
+                        flight_num = df["segments"][0].get("flight_number", "")
+
+                    ndc_flight = {
+                        "flight_id": df.get("offer_id") or f"ndc_{origin}_{destination}_{date}",
+                        "airline": df.get("airline", "Various Airlines"),
+                        "flight_number": flight_num,
+                        "departure_time": dep_time,
+                        "arrival_time": df.get("arrival_time"),
+                        "duration": df.get("duration"),
+                        "stops": df.get("stops", 0),
+                        "layovers": [],
+                        "legs": [],
+                        "segments": df.get("segments", []),
+                        "cheapest_price": df_price,
+                        "cheapest_market": "Mystes",
+                        "converted_prices": {},
+                        "origin": origin,
+                        "destination": destination,
+                        "route": f"{origin} → {destination}",
+                        "date": date,
+                        "return_date": return_date,
+                        "is_round_trip": is_round_trip,
+                        "deal": None,
+                        "savings": 0,
+                        "savings_pct": 0,
+                        "travel_class": df.get("cabin_class", "economy"),
+                        "baggage_info": ", ".join(f"{b['quantity']}x {b['type']}" for b in df.get("baggages", []) if b.get("quantity")),
+                        "source": "ndc",
+                        "offer_id": df.get("offer_id"),
+                        "raw_offer": {"offer_id": df.get("offer_id"), "source": "duffel_ndc"},
+                        "return_flight": df.get("return_slice"),
+                        "expires_at": df.get("expires_at"),
+                    }
+
+                    # Estimated markup deal
+                    est_home_price = round(df_price * ESTIMATED_RETAIL_MARKUP, 2)
+                    est_gross = round(est_home_price - df_price, 2)
+                    if est_gross >= 5:
+                        est_fee = round(est_gross * fee_pct, 2)
+                        ndc_flight["deal"] = {
+                            "deal_id": f"deal_ndc_{origin}_{destination}_{date}_{flight_num}",
+                            "home_price": est_home_price,
+                            "arbitrage_price": round(df_price, 2),
+                            "gross_savings": est_gross,
+                            "price_difference": est_gross,
+                            "user_savings": round(est_gross - est_fee, 2),
+                            "platform_fee_usd": est_fee,
+                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
+                            "cheapest_market": "Mystes",
+                            "is_good_deal": True,
+                            "proxy_verified": False,
+                            "estimated": True,
+                        }
+                        ndc_flight["savings"] = round(est_gross - est_fee, 2)
+                        ndc_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
+
+                    formatted_flights.append(ndc_flight)
+
+                deals = [f for f in formatted_flights if f.get("deal")]
+
+                print(f"\n{'='*60}")
+                print(f"DUFFEL NDC RESULTS: {len(formatted_flights)} flights (NDC-direct)")
+                print(f"{'='*60}")
+
+                return {
+                    "origin": origin,
+                    "destination": destination,
+                    "date": date,
+                    "return_date": return_date,
+                    "is_round_trip": is_round_trip,
+                    "markets_checked": 1,
+                    "total_flights": len(formatted_flights),
+                    "deals": deals,
+                    "flights": formatted_flights,
+                    "all_flights": formatted_flights,
+                    "price_comparison": [],
+                    "proxy_results": {
+                        "cheapest_market": "Mystes",
+                        "cheapest_price_usd": formatted_flights[0]["cheapest_price"] if formatted_flights else 0,
+                        "savings_vs_us": 0,
+                        "savings_pct": 0,
+                        "markets_checked": 1,
+                    },
+                    "data_sources": {"prices": "duffel_ndc", "flight_details": "duffel_ndc"},
+                }
+            else:
+                print(f"  [DUFFEL] No NDC results: {duffel_result.get('error', 'No offers')}")
+        except Exception as e:
+            print(f"  [DUFFEL] NDC search error: {e}")
+
+    # --- KIWI-ONLY FALLBACK (when Picasso + Duffel unavailable/failed) ---
+    if KIWI_AVAILABLE and KIWI_CONFIGURED:
+        try:
+            from kiwi_client import search_with_kiwi
+            print(f"\n[KIWI] Picasso+Duffel unavailable — searching aggregator fares only...")
+
+            adults = 1
+            if search_options and search_options.get("passengers"):
+                adults = search_options["passengers"].get("adults", 1)
+
+            kiwi_result = search_with_kiwi(
+                origin=origin,
+                destination=destination,
+                departure_date=date,
+                return_date=return_date,
+                passengers=adults,
+                cabin_class=cabin_class,
+            )
+
+            if kiwi_result.get("success") and kiwi_result.get("flights"):
+                kiwi_flights = kiwi_result["flights"]
+                print(f"  [KIWI] Found {len(kiwi_flights)} aggregator offers")
+
+                formatted_flights = []
+                ESTIMATED_RETAIL_MARKUP = 1.55
+                for kf in kiwi_flights:
+                    kf_price = float(kf.get("price", 0))
+                    if kf_price <= 0:
+                        continue
+                    dep_time = kf.get("departure_time", "")
+                    flight_num = ""
+                    if kf.get("segments"):
+                        flight_num = kf["segments"][0].get("flight_number", "")
+
+                    kiwi_flight = {
+                        "flight_id": kf.get("kiwi_id") or f"kiwi_{origin}_{destination}_{date}",
+                        "airline": kf.get("airline", "Various Airlines"),
+                        "flight_number": flight_num,
+                        "departure_time": dep_time,
+                        "arrival_time": kf.get("arrival_time"),
+                        "duration": kf.get("duration"),
+                        "stops": kf.get("stops", 0),
+                        "layovers": [],
+                        "legs": [],
+                        "segments": kf.get("segments", []),
+                        "cheapest_price": kf_price,
+                        "cheapest_market": "Mystes",
+                        "converted_prices": {},
+                        "origin": origin,
+                        "destination": destination,
+                        "route": f"{origin} → {destination}",
+                        "date": date,
+                        "return_date": return_date,
+                        "is_round_trip": is_round_trip,
+                        "deal": None,
+                        "savings": 0,
+                        "savings_pct": 0,
+                        "travel_class": kf.get("cabin_class", "economy"),
+                        "baggage_info": ", ".join(f"{b['quantity']}x {b['type']}" for b in kf.get("baggages", []) if b.get("quantity")),
+                        "source": "aggregator",
+                        "raw_offer": {"booking_token": kf.get("booking_token"), "kiwi_id": kf.get("kiwi_id"), "source": "kiwi_tequila"},
+                        "return_flight": kf.get("return_slice"),
+                        "virtual_interlining": kf.get("virtual_interlining", False),
+                    }
+
+                    est_home_price = round(kf_price * ESTIMATED_RETAIL_MARKUP, 2)
+                    est_gross = round(est_home_price - kf_price, 2)
+                    if est_gross >= 5:
+                        est_fee = round(est_gross * fee_pct, 2)
+                        kiwi_flight["deal"] = {
+                            "deal_id": f"deal_kiwi_{origin}_{destination}_{date}_{flight_num}",
+                            "home_price": est_home_price,
+                            "arbitrage_price": round(kf_price, 2),
+                            "gross_savings": est_gross,
+                            "price_difference": est_gross,
+                            "user_savings": round(est_gross - est_fee, 2),
+                            "platform_fee_usd": est_fee,
+                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
+                            "cheapest_market": "Mystes",
+                            "is_good_deal": True,
+                            "proxy_verified": False,
+                            "estimated": True,
+                        }
+                        kiwi_flight["savings"] = round(est_gross - est_fee, 2)
+                        kiwi_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
+
+                    formatted_flights.append(kiwi_flight)
+
+                deals = [f for f in formatted_flights if f.get("deal")]
+
+                print(f"\n{'='*60}")
+                print(f"KIWI RESULTS: {len(formatted_flights)} flights (aggregator)")
+                print(f"{'='*60}")
+
+                return {
+                    "origin": origin,
+                    "destination": destination,
+                    "date": date,
+                    "return_date": return_date,
+                    "is_round_trip": is_round_trip,
+                    "markets_checked": 1,
+                    "total_flights": len(formatted_flights),
+                    "deals": deals,
+                    "flights": formatted_flights,
+                    "all_flights": formatted_flights,
+                    "price_comparison": [],
+                    "proxy_results": {
+                        "cheapest_market": "Mystes",
+                        "cheapest_price_usd": formatted_flights[0]["cheapest_price"] if formatted_flights else 0,
+                        "savings_vs_us": 0,
+                        "savings_pct": 0,
+                        "markets_checked": 1,
+                    },
+                    "data_sources": {"prices": "kiwi_tequila", "flight_details": "kiwi_tequila"},
+                }
+            else:
+                print(f"  [KIWI] No aggregator results: {kiwi_result.get('error', 'No offers')}")
+        except Exception as e:
+            print(f"  [KIWI] Aggregator search error: {e}")
 
     if use_direct_scraping and DIRECT_SCRAPER_AVAILABLE:
         try:
@@ -1144,6 +1908,9 @@ def search_global(
 
                 # Raw Amadeus offer for booking API
                 "raw_offer": flight.get("raw_offer"),
+
+                # Source label
+                "source": "gds",
             }
             formatted_flights.append(formatted_flight)
 

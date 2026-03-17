@@ -1,15 +1,10 @@
 """
-Phase 2 — Hotel Routes
-Extracted from server.py (Build #136) to slim Phase 1 OTA.
+Phase 2 — Hotel Routes (Build #166 — Premium UI)
+Hotels vertical for MYSTES consumer OTA.
 
-All code preserved intact. Re-enable by adding to server.py:
+Register in server.py:
     from routes_hotels import register_hotel_routes
     register_hotel_routes(app, csrf, limiter)
-
-Original locations in server.py:
-  - Hotel routes: lines 4032-4208
-  - HOTELS_SEARCH_CONTENT: lines 5387-5613
-  - HOTEL_BOOK_CONTENT: lines 5616-5917
 """
 
 import json
@@ -25,39 +20,332 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# HOTEL SEARCH FRONTEND (Build #101)
+# HOTEL SEARCH FRONTEND — Premium MYSTES Design (Build #166)
 # ============================================================
 
 HOTELS_SEARCH_CONTENT = """
 <style>
-    .hotel-search-form { max-width: 900px; margin: 0 auto 30px; }
-    .hotel-search-form label { font-weight: bold; color: #f5f5f5; display: block; margin-bottom: 5px; }
-    .hotel-search-form input, .hotel-search-form select {
-        width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 8px; font-size: 16px; color: #fff;
-        background: rgba(15, 10, 25, 0.6); backdrop-filter: blur(10px);
-    }
-    .hotel-search-form input::placeholder { color: #999; }
-    .hotel-search-form input:focus, .hotel-search-form select:focus {
-        border-color: #7c3aed; outline: none; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
-    }
-    .rating-group { display: flex; gap: 15px; flex-wrap: wrap; }
-    .rating-group label { display: flex; align-items: center; cursor: pointer; font-weight: normal; color: #ccc; }
-    .rating-group input { width: auto; margin-right: 6px; }
-    .hotel-card { transition: all 0.3s ease; }
-    .hotel-card:hover { transform: translateX(4px); border-color: rgba(124, 58, 237, 0.5); }
-    .hotel-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px; }
-    .spinner-hotel { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #7c3aed; border-radius: 50%; animation: hotelspin 1s linear infinite; margin: 0 auto 20px; }
-    @keyframes hotelspin { to { transform: rotate(360deg); } }
+/* ============================================
+   HOTELS PAGE — Matches flights aesthetic
+   ============================================ */
+
+.hotels-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+.hotels-page-header {
+    text-align: center;
+    padding: 40px 0 10px;
+}
+.hotels-page-header h1 {
+    font-family: var(--font-brand, 'Cinzel', serif);
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--text-bright, #f5f5f5);
+    margin: 0 0 8px;
+}
+.hotels-page-header p {
+    color: var(--text-secondary, #aaa);
+    font-size: 15px;
+    margin: 0;
+}
+
+/* Search form card */
+.hotel-search-card {
+    background: rgba(10, 6, 18, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+}
+.hotel-search-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.hotel-search-grid .full-width { grid-column: 1 / -1; }
+
+.hotel-search-card label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary, #aaa);
+    margin-bottom: 6px;
+}
+.hotel-search-card input,
+.hotel-search-card select {
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: var(--text-bright, #f5f5f5);
+    font-family: var(--font-sans, 'Outfit', sans-serif);
+    font-size: 15px;
+    transition: all 0.3s ease;
+}
+.hotel-search-card input:focus,
+.hotel-search-card select:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+.hotel-search-card input::placeholder { color: #666; }
+.hotel-search-card select option { background: #1a1a2e; color: #f5f5f5; }
+
+/* Star rating chips */
+.star-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.star-chip {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 20px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    cursor: pointer; transition: all 0.2s;
+    font-size: 13px; color: #ccc;
+}
+.star-chip:hover { border-color: rgba(124,58,237,0.4); }
+.star-chip input { display: none; }
+.star-chip.active {
+    background: rgba(124,58,237,0.15);
+    border-color: #7c3aed;
+    color: #fff;
+}
+.star-chip-star { color: #f59e0b; }
+
+/* Search button */
+.hotel-search-btn {
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: var(--font-sans, 'Outfit', sans-serif);
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 0.5px;
+}
+.hotel-search-btn:hover {
+    background: linear-gradient(135deg, #6d28d9, #5b21b6);
+    box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);
+    transform: translateY(-1px);
+}
+.hotel-search-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.hotel-search-spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: hspin 0.6s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+}
+@keyframes hspin { to { transform: rotate(360deg); } }
+
+/* Loading skeleton */
+.hotel-loading-state {
+    margin-top: 20px; padding: 30px;
+    background: rgba(15, 10, 25, 0.6);
+    border-radius: 16px;
+    border: 1px solid rgba(124, 58, 237, 0.2);
+}
+.hotel-loading-header {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+}
+.hotel-loading-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(124, 58, 237, 0.2);
+    border-top-color: #7c3aed; border-radius: 50%;
+    animation: hspin 0.8s linear infinite; flex-shrink: 0;
+}
+.hotel-skeleton-cards { display: flex; flex-direction: column; gap: 12px; }
+.hotel-skeleton-card {
+    background: rgba(255,255,255,0.05); border-radius: 12px;
+    padding: 20px; display: flex; gap: 16px;
+}
+.hotel-skeleton-img {
+    width: 120px; height: 90px; border-radius: 8px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+    background-size: 200% 100%; animation: hshimmer 1.5s infinite; flex-shrink: 0;
+}
+.hotel-skeleton-line {
+    height: 14px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+    background-size: 200% 100%; animation: hshimmer 1.5s infinite; border-radius: 6px;
+}
+.hotel-skeleton-line.w40 { width: 40%; }
+.hotel-skeleton-line.w60 { width: 60%; }
+.hotel-skeleton-line.w30 { width: 30%; }
+@keyframes hshimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Results header + controls */
+.hotel-results-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+}
+.hotel-results-count {
+    color: #f5f5f5; font-size: 18px; font-weight: 600; margin: 0;
+}
+.hotel-results-dates { color: #999; font-size: 13px; }
+.hotel-controls {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.hotel-sort-select {
+    padding: 8px 12px; background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+    color: #f5f5f5; font-size: 13px; font-family: inherit; cursor: pointer;
+}
+.hotel-sort-select option { background: #1a1a2e; }
+.hotel-filter-chip {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px; border-radius: 20px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+    cursor: pointer; font-size: 12px; color: #ccc; transition: all 0.2s;
+}
+.hotel-filter-chip:hover { border-color: rgba(76,175,80,0.4); }
+.hotel-filter-chip.active {
+    background: rgba(76,175,80,0.12); border-color: #4caf50; color: #4caf50;
+}
+.hotel-filter-chip input { display: none; }
+
+/* ============================================
+   HOTEL RESULT CARDS
+   ============================================ */
+
+.hotel-cards-grid { display: flex; flex-direction: column; gap: 14px; }
+
+.hotel-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    position: relative;
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+.hotel-card:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(124, 58, 237, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+.hotel-card-deal { border-color: rgba(40, 167, 69, 0.4); }
+
+.hotel-card-badge {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white; padding: 4px 12px; border-radius: 16px;
+    font-size: 11px; font-weight: 700;
+}
+
+.hotel-card-inner { display: flex; }
+
+.hotel-card-image {
+    width: 200px; min-height: 180px; flex-shrink: 0;
+    background: linear-gradient(135deg, rgba(124,58,237,0.15), rgba(109,40,217,0.08));
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+}
+.hotel-card-image-icon { font-size: 48px; opacity: 0.3; }
+.hotel-card-image img {
+    width: 100%; height: 100%; object-fit: cover;
+    position: absolute; top: 0; left: 0;
+}
+
+.hotel-card-details {
+    flex: 1; padding: 18px 20px; display: flex;
+    flex-direction: column; justify-content: space-between; min-width: 0;
+}
+.hotel-card-name {
+    font-size: 17px; font-weight: 600; color: #fff;
+    margin: 0 0 4px; line-height: 1.3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hotel-card-room { font-size: 13px; color: #aaa; margin-bottom: 6px; }
+
+.hotel-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.hotel-tag {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.08); color: #ccc;
+    border: 1px solid rgba(255,255,255,0.08); white-space: nowrap;
+}
+.hotel-tag-cancel {
+    background: rgba(76,175,80,0.1); color: #4caf50;
+    border-color: rgba(76,175,80,0.2);
+}
+.hotel-tag-board {
+    background: rgba(124,58,237,0.1); color: #a78bfa;
+    border-color: rgba(124,58,237,0.2);
+}
+
+.hotel-card-bottom {
+    display: flex; justify-content: space-between;
+    align-items: flex-end; gap: 12px;
+    padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06);
+}
+.hotel-card-pricing { display: flex; flex-direction: column; }
+.hotel-card-price-label {
+    font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.hotel-card-price-value { font-size: 24px; font-weight: 700; color: #4ade80; }
+.hotel-card-price-unit { font-size: 13px; font-weight: 400; color: #999; }
+.hotel-card-price-total { font-size: 12px; color: #888; margin-top: 2px; }
+.hotel-card-retail { display: flex; flex-direction: column; align-items: flex-end; }
+.hotel-card-price-strike { font-size: 15px; color: #888; text-decoration: line-through; }
+.hotel-card-savings {
+    font-size: 12px; font-weight: 600; color: #4ade80;
+    background: rgba(40,167,69,0.1); padding: 2px 8px;
+    border-radius: 10px; margin-top: 2px;
+}
+
+.hotel-card-cta {
+    width: 100%; padding: 12px;
+    border: 1px solid rgba(124, 58, 237, 0.4);
+    background: rgba(124, 58, 237, 0.1);
+    color: #fff; font-size: 14px; font-weight: 600;
+    border-radius: 0 0 12px 12px;
+    cursor: pointer; transition: all 0.2s;
+    font-family: var(--font-sans, 'Outfit', sans-serif);
+}
+.hotel-card-cta:hover { background: rgba(124, 58, 237, 0.25); border-color: #7c3aed; }
+.hotel-card-cta-deal {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border: none; color: white;
+}
+.hotel-card-cta-deal:hover {
+    background: linear-gradient(135deg, #218838, #1aab8a);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+    .hotel-card-inner { flex-direction: column; }
+    .hotel-card-image { width: 100%; min-height: 140px; max-height: 180px; }
+    .hotel-search-grid { grid-template-columns: 1fr; }
+    .hotel-search-grid .full-width { grid-column: 1; }
+    .hotel-results-bar { flex-direction: column; align-items: flex-start; }
+    .hotel-card-name { white-space: normal; }
+    .hotel-card-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .hotel-card-retail { align-items: flex-start; }
+}
 </style>
 
-<div class="card hotel-search-form">
-    <h1 style="text-align: center; margin-bottom: 25px; color: #f5f5f5;">Search Hotels</h1>
-    <div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label>City</label>
-                <input type="text" id="hotel-city" placeholder="Paris, New York, Tokyo..." list="city-suggestions">
+<div class="hotels-page">
+    <div class="hotels-page-header">
+        <h1>HOTELS</h1>
+        <p>Wholesale rates. Real savings. Powered by MYSTES.</p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="hotel-search-card">
+        <div class="hotel-search-grid">
+            <div class="form-group full-width">
+                <label>Destination</label>
+                <input type="text" id="hotel-city" placeholder="Where are you going? (e.g. Paris, NYC, Tokyo)" list="city-suggestions" autocomplete="off">
                 <datalist id="city-suggestions">
                     <option value="Paris (PAR)"><option value="New York (NYC)"><option value="London (LON)">
                     <option value="Tokyo (TYO)"><option value="Rome (ROM)"><option value="Barcelona (BCN)">
@@ -80,45 +368,89 @@ HOTELS_SEARCH_CONTENT = """
                 <input type="date" id="hotel-checkout">
             </div>
             <div class="form-group">
-                <label>Adults</label>
+                <label>Guests</label>
                 <select id="hotel-adults">
-                    <option value="1">1</option>
-                    <option value="2" selected>2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
+                    <option value="1">1 Guest</option>
+                    <option value="2" selected>2 Guests</option>
+                    <option value="3">3 Guests</option>
+                    <option value="4">4 Guests</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>Rooms</label>
                 <select id="hotel-rooms">
-                    <option value="1" selected>1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
+                    <option value="1" selected>1 Room</option>
+                    <option value="2">2 Rooms</option>
+                    <option value="3">3 Rooms</option>
                 </select>
             </div>
-            <div class="form-group" style="grid-column: 1 / -1;">
+            <div class="form-group full-width">
                 <label>Star Rating</label>
-                <div class="rating-group">
-                    <label><input type="checkbox" name="rating" value="3"> 3 Stars</label>
-                    <label><input type="checkbox" name="rating" value="4" checked> 4 Stars</label>
-                    <label><input type="checkbox" name="rating" value="5" checked> 5 Stars</label>
+                <div class="star-chips">
+                    <label class="star-chip" onclick="this.classList.toggle('active')">
+                        <input type="checkbox" name="rating" value="3">
+                        <span class="star-chip-star">&#9733;&#9733;&#9733;</span> 3 Star
+                    </label>
+                    <label class="star-chip active" onclick="this.classList.toggle('active')">
+                        <input type="checkbox" name="rating" value="4" checked>
+                        <span class="star-chip-star">&#9733;&#9733;&#9733;&#9733;</span> 4 Star
+                    </label>
+                    <label class="star-chip active" onclick="this.classList.toggle('active')">
+                        <input type="checkbox" name="rating" value="5" checked>
+                        <span class="star-chip-star">&#9733;&#9733;&#9733;&#9733;&#9733;</span> 5 Star
+                    </label>
                 </div>
             </div>
         </div>
-        <button class="btn" onclick="searchHotels()" style="width: 100%; margin-top: 15px; padding: 15px; font-size: 16px;">
+        <button class="hotel-search-btn" id="hotel-search-btn" onclick="searchHotels()">
             Search Hotels
         </button>
     </div>
-</div>
 
-<div id="hotel-loading" style="display: none; text-align: center; padding: 40px;">
-    <div class="spinner-hotel"></div>
-    <p style="color: #ccc;">Searching hotels via Amadeus...</p>
-</div>
+    <!-- Loading State -->
+    <div id="hotel-loading" style="display: none;">
+        <div class="hotel-loading-state">
+            <div class="hotel-loading-header">
+                <div class="hotel-loading-spinner"></div>
+                <div>
+                    <div style="color: #f5f5f5; font-size: 16px; font-weight: 600;">Searching wholesale rates...</div>
+                    <div style="color: #999; font-size: 13px; margin-top: 4px;">Comparing prices across suppliers</div>
+                </div>
+            </div>
+            <div class="hotel-skeleton-cards">
+                <div class="hotel-skeleton-card">
+                    <div class="hotel-skeleton-img"></div>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                        <div class="hotel-skeleton-line w60"></div>
+                        <div class="hotel-skeleton-line w40"></div>
+                        <div class="hotel-skeleton-line w30"></div>
+                    </div>
+                </div>
+                <div class="hotel-skeleton-card">
+                    <div class="hotel-skeleton-img"></div>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                        <div class="hotel-skeleton-line w60"></div>
+                        <div class="hotel-skeleton-line w40"></div>
+                        <div class="hotel-skeleton-line w30"></div>
+                    </div>
+                </div>
+                <div class="hotel-skeleton-card">
+                    <div class="hotel-skeleton-img"></div>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+                        <div class="hotel-skeleton-line w60"></div>
+                        <div class="hotel-skeleton-line w40"></div>
+                        <div class="hotel-skeleton-line w30"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<div id="hotel-results" style="display: none; max-width: 900px; margin: 0 auto;">
-    <div id="hotel-results-header"></div>
-    <div id="hotel-results-list" style="display: grid; gap: 20px;"></div>
+    <!-- Results -->
+    <div id="hotel-results" style="display: none;">
+        <div id="hotel-results-header"></div>
+        <div id="hotel-results-list" class="hotel-cards-grid"></div>
+    </div>
 </div>
 
 <script>
@@ -132,6 +464,18 @@ const cityMap = {
     'munich': 'MUC', 'vienna': 'VIE', 'prague': 'PRG', 'dublin': 'DUB',
     'athens': 'ATH', 'honolulu': 'HNL'
 };
+const cityNames = {
+    'PAR': 'Paris', 'NYC': 'New York', 'LON': 'London', 'TYO': 'Tokyo',
+    'ROM': 'Rome', 'BCN': 'Barcelona', 'BKK': 'Bangkok', 'DXB': 'Dubai',
+    'SIN': 'Singapore', 'LAX': 'Los Angeles', 'SFO': 'San Francisco', 'MIA': 'Miami',
+    'CHI': 'Chicago', 'SYD': 'Sydney', 'HKG': 'Hong Kong', 'SEL': 'Seoul',
+    'AMS': 'Amsterdam', 'BER': 'Berlin', 'MAD': 'Madrid', 'LIS': 'Lisbon',
+    'IST': 'Istanbul', 'MEX': 'Mexico City', 'YTO': 'Toronto', 'OSA': 'Osaka',
+    'MUC': 'Munich', 'VIE': 'Vienna', 'PRG': 'Prague', 'DUB': 'Dublin',
+    'ATH': 'Athens', 'HNL': 'Honolulu'
+};
+
+let allHotels = [];
 
 function extractCityCode(input) {
     const match = input.match(/\\(([A-Z]{3})\\)/);
@@ -142,29 +486,41 @@ function extractCityCode(input) {
     return null;
 }
 
-// Set default dates
 (function() {
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
     const dayAfter = new Date(); dayAfter.setDate(dayAfter.getDate() + 3);
     document.getElementById('hotel-checkin').value = tomorrow.toISOString().split('T')[0];
     document.getElementById('hotel-checkout').value = dayAfter.toISOString().split('T')[0];
     document.getElementById('hotel-checkin').min = tomorrow.toISOString().split('T')[0];
+    document.getElementById('hotel-checkin').addEventListener('change', function() {
+        const next = new Date(this.value);
+        next.setDate(next.getDate() + 1);
+        document.getElementById('hotel-checkout').min = next.toISOString().split('T')[0];
+        if (document.getElementById('hotel-checkout').value <= this.value) {
+            document.getElementById('hotel-checkout').value = next.toISOString().split('T')[0];
+        }
+    });
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('city')) document.getElementById('hotel-city').value = params.get('city');
+    if (params.get('checkin')) document.getElementById('hotel-checkin').value = params.get('checkin');
+    if (params.get('checkout')) document.getElementById('hotel-checkout').value = params.get('checkout');
 })();
 
 async function searchHotels() {
     const cityInput = document.getElementById('hotel-city').value;
     const cityCode = extractCityCode(cityInput);
-    if (!cityCode) { alert('Please enter a valid city or IATA code (e.g. Paris, PAR, NYC)'); return; }
-
+    if (!cityCode) { alert('Please enter a valid city (e.g. Paris, NYC, Tokyo)'); return; }
     const checkIn = document.getElementById('hotel-checkin').value;
     const checkOut = document.getElementById('hotel-checkout').value;
     if (!checkIn || !checkOut) { alert('Please select check-in and check-out dates'); return; }
-    if (checkIn >= checkOut) { alert('Check-out date must be after check-in date'); return; }
-
+    if (checkIn >= checkOut) { alert('Check-out must be after check-in'); return; }
     const adults = document.getElementById('hotel-adults').value;
     const rooms = document.getElementById('hotel-rooms').value;
     const ratings = [...document.querySelectorAll('input[name="rating"]:checked')].map(c => parseInt(c.value));
 
+    const btn = document.getElementById('hotel-search-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="hotel-search-spinner"></span>Searching...';
     document.getElementById('hotel-loading').style.display = 'block';
     document.getElementById('hotel-results').style.display = 'none';
 
@@ -173,65 +529,133 @@ async function searchHotels() {
         const resp = await fetch('/api/hotels/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ city_code: cityCode, check_in: checkIn, check_out: checkOut, adults: parseInt(adults), rooms: parseInt(rooms), ratings: ratings.length > 0 ? ratings : null })
+            body: JSON.stringify({
+                city_code: cityCode, check_in: checkIn, check_out: checkOut,
+                adults: parseInt(adults), rooms: parseInt(rooms),
+                ratings: ratings.length > 0 ? ratings : null
+            })
         });
         const data = await resp.json();
+        allHotels = data.hotels || [];
         renderHotelResults(data, cityCode, checkIn, checkOut);
     } catch (err) {
         document.getElementById('hotel-loading').style.display = 'none';
         alert('Search failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Search Hotels';
     }
 }
 
 function renderHotelResults(data, cityCode, checkIn, checkOut) {
     document.getElementById('hotel-loading').style.display = 'none';
     document.getElementById('hotel-results').style.display = 'block';
-
     const header = document.getElementById('hotel-results-header');
     const list = document.getElementById('hotel-results-list');
+    const displayCity = cityNames[cityCode] || cityCode;
 
-    if (!data.success || !data.hotels || data.hotels.length === 0) {
-        header.innerHTML = '<div class="card" style="text-align: center; padding: 40px;"><h3 style="color: #f5f5f5;">No hotels found</h3><p style="color: #ccc;">' + (data.error || 'Try different dates or city') + '</p></div>';
-        list.innerHTML = '';
+    if (!data.success || !allHotels.length) {
+        header.innerHTML = '';
+        list.innerHTML = '<div style="text-align:center; padding:60px 20px;"><div style="font-size:48px; margin-bottom:16px; opacity:0.3;">&#127960;</div><h3 style="color:#f5f5f5; margin:0 0 8px;">No hotels found</h3><p style="color:#999;">' + (data.error || 'Try different dates or destination') + '</p></div>';
         return;
     }
 
-    header.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;"><h2 style="color: #f5f5f5; margin: 0;">' + data.hotels.length + ' Hotels in ' + cityCode + '</h2><span style="color: #ccc;">' + checkIn + ' to ' + checkOut + '</span></div>';
-
-    list.innerHTML = data.hotels.map(hotel => `
-        <div class="card hotel-card" style="border-left: 4px solid #7c3aed;">
-            <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
-                <div style="flex: 1; min-width: 200px;">
-                    <span class="hotel-badge" style="background: #6d28d9; color: white;">HOTEL</span>
-                    <h3 style="margin: 5px 0; color: #f5f5f5;">${hotel.hotel_name}</h3>
-                    <div style="font-size: 14px; color: #ccc;">
-                        ${hotel.room_type || 'Standard Room'}${hotel.bed_type ? ' / ' + hotel.bed_type : ''}
-                        ${hotel.nights ? ' / ' + hotel.nights + ' night' + (hotel.nights > 1 ? 's' : '') : ''}
-                    </div>
-                    ${hotel.room_description ? '<div style="font-size: 13px; color: #aaa; margin-top: 5px;">' + hotel.room_description.substring(0, 120) + '</div>' : ''}
-                    ${hotel.cancellation_deadline ? '<div style="font-size: 12px; color: #4caf50; margin-top: 5px;">Free cancellation until ' + hotel.cancellation_deadline.split('T')[0] + '</div>' : ''}
-                </div>
-                <div style="text-align: right; min-width: 140px;">
-                    <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">
-                        $${hotel.price_per_night.toFixed(0)}<span style="font-size: 14px; font-weight: normal; color: #ccc;">/night</span>
-                    </div>
-                    <div style="color: #ccc; font-size: 14px;">$${hotel.price_total.toFixed(0)} total</div>
-                </div>
+    const dealsCount = allHotels.filter(h => h.user_savings > 0).length;
+    header.innerHTML = `
+        <div class="hotel-results-bar">
+            <div>
+                <h2 class="hotel-results-count">${allHotels.length} Hotels in ${displayCity}</h2>
+                <div class="hotel-results-dates">${checkIn} to ${checkOut}${dealsCount ? ' &middot; <span style="color:#4ade80;">' + dealsCount + ' with savings</span>' : ''}</div>
             </div>
-            <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <span style="color: #666; font-size: 12px;">Amadeus</span>
-                <button class="btn" onclick="selectHotel('${hotel.offer_id}', '${hotel.hotel_id}', this)">
-                    Book This Hotel
-                </button>
+            <div class="hotel-controls">
+                <select class="hotel-sort-select" id="hotel-sort" onchange="sortAndRender()">
+                    <option value="price-asc">Price: Low to High</option>
+                    <option value="price-desc">Price: High to Low</option>
+                    <option value="savings">Best Savings</option>
+                </select>
+                <label class="hotel-filter-chip" id="filter-cancel" onclick="this.classList.toggle('active'); sortAndRender();">
+                    <input type="checkbox"> &#10003; Free Cancellation
+                </label>
             </div>
         </div>
-    `).join('');
+    `;
+    renderCards(allHotels);
+}
+
+function sortAndRender() {
+    let filtered = [...allHotels];
+    if (document.getElementById('filter-cancel')?.classList.contains('active')) {
+        filtered = filtered.filter(h => h.cancellation_description && h.cancellation_description.toLowerCase().includes('free'));
+    }
+    const sort = document.getElementById('hotel-sort')?.value || 'price-asc';
+    if (sort === 'price-asc') filtered.sort((a,b) => a.price_per_night - b.price_per_night);
+    else if (sort === 'price-desc') filtered.sort((a,b) => b.price_per_night - a.price_per_night);
+    else if (sort === 'savings') filtered.sort((a,b) => (b.user_savings || 0) - (a.user_savings || 0));
+    renderCards(filtered);
+}
+
+function renderCards(hotels) {
+    const list = document.getElementById('hotel-results-list');
+    if (!hotels.length) {
+        list.innerHTML = '<div style="text-align:center; padding:40px; color:#999;">No hotels match your filters</div>';
+        return;
+    }
+    list.innerHTML = hotels.map(h => {
+        const hasDeal = h.user_savings > 0;
+        const nights = h.nights || 1;
+        let tags = '';
+        if (h.cancellation_description && h.cancellation_description.toLowerCase().includes('free')) {
+            tags += '<span class="hotel-tag hotel-tag-cancel">Free Cancellation</span>';
+        } else if (h.cancellation_description === 'Non-refundable') {
+            tags += '<span class="hotel-tag">Non-refundable</span>';
+        }
+        if (h.room_description && h.room_description.toLowerCase().includes('breakfast')) {
+            tags += '<span class="hotel-tag hotel-tag-board">Breakfast Included</span>';
+        }
+        tags += '<span class="hotel-tag">' + nights + ' night' + (nights > 1 ? 's' : '') + '</span>';
+
+        let retailHtml = '';
+        if (hasDeal && h.google_price) {
+            const gpn = (h.google_price / nights).toFixed(0);
+            retailHtml = `
+                <div class="hotel-card-retail">
+                    <span class="hotel-card-price-strike">$${gpn}/nt</span>
+                    <span class="hotel-card-savings">Save $${h.user_savings.toFixed(0)} (${h.savings_pct}%)</span>
+                </div>`;
+        }
+
+        return `
+        <div class="hotel-card${hasDeal ? ' hotel-card-deal' : ''}">
+            ${hasDeal ? '<div class="hotel-card-badge">SAVE ' + h.savings_pct + '%</div>' : ''}
+            <div class="hotel-card-inner">
+                <div class="hotel-card-image"><span class="hotel-card-image-icon">&#127960;</span></div>
+                <div class="hotel-card-details">
+                    <div>
+                        <h3 class="hotel-card-name">${h.hotel_name}</h3>
+                        <div class="hotel-card-room">${h.room_type || 'Standard Room'}${h.bed_type && h.bed_type !== h.room_type ? ' &middot; ' + h.bed_type : ''}</div>
+                        <div class="hotel-card-tags">${tags}</div>
+                    </div>
+                    <div class="hotel-card-bottom">
+                        <div class="hotel-card-pricing">
+                            <span class="hotel-card-price-label">MYSTES Price</span>
+                            <div><span class="hotel-card-price-value">$${h.price_per_night.toFixed(0)}</span><span class="hotel-card-price-unit">/night</span></div>
+                            <span class="hotel-card-price-total">$${h.price_total.toFixed(0)} total</span>
+                        </div>
+                        ${retailHtml}
+                    </div>
+                </div>
+            </div>
+            <button class="hotel-card-cta${hasDeal ? ' hotel-card-cta-deal' : ''}" onclick="selectHotel('${h.offer_id}', '${h.hotel_id}', this)">
+                ${hasDeal ? 'Book &amp; Save $' + h.user_savings.toFixed(0) : 'Book This Hotel'}
+            </button>
+        </div>`;
+    }).join('');
 }
 
 async function selectHotel(offerId, hotelId, btn) {
     btn.disabled = true;
-    btn.textContent = 'Creating deal...';
-
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<span class="hotel-search-spinner"></span>Creating deal...';
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const resp = await fetch('/api/hotels/select', {
@@ -245,12 +669,12 @@ async function selectHotel(offerId, hotelId, btn) {
         } else {
             alert('Error: ' + (data.error || 'Failed to create hotel deal'));
             btn.disabled = false;
-            btn.textContent = 'Book This Hotel';
+            btn.innerHTML = orig;
         }
     } catch (err) {
         alert('Error: ' + err.message);
         btn.disabled = false;
-        btn.textContent = 'Book This Hotel';
+        btn.innerHTML = orig;
     }
 }
 </script>
@@ -308,18 +732,16 @@ HOTEL_BOOK_CONTENT = """
             </div>
         </div>
 
-        <div class="order-row">
-            <span>Hotel ({{ deal.nights }} night{{ 's' if deal.nights != 1 else '' }})</span>
-            <span>${{ "%.2f"|format(deal.price_total_usd or 0) }}</span>
-        </div>
-        <div class="order-row">
-            <span>Service Fee</span>
-            <span>${{ "%.2f"|format(deal.platform_fee_usd or 0) }}</span>
-        </div>
         <div class="order-row total">
-            <span>Total Due</span>
+            <span>MYSTES Price</span>
             <span>${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}</span>
         </div>
+        {% if deal.user_savings_usd and deal.user_savings_usd > 0 %}
+        <div class="order-row" style="color: #4caf50;">
+            <span>You save vs retail</span>
+            <span>${{ "%.0f"|format(deal.user_savings_usd or 0) }}</span>
+        </div>
+        {% endif %}
         {% if deal.cancellation_policy %}
         <div style="margin-top: 10px; font-size: 13px; color: #4caf50;">
             Cancellation: {{ deal.cancellation_policy }}
@@ -430,77 +852,7 @@ HOTEL_BOOK_CONTENT = """
             </div>
         </div>
 
-        {% if feature_xrp_payments %}
-        <!-- XRP Direct (Phase 2) -->
-        <div class="payment-method-card" onclick="selectPayment('xrp')" id="method-xrp">
-            <div class="method-header">
-                <span class="method-icon">&#9889;</span>
-                <div>
-                    <div class="method-title">XRP (Direct)</div>
-                    <div class="method-subtitle">Pay directly on XRPL</div>
-                </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
-                    {{ "%.4f"|format(payment_options.methods.xrp.amount_xrp or 0) }} XRP
-                </div>
-            </div>
-            <div class="payment-details-panel" id="details-xrp">
-                <p><strong>Send exactly:</strong></p>
-                <div class="crypto-address-box">{{ "%.6f"|format(payment_options.methods.xrp.amount_xrp or 0) }} XRP</div>
-                <p><strong>To address:</strong></p>
-                <div class="crypto-address-box" id="xrp-address">{{ payment_options.methods.xrp.destination or platform_wallet }}</div>
-                <button class="copy-btn" onclick="copyToClipboard('xrp-address', event)">Copy Address</button>
-                <p style="margin-top: 15px;"><strong>Destination Tag:</strong></p>
-                <div class="crypto-address-box" style="background: #f0fdfa; border-color: #14b8a6;" id="xrp-tag">{{ payment_options.methods.xrp.destination_tag or deal.destination_tag }}</div>
-                <button class="copy-btn" onclick="copyToClipboard('xrp-tag', event)">Copy Tag</button>
-                <div style="background: #f8d7da; color: #721c24; padding: 12px; border-radius: 8px; margin-top: 15px;">
-                    <strong>Warning:</strong> You MUST include the destination tag.
-                </div>
-                <p style="margin-top: 15px; color: #666;">Network: {{ network }}</p>
-                <form method="POST" style="margin-top: 15px;" onsubmit="return validateGuestEmail()">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="payment_method" value="xrp">
-                    <input type="hidden" name="guest_email" id="xrp_guest_email" value="">
-                    <button type="submit" class="btn" style="width: 100%;" onclick="document.getElementById('xrp_guest_email').value = getGuestEmail();">
-                        I've Sent the Payment - Verify Now
-                    </button>
-                </form>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if feature_rlusd_payments %}
-        <!-- RLUSD Stablecoin (Phase 2) -->
-        <div class="payment-method-card" onclick="selectPayment('rlusd')" id="method-rlusd">
-            <div class="method-header">
-                <span class="method-icon">&#128181;</span>
-                <div>
-                    <div class="method-title">RLUSD Stablecoin</div>
-                    <div class="method-subtitle">Ripple's USD stablecoin on XRPL</div>
-                </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
-                    ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} RLUSD
-                </div>
-            </div>
-            <div class="payment-details-panel" id="details-rlusd">
-                <p><strong>Send exactly:</strong></p>
-                <div class="crypto-address-box">{{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} RLUSD</div>
-                <p><strong>To address:</strong></p>
-                <div class="crypto-address-box" id="rlusd-address">{{ payment_options.methods.rlusd.destination or platform_wallet }}</div>
-                <button class="copy-btn" onclick="copyToClipboard('rlusd-address', event)">Copy Address</button>
-                <p style="margin-top: 15px;"><strong>Destination Tag:</strong></p>
-                <div class="crypto-address-box" style="background: #f0fdfa;" id="rlusd-tag">{{ payment_options.methods.rlusd.destination_tag or deal.destination_tag }}</div>
-                <button class="copy-btn" onclick="copyToClipboard('rlusd-tag', event)">Copy Tag</button>
-                <form method="POST" style="margin-top: 15px;" onsubmit="return validateGuestEmail()">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="payment_method" value="rlusd">
-                    <input type="hidden" name="guest_email" id="rlusd_guest_email" value="">
-                    <button type="submit" class="btn" style="width: 100%;" onclick="document.getElementById('rlusd_guest_email').value = getGuestEmail();">
-                        I've Sent RLUSD - Verify Now
-                    </button>
-                </form>
-            </div>
-        </div>
-        {% endif %}
+        <!-- XRP/RLUSD payment options removed (Build #173 — Stripe + MoonPay only) -->
 
         <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
             All payments are secure and encrypted<br>
@@ -559,20 +911,12 @@ async function payWithCard(event) {
         else { overlay.classList.remove('active'); alert('Error: ' + (data.error || 'Failed to create payment session')); }
     } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
 }
-
-// Coinbase crypto payments removed — Stripe + MoonPay only
 </script>
 """
 
 
 def register_hotel_routes(app, csrf, limiter):
-    """Register all Phase 2 hotel routes on the Flask app.
-
-    Requires:
-      - is_feature_enabled() to be defined on app or imported
-      - BASE_TEMPLATE to be available (import from server)
-    """
-    # Import here to avoid circular imports at module level
+    """Register all hotel routes on the Flask app."""
     from server import BASE_TEMPLATE, is_feature_enabled
 
     @app.route("/hotels")
@@ -625,7 +969,6 @@ def register_hotel_routes(app, csrf, limiter):
                 user=current_user,
             )
 
-            # Track hotel search metric
             try:
                 from monitoring import track_search
                 track_search(origin=city_code, destination=city_code, market="hotel")
@@ -655,6 +998,10 @@ def register_hotel_routes(app, csrf, limiter):
                     "cancellation_description": h.get("cancellation_description"),
                     "adults": h.get("adults"),
                     "rooms": h.get("rooms"),
+                    # Savings data for premium cards
+                    "google_price": h.get("google_price"),
+                    "user_savings": h.get("user_savings", 0),
+                    "savings_pct": h.get("savings_pct", 0),
                 })
 
             # Cache full results in session for hotel selection
@@ -700,10 +1047,19 @@ def register_hotel_routes(app, csrf, limiter):
             deal_id = _secrets.token_hex(8)
             destination_tag = abs(hash(deal_id)) % 2147483647
 
-            HOTEL_PLATFORM_FEE = 15.00
-            total_price = float(hotel_data.get("price_total", 0))
+            # Use real pricing from search results (calculated in liteapi_client.py)
             nights = hotel_data.get("nights", 1)
+            our_cost = float(hotel_data.get("our_cost", hotel_data.get("price_base", 0)))
+            platform_fee = float(hotel_data.get("platform_fee", 0))
+            mystes_price = float(hotel_data.get("price_total", 0))
             price_per_night = float(hotel_data.get("price_per_night", 0))
+            google_price = float(hotel_data.get("google_price", 0)) if hotel_data.get("google_price") else None
+            user_savings = float(hotel_data.get("user_savings", 0))
+            savings_pct = float(hotel_data.get("savings_pct", 0))
+
+            if platform_fee <= 0 and our_cost <= 0:
+                our_cost = mystes_price
+                platform_fee = 3.00
 
             deal = Deal(
                 deal_id=deal_id,
@@ -721,14 +1077,14 @@ def register_hotel_routes(app, csrf, limiter):
                 bed_type=hotel_data.get("bed_type"),
                 room_description=hotel_data.get("room_description"),
                 price_per_night_usd=price_per_night,
-                price_total_usd=total_price,
+                price_total_usd=our_cost,
                 cancellation_policy=hotel_data.get("cancellation_description"),
-                home_price_usd=total_price,
-                arbitrage_price_usd=total_price,
-                platform_fee_usd=HOTEL_PLATFORM_FEE,
-                user_savings_usd=0,
-                gross_savings_usd=0,
-                savings_percent=0,
+                home_price_usd=google_price or mystes_price,
+                arbitrage_price_usd=our_cost,
+                platform_fee_usd=platform_fee,
+                user_savings_usd=user_savings,
+                gross_savings_usd=round((google_price - our_cost), 2) if google_price else 0,
+                savings_percent=savings_pct,
                 destination_tag=destination_tag,
                 amadeus_offer_data=json.dumps(hotel_data.get("raw_offer")) if hotel_data.get("raw_offer") else None,
                 is_active=True,
@@ -743,7 +1099,7 @@ def register_hotel_routes(app, csrf, limiter):
                 "success": True,
                 "deal_id": deal_id,
                 "hotel_name": deal.hotel_name,
-                "total_price": total_price + HOTEL_PLATFORM_FEE,
+                "total_price": round(our_cost + platform_fee, 2),
                 "redirect_url": f"/save-deal/{deal_id}",
             })
 

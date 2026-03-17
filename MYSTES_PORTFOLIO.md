@@ -297,7 +297,7 @@ CURRENCY_RATES_TO_USD = {
 PLATFORM_FEE_CONFIG = {
     "savings_cut_pct": 25.0,  # Platform takes 25% of savings
     "min_fee_usd": 3.00,      # Minimum fee
-    "max_fee_usd": 50.00,     # Maximum fee cap
+    # No maximum fee cap
 }
 
 def calculate_deal(us_price, cheapest_price, cheapest_market):
@@ -809,7 +809,7 @@ DISPLAY_CURRENCY = "USD"  # Options: "USD", "JPY", "EUR", "GBP", etc.
 PLATFORM_FEE_CONFIG = {
     "savings_cut_pct": 25.0,         # Platform takes 25% of the user's savings
     "min_fee_usd": 3.00,             # Minimum fee charged
-    "max_fee_usd": 50.00,            # Cap on fees
+    # No maximum fee cap
 }
 
 # Minimum savings to show a deal (after platform fee)
@@ -1240,7 +1240,7 @@ def calculate_deal(home_price, arbitrage_price, airline, cheapest_market,
     # Platform fee: percentage of savings, with min/max caps
     platform_fee = gross_savings * (PLATFORM_FEE_CONFIG["savings_cut_pct"] / 100)
     platform_fee = max(platform_fee, PLATFORM_FEE_CONFIG["min_fee_usd"])
-    platform_fee = min(platform_fee, PLATFORM_FEE_CONFIG["max_fee_usd"])
+    # No maximum fee cap — platform keeps full percentage of savings
 
     # User's net savings after our fee
     user_savings = gross_savings - platform_fee

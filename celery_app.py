@@ -5,9 +5,9 @@ Distributed task queue for background processing:
 - Payment verification polling
 - Deal expiration cleanup
 - Price alert notifications
-- P2P escrow monitoring
-- P2P helper matching
 - Session/token cleanup
+- Airline intelligence reports
+- Strategy learning aggregation
 
 Usage:
     # Start worker
@@ -53,8 +53,6 @@ celery.conf.update(
     task_default_queue="mystes",
     task_routes={
         "celery_app.verify_payments": {"queue": "payments"},
-        "celery_app.monitor_p2p_escrows": {"queue": "payments"},
-        "celery_app.match_pending_p2p": {"queue": "p2p"},
         "celery_app.expire_deals": {"queue": "maintenance"},
         "celery_app.check_price_alerts": {"queue": "maintenance"},
         "celery_app.cleanup_sessions": {"queue": "maintenance"},
@@ -63,13 +61,6 @@ celery.conf.update(
         "celery_app.generate_daily_airline_reports": {"queue": "maintenance"},
         "celery_app.generate_airline_pricing_report": {"queue": "maintenance"},
         "celery_app.snapshot_ancillary_data": {"queue": "maintenance"},
-        "celery_app.record_node_heartbeats": {"queue": "p2p"},
-        "celery_app.calculate_citizenserp_payouts": {"queue": "payments"},
-        "celery_app.distribute_citizenserp_payouts": {"queue": "payments"},
-        "celery_app.cleanup_stale_nodes": {"queue": "maintenance"},
-        "celery_app.auto_resolve_stale_disputes": {"queue": "maintenance"},
-        "celery_app.detect_feedback_patterns": {"queue": "maintenance"},
-        "celery_app.check_feedback_triggered_alerts": {"queue": "maintenance"},
     },
     beat_schedule={
         "verify-payments-30s": {
@@ -83,14 +74,6 @@ celery.conf.update(
         "check-price-alerts-15m": {
             "task": "celery_app.check_price_alerts",
             "schedule": 900.0,
-        },
-        "monitor-p2p-escrows-60s": {
-            "task": "celery_app.monitor_p2p_escrows",
-            "schedule": 60.0,
-        },
-        "match-pending-p2p-30s": {
-            "task": "celery_app.match_pending_p2p",
-            "schedule": 30.0,
         },
         "cleanup-sessions-hourly": {
             "task": "celery_app.cleanup_sessions",
@@ -116,52 +99,10 @@ celery.conf.update(
             "task": "celery_app.calculate_competitor_pricing",
             "schedule": crontab(hour=4, minute=0),  # 4 AM UTC daily
         },
-        "record-node-heartbeats-5m": {
-            "task": "celery_app.record_node_heartbeats",
-            "schedule": 300.0,  # 5 minutes
-        },
-        "calculate-citizenserp-payouts-midnight": {
-            "task": "celery_app.calculate_citizenserp_payouts",
-            "schedule": crontab(hour=0, minute=0),  # Midnight UTC
-        },
-        "distribute-citizenserp-payouts-1am": {
-            "task": "celery_app.distribute_citizenserp_payouts",
-            "schedule": crontab(hour=1, minute=0),  # 1 AM UTC
-        },
-        "cleanup-stale-nodes-10m": {
-            "task": "celery_app.cleanup_stale_nodes",
-            "schedule": 600.0,  # 10 minutes
-        },
-        "auto-resolve-disputes-30m": {
-            "task": "celery_app.auto_resolve_stale_disputes",
-            "schedule": 1800.0,  # 30 minutes
-        },
-        "detect-feedback-patterns-6h": {
-            "task": "celery_app.detect_feedback_patterns",
-            "schedule": 21600.0,  # 6 hours
-        },
-        "check-triggered-alerts-10m": {
-            "task": "celery_app.check_feedback_triggered_alerts",
-            "schedule": 600.0,  # 10 minutes
-        },
-        "harvest-cycle-10m": {
-            "task": "celery_app.run_harvest_cycle",
-            "schedule": 600.0,  # 10 minutes
-        },
         # Build #80 — Strategy aggregation
         "aggregate-strategy-insights-6h": {
             "task": "celery_app.aggregate_strategy_insights",
             "schedule": 21600.0,  # 6 hours
-        },
-        # Build #107 — Data quality score recalculation
-        "recalculate-data-quality-6h": {
-            "task": "celery_app.recalculate_data_quality_scores",
-            "schedule": 21600.0,  # 6 hours
-        },
-        # Build #107 — CitizenSERP stale task cleanup
-        "cleanup-citizenserp-tasks-15m": {
-            "task": "celery_app.cleanup_citizenserp_tasks",
-            "schedule": 900.0,  # 15 minutes
         },
     },
 )
@@ -359,116 +300,6 @@ def check_price_alerts():
 
 
 # ============================================================
-# P2P Tasks
-# ============================================================
-
-@celery.task
-def monitor_p2p_escrows():
-    """Monitor on-chain escrow status for active P2P transactions."""
-    app = _get_flask_app()
-    with app.app_context():
-        from models import db, P2PTransaction, P2PEscrow
-
-        active_statuses = ["escrow_locked", "helper_accepted", "purchasing"]
-        active_txs = P2PTransaction.query.filter(
-            P2PTransaction.status.in_(active_statuses)
-        ).all()
-
-        checked = 0
-        for tx in active_txs:
-            try:
-                escrow = P2PEscrow.query.filter_by(p2p_transaction_id=tx.id).first()
-                if not escrow or not escrow.create_tx_hash:
-                    continue
-
-                # Check for timeout (24h from escrow creation)
-                if escrow.cancel_after and datetime.utcnow() > escrow.cancel_after:
-                    tx.status = "failed"
-                    tx.failure_reason = "Escrow timed out"
-                    tx.cancelled_at = datetime.utcnow()
-                    escrow.status = "expired"
-                    escrow.cancelled_at = datetime.utcnow()
-                    db.session.commit()
-                    logger.warning(f"P2P escrow timed out: {tx.transaction_id}")
-
-                    emit_event.delay(
-                        f"user:{tx.buyer_id}", "p2p_timeout",
-                        {"transaction_id": tx.transaction_id},
-                    )
-                    continue
-
-                checked += 1
-            except Exception as e:
-                logger.error(f"Escrow monitor error for {tx.transaction_id}: {e}")
-
-        return {"checked": checked}
-
-
-@celery.task
-def match_pending_p2p():
-    """Auto-match pending P2P requests with available helpers using smart scoring."""
-    app = _get_flask_app()
-    with app.app_context():
-        from models import db, P2PTransaction
-        from helper_matching import match_helper
-
-        pending = P2PTransaction.query.filter_by(status="requested").filter(
-            P2PTransaction.created_at > datetime.utcnow() - timedelta(hours=2)
-        ).all()
-
-        matched = 0
-        for tx in pending:
-            try:
-                result = match_helper(
-                    target_market=tx.target_market,
-                    transaction_amount_usd=tx.us_price_usd,
-                )
-                if result:
-                    tx.helper_id = result["helper_id"]
-                    tx.status = "matched"
-                    tx.matched_at = datetime.utcnow()
-                    db.session.commit()
-                    matched += 1
-                    logger.info(
-                        f"P2P matched: {tx.transaction_id} → helper {result['helper_id']} "
-                        f"(score={result['score']})"
-                    )
-
-                    emit_event.delay(
-                        f"user:{tx.buyer_id}", "p2p_matched",
-                        {
-                            "transaction_id": tx.transaction_id,
-                            "helper_market": tx.target_market,
-                            "match_score": result["score"],
-                        },
-                    )
-            except Exception as e:
-                logger.error(f"P2P match error for {tx.transaction_id}: {e}")
-
-        return {"matched": matched}
-
-
-# ============================================================
-# One-off P2P Tasks (triggered by API)
-# ============================================================
-
-@celery.task
-def process_p2p_booking(transaction_id):
-    """Process a single P2P booking through the full workflow."""
-    app = _get_flask_app()
-    with app.app_context():
-        from p2p_orchestrator import P2POrchestrator
-
-        orchestrator = P2POrchestrator()
-        try:
-            result = orchestrator.run_full_workflow(transaction_id)
-            return {"transaction_id": transaction_id, "result": str(result)}
-        except Exception as e:
-            logger.error(f"P2P booking failed: {transaction_id}: {e}")
-            return {"transaction_id": transaction_id, "error": str(e)}
-
-
-# ============================================================
 # Maintenance Tasks
 # ============================================================
 
@@ -505,57 +336,6 @@ def recalculate_commercial_tiers():
         return result
 
 
-# ============================================================
-# Data Quality Feedback — Periodic Node Score Recalculation (Build #107)
-# ============================================================
-
-@celery.task
-def recalculate_data_quality_scores():
-    """Recalculate quality adjustments for all nodes with recent feedback."""
-    app = _get_flask_app()
-    with app.app_context():
-        try:
-            from data_quality_feedback import quality_feedback_engine
-            from models import DataQualityFeedback
-            from datetime import datetime, timedelta
-
-            cutoff = datetime.utcnow() - timedelta(days=30)
-            node_ids = set(
-                row[0] for row in
-                DataQualityFeedback.query
-                .filter(DataQualityFeedback.created_at >= cutoff, DataQualityFeedback.node_id.isnot(None))
-                .with_entities(DataQualityFeedback.node_id)
-                .distinct()
-                .all()
-            )
-            if node_ids:
-                updated = quality_feedback_engine._recalculate_node_adjustments(node_ids)
-                logger.info(f"Data quality recalculation: {updated} nodes updated out of {len(node_ids)} with feedback")
-                return {"nodes_checked": len(node_ids), "nodes_updated": updated}
-            return {"nodes_checked": 0, "nodes_updated": 0}
-        except Exception as exc:
-            logger.warning(f"Data quality recalculation failed: {exc}")
-            return {"error": str(exc)}
-
-
-# ============================================================
-# CitizenSERP Stale Task Cleanup (Build #107)
-# ============================================================
-
-@celery.task
-def cleanup_citizenserp_tasks():
-    """Clean up stale CitizenSERP tasks that exceeded their timeout."""
-    try:
-        from citizenserp_tasks import task_dispatcher
-        task_dispatcher.cleanup_stale(max_age_minutes=30)
-        stats = task_dispatcher.get_stats()
-        logger.info(f"CitizenSERP task cleanup: {stats.get('active_tasks', 0)} active tasks remaining")
-        return stats
-    except ImportError:
-        return {"skipped": "citizenserp_tasks not available"}
-    except Exception as exc:
-        logger.warning(f"CitizenSERP task cleanup failed: {exc}")
-        return {"error": str(exc)}
 
 
 # ============================================================
@@ -835,191 +615,6 @@ def calculate_competitor_pricing():
         return {"snapshot_date": snapshot_date.isoformat(), "records_created": records_created}
 
 
-# ============================================================
-# CitizenSERP Payout Tasks
-# ============================================================
-
-@celery.task
-def record_node_heartbeats():
-    """Verify active nodes, close stale sessions, submit on-chain attestations (every 5 min)."""
-    app = _get_flask_app()
-    with app.app_context():
-        from citizenserp_payouts import citizenserp_manager
-        from models import HelperProfile
-
-        # Get currently online helpers
-        online_helpers = HelperProfile.query.filter_by(
-            is_online=True, is_active=True, is_approved=True
-        ).all()
-        active_user_ids = [h.user_id for h in online_helpers]
-
-        # Refresh heartbeats and close stale sessions
-        citizenserp_manager.refresh_heartbeats(active_user_ids)
-        stale_count = citizenserp_manager.close_stale_sessions()
-
-        # Batch on-chain attestation
-        attested = 0
-        batch_size = citizenserp_manager.config["attestation_batch_size"]
-        if active_user_ids:
-            for i in range(0, len(active_user_ids), batch_size):
-                batch = active_user_ids[i:i + batch_size]
-                try:
-                    citizenserp_manager.submit_uptime_attestation(batch)
-                    attested += len(batch)
-                except Exception as e:
-                    logger.error(f"Attestation batch failed: {e}")
-
-        return {"online": len(active_user_ids), "stale_closed": stale_count, "attested": attested}
-
-
-@celery.task
-def calculate_citizenserp_payouts():
-    """Calculate previous day's CitizenSERP payout distribution (midnight UTC daily)."""
-    app = _get_flask_app()
-    with app.app_context():
-        from citizenserp_payouts import citizenserp_manager
-        result = citizenserp_manager.calculate_epoch_payouts()
-        logger.info(f"CitizenSERP epoch calculated: {result}")
-        return result
-
-
-@celery.task(bind=True, max_retries=3)
-def distribute_citizenserp_payouts(self):
-    """Execute XRPL RLUSD payments to all eligible nodes (1 AM UTC daily)."""
-    app = _get_flask_app()
-    with app.app_context():
-        from citizenserp_payouts import citizenserp_manager
-        from models import NodePayoutEpoch
-
-        # Find latest calculated epoch
-        epoch = NodePayoutEpoch.query.filter_by(
-            status='calculated'
-        ).order_by(NodePayoutEpoch.created_at.desc()).first()
-
-        if not epoch:
-            return {"status": "no_epoch_to_distribute"}
-
-        try:
-            result = citizenserp_manager.distribute_payouts(epoch.epoch_id)
-            logger.info(f"CitizenSERP distribution: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"CitizenSERP distribution failed: {e}")
-            raise self.retry(exc=e, countdown=300)
-
-
-# ============================================================
-# Node Registry Tasks
-# ============================================================
-
-@celery.task
-def cleanup_stale_nodes():
-    """Mark stale nodes as offline and emit SSE events (every 10 min)."""
-    app = _get_flask_app()
-    with app.app_context():
-        try:
-            from node_registry import node_registry
-            cleaned = node_registry.cleanup_stale_nodes()
-            if cleaned:
-                logger.info(f"Cleaned {len(cleaned)} stale nodes: {cleaned}")
-            return {"stale_cleaned": len(cleaned), "node_ids": cleaned}
-        except Exception as e:
-            logger.error(f"Stale node cleanup failed: {e}")
-            return {"error": str(e)}
-
-
-# ============================================================
-# Dispute Arbitration Tasks
-# ============================================================
-
-@celery.task
-def auto_resolve_stale_disputes():
-    """Auto-evaluate and resolve stale disputes (every 30 min)."""
-    app = _get_flask_app()
-    with app.app_context():
-        try:
-            from dispute_resolution import dispute_manager
-            results = dispute_manager.check_auto_resolvable()
-            resolved = [r for r in results if r.get("auto")]
-            escalated = [r for r in results if r.get("status") == "escalated_to_admin"]
-            logger.info(
-                f"Auto-dispute: {len(results)} evaluated, "
-                f"{len(resolved)} resolved, {len(escalated)} escalated"
-            )
-            return {
-                "evaluated": len(results),
-                "auto_resolved": len(resolved),
-                "escalated": len(escalated),
-            }
-        except Exception as e:
-            logger.error(f"Auto-dispute resolution failed: {e}")
-            return {"error": str(e)}
-
-
-# ============================================================
-# Intelligence Feedback Tasks
-# ============================================================
-
-@celery.task
-def detect_feedback_patterns():
-    """Run pattern detection on accumulated price data (every 6 hours)."""
-    app = _get_flask_app()
-    with app.app_context():
-        try:
-            from intelligence_feedback import feedback_engine
-            patterns = feedback_engine.detect_patterns(hours_back=6)
-            logger.info(
-                f"Feedback patterns: {len(patterns.get('anomalies', []))} anomalies, "
-                f"{len(patterns.get('opportunities', []))} opportunities"
-            )
-            return patterns
-        except Exception as e:
-            logger.error(f"Feedback pattern detection failed: {e}")
-            return {"error": str(e)}
-
-
-@celery.task
-def check_feedback_triggered_alerts():
-    """Check if recent prices trigger any user price alerts (every 10 min)."""
-    app = _get_flask_app()
-    with app.app_context():
-        try:
-            from intelligence_feedback import feedback_engine
-            triggered = feedback_engine.check_triggered_alerts()
-            if triggered:
-                logger.info(f"Triggered {len(triggered)} price alerts")
-            return {"triggered": len(triggered)}
-        except Exception as e:
-            logger.error(f"Alert check failed: {e}")
-            return {"error": str(e)}
-
-
-# ============================================================
-# Harvest Scheduler Tasks (Build #79)
-# ============================================================
-
-@celery.task(name="celery_app.run_harvest_cycle")
-def run_harvest_cycle():
-    """Autonomous data harvesting — identify gaps and dispatch tasks (every 10 min)."""
-    app = _get_flask_app()
-    with app.app_context():
-        try:
-            from harvest_scheduler import harvest_scheduler
-            result = harvest_scheduler.run_harvest_cycle()
-            if result.tasks_dispatched > 0:
-                logger.info(
-                    f"Harvest cycle: {result.tasks_dispatched} dispatched, "
-                    f"{result.gaps_identified} gaps"
-                )
-            return {
-                "cycle_id": result.cycle_id,
-                "dispatched": result.tasks_dispatched,
-                "gaps": result.gaps_identified,
-                "standing_orders": result.standing_orders_processed,
-            }
-        except Exception as e:
-            logger.error(f"Harvest cycle error: {e}")
-            return {"error": str(e)}
 
 
 # ============================================================

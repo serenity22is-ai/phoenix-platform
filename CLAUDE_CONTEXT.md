@@ -4,7 +4,189 @@
 **UPDATE: After every user prompt, capture key points and user intent below.**
 **ARCHIVE: Before any context compaction, write a compressed archive to `session_archives/`.**
 
-Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test Fix)
+Last updated: 2026-03-17 (Build #180 — ANASTASiA Integration Architecture Decision)
+
+---
+
+## BUILD #180 — SESSION LOG (2026-03-17) — ANASTASIA INTEGRATION ARCHITECTURE
+
+### Status: DISCUSSION ONLY — interrupted by API 500/529 errors
+
+### Decision: Wire MYSTES Through ANASTASiA (NOT parallel routes)
+- User audited what ANASTASiA already has vs MYSTES consumer
+- ANASTASiA already has: SearchDispatcher, BookingDispatcher, BundleBuilder, FlightsNeuron, HotelsNeuron, PassengerTransformer, 91+ API endpoints
+- Build #174's approach of building parallel routes was WRONG direction
+- New verticals (Cars, Activities, Insurance) should be ANASTASiA Neurons, not standalone MYSTES routes
+- MYSTES search/booking should call ANASTASiA SDK, not duplicate it
+
+### Consumer Social Features (MYSTES-only, need routes)
+- Trip Planner (6 tables exist, 0 routes)
+- Collections/Wishlist (2 tables exist, 0 routes)
+- Friends (1 table exists, 0 routes)
+
+### Critical Bug: raw_offer passthrough
+- Flight cards don't carry fare_id/offer_id into Deal records
+- Automated booking broken — no reference to pass to BookingDispatcher
+- Must fix before booking pipeline works end-to-end
+
+### Next Steps
+1. Fix raw_offer passthrough bug
+2. Wire MYSTES search → ANASTASiA SearchOrchestrator (partially done Build #176)
+3. Wire MYSTES booking → ANASTASiA BookingDispatcher
+4. Build Trip Planner/Collections/Friends UI routes
+5. Create CarsNeuron, ActivitiesNeuron, InsuranceNeuron
+
+### Reference: `.context/build180_status.md`
+
+---
+
+## BUILD #171 — SESSION LOG (2026-03-12) — GOOGLE ONE TAP + CROSS-SELL + POLISH
+
+### Google One Tap + Post-Booking Signup
+- GSI library loaded conditionally in base_template.py
+- One Tap auto-prompt on every page for logged-out users
+- Google Sign-In buttons on login + register pages
+- Guest signup card on booking confirmation (shows escrowed points, Google button + email signup)
+- Removed XRP wallet field from registration
+
+### Cross-Sell on Booking Confirmation
+- Flight bookings: "Find Hotels" + "Return Flight" cards
+- Hotel bookings: "Search Flights" card
+- Footer adapts for guest vs authenticated
+
+### Multi-Passenger Support
+- "Add Another Passenger" button (max 9), dynamic JS form, serialized as JSON
+- Parsed in /complete-booking handler
+
+### Review & Pay Modal
+- Order summary modal before Stripe redirect (fare, fee, savings, total)
+- "Confirm & Pay" button → then Stripe Checkout
+
+### Tests: 73 passed, 0 failed, 0 errors
+### Reference: `.context/build171_status.md`
+
+---
+
+## BUILD #170 — SESSION LOG (2026-03-12) — CONSUMER LAUNCH PIPELINE
+
+### Features Built (11 of 17)
+- **P1-#4**: Free member fee tier (45%) — `get_fee_percent()` updated, `get_fee_tier_name()` added
+- **P1-#5**: Checkout savings waterfall — Travel+ upsell, share-to-save, points redemption in BOOK_CONTENT
+- **P1-#6**: Referral system — ConsumerReferral + SocialShare models, `generate_referral_code()`, 6 routes
+- **P1-#7**: Social share-to-save — 5% discount, X/FB/WhatsApp/Copy buttons
+- **P1-#8**: Points escrow — `_wire_booking_rewards()`, auto-claim on registration
+- **P1-#9**: Points redemption — `/api/checkout/pricing`, `/api/points/redeem`, `/api/points/gift`
+- **P2-#11**: Referral dashboard — `/rewards` route with full template
+- **P2-#12**: Point gifting — gift form + `/api/points/gift` with monthly limits
+- **P2-#13**: Price alerts — `/api/alerts` CRUD, max 10 per user
+- **P2-#16**: Email sequences — 3 templates (escrow, referral, welcome)
+- **P2-#17**: Trust signals — `/price-guarantee` page with security badges + FAQ
+
+### Fee Waterfall (Final)
+Guest 50% → Free Member 45% → Travel+ 35% → B2B 25%/20%/15% | $3 min | NO MAX CAP
+
+### Tests: 65 passed, 0 failed, 0 errors, 0 skipped
+
+### Reference Files
+- `.context/build170_status.md` — Full session archive
+- `.context/build170_checklist.md` — Checklist with completion status
+
+---
+
+## BUILD #166 — SESSION LOG (2026-03-12) — HOTELS UI + FULL STRATEGY
+
+### Hotels Vertical UI (COMPLETE)
+- `routes_hotels.py` — Complete rewrite with premium MYSTES glass morphism design
+- `templates/base_template.py` — "Hotels" nav link added
+- `models.py` — `vertical_hotels` default → True
+- Feature flag enabled in production DB
+- Tests: 72 passed, all 7 hotel-specific passing
+
+### Strategy: Travel+ B2C Subscription (LOCKED)
+- $9.99/mo ($79.99/yr annual), 35% platform fee, unlimited ANASTASiA AI
+- Pay-per-session: $2.99 for free users
+- Kills ChatGPT for travel — we actually book + save money
+
+### Strategy: B2B 3-Tier Pricing (LOCKED)
+- Starter $49/25%, Growth $99/20%, Volume $199/15%
+- B2B MUST beat Travel+ on fee rate
+
+### Strategy: MYSTES Rewards Points (LOCKED)
+- 10 pts/$1 spent, tier multipliers, streak bonuses
+- Cross-vertical currency: redeem for experiences in any vertical
+- Commission waiver model: $0 actual cost for "free" rewards
+
+### Strategy: ANASTASiA Chat Architecture (LOCKED)
+- Two-tier: Knowledge cards (free) + Live Claude (subscribers)
+- Chat bubble on every page, proactive deal engine
+- Seamless handoff from cards to AI when subscriber hits complexity
+
+### Strategy: Customer Intelligence Knowledge Cards (LOCKED)
+- ANASTASiA builds cards on customers AND agencies as natural exhaust
+- B2C: preferences, patterns, price sensitivity, cross-vertical behavior
+- B2B: route specialization, volume patterns, growth trajectory
+- Anonymized aggregates = sellable data products
+- Buyers: airlines, hotels, tourism boards, analysts
+
+### Strategy: Homepage Restructure (AGREED)
+- Flights → /flights (separate page)
+- New homepage: brand launchpad + vertical cards grid
+- ANASTASiA chat bubble on every page
+
+### Reference Files
+- `memory/travel_plus_and_rewards.md` — Full pricing, rewards, data strategy
+- `memory/customer_intelligence.md` — Customer intelligence card architecture
+- `.context/build166_status.md` — Full session archive
+
+---
+
+## BUILD #160 — SESSION LOG (2026-03-11) — PRODUCTION READINESS SPRINT
+
+### Three-Layer Architecture
+- Created `picasso-sdk/clients/` — Layer 1 (API client SDKs as swappable cartridges)
+- 5 client files moved: redbox, redbox_auth, duffel, airgateway, kiwi
+- Backward-compat stubs at old locations — zero breakage
+- Layer 2 (ANASTASiA intelligence) unchanged at `anastasia/`
+- Layer 3 (Flask API) unchanged at `picasso/agent/`
+
+### PostgreSQL Support
+- `db_models.py` NEW — 4 SQLAlchemy models (Agency, UsageRecord, Subscription, AuditEntry)
+- `db_stores.py` NEW — DB-backed stores (DBConfigStore, DBUsageTracker, DBBillingManager)
+- `STORAGE_BACKEND=db` env var toggle — file-based stays default
+- `scripts/migrate_to_db.py` NEW — one-time JSON→DB migration
+- `api.py` updated to use `create_stores()` factory
+
+### Key Architectural Decisions (this session)
+- Knowledge cards = compiled Claude intelligence — 95%+ operations at near-zero AI cost
+- Deduplication funnel: all API clients → ANASTASiA → deduplicate → best price → MYSTES API
+- Anthropic API ONLY for: (1) dev terminal, (2) admin troubleshooting
+- Email system already built (email_service.py, 777 LOC) — config only
+- Stripe live = env var swap — config only
+- Google Flights = 1.55x estimated markup already works — no changes needed
+
+### Tests: 429 SDK + 56 consumer + 6 DB smoke = ALL PASSING
+
+---
+
+## BUILD #159 — SESSION LOG (2026-03-11) — MASTER STRATEGY: THE TRADING POST
+
+### What Was Done This Session
+
+#### Build #158: B2B Account Type on MYSTES Consumer OTA
+- `routes_business.py` NEW (~550 LOC) — 7 routes for /business/* (signup, dashboard, billing, API keys)
+- `models.py` — 5 Stripe subscription columns on CommercialAccount + b2b_accounts feature flag
+- `payments.py` — get_fee_percent() B2B-aware (25% active B2B / 35% member / 50% guest)
+- `config.py` — B2B pricing constants ($49/mo, 25% fee)
+- `server.py` — Stripe webhook extended for subscription lifecycle + route wiring
+- `templates/base_template.py` — "Business" nav link
+- 56 consumer + 429 SDK tests passing
+
+#### Build #159: Master Strategy — The Trading Post (DISCUSSION ONLY)
+- 5-stage vertical integration: OTA → OTA Conversion → Consolidator Disruption → Airline Direct → GDS Acquisition
+- Permissioned domains, zero-credential OTA model, high schooler $49/mo analogy
+- Credential network moat, ANASTASiA as decentralized tool, Robin Hood mission
+- GDS slow bleed via NDS-first, $0.50/segment, distressed acquisition
+- Full archive: `memory/master_strategy_gds_disruption.md`
 
 ---
 
@@ -80,7 +262,7 @@ Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test 
 #### 3. Wholesale Pricing Analysis
 - liteAPI: offerRetailRate (net cost) vs suggestedSellingPrice (Google/retail benchmark)
 - Most hotels: positive margin. Some inverted (need filter).
-- Picasso: multi-market POS fares. US POS = Google benchmark. Cheapest POS = our cost. 25% of savings = our fee.
+- Picasso: multi-market POS fares. US POS = Google benchmark. Cheapest POS = our cost. 35% of savings = subscriber fee, 50% = consumer fee.
 
 #### 4. CRITICAL CONFIRMED FINDING
 - **Domestic US flight arbitrage via European proxies (Denmark, Spain) is REAL AND PROVEN**
@@ -93,7 +275,7 @@ Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test 
 - User is frustrated by Claude forgetting prior session data — memory system updated
 - User has spent ~$1000 on this project and cannot afford wasted time
 - Core need: always beat Google on price (flights AND hotels) to drive app downloads → node network
-- Pricing model: 25% of savings between cheapest POS and Google benchmark
+- Pricing model: 35% of savings (subscribers) / 50% (consumers) between cheapest POS and Google benchmark
 - Waiting on Duffel + Picasso approvals before building flight API clients
 
 ---
@@ -160,7 +342,7 @@ Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test 
 - Navigation: MYSTES AI | Deals | Wallet | More dropdown | Logout
 - Hotels, flights, cruises, products — all queried via conversational AI tools
 - Hotel search: `liteapi_client.py` → single-call POST /hotels/rates (replaced Amadeus two-step)
-- Hotel pricing: margin filter removes inverted margins, 25% of savings fee (min $3, max $50)
+- Hotel pricing: margin filter removes inverted margins, 35% of savings fee for subscribers (min $3, no maximum cap)
 - Deal model: `deal_type` discriminator ('flight' or 'hotel') reuses entire payment/booking infrastructure
 
 ---
@@ -256,8 +438,8 @@ Last updated: 2026-02-12 (Build #103 — Test Suite Fix + Stripe Fix + P2P Test 
 - **Core mission:** Mystes is not choosing a side — it is choosing everyone. A neutral intermediary that strengthens the relationship between consumer and airline through pricing transparency. The airline can no longer bully the consumer. This is the core message to both consumers and airlines.
 - **Mystes is NOT adversarial to airlines.** Geo-pricing is structural — driven by local economies, currency fluctuations, airline scale, and regulatory costs. It cannot be eliminated. Mystes exposes it, and all parties benefit from transparency.
 - **Three-sided market model:**
-  - **Consumers** — pay 25% of realized savings. Get fair pricing across markets.
-  - **Agencies/OTAs** — pay 7-20% of savings (tier-based). Get arbitrage engine via API.
+  - **Consumers** — pay 35-50% of realized savings (35% subscribers, 50% anonymous). Get fair pricing across markets.
+  - **Agencies/OTAs (B2B)** — pay 15-25% of savings (tier-based, floor 15%). Get arbitrage engine via API.
   - **Airlines** — pay $100K-500K/mo SaaS subscription. Get competitive pricing intelligence, ancillary optimization data (bags, seats, meals by geography), route-level market positioning. Separate data-as-a-service product, NOT booking.
 - **Airline Intelligence Product:** Airlines use Mystes data to sharpen their competitive positioning WITHIN geo-pricing, not to close arbitrage gaps. More aggressive airline competition creates MORE arbitrage opportunities, not fewer. Ancillary pricing intelligence (bags, seats, upgrades by market) is uniquely valuable — no one else provides it.
 - **MAD (Mutually Assured Destruction) strategic position:** Mystes earns whether airlines subscribe or don't. Airlines that subscribe get competitive edge via data. Airlines that don't subscribe get exposed by Mystes offering their passengers better pricing through competitors. Either way Mystes earns, and consumers benefit. This hedges revenue across all scenarios.

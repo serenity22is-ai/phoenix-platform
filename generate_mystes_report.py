@@ -314,7 +314,7 @@ def create_executive_summary(styles):
 
     # Revenue model
     elements.append(Paragraph(
-        "Revenue Model: 25% of detected savings | Min $3 | Max $50 per booking",
+        "Revenue Model: 25% of detected savings | Min $3 per booking | No maximum cap",
         styles['Highlight']
     ))
 
@@ -690,9 +690,9 @@ savings = us_price - cheapest_price
 savings_pct = (savings / us_price) * 100
 
 # Apply platform fee model
-if savings >= MIN_SAVINGS_THRESHOLD:
-    user_savings = savings * 0.75   # User gets 75%
-    platform_fee = savings * 0.25   # Platform takes 25%
+if savings > 0:
+    user_savings = savings * 0.65   # User gets 65% (Travel+ subscriber)
+    platform_fee = savings * 0.35   # Platform takes 35%
 """
     elements.append(Preformatted(arb_code, styles['MystesCode']))
 
@@ -750,7 +750,7 @@ def create_business_model(styles):
         ["User Receives", "75%", "$75.00"],
         ["Platform Fee", "25%", "$25.00"],
         ["Minimum Fee", "$3.00", "(applies if 25% < $3)"],
-        ["Maximum Fee", "$50.00", "(caps large savings)"],
+        ["Maximum Fee", "None", "(no cap on platform fee)"],
     ]
 
     fee_table = Table(fee_data, colWidths=[2*inch, 1.5*inch, 2*inch])

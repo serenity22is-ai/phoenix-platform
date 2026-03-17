@@ -220,7 +220,7 @@ class OnboardingManager:
                 - agency_id (required)
                 - branch (required)
                 - cockpit_username, cockpit_password, totp_secret, session_token
-                - plan_id (default: starter)
+                - plan_id (default: pro)
                 - pricing_strategy, markup_percent, markup_flat
                 - stripe_payment_method (pm_... for Stripe)
 
@@ -250,8 +250,8 @@ class OnboardingManager:
         }
 
         # Determine tier from plan
-        plan_id = data.get("plan_id", "starter")
-        tier_map = {"starter": "tier1", "pro": "tier2", "enterprise": "tier3"}
+        plan_id = data.get("plan_id", "pro")
+        tier_map = {"pro": "tier1", "enterprise": "tier2"}
 
         # Create agency config
         agency_cfg = AgencyConfig(
@@ -736,23 +736,17 @@ function renderStep() {
                 <h2>Choose Your Plan</h2>
                 <p class="desc">Select the plan that fits your needs. Upgrade or downgrade anytime.</p>
                 <div class="plan-cards">
-                    <div class="plan-card ${formData.plan_id==='starter'?'selected':''}" onclick="selectPlan('starter')">
-                        <h3>Starter</h3>
-                        <div class="price">$249<span>/mo</span></div>
-                        <div class="limit">2,000 AI requests/mo</div>
-                        <ul><li>AI Chat</li><li>Flight Search</li><li>Config Dashboard</li><li>Fare Rules + Seatmaps</li></ul>
-                    </div>
                     <div class="plan-card ${formData.plan_id==='pro'||!formData.plan_id?'selected':''}" onclick="selectPlan('pro')">
                         <h3>Pro</h3>
                         <div class="price">$599<span>/mo</span></div>
                         <div class="limit">10,000 AI requests/mo</div>
-                        <ul><li>Everything in Starter</li><li>Booking + Ticketing</li><li>Auto-Heal Daemon</li><li>Audit Trail</li><li>Insurance + Extras</li></ul>
+                        <ul><li>Full Managed Service</li><li>Search + Booking + Ticketing</li><li>Update Call System</li><li>Analytics + Webhooks</li><li>White-Label Branding</li></ul>
                     </div>
                     <div class="plan-card ${formData.plan_id==='enterprise'?'selected':''}" onclick="selectPlan('enterprise')">
                         <h3>Enterprise</h3>
                         <div class="price">$1,499<span>/mo</span></div>
                         <div class="limit">50,000 AI requests/mo</div>
-                        <ul><li>Everything in Pro</li><li>Consumer UI Template</li><li>White-Label Branding</li><li>Webhooks</li><li>Priority Support</li></ul>
+                        <ul><li>Everything in Pro</li><li>Credential Network</li><li>Daemon Bridge</li><li>Bulk Provisioning</li><li>Priority Support</li></ul>
                     </div>
                 </div>
             </div>`;

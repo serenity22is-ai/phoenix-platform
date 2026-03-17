@@ -526,37 +526,3 @@ def register_airline_routes(app):
             "reports_generated": client.reports_generated or 0,
         })
 
-    # ------------------------------------------------------------------
-    # CitizenSERP Node Operator Routes (session auth)
-    # ------------------------------------------------------------------
-
-    @app.route("/api/v1/node/stats", methods=["GET"])
-    @login_required
-    def get_node_stats():
-        """Node operator's uptime and earnings dashboard."""
-        if not current_user.is_helper_node:
-            return jsonify({"error": "Not a registered node operator"}), 403
-
-        days = min(int(request.args.get("days", 30)), 365)
-        from citizenserp_payouts import citizenserp_manager
-        result = citizenserp_manager.get_node_uptime(current_user.id, days_back=days)
-        return jsonify(result)
-
-    @app.route("/api/v1/node/payouts", methods=["GET"])
-    @login_required
-    def get_node_payouts():
-        """Node operator's payout history."""
-        if not current_user.is_helper_node:
-            return jsonify({"error": "Not a registered node operator"}), 403
-
-        limit = min(int(request.args.get("limit", 30)), 100)
-        from citizenserp_payouts import citizenserp_manager
-        result = citizenserp_manager.get_payout_history(current_user.id, limit=limit)
-        return jsonify({"payouts": result, "total": len(result)})
-
-    @app.route("/api/v1/network/stats", methods=["GET"])
-    def get_network_stats():
-        """Public network statistics (no auth required)."""
-        from citizenserp_payouts import citizenserp_manager
-        result = citizenserp_manager.get_network_stats()
-        return jsonify(result)

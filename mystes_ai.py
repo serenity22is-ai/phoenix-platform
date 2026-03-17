@@ -17,23 +17,15 @@ Architecture:
              Re-call LLM (loop up to tier max)
         -> Return final text response + tool call metadata
 
-14 Tools Available:
+Core Tools:
     search_flights, search_hotels, search_products, analyze_route,
     get_route_intelligence, get_market_briefing, get_trending,
-    get_price_history, browse_proxy, serp_search, get_node_status,
-    get_earnings, get_deals, discover_opportunities
+    get_price_history, get_deals, discover_opportunities
 
-Economic Model (three-phase):
-    Phase 1 (pre-CitizenSERP): Lean query caps. Revenue = booking fees + query overage sales.
-      Nodes: bronze 5/day, silver 10/day, gold 20/day, platinum 40/day.
-      Non-nodes: paid subscription tiers (Explorer $4.99 – Unlimited $49.99/mo).
-      Overage queries: $0.02/query or bundles ($0.0075-0.015/query).
-    Phase 2 (post-CitizenSERP): Aggressive caps. Node revenue subsidizes queries.
-      Platinum goes unlimited. All tiers scale dramatically.
-    Phase 3 (own GDS): Mystes owns SERP/GDS. Zero external API costs.
-      All tiers near-unlimited. Dynamic arbitrage rewards from booking fee cut.
-      Amadeus dependency eliminated. Direct airline/hotel inventory access.
-    Set MYSTES_ECONOMIC_PHASE=2 or =3 in env to activate.
+Economic Model:
+    AI query tiers: bronze 5/day, silver 10/day, gold 20/day, platinum 40/day.
+    Paid subscription tiers (Explorer $4.99 – Unlimited $49.99/mo).
+    Revenue = booking fees (35-50% of savings) + subscription revenue.
 
 Usage:
     from mystes_ai import mystes_ai, get_ai_tier, check_ai_quota
@@ -64,191 +56,34 @@ logger = logging.getLogger(__name__)
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Economic Phase Toggle
+# AI Query Tier Caps
 # ---------------------------------------------------------------------------
-# Phase 1 (pre-CitizenSERP): Revenue = booking fees + query overage sales only.
-#   Lean query caps. Overage queries sold at per-query price to cover Amadeus costs.
-#   Node enrollment is stealth — subscription pitch is "wholesale travel pricing."
-#
-# Phase 2 (post-CitizenSERP velocity): Node revenue subsidizes queries.
-#   Aggressive tiers activate. Platinum goes unlimited. Data flywheel live.
-#
-# Phase 3 (own GDS): Mystes is its own accredited GDS/SERP service.
-#   Zero external query costs (we own the SERP). All tiers near-unlimited.
-#   Dynamic arbitrage rewards: nodes earn % of Mystes's booking fee cut
-#   when their searches discover price arbitrage that leads to bookings.
-#   Amadeus dependency fully phased out.
-#
-# Flip this to 2 when CitizenSERP B2B revenue is flowing.
-# Flip this to 3 when Mystes is accredited and owns its own GDS/SERP.
-# ---------------------------------------------------------------------------
-MYSTES_ECONOMIC_PHASE = int(os.environ.get("MYSTES_ECONOMIC_PHASE", "1"))
-
-# ---------------------------------------------------------------------------
-# Query Overage Pricing (Phase 1)
-# When a node exceeds their daily free cap, they can buy more queries.
-# Priced to cover Amadeus cost (~$0.005/query) + margin.
-# ---------------------------------------------------------------------------
-QUERY_OVERAGE_PRICING = {
-    "per_query_usd": 0.02,        # $0.02/query — 4x Amadeus cost, covers margin
-    "bundle_10_usd": 0.15,        # $0.015/query — small discount for bundle
-    "bundle_50_usd": 0.50,        # $0.01/query — break-even+, rewards volume
-    "bundle_100_usd": 0.75,       # $0.0075/query — loyal user rate
-}
-
-# ---------------------------------------------------------------------------
-# Phase 1: Pre-CitizenSERP Node Query Caps (lean, revenue-positive)
-# Every query costs Mystes ~$0.005 in Amadeus fees.
-# Caps are tight enough to stay profitable on booking fees alone.
-# Overage queries available for purchase (see QUERY_OVERAGE_PRICING).
-# Free Browse is always unlimited — zero quota consumed.
-# ---------------------------------------------------------------------------
-PHASE1_NODE_QUERIES = {
+ARBITRAGE_FREE_QUERIES = {
     "bronze": {
         "free_queries_per_day": 5,
-        "max_tools_per_query": 5,   # 5 tool calls — Opus needs room to reason
+        "max_tools_per_query": 5,
         "max_context_messages": 10,
-        "platform_fee_pct": 0.25,   # 25% of savings
-        "requires_data_sharing": False,
-        "requires_dedicated_mode": False,
-        "overage_allowed": True,
+        "platform_fee_pct": 0.50,   # 50% consumer rate
     },
     "silver": {
         "free_queries_per_day": 10,
-        "max_tools_per_query": 5,   # 5 markets
+        "max_tools_per_query": 5,
         "max_context_messages": 15,
-        "platform_fee_pct": 0.25,
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": False,
-        "overage_allowed": True,
+        "platform_fee_pct": 0.35,   # 35% subscriber rate
     },
     "gold": {
         "free_queries_per_day": 20,
-        "max_tools_per_query": 8,   # 8 markets
+        "max_tools_per_query": 8,
         "max_context_messages": 25,
         "platform_fee_pct": 0.20,
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": False,
-        "overage_allowed": True,
     },
     "platinum": {
         "free_queries_per_day": 40,
-        "max_tools_per_query": 12,  # 12 markets
+        "max_tools_per_query": 12,
         "max_context_messages": 50,
         "platform_fee_pct": 0.15,
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": True,
-        "overage_allowed": True,
     },
 }
-
-# ---------------------------------------------------------------------------
-# Phase 2: Post-CitizenSERP Node Query Allocations (aggressive, node-subsidized)
-# CitizenSERP B2B revenue covers query costs. Tiers become rewards, not gates.
-# Platinum goes unlimited. All tiers scale dramatically.
-# ---------------------------------------------------------------------------
-PHASE2_NODE_QUERIES = {
-    "bronze": {
-        "free_queries_per_day": 10,
-        "max_tools_per_query": 5,   # 5 markets — immediately useful
-        "max_context_messages": 15,
-        "platform_fee_pct": 0.25,   # 25% of savings
-        "requires_data_sharing": False,
-        "requires_dedicated_mode": False,
-        "overage_allowed": True,
-    },
-    "silver": {
-        "free_queries_per_day": 20,
-        "max_tools_per_query": 8,   # 8 markets
-        "max_context_messages": 25,
-        "platform_fee_pct": 0.20,   # 20% — fee drops as trust grows
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": False,
-        "overage_allowed": True,
-    },
-    "gold": {
-        "free_queries_per_day": 40,
-        "max_tools_per_query": 12,  # 12 markets
-        "max_context_messages": 50,
-        "platform_fee_pct": 0.15,   # 15% — serious node operator rate
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": False,
-        "overage_allowed": True,
-    },
-    "platinum": {
-        "free_queries_per_day": 999,  # effectively unlimited
-        "max_tools_per_query": 15,  # all markets
-        "max_context_messages": 100,
-        "platform_fee_pct": 0.10,   # 10% — lowest possible, max node loyalty
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": True,
-        "overage_allowed": False,   # unlimited — no overage needed
-    },
-}
-
-# ---------------------------------------------------------------------------
-# Phase 3: Own GDS/SERP — Mystes is accredited, owns the search service
-# Zero external API costs. Queries are free to Mystes (our own SERP network).
-# All tiers get near-unlimited queries. The bottleneck is no longer cost —
-# it's network capacity (which self-scales with N_users = N_nodes).
-# Revenue = booking fees + SERP B2B sales + data products.
-# Dynamic arbitrage rewards: nodes earn a cut of Mystes's 25% booking fee
-# when their search activity discovers price arbitrage that leads to a booking.
-# ---------------------------------------------------------------------------
-PHASE3_NODE_QUERIES = {
-    "bronze": {
-        "free_queries_per_day": 100,   # generous — queries cost us nothing
-        "max_tools_per_query": 10,     # 10 markets
-        "max_context_messages": 25,
-        "platform_fee_pct": 0.25,      # 25% of savings — standard booking fee
-        "requires_data_sharing": False,
-        "requires_dedicated_mode": False,
-        "overage_allowed": False,      # no overage concept — just cap
-        "query_cost_to_mystes": 0.0,  # zero — we own the SERP
-        "arbitrage_reward_pct": 0.02,  # 2% of booking fee goes to discovering node
-    },
-    "silver": {
-        "free_queries_per_day": 250,
-        "max_tools_per_query": 12,     # 12 markets
-        "max_context_messages": 50,
-        "platform_fee_pct": 0.20,      # 20%
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": False,
-        "overage_allowed": False,
-        "query_cost_to_mystes": 0.0,
-        "arbitrage_reward_pct": 0.05,  # 5% of booking fee
-    },
-    "gold": {
-        "free_queries_per_day": 500,
-        "max_tools_per_query": 15,     # all markets
-        "max_context_messages": 100,
-        "platform_fee_pct": 0.15,      # 15%
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": False,
-        "overage_allowed": False,
-        "query_cost_to_mystes": 0.0,
-        "arbitrage_reward_pct": 0.10,  # 10% of booking fee
-    },
-    "platinum": {
-        "free_queries_per_day": 9999,  # truly unlimited
-        "max_tools_per_query": 15,     # all markets
-        "max_context_messages": 100,
-        "platform_fee_pct": 0.10,      # 10% — minimum fee
-        "requires_data_sharing": True,
-        "requires_dedicated_mode": True,
-        "overage_allowed": False,
-        "query_cost_to_mystes": 0.0,
-        "arbitrage_reward_pct": 0.15,  # 15% of booking fee — max reward tier
-    },
-}
-
-# Active tier config — selected by phase
-if MYSTES_ECONOMIC_PHASE >= 3:
-    ARBITRAGE_FREE_QUERIES = PHASE3_NODE_QUERIES
-elif MYSTES_ECONOMIC_PHASE >= 2:
-    ARBITRAGE_FREE_QUERIES = PHASE2_NODE_QUERIES
-else:
-    ARBITRAGE_FREE_QUERIES = PHASE1_NODE_QUERIES
 
 # ---------------------------------------------------------------------------
 # Arbitrage Subscription Tiers (for NON-NODE users who pay cash for access)
@@ -324,8 +159,6 @@ ARBITRAGE_SUBSCRIPTION_TIERS = {
         ],
     },
 }
-
-NODE_OPERATOR_DISCOUNT = 0.30  # 30% discount for node operators on paid tiers
 
 
 # ===========================================================================
@@ -413,9 +246,9 @@ MYSTES_AI_SYSTEM_PROMPT = (
     "PRICING MODEL:\n"
     "- Picasso wholesale price = MYSTES cost\n"
     "- Google/retail price = customer benchmark\n"
-    "- Members: 25% of savings as platform fee (customer keeps 75%)\n"
-    "- Non-members: 50% of savings as platform fee (customer keeps 50%)\n"
-    "- Min $3, max $50 per deal\n"
+    "- Loyal subscribers: 35% of savings as platform fee (customer keeps 65%)\n"
+    "- Non-subscribers: 50% of savings as platform fee (customer keeps 50%)\n"
+    "- Min $3 per deal, no maximum cap\n"
     "- When no Google benchmark: estimate at 1.55x Picasso price\n\n"
 
     "AIRLINE COMPLIANCE:\n"
@@ -740,81 +573,6 @@ MYSTES_AI_TOOLS = [
         },
     },
     {
-        "name": "browse_proxy",
-        "description": (
-            "Generate a proxy browsing link to view a website from a specific "
-            "geographic market. Useful for seeing region-specific pricing."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "URL to browse (e.g. 'https://www.amazon.co.jp')",
-                },
-                "market": {
-                    "type": "string",
-                    "description": "Market to browse from (e.g. 'JP', 'DE')",
-                },
-            },
-            "required": ["url", "market"],
-        },
-    },
-    {
-        "name": "serp_search",
-        "description": (
-            "Execute a search engine query via the CitizenSERP residential proxy "
-            "network. Returns organic results as seen from a specific market."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query",
-                },
-                "engine": {
-                    "type": "string",
-                    "description": "Search engine: 'google', 'bing', 'yandex', 'baidu' (default: 'google')",
-                },
-                "market": {
-                    "type": "string",
-                    "description": "Geographic market for search localization (default: 'US')",
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "get_node_status",
-        "description": (
-            "Get the current status of the CitizenSERP node network — total nodes, "
-            "online count, country distribution, available capacity."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "get_earnings",
-        "description": (
-            "Get earnings summary for a node operator — total earned, pending "
-            "payouts, yield rates, and category breakdown."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "user_id": {
-                    "type": "integer",
-                    "description": "User ID to check earnings for (defaults to current user)",
-                },
-            },
-            "required": [],
-        },
-    },
-    {
         "name": "get_deals",
         "description": (
             "Get the latest arbitrage deals found by Mystes — flights with "
@@ -852,234 +610,15 @@ MYSTES_AI_TOOLS = [
             "required": [],
         },
     },
-    # Build #78 — Zone pricing tools
-    {
-        "name": "get_zone_prices",
-        "description": (
-            "Get pricing data for a specific geographic zone. Returns average, "
-            "min, and max prices, sub-zone breakdowns, and flagged geo-fenced "
-            "promotions. Zone IDs follow the hierarchy: country (US) → region "
-            "(US-NE) → city (US-NE-NYC) → district (US-NE-NYC-MAN)."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "zone_id": {
-                    "type": "string",
-                    "description": "Zone ID (e.g. 'US-NE', 'JP-KT')",
-                },
-                "vertical": {
-                    "type": "string",
-                    "description": "Travel vertical: flight, hotel, cruise, rental, product",
-                },
-                "item_key": {
-                    "type": "string",
-                    "description": "Specific item key to filter by (optional)",
-                },
-                "hours_back": {
-                    "type": "integer",
-                    "description": "How many hours back to look (default: 24)",
-                },
-            },
-            "required": ["zone_id"],
-        },
-    },
-    {
-        "name": "compare_zone_prices",
-        "description": (
-            "Compare prices for the same travel product across different "
-            "geographic zones. Identifies the cheapest and most expensive zones "
-            "with price spread percentage. Essential for geo-arbitrage analysis."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "item_key": {
-                    "type": "string",
-                    "description": "Item key to compare across zones",
-                },
-                "vertical": {
-                    "type": "string",
-                    "description": "Travel vertical: flight, hotel, cruise, rental",
-                },
-                "zone_ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Zone IDs to compare (optional — all zones if omitted)",
-                },
-            },
-            "required": ["item_key", "vertical"],
-        },
-    },
-    {
-        "name": "get_zone_network",
-        "description": (
-            "Get the Mystes node network coverage map — zone hierarchy, node "
-            "counts, density scores, and observation volumes. Shows where "
-            "Mystes has real-browser pricing intelligence."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "country_code": {
-                    "type": "string",
-                    "description": "Filter to a specific country (2-letter ISO code, optional)",
-                },
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "get_harvest_status",
-        "description": (
-            "Get autonomous harvesting status — recent harvest cycle performance, "
-            "observation gaps being filled, budget utilization, and standing order "
-            "progress. Shows how actively the network is collecting data."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "hours_back": {
-                    "type": "integer",
-                    "description": "Hours of harvest history to summarize (default 24)",
-                },
-            },
-            "required": [],
-        },
-    },
-    # Build #80 — Strategy deployment tool
-    {
-        "name": "deploy_strategy",
-        "description": (
-            "Deploy a data collection strategy — creates targeted standing orders "
-            "to gather pricing intelligence for specific destinations and markets. "
-            "Use this when you identify high-value routes, demand spikes, or "
-            "underserved markets that Mystes should monitor more closely. "
-            "Strategies auto-expire after 12 executions (3 days at 6h intervals)."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "destinations": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "IATA airport codes to target (e.g. ['NRT', 'BCN', 'LIS'])",
-                },
-                "markets": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Market/country codes to search from (default: ['US'])",
-                },
-                "vertical": {
-                    "type": "string",
-                    "description": "Travel vertical: flight, hotel, cruise, rental (default: flight)",
-                },
-            },
-            "required": ["destinations"],
-        },
-    },
-
     # =======================================================================
     # Build #87 — Conversational-first action tools
     # =======================================================================
-    {
-        "name": "get_wallet_info",
-        "description": (
-            "Get the current user's connected wallets, payment cards, zone coverage, "
-            "and crypto on-ramp options. Use this when the user asks about their wallet, "
-            "balance, payment methods, or what markets they can reach."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "get_payment_compatibility",
-        "description": (
-            "Check which geographic markets the user can pay in with their current "
-            "payment methods (cards, crypto wallets). Shows acceptance level per country."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "vertical": {
-                    "type": "string",
-                    "description": "Optional vertical filter: flight, hotel, cruise, rental",
-                },
-            },
-            "required": [],
-        },
-    },
     {
         "name": "get_my_dashboard",
         "description": (
             "Get the user's dashboard summary: total bookings, total saved, "
             "recent transactions, and account details. Use when user asks about "
             "their account, stats, or activity."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "get_my_transactions",
-        "description": (
-            "Get the user's recent P2P transactions and booking history. "
-            "Shows status, amounts, routes, and dates."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer",
-                    "description": "Max number of transactions to return (default 10)",
-                },
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "create_proxy_session",
-        "description": (
-            "Create a proxy browsing session for a specific country/market. "
-            "Returns proxy connection details so the user can browse the web "
-            "as if they are in that country. Use when user wants to browse a market, "
-            "check prices in another country, or set up a proxy."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "country_code": {
-                    "type": "string",
-                    "description": "2-letter ISO country code (e.g. JP, GB, DE, AU)",
-                },
-            },
-            "required": ["country_code"],
-        },
-    },
-    {
-        "name": "get_ramp_providers",
-        "description": (
-            "Get recommended crypto on-ramp providers for the user. Shows which "
-            "providers are available in their market, fees, and supported methods. "
-            "Use when user wants to buy crypto (USDC, XRP) or fund their wallet."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "get_helper_status",
-        "description": (
-            "Get the user's helper/node operator profile, earnings, availability, "
-            "and performance stats. Use when user asks about their helper status, "
-            "earnings, or node operations."
         ),
         "input_schema": {
             "type": "object",
@@ -1856,46 +1395,6 @@ class MystesAI:
                     origin, destination, days_back=days
                 )
 
-            elif tool_name == "browse_proxy":
-                url = tool_input.get("url", "")
-                market = tool_input.get("market", "US")
-                return {
-                    "proxy_url": f"/portal?market={market}&url={url}",
-                    "message": (
-                        f"Open this link to browse through the {market} proxy: "
-                        f"/portal?market={market}&url={url}"
-                    ),
-                }
-
-            elif tool_name == "serp_search":
-                from serp_api import serp_api_manager
-                query = tool_input.get("query", "")
-                engine = tool_input.get("engine", "google")
-                market = tool_input.get("market", "US")
-                # Build minimal account-like object for the SERP manager
-                account = type("SERPAccount", (), {
-                    "id": user_id or 0,
-                    "serp_tier": "serp_starter",
-                    "serp_queries_used_this_month": 0,
-                    "serp_month_reset_date": None,
-                })()
-                params = {
-                    "engine": engine,
-                    "market": market,
-                    "query": query,
-                    "pages": 1,
-                }
-                return serp_api_manager.execute_sync(account, params)
-
-            elif tool_name == "get_node_status":
-                from node_registry import node_registry
-                return node_registry.get_network_topology()
-
-            elif tool_name == "get_earnings":
-                from node_yield_dashboard import yield_dashboard
-                target_user_id = tool_input.get("user_id") or user_id
-                return yield_dashboard.get_yield_summary(target_user_id)
-
             elif tool_name == "get_deals":
                 from models import Deal
                 limit = tool_input.get("limit", 10)
@@ -1918,92 +1417,9 @@ class MystesAI:
                 from mystes_agent import mystes_agent
                 return mystes_agent.discover_opportunities()
 
-            # Build #78 — Zone pricing tools
-            elif tool_name == "get_zone_prices":
-                from pricing_zones import zone_engine
-                return zone_engine.get_zone_prices(
-                    zone_id=tool_input.get("zone_id", ""),
-                    vertical=tool_input.get("vertical"),
-                    item_key=tool_input.get("item_key"),
-                    hours_back=tool_input.get("hours_back", 24),
-                )
-
-            elif tool_name == "compare_zone_prices":
-                from pricing_zones import zone_engine
-                return zone_engine.compare_zone_prices(
-                    item_key=tool_input.get("item_key", ""),
-                    vertical=tool_input.get("vertical", ""),
-                    zone_ids=tool_input.get("zone_ids"),
-                )
-
-            elif tool_name == "get_zone_network":
-                from pricing_zones import zone_engine
-                country = tool_input.get("country_code")
-                return zone_engine.get_zone_hierarchy(country_code=country)
-
-            # Build #79 — Harvest scheduler tool
-            elif tool_name == "get_harvest_status":
-                from harvest_scheduler import harvest_scheduler
-                hours = tool_input.get("hours_back", 24)
-                return harvest_scheduler.get_harvest_performance(hours_back=hours)
-
-            # Build #80 — Strategy deployment tool
-            elif tool_name == "deploy_strategy":
-                from harvest_scheduler import harvest_scheduler
-                return harvest_scheduler.create_ai_strategy(
-                    destinations=tool_input.get("destinations", []),
-                    markets=tool_input.get("markets"),
-                    vertical=tool_input.get("vertical", "flight"),
-                )
-
             # ---------------------------------------------------------------
             # Build #87 — Conversational-first action tools
             # ---------------------------------------------------------------
-
-            elif tool_name == "get_wallet_info":
-                from models import UserWallet, UserCard
-                wallets = UserWallet.query.filter_by(user_id=user_id).all()
-                cards = UserCard.query.filter_by(user_id=user_id, is_active=True).all()
-                wallet_list = [
-                    {"address": w.wallet_address, "label": w.label or "Wallet",
-                     "is_primary": getattr(w, 'is_primary', False),
-                     "is_verified": getattr(w, 'is_verified', False)}
-                    for w in wallets
-                ]
-                card_list = [
-                    {"brand": c.card_brand, "last_four": c.last_four,
-                     "billing_country": getattr(c, 'billing_country', 'US'),
-                     "is_primary": getattr(c, 'is_primary', False)}
-                    for c in cards
-                ]
-                zone_summary = []
-                try:
-                    from payment_compatibility import payment_compat_engine
-                    zone_summary = payment_compat_engine.get_zone_availability_summary(user_id)
-                except Exception:
-                    pass
-                return {
-                    "wallets": wallet_list,
-                    "cards": card_list,
-                    "wallet_count": len(wallet_list),
-                    "card_count": len(card_list),
-                    "zone_availability": zone_summary,
-                }
-
-            elif tool_name == "get_payment_compatibility":
-                from payment_compatibility import payment_compat_engine
-                profile = payment_compat_engine.get_user_payment_profile(user_id)
-                vertical = tool_input.get("vertical")
-                reachable = payment_compat_engine.get_reachable_countries(
-                    profile=profile, vertical=vertical, min_acceptance='medium'
-                )
-                return {
-                    "reachable_count": len(reachable),
-                    "reachable_countries": list(reachable.keys())[:30],
-                    "home_market": profile.home_market,
-                    "has_xrp_wallet": profile.has_xrp_wallet,
-                    "card_count": len(profile.cards),
-                }
 
             elif tool_name == "get_my_dashboard":
                 from models import User, Payment, Booking
@@ -2028,73 +1444,6 @@ class MystesAI:
                          "date": str(p.created_at)[:10]}
                         for p in payments
                     ],
-                }
-
-            elif tool_name == "get_my_transactions":
-                from models import P2PTransaction
-                limit = tool_input.get("limit", 10)
-                txs = P2PTransaction.query.filter_by(buyer_id=user_id).order_by(
-                    P2PTransaction.created_at.desc()
-                ).limit(limit).all()
-                return {
-                    "transactions": [
-                        {
-                            "id": t.transaction_id,
-                            "route": f"{getattr(t, 'origin', '?')}-{getattr(t, 'destination', '?')}",
-                            "status": t.status,
-                            "amount": getattr(t, 'total_cost_usd', 0),
-                            "date": str(t.created_at)[:10],
-                        }
-                        for t in txs
-                    ],
-                    "count": len(txs),
-                }
-
-            elif tool_name == "create_proxy_session":
-                country = tool_input.get("country_code", "US").upper()
-                try:
-                    from proxy_manager import proxy_manager
-                    proxy_url = proxy_manager.get_proxy(country)
-                    if proxy_url:
-                        return {
-                            "success": True,
-                            "country": country,
-                            "proxy_configured": True,
-                            "message": f"Proxy session ready for {country}. "
-                                       f"Configure your browser SOCKS5 proxy or visit /portal for guided setup.",
-                        }
-                    else:
-                        return {"success": False, "error": f"No proxy available for {country}"}
-                except Exception as e:
-                    return {"success": False, "error": str(e)}
-
-            elif tool_name == "get_ramp_providers":
-                try:
-                    from payment_ramps import ramp_engine
-                    ramps = ramp_engine.get_recommended_ramps(user_id)
-                    return {"ramps": ramps, "count": len(ramps)}
-                except ImportError:
-                    return {"error": "Payment ramps module not available"}
-
-            elif tool_name == "get_helper_status":
-                from models import HelperProfile, P2PTransaction
-                helper = HelperProfile.query.filter_by(user_id=user_id).first()
-                if not helper:
-                    return {
-                        "is_helper": False,
-                        "message": "You are not registered as a helper. Visit /helper to activate.",
-                    }
-                completed = P2PTransaction.query.filter_by(
-                    helper_id=helper.id, status='completed'
-                ).count()
-                return {
-                    "is_helper": True,
-                    "status": helper.status,
-                    "country": getattr(helper, 'country', 'Unknown'),
-                    "rating": getattr(helper, 'average_rating', 0),
-                    "completed_transactions": completed,
-                    "total_earned": getattr(helper, 'total_earned_rlusd', 0),
-                    "is_available": getattr(helper, 'is_available', False),
                 }
 
             elif tool_name == "get_user_settings":
@@ -2456,14 +1805,6 @@ class MystesAI:
                 return self._format_trending(result)
             elif tool_name == "get_price_history":
                 return self._format_price_history(result)
-            elif tool_name == "browse_proxy":
-                return result.get("message", json.dumps(result))
-            elif tool_name == "serp_search":
-                return self._format_serp(result)
-            elif tool_name == "get_node_status":
-                return self._format_node_status(result)
-            elif tool_name == "get_earnings":
-                return self._format_earnings(result)
             elif tool_name == "get_deals":
                 return self._format_deals(result)
             elif tool_name == "discover_opportunities":
@@ -2805,63 +2146,6 @@ class MystesAI:
                         lines.append(f"    {date_key}: {markets_str}")
         return "\n".join(lines)
 
-    def _format_serp(self, result):
-        """Format SERP search results."""
-        if result.get("error"):
-            return f"SERP search error: {result['error']}"
-        lines = ["SERP Search Results:"]
-        results_list = result.get("results", result.get("organic_results", []))
-        if isinstance(results_list, list):
-            lines.append(f"  Results: {len(results_list)}")
-            for i, r in enumerate(results_list[:5], 1):
-                title = r.get("title", "Untitled")
-                link = r.get("link", r.get("url", ""))
-                snippet = r.get("snippet", "")[:100]
-                lines.append(f"  {i}. {title}")
-                if link:
-                    lines.append(f"     {link}")
-                if snippet:
-                    lines.append(f"     {snippet}")
-        else:
-            lines.append(json.dumps(result, default=str)[:2000])
-        return "\n".join(lines)
-
-    def _format_node_status(self, result):
-        """Format node network status."""
-        lines = [
-            "CitizenSERP Node Network Status:",
-            f"  Total nodes: {result.get('total_nodes', 0)}",
-            f"  Online: {result.get('total_online', 0)}",
-            f"  Browser-capable: {result.get('browser_capable_nodes', 0)}",
-            f"  Total capacity: {result.get('total_capacity', 0)} concurrent tasks",
-            f"  Available capacity: {result.get('available_capacity', 0)}",
-        ]
-        by_country = result.get("by_country", {})
-        if by_country:
-            lines.append(f"  Countries covered: {len(by_country)}")
-            sorted_countries = sorted(by_country.items(), key=lambda x: x[1], reverse=True)
-            for country, count in sorted_countries[:10]:
-                lines.append(f"    {country}: {count} nodes")
-        return "\n".join(lines)
-
-    def _format_earnings(self, result):
-        """Format earnings summary."""
-        if result.get("error"):
-            return f"Earnings error: {result['error']}"
-        lines = ["Node Operator Earnings Summary:"]
-        # The yield_dashboard returns various summary fields
-        for key, val in result.items():
-            if key in ("error",):
-                continue
-            if isinstance(val, (int, float)):
-                if "usd" in key.lower() or "earned" in key.lower() or "payout" in key.lower():
-                    lines.append(f"  {key}: ${val:.6f}")
-                else:
-                    lines.append(f"  {key}: {val}")
-            elif isinstance(val, str):
-                lines.append(f"  {key}: {val}")
-        return "\n".join(lines) if len(lines) > 1 else json.dumps(result, default=str)[:2000]
-
     def _format_deals(self, result):
         """Format deals list."""
         deals = result.get("deals", [])
@@ -3119,10 +2403,7 @@ def check_ai_quota(user):
         "node_free_per_day": combined["node_free_per_day"],
         "quota_type": "arbitrage",
         "free_browse_quota": "unlimited",
-        "economic_phase": MYSTES_ECONOMIC_PHASE,
         "overage_queries_remaining": overage_remaining,
-        "overage_price_per_query": QUERY_OVERAGE_PRICING["per_query_usd"],
-        "overage_bundles": QUERY_OVERAGE_PRICING,
     }
 
     if total_monthly is None:
@@ -3297,34 +2578,15 @@ def get_ai_tier_info(user):
 
 
 def get_all_ai_tiers(user=None):
-    """Get all AI tier definitions, optionally with node operator discount applied.
+    """Get all AI tier definitions.
 
     Args:
-        user: Optional User model instance. If the user is a node operator
-              (is_helper_node=True), paid tier prices are reduced by the
-              NODE_OPERATOR_DISCOUNT (25%).
+        user: Optional User model instance (reserved for future tier logic).
 
     Returns:
-        dict mapping tier_key to tier config with optional discounted pricing.
+        dict mapping tier_key to tier config.
     """
-    is_node = False
-    if user is not None:
-        is_node = getattr(user, "is_helper_node", False)
-
-    result = {}
-    for key, tier in ARBITRAGE_SUBSCRIPTION_TIERS.items():
-        tier_copy = dict(tier)
-
-        if is_node and tier_copy.get("price_monthly_usd", 0) > 0:
-            original_price = tier_copy["price_monthly_usd"]
-            discounted = round(original_price * (1 - NODE_OPERATOR_DISCOUNT), 2)
-            tier_copy["price_monthly_usd"] = discounted
-            tier_copy["original_price_usd"] = original_price
-            tier_copy["node_discount_pct"] = int(NODE_OPERATOR_DISCOUNT * 100)
-
-        result[key] = tier_copy
-
-    return result
+    return dict(ARBITRAGE_SUBSCRIPTION_TIERS)
 
 
 # ===========================================================================

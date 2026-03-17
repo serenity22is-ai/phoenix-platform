@@ -41,13 +41,6 @@ except ImportError:
 
 from models import db, Deal
 
-try:
-    from node_consent_economy import node_consent_economy
-    CONSENT_ECONOMY_AVAILABLE = True
-except ImportError:
-    node_consent_economy = None
-    CONSENT_ECONOMY_AVAILABLE = False
-
 
 # ---------------------------------------------------------------------------
 # Vertical Keyword Classifiers
@@ -148,24 +141,19 @@ VERTICAL_CLASSIFIERS = {
 
 ARBITRAGE_FEE_CONFIG = {
     "flight": {
-        "fee_percent": 0.25,
-        "min_savings_threshold_usd": 10.0,
+        "fee_percent": 0.35,
     },
     "hotel": {
-        "fee_percent": 0.25,
-        "min_savings_threshold_usd": 8.0,
+        "fee_percent": 0.35,
     },
     "cruise": {
-        "fee_percent": 0.25,
-        "min_savings_threshold_usd": 50.0,
+        "fee_percent": 0.35,
     },
     "rental": {
-        "fee_percent": 0.25,
-        "min_savings_threshold_usd": 5.0,
+        "fee_percent": 0.35,
     },
     "package": {
-        "fee_percent": 0.22,
-        "min_savings_threshold_usd": 20.0,
+        "fee_percent": 0.30,
     },
 }
 
@@ -479,24 +467,6 @@ class ArbitrageSearchEngine:
 
             # Payment compatibility filter (Build #85)
             if user_id and deals:
-                try:
-                    from payment_compatibility import payment_compat_engine
-                    filtered_deals = []
-                    for deal in deals:
-                        arb_market = deal.get("arbitrage_market", "")
-                        if arb_market:
-                            compat = payment_compat_engine.assess_deal_compatibility(
-                                arb_market, user_id, vertical
-                            )
-                            deal["payment_compatibility"] = compat
-                            if compat.get("is_compatible"):
-                                filtered_deals.append(deal)
-                        else:
-                            filtered_deals.append(deal)
-                    deals = filtered_deals
-                except ImportError:
-                    pass
-
             result["deals"] = deals
             result["total_deals"] = len(result["deals"])
 
@@ -510,48 +480,9 @@ class ArbitrageSearchEngine:
             if search_result.get("error"):
                 result["error"] = search_result["error"]
 
-            # Step 3 — Record activity in node consent economy
-            if user_id and CONSENT_ECONOMY_AVAILABLE and node_consent_economy:
-                try:
-                    node_consent_economy.record_platform_activity(
-                        user_id=user_id,
-                        activity_type="arbitrage_search",
-                        metadata={
-                            "vertical": vertical,
-                            "query": query,
-                            "home_market": home_market,
-                            "deals_found": result["total_deals"],
-                            "best_savings": result["best_savings_usd"],
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("Failed to record platform activity: %s", e)
-
         except Exception as e:
             logger.exception("Arbitrage search failed for query: %s", query)
             result["error"] = str(e)
-
-        # Attach data source resolution stats if available
-        try:
-            from data_source_resolver import data_source_resolver
-            result["data_source_stats"] = data_source_resolver.get_resolution_stats()
-        except Exception:
-            pass
-
-        # Build #78 — Enrich with zone pricing context
-        try:
-            from pricing_zones import zone_engine
-            vertical = result.get("vertical", "flight")
-            home_cc = home_market[:2] if home_market else "US"
-            zone_id = zone_engine.resolve_location(0, 0, country_code=home_cc)
-            if zone_id:
-                result["zone_context"] = zone_engine.get_zone_prices(
-                    zone_id=zone_id, vertical=vertical, hours_back=12,
-                )
-        except ImportError:
-            pass
-        except Exception:
-            pass
 
         elapsed = (datetime.utcnow() - start_ts).total_seconds() * 1000
         result["search_time_ms"] = round(elapsed, 1)
@@ -911,66 +842,8 @@ class ArbitrageSearchEngine:
     # ------------------------------------------------------------------
 
     def _search_via_nodes(self, vertical: str, params: Dict, home_market: str) -> Dict:
-        """Dispatch search to onboarded user nodes via data_source_resolver.
-
-        Each node executes a Google Travel search through its own Google
-        account. Results from multiple geographic markets are collected,
-        compared, and organized into arbitrage deals for the user.
-
-        Args:
-            vertical: Travel vertical (flight, hotel, cruise, rental, package).
-            params: Structured search parameters from intent classification.
-            home_market: 2-letter country code for the user's home market.
-
-        Returns:
-            dict with keys: deals (list), error (str or None).
-        """
-        try:
-            from data_source_resolver import data_source_resolver
-        except ImportError:
-            logger.warning("data_source_resolver not available")
-            return {"deals": [], "error": "Node search infrastructure not available"}
-
-        # Markets to query (home market + top arbitrage markets)
-        target_markets = [
-            m for m in ["US", "GB", "DE", "JP", "IN", "BR", "MX", "KR",
-                         "FR", "AU", "CA", "ES", "IT", "NL", "SE", "TH"]
-            if m != home_market
-        ][:8]  # Limit to 8 foreign markets per query
-
-        home_results = []
-        market_results = {}
-
-        # Resolve home market first
-        home_resolution = data_source_resolver.resolve(
-            vertical=vertical, market=home_market,
-            params=params, timeout_ms=30_000,
-        )
-        if home_resolution and home_resolution.success:
-            home_results = home_resolution.results
-
-        # Resolve foreign markets for price comparison
-        for market in target_markets:
-            resolution = data_source_resolver.resolve(
-                vertical=vertical, market=market,
-                params=params, timeout_ms=30_000,
-            )
-            if resolution and resolution.success and resolution.results:
-                market_results[market] = resolution.results
-
-        # Build arbitrage deals by comparing home vs foreign prices
-        deals = self._build_arbitrage_deals(
-            vertical, home_results, home_market, market_results, params
-        )
-
-        if not deals and not home_results and not market_results:
-            return {
-                "deals": [],
-                "error": f"No node results for {vertical} search. "
-                         "More onboarded Google users needed in target markets.",
-            }
-
-        return {"deals": deals, "error": None}
+        """Node-based search (CitizenSERP — archived in Build #168)."""
+        return {"deals": [], "error": None}
 
     def _build_arbitrage_deals(
         self,
@@ -1015,7 +888,7 @@ class ArbitrageSearchEngine:
 
             if best_foreign and best_market:
                 gross_savings = home_price - best_price
-                if gross_savings < fee_config["min_savings_threshold_usd"]:
+                if gross_savings <= 0:
                     continue
 
                 fee_info = self._calculate_fee(vertical, gross_savings)
@@ -1072,24 +945,20 @@ class ArbitrageSearchEngine:
     def _calculate_fee(self, vertical: str, gross_savings: float, user=None) -> Dict:
         """Calculate the platform fee for a given vertical and gross savings amount.
 
-        Members: 25% of gross savings. Non-members: 50%.
+        Subscribers: 35% of gross savings. Non-subscribers: 50%.
+        No minimum savings threshold — we sell tickets regardless.
 
         Returns:
-            dict with keys: platform_fee_usd, fee_percent, gross_savings_usd,
-                            meets_threshold (bool).
+            dict with keys: platform_fee_usd, fee_percent, gross_savings_usd.
         """
-        config = ARBITRAGE_FEE_CONFIG.get(vertical, ARBITRAGE_FEE_CONFIG["flight"])
-
         from payments import get_fee_percent
         fee_percent = get_fee_percent(user)
         platform_fee = gross_savings * fee_percent
-        meets_threshold = gross_savings >= config["min_savings_threshold_usd"]
 
         return {
             "platform_fee_usd": round(platform_fee, 2),
             "fee_percent": fee_percent,
             "gross_savings_usd": round(gross_savings, 2),
-            "meets_threshold": meets_threshold,
         }
 
 

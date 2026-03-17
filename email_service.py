@@ -14,6 +14,7 @@ Supports multiple backends:
 """
 
 import os
+import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -23,16 +24,28 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # Email configuration
+# Default sender MUST match MAIL_USERNAME (the authenticated Gmail account)
+# Sending from a different domain (e.g. noreply@mystes.app) via Gmail SMTP
+# causes SPF/DKIM failures → recipient servers reject with DNS errors.
+_mail_username = os.environ.get("MAIL_USERNAME", "")
+_default_sender = f"MYSTES <{_mail_username}>" if _mail_username else "MYSTES <noreply@mystes.app>"
+
 EMAIL_CONFIG = {
     "enabled": os.environ.get("MAIL_ENABLED", "false").lower() == "true",
     "server": os.environ.get("MAIL_SERVER", "smtp.gmail.com"),
     "port": int(os.environ.get("MAIL_PORT", 587)),
     "use_tls": os.environ.get("MAIL_USE_TLS", "true").lower() == "true",
-    "username": os.environ.get("MAIL_USERNAME"),
+    "username": _mail_username,
     "password": os.environ.get("MAIL_PASSWORD"),
-    "sender": os.environ.get("MAIL_DEFAULT_SENDER", "MYSTES <noreply@mystes.app>"),
+    "sender": os.environ.get("MAIL_DEFAULT_SENDER", _default_sender),
     "base_url": os.environ.get("BASE_URL", "http://localhost:5001"),
 }
+
+
+def _extract_email(addr: str) -> str:
+    """Extract bare email from 'Name <email>' format for SMTP envelope."""
+    match = re.search(r'<([^>]+)>', addr)
+    return match.group(1) if match else addr
 
 
 def generate_token(length: int = 32) -> str:
@@ -89,7 +102,9 @@ def send_email_smtp(to: str, subject: str, html_body: str, text_body: str = None
             if EMAIL_CONFIG["use_tls"]:
                 server.starttls()
             server.login(EMAIL_CONFIG["username"], EMAIL_CONFIG["password"])
-            server.sendmail(EMAIL_CONFIG["sender"], to, msg.as_string())
+            # Use bare email for SMTP envelope (MAIL FROM) — not "Name <email>" format
+            envelope_sender = _extract_email(EMAIL_CONFIG["sender"])
+            server.sendmail(envelope_sender, to, msg.as_string())
 
         print(f"[EMAIL SENT] To: {to}, Subject: {subject}")
         return True
@@ -558,6 +573,99 @@ def send_ticket_confirmation(user_email: str, deal, booking, confirmation_code: 
         subject=f"Ticket Confirmed: {confirmation_code} - {deal.origin} to {deal.destination}",
         html_content=html_content
     )
+
+
+# --- ESCROW & REWARDS EMAILS (Build #170) ---
+
+def send_escrow_reminder(to: str, points_amount: int, booking_ref: str,
+                          days_remaining: int, claim_url: str = None) -> bool:
+    """Remind guest to create account and claim escrowed points."""
+    claim_url = claim_url or "https://mystes.app/register"
+    html = f"""
+    <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#f8f9fa;padding:30px;">
+        <div style="text-align:center;margin-bottom:25px;">
+            <h1 style="font-family:'Cinzel',serif;color:#1a1a2e;margin:0;">MYSTES</h1>
+        </div>
+        <div style="background:white;border-radius:12px;padding:30px;">
+            <h2 style="color:#7c3aed;margin:0 0 15px;">You have {points_amount:,} points waiting!</h2>
+            <p style="color:#333;line-height:1.6;">
+                You earned <strong>{points_amount:,} MYSTES points</strong> from your flight booking
+                (ref: {booking_ref}). Create a free account to claim them before they expire!
+            </p>
+            <p style="color:#666;font-size:14px;">
+                <strong>{days_remaining} days remaining</strong> to claim your points.
+                Points are worth ${points_amount * 0.001:.2f} toward your next booking.
+            </p>
+            <div style="text-align:center;margin:25px 0;">
+                <a href="{claim_url}" style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:white;padding:14px 40px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;">
+                    Claim Your Points
+                </a>
+            </div>
+            <p style="color:#999;font-size:12px;text-align:center;">
+                Your points will expire if not claimed within {days_remaining} days.
+            </p>
+        </div>
+    </div>
+    """
+    return send_email(to, f"You have {points_amount:,} MYSTES points waiting!", html)
+
+
+def send_referral_notification(to: str, name: str, referee_action: str,
+                                points_earned: int) -> bool:
+    """Notify referrer when their referral completes a milestone."""
+    greeting = f"Hi {name}," if name else "Hi,"
+    html = f"""
+    <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#f8f9fa;padding:30px;">
+        <div style="text-align:center;margin-bottom:25px;">
+            <h1 style="font-family:'Cinzel',serif;color:#1a1a2e;margin:0;">MYSTES</h1>
+        </div>
+        <div style="background:white;border-radius:12px;padding:30px;">
+            <h2 style="color:#14b8a6;margin:0 0 15px;">You earned {points_earned:,} points!</h2>
+            <p style="color:#333;line-height:1.6;">
+                {greeting} Your referral just {referee_action}!
+                You've earned <strong>{points_earned:,} MYSTES points</strong>.
+            </p>
+            <div style="background:#f5f3ff;border-radius:8px;padding:15px;margin:20px 0;">
+                <strong style="color:#7c3aed;">Points earned: +{points_earned:,}</strong><br>
+                <span style="color:#666;font-size:13px;">Worth ${points_earned * 0.001:.2f} toward your next booking</span>
+            </div>
+            <div style="text-align:center;margin:20px 0;">
+                <a href="https://mystes.app/rewards" style="background:#7c3aed;color:white;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:600;">
+                    View Rewards
+                </a>
+            </div>
+        </div>
+    </div>
+    """
+    return send_email(to, f"You earned {points_earned:,} points from a referral!", html)
+
+
+def send_welcome_points_email(to: str, name: str, points: int) -> bool:
+    """Welcome email when user creates account and claims escrow points."""
+    greeting = f"Hi {name}!" if name else "Welcome!"
+    html = f"""
+    <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#f8f9fa;padding:30px;">
+        <div style="text-align:center;margin-bottom:25px;">
+            <h1 style="font-family:'Cinzel',serif;color:#1a1a2e;margin:0;">MYSTES</h1>
+        </div>
+        <div style="background:white;border-radius:12px;padding:30px;">
+            <h2 style="color:#7c3aed;margin:0 0 15px;">{greeting} Welcome to MYSTES!</h2>
+            <p style="color:#333;line-height:1.6;">
+                You've claimed <strong>{points:,} MYSTES points</strong> from your booking.
+                Use them to save even more on your next flight!
+            </p>
+            <div style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:white;border-radius:12px;padding:20px;margin:20px 0;text-align:center;">
+                <div style="font-size:36px;font-weight:bold;">{points:,}</div>
+                <div style="opacity:0.8;">Points Balance (${points * 0.001:.2f} value)</div>
+            </div>
+            <p style="color:#666;font-size:14px;">
+                <strong>How to earn more:</strong><br>
+                Book flights (+10 pts per $1) | Refer friends (+2,000-10,000 pts) | Subscribe to Travel+ (1.5x multiplier)
+            </p>
+        </div>
+    </div>
+    """
+    return send_email(to, f"Welcome! You have {points:,} MYSTES points", html)
 
 
 # --- P2P NETWORK EMAILS ---

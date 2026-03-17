@@ -103,7 +103,7 @@ class AssistAgent:
         client: RedboxClient,
         anthropic_api_key: str,
         model: str = DEFAULT_MODEL,
-        mode: str = "web",              # "web" or "cli"
+        mode: str = "web",              # "web", "cli", or "dev"
         agency_name: Optional[str] = None,
         pricing: Optional[PricingModel] = None,
         agency_config: Optional[dict] = None,
@@ -121,7 +121,7 @@ class AssistAgent:
             client: Configured RedboxClient instance
             anthropic_api_key: Anthropic API key
             model: Claude model ID
-            mode: "web" (dashboard chat) or "cli" (local file access)
+            mode: "web" (dashboard chat), "cli" (local file access), or "dev" (module development)
             agency_name: Agency name for personalized responses
             pricing: PricingModel for agency markup
             agency_config: Full agency config dict (for config tools)
@@ -182,10 +182,31 @@ class AssistAgent:
 - Currency: {self.pricing.display_currency}
 Search results have agency pricing applied. Use consumer_price when showing prices."""
 
+        if self.mode == "dev":
+            mode_desc = (
+                "You are in DEV MODE — module development environment. "
+                "You have full file access PLUS module development tools: "
+                "scaffold_module, run_audit, publish_module, search_marketplace, "
+                "install_module, dev_session_info. Help developers build, test, "
+                "audit, and publish ANASTASiA modules."
+            )
+        elif self.mode == "cli":
+            mode_desc = (
+                "You have direct access to the customer's project files. "
+                "Use read_file, write_file, edit_file, search_code, "
+                "list_files, and run_command to work on their code."
+            )
+        else:
+            mode_desc = (
+                "You are in web chat mode. You cannot directly access files. "
+                "Instead, provide code blocks that the admin can copy-paste, "
+                "or generate complete integration code with generate_integration_code."
+            )
+
         prompt += f"""
 
 ## EXECUTION MODE: {self.mode.upper()}
-{"You have direct access to the customer's project files. Use read_file, write_file, edit_file, search_code, list_files, and run_command to work on their code." if self.mode == "cli" else "You are in web chat mode. You cannot directly access files. Instead, provide code blocks that the admin can copy-paste, or generate complete integration code with generate_integration_code."}
+{mode_desc}
 
 ## IMPORTANT BEHAVIOR RULES
 - Determine intent from the user's message. Don't ask which mode to use — just handle it.
@@ -221,6 +242,11 @@ Search results have agency pricing applied. Use consumer_price when showing pric
             ):
                 continue
             tools.append(tool)
+
+        # Dev mode: add module development tools on top of CLI tools
+        if self.mode == "dev":
+            from .dev_tools import get_dev_tools
+            tools.extend(get_dev_tools())
 
         return tools
 
@@ -577,6 +603,25 @@ Search results have agency pricing applied. Use consumer_price when showing pric
                     "current_version": __version__,
                     "package": "picasso-redbox-sdk",
                 }
+
+            # ============== DEV MODE TOOLS ==============
+            elif tool_name == "scaffold_module":
+                result = self._tool_scaffold_module(tool_input)
+
+            elif tool_name == "run_audit":
+                result = self._tool_run_audit(tool_input)
+
+            elif tool_name == "publish_module":
+                result = self._tool_publish_module(tool_input)
+
+            elif tool_name == "search_marketplace":
+                result = self._tool_search_marketplace(tool_input)
+
+            elif tool_name == "install_module":
+                result = self._tool_install_module(tool_input)
+
+            elif tool_name == "dev_session_info":
+                result = self._tool_dev_session_info(tool_input)
 
             else:
                 result = {"success": False, "error": f"Unknown tool: {tool_name}"}
@@ -1110,6 +1155,146 @@ Search results have agency pricing applied. Use consumer_price when showing pric
         return {"success": False, "error": f"Unknown section: {section}"}
 
     # ================================================================
+    # DEV MODE TOOL IMPLEMENTATIONS
+    # ================================================================
+
+    def _get_dev_session(self):
+        """Get the dev session for the current session_id, or None."""
+        try:
+            from anastasia.devterminal import DevTerminalModule
+            # In dev mode, project_root is the workspace
+            # The dev session is managed externally via dev_routes
+            # Here we create a lightweight wrapper for tool execution
+            if self.mode != "dev":
+                return None
+            return self.project_root
+        except ImportError:
+            return None
+
+    def _tool_scaffold_module(self, inp: dict) -> dict:
+        if self.mode != "dev":
+            return {"success": False, "error": "scaffold_module requires dev mode"}
+        if not self.project_root:
+            return {"success": False, "error": "No workspace set"}
+
+        try:
+            from anastasia.devterminal.manifest import scaffold_module
+            name = inp.get("name", "")
+            module_type = inp.get("module_type", "extension")
+            description = inp.get("description", "")
+
+            if not name:
+                return {"success": False, "error": "name is required"}
+
+            created = scaffold_module(
+                name=name,
+                module_type=module_type,
+                workspace_dir=self.project_root,
+                description=description,
+            )
+            return {
+                "success": True,
+                "module_name": name,
+                "module_type": module_type,
+                "files_created": {
+                    os.path.relpath(k, self.project_root): v
+                    for k, v in created.items()
+                },
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _tool_run_audit(self, inp: dict) -> dict:
+        if self.mode != "dev":
+            return {"success": False, "error": "run_audit requires dev mode"}
+        if not self.project_root:
+            return {"success": False, "error": "No workspace set"}
+
+        try:
+            from anastasia.devterminal.audit_pipeline import AuditPipeline
+            from anastasia.devterminal.manifest import MANIFEST_FILENAME, load_manifest
+
+            module_name = inp.get("module_name", "")
+            if not module_name:
+                # Try to find a module in the workspace
+                for entry in os.listdir(self.project_root):
+                    manifest = os.path.join(self.project_root, entry, MANIFEST_FILENAME)
+                    if os.path.isfile(manifest):
+                        module_name = entry
+                        break
+
+            if not module_name:
+                return {"success": False, "error": "No module found in workspace"}
+
+            module_dir = os.path.join(self.project_root, module_name)
+            if not os.path.isdir(module_dir):
+                return {"success": False, "error": f"Module '{module_name}' not found"}
+
+            pipeline = AuditPipeline()
+            result = pipeline.audit(module_dir)
+            return {"success": True, "audit": result.to_dict()}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _tool_publish_module(self, inp: dict) -> dict:
+        if self.mode != "dev":
+            return {"success": False, "error": "publish_module requires dev mode"}
+        return {
+            "success": False,
+            "error": "Publishing is done via the API endpoint POST /api/v1/marketplace/publish. "
+                     "Use the API directly to publish your module after passing audit.",
+        }
+
+    def _tool_search_marketplace(self, inp: dict) -> dict:
+        try:
+            from anastasia.devterminal.marketplace import Marketplace
+            marketplace = Marketplace()
+            listings = marketplace.search(
+                query=inp.get("query"),
+                tags=inp.get("tags"),
+                module_type=inp.get("module_type"),
+            )
+            return {
+                "success": True,
+                "modules": [l.to_dict() for l in listings],
+                "count": len(listings),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _tool_install_module(self, inp: dict) -> dict:
+        if self.mode != "dev":
+            return {"success": False, "error": "install_module requires dev mode"}
+        if not self.project_root:
+            return {"success": False, "error": "No workspace set"}
+
+        try:
+            from anastasia.devterminal.marketplace import Marketplace
+            marketplace = Marketplace()
+            result = marketplace.install(
+                module_name=inp.get("module_name", ""),
+                target_dir=self.project_root,
+                version=inp.get("version"),
+            )
+            return {"success": True, "install": result.to_dict()}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _tool_dev_session_info(self, inp: dict) -> dict:
+        return {
+            "success": True,
+            "mode": self.mode,
+            "workspace": self.project_root,
+            "session_id": self.session_id,
+            "ai_usage": {
+                "input_tokens": self.total_input_tokens,
+                "output_tokens": self.total_output_tokens,
+                "requests": self.total_requests,
+                "estimated_cost_usd": self.get_usage().get("estimated_cost_usd", 0),
+            },
+        }
+
+    # ================================================================
     # UTILITY
     # ================================================================
 
@@ -1131,8 +1316,9 @@ Search results have agency pricing applied. Use consumer_price when showing pric
         self.config_changes = []
 
     def get_usage(self) -> dict:
-        input_cost = (self.total_input_tokens / 1_000_000) * 0.80
-        output_cost = (self.total_output_tokens / 1_000_000) * 4.00
+        # Opus 4.6 pricing (updated 2026-03): $5/MTok input, $25/MTok output
+        input_cost = (self.total_input_tokens / 1_000_000) * 5.00
+        output_cost = (self.total_output_tokens / 1_000_000) * 25.00
         return {
             "input_tokens": self.total_input_tokens,
             "output_tokens": self.total_output_tokens,

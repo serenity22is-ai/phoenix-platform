@@ -58,3 +58,5 @@ font_samples.html
 # Build output
 build/
 session_archive_full.md
+static/bg-video.mp4
+instance/*.db

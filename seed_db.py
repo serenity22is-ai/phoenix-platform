@@ -22,26 +22,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from server import app, db
 from models import (
     User, Deal, Payment, Booking, PriceAlert, Escrow,
-    HelperProfile, UserWallet, UserCard, P2PTransaction, P2PEscrow,
+    UserWallet, UserCard,
 )
 
 
 # --- Seed Data Constants ---
-
-HELPERS = [
-    {"country": "GB", "city": "London", "tz": "Europe/London"},
-    {"country": "ES", "city": "Madrid", "tz": "Europe/Madrid"},
-    {"country": "JP", "city": "Tokyo", "tz": "Asia/Tokyo"},
-    {"country": "IN", "city": "Mumbai", "tz": "Asia/Kolkata"},
-    {"country": "BR", "city": "São Paulo", "tz": "America/Sao_Paulo"},
-    {"country": "DE", "city": "Berlin", "tz": "Europe/Berlin"},
-    {"country": "MX", "city": "Mexico City", "tz": "America/Mexico_City"},
-    {"country": "KR", "city": "Seoul", "tz": "Asia/Seoul"},
-    {"country": "PH", "city": "Manila", "tz": "Asia/Manila"},
-    {"country": "CO", "city": "Bogotá", "tz": "America/Bogota"},
-    {"country": "TH", "city": "Bangkok", "tz": "Asia/Bangkok"},
-    {"country": "NG", "city": "Lagos", "tz": "Africa/Lagos"},
-]
 
 AIRLINES = [
     ("BA", "British Airways"), ("JL", "Japan Airlines"), ("AF", "Air France"),
@@ -64,11 +49,6 @@ MARKETS = {
     "FCO": ("IT", "EUR"), "GRU": ("BR", "BRL"), "ICN": ("KR", "KRW"),
     "AMS": ("NL", "EUR"),
 }
-
-P2P_STATUSES = [
-    "requested", "matched", "escrow_locked", "helper_accepted",
-    "purchasing", "confirmed", "completed", "failed", "cancelled",
-]
 
 CARD_BRANDS = ["visa", "mastercard", "amex"]
 
@@ -108,9 +88,8 @@ def show_counts():
         models = [
             ("Users", User), ("Deals", Deal), ("Payments", Payment),
             ("Bookings", Booking), ("PriceAlerts", PriceAlert),
-            ("Escrows", Escrow), ("HelperProfiles", HelperProfile),
+            ("Escrows", Escrow),
             ("UserWallets", UserWallet), ("UserCards", UserCard),
-            ("P2PTransactions", P2PTransaction), ("P2PEscrows", P2PEscrow),
         ]
         print("\n  MYSTES Database Record Counts")
         print("  " + "=" * 35)
@@ -206,63 +185,7 @@ def seed():
 
         print(f"  [+] {len(users) - 2} regular users created")
 
-        # --- 4. Helper profiles ---
-        helper_users = []
-        helper_profiles = []
-        for i, h in enumerate(HELPERS):
-            fname = FIRST_NAMES[len(users) + i] if (len(users) + i) < len(FIRST_NAMES) else f"Helper{i}"
-            lname = LAST_NAMES[i % len(LAST_NAMES)]
-            hu = User(
-                email=f"helper.{h['country'].lower()}.{i}@example.com",
-                name=f"{fname} {lname}",
-                is_verified=True,
-                is_active=True,
-                home_market=h["country"],
-                xrp_wallet_address=random_xrpl_address(),
-                created_at=random_past_datetime(120),
-            )
-            hu.set_password("Helper123!")
-            db.session.add(hu)
-            db.session.flush()
-            helper_users.append(hu)
-
-            total_tx = random.randint(0, 80)
-            success_tx = int(total_tx * random.uniform(0.85, 0.98))
-            hp = HelperProfile(
-                user_id=hu.id,
-                country_code=h["country"],
-                city=h["city"],
-                timezone=h["tz"],
-                is_active=random.choice([True, True, True, False]),
-                is_approved=i < 10,  # First 10 approved
-                is_online=random.choice([True, False]) if i < 10 else False,
-                total_transactions=total_tx,
-                successful_transactions=success_tx,
-                failed_transactions=total_tx - success_tx,
-                total_earned_rlusd=round(success_tx * random.uniform(15, 45), 2),
-                average_rating=round(random.uniform(4.2, 5.0), 1),
-                available_hours_start=random.choice([0, 6, 8]),
-                available_hours_end=random.choice([18, 22, 24]),
-                max_daily_transactions=random.randint(5, 15),
-                created_at=random_past_datetime(120),
-                last_active=random_past_datetime(7) if i < 8 else None,
-            )
-            db.session.add(hp)
-            db.session.flush()
-            helper_profiles.append(hp)
-
-            hw = UserWallet(
-                user_id=hu.id,
-                wallet_address=hu.xrp_wallet_address,
-                wallet_label="Helper Wallet",
-                is_primary=True,
-                is_verified=True,
-            )
-            db.session.add(hw)
-
-        print(f"  [+] {len(HELPERS)} helper profiles created across {len(set(h['country'] for h in HELPERS))} markets")
-
-        # --- 5. Deals ---
+        # --- 4. Deals ---
         deals = []
         for i in range(25):
             origin, dest = random.choice(ROUTES)
@@ -343,87 +266,7 @@ def seed():
 
         print(f"  [+] 6 bookings with payments created")
 
-        # --- 7. P2P Transactions ---
-        p2p_count = 0
-        for i in range(15):
-            buyer = random.choice(users[1:5])
-            hp = random.choice(helper_profiles[:10])
-            origin, dest = random.choice(ROUTES)
-            market_info = MARKETS.get(dest, ("XX", "USD"))
-            airline_code, airline_name = random.choice(AIRLINES)
-
-            us_price = round(random.uniform(400, 1500), 2)
-            target_price = round(us_price * random.uniform(0.60, 0.85), 2)
-            savings = round(us_price - target_price, 2)
-            helper_cut = round(target_price * 0.05, 2)
-            platform_fee = round(target_price * 0.03, 2)
-            escrow_total = round(target_price + helper_cut + platform_fee, 2)
-
-            status = random.choice(P2P_STATUSES)
-            created = random_past_datetime(60)
-
-            tx = P2PTransaction(
-                transaction_id=f"P2P-{secrets.token_hex(6).upper()}",
-                buyer_id=buyer.id,
-                helper_id=hp.id if status != "requested" else None,
-                origin=origin,
-                destination=dest,
-                departure_date=random_date(start_days_ago=5, end_days_ahead=90),
-                airline=airline_name,
-                flight_number=f"{airline_code}{random.randint(100, 999)}",
-                us_price_usd=us_price,
-                target_price_usd=target_price,
-                target_market=market_info[0],
-                target_currency=market_info[1],
-                savings_usd=savings,
-                escrow_amount_rlusd=escrow_total,
-                helper_reimbursement_rlusd=target_price,
-                helper_earning_rlusd=helper_cut,
-                platform_fee_rlusd=platform_fee,
-                escrow_tx_hash=random_tx_hash() if status not in ("requested", "matched") else None,
-                status=status,
-                confirmation_code=f"PNR{secrets.token_hex(3).upper()}" if status in ("confirmed", "completed") else None,
-                passenger_name=buyer.name,
-                passenger_email=buyer.email,
-                created_at=created,
-                matched_at=created + timedelta(minutes=random.randint(1, 30)) if status != "requested" else None,
-                escrow_locked_at=created + timedelta(minutes=random.randint(30, 60)) if status not in ("requested", "matched") else None,
-                confirmed_at=created + timedelta(hours=random.randint(1, 4)) if status in ("confirmed", "completed") else None,
-                completed_at=created + timedelta(hours=random.randint(4, 8)) if status == "completed" else None,
-                cancelled_at=created + timedelta(hours=1) if status == "cancelled" else None,
-                failure_reason="Helper browser disconnected" if status == "failed" else None,
-            )
-            db.session.add(tx)
-            db.session.flush()
-            p2p_count += 1
-
-            # Create P2P escrow for transactions past the escrow stage
-            if status not in ("requested", "matched"):
-                pe = P2PEscrow(
-                    escrow_id=f"ESC-{secrets.token_hex(6).upper()}",
-                    p2p_transaction_id=tx.id,
-                    buyer_address=random_xrpl_address(),
-                    helper_address=random_xrpl_address() if status != "requested" else None,
-                    platform_address="rMYSTESPlatformWallet123456789",
-                    total_rlusd=escrow_total,
-                    helper_amount_rlusd=target_price + helper_cut,
-                    platform_amount_rlusd=platform_fee,
-                    create_tx_hash=random_tx_hash(),
-                    condition=secrets.token_hex(32),
-                    status="released" if status == "completed" else (
-                        "cancelled" if status in ("failed", "cancelled") else "locked"
-                    ),
-                    on_chain_verified=status not in ("requested", "matched"),
-                    created_at=tx.escrow_locked_at or created,
-                    released_at=tx.completed_at if status == "completed" else None,
-                    cancelled_at=tx.cancelled_at if status in ("failed", "cancelled") else None,
-                    cancel_after=created + timedelta(hours=24),
-                )
-                db.session.add(pe)
-
-        print(f"  [+] {p2p_count} P2P transactions created with escrows")
-
-        # --- 8. Price alerts ---
+        # --- 6. Price alerts ---
         for i in range(5):
             buyer = random.choice(users[1:5])
             origin, dest = random.choice(ROUTES)

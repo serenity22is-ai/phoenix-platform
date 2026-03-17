@@ -2,39 +2,53 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Redbox Integration SDK — Product Overview</title>
+<title>ANASTASiA — Intelligent Integration Platform</title>
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-        font-family: 'Inter', -apple-system, sans-serif;
-        color: #1a1a2e;
+        font-family: 'Outfit', -apple-system, sans-serif;
+        color: #e2e8f0;
         max-width: 800px;
         margin: 0 auto;
         padding: 40px;
-        line-height: 1.5;
+        line-height: 1.6;
+        background: #0a0612;
     }
 
     .header {
         text-align: center;
         margin-bottom: 32px;
         padding-bottom: 24px;
-        border-bottom: 3px solid #1a1a2e;
+        border-bottom: 2px solid rgba(139, 92, 246, 0.3);
     }
 
     .header h1 {
-        font-size: 32px;
+        font-family: 'Cinzel', serif;
+        font-size: 36px;
         font-weight: 700;
-        letter-spacing: -0.5px;
-        margin-bottom: 8px;
+        letter-spacing: 2px;
+        margin-bottom: 4px;
+        background: linear-gradient(135deg, #a78bfa, #c4b5fd, #e9d5ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
     .header .subtitle {
-        font-size: 16px;
-        color: #555;
-        font-weight: 400;
+        font-size: 15px;
+        color: #94a3b8;
+        font-weight: 300;
+        letter-spacing: 0.5px;
+    }
+
+    .header .company {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 8px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
     }
 
     .hero-stat {
@@ -42,259 +56,446 @@
         justify-content: space-around;
         margin: 28px 0;
         padding: 20px 0;
-        border-top: 1px solid #eee;
-        border-bottom: 1px solid #eee;
+        border-top: 1px solid rgba(139, 92, 246, 0.15);
+        border-bottom: 1px solid rgba(139, 92, 246, 0.15);
     }
 
-    .stat-box {
-        text-align: center;
-    }
+    .stat-box { text-align: center; }
 
     .stat-number {
-        font-size: 36px;
+        font-family: 'Cinzel', serif;
+        font-size: 32px;
         font-weight: 700;
-        color: #1a1a2e;
+        color: #c4b5fd;
     }
 
     .stat-label {
-        font-size: 12px;
-        color: #777;
+        font-size: 11px;
+        color: #94a3b8;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 1.5px;
         margin-top: 4px;
     }
 
     h2 {
-        font-size: 18px;
+        font-family: 'Cinzel', serif;
+        font-size: 17px;
         font-weight: 600;
         margin: 28px 0 12px;
-        color: #1a1a2e;
+        color: #c4b5fd;
+        letter-spacing: 1px;
     }
 
-    .problem-solution {
+    .two-products {
         display: flex;
-        gap: 24px;
+        gap: 20px;
         margin: 16px 0;
     }
 
-    .problem, .solution {
+    .product-card {
         flex: 1;
-        padding: 16px;
-        border-radius: 8px;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        background: rgba(20, 17, 42, 0.8);
     }
 
-    .problem {
-        background: #fef2f2;
-        border-left: 4px solid #dc2626;
-    }
-
-    .solution {
-        background: #f0fdf4;
-        border-left: 4px solid #16a34a;
-    }
-
-    .problem h3, .solution h3 {
-        font-size: 14px;
+    .product-card h3 {
+        font-family: 'Cinzel', serif;
+        font-size: 16px;
         font-weight: 600;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
+        color: #e9d5ff;
     }
 
-    .problem h3 { color: #dc2626; }
-    .solution h3 { color: #16a34a; }
+    .product-card .tag {
+        display: inline-block;
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
 
-    .problem ul, .solution ul {
+    .tag-app { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .tag-platform { background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+
+    .product-card ul {
         font-size: 13px;
         padding-left: 16px;
-        color: #444;
+        color: #cbd5e1;
     }
 
-    .problem li, .solution li {
+    .product-card li { margin-bottom: 5px; }
+
+    .neuron-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+        margin: 16px 0;
+    }
+
+    .neuron {
+        padding: 10px 14px;
+        background: rgba(20, 17, 42, 0.8);
+        border-radius: 8px;
+        border: 1px solid rgba(139, 92, 246, 0.15);
+    }
+
+    .neuron strong {
+        display: block;
+        font-size: 13px;
+        color: #e9d5ff;
+        margin-bottom: 2px;
+    }
+
+    .neuron span {
+        font-size: 11px;
+        color: #94a3b8;
+    }
+
+    .flywheel {
+        margin: 16px 0;
+        padding: 20px;
+        border-radius: 10px;
+        background: rgba(20, 17, 42, 0.8);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    .flywheel-step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+        font-size: 13px;
+        color: #cbd5e1;
+    }
+
+    .flywheel-step:last-child { margin-bottom: 0; }
+
+    .step-num {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: #c4b5fd;
+        flex-shrink: 0;
+    }
+
+    .bridge-section {
+        margin: 16px 0;
+        padding: 20px;
+        border-radius: 10px;
+        background: rgba(20, 17, 42, 0.8);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    .bridge-diagram {
+        text-align: center;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 12px;
+        color: #a78bfa;
+        padding: 12px;
+        margin-bottom: 12px;
+        background: rgba(10, 6, 18, 0.6);
+        border-radius: 6px;
+    }
+
+    .bridge-benefits {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .bridge-benefit {
+        font-size: 12px;
+        color: #cbd5e1;
+        padding: 8px 12px;
+        background: rgba(10, 6, 18, 0.4);
+        border-radius: 6px;
+    }
+
+    .bridge-benefit strong {
+        color: #e9d5ff;
+    }
+
+    .vertical-model {
+        display: flex;
+        gap: 16px;
+        margin: 16px 0;
+    }
+
+    .vertical-card {
+        flex: 1;
+        padding: 14px;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid rgba(139, 92, 246, 0.15);
+        background: rgba(20, 17, 42, 0.8);
+    }
+
+    .vertical-card .emoji { font-size: 24px; margin-bottom: 6px; }
+
+    .vertical-card strong {
+        display: block;
+        font-size: 13px;
+        color: #e9d5ff;
         margin-bottom: 4px;
     }
 
-    .features {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin: 16px 0;
-    }
-
-    .feature {
-        padding: 12px 16px;
-        background: #f8f9fb;
-        border-radius: 6px;
-        font-size: 13px;
-    }
-
-    .feature strong {
-        display: block;
-        font-size: 14px;
-        margin-bottom: 2px;
-        color: #1a1a2e;
-    }
-
-    .feature span {
-        color: #666;
-    }
-
-    .endpoints {
-        font-size: 13px;
-        color: #444;
-        columns: 2;
-        margin: 8px 0 16px;
-        padding-left: 20px;
-    }
-
-    .endpoints li {
-        margin-bottom: 3px;
+    .vertical-card span {
+        font-size: 11px;
+        color: #94a3b8;
     }
 
     .cta {
         text-align: center;
         margin-top: 32px;
-        padding: 24px;
-        background: #1a1a2e;
-        color: white;
-        border-radius: 8px;
+        padding: 28px;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15));
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 10px;
     }
 
     .cta h3 {
+        font-family: 'Cinzel', serif;
         font-size: 18px;
+        color: #e9d5ff;
         margin-bottom: 8px;
     }
 
     .cta p {
         font-size: 14px;
-        color: #ccc;
+        color: #94a3b8;
     }
 
     .cta .contact {
         margin-top: 12px;
-        font-size: 14px;
-        color: #fff;
+        font-size: 13px;
+        color: #c4b5fd;
     }
 
     .footer {
         text-align: center;
         margin-top: 24px;
         font-size: 11px;
-        color: #999;
+        color: #475569;
     }
 
     @media print {
-        body { padding: 20px; }
-        .cta { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { padding: 20px; background: #0a0612; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
 </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>Redbox Integration SDK</h1>
-    <div class="subtitle">Accelerate Cockpit/Redbox API integration from months to hours</div>
+    <h1>ANASTASiA</h1>
+    <div class="subtitle">Intelligent Integration Platform &mdash; Powered by Claude Opus 4.6</div>
+    <div class="company">MYSTES KYRIOS LLC</div>
 </div>
 
 <div class="hero-stat">
     <div class="stat-box">
-        <div class="stat-number">12</div>
-        <div class="stat-label">API Endpoints Covered</div>
+        <div class="stat-number">13</div>
+        <div class="stat-label">Neural Modules</div>
     </div>
     <div class="stat-box">
-        <div class="stat-number">1 day</div>
-        <div class="stat-label">Integration Time</div>
+        <div class="stat-number">97</div>
+        <div class="stat-label">API Endpoints</div>
     </div>
     <div class="stat-box">
-        <div class="stat-number">0</div>
-        <div class="stat-label">Documentation Needed</div>
+        <div class="stat-number">31K+</div>
+        <div class="stat-label">Lines of Code</div>
+    </div>
+    <div class="stat-box">
+        <div class="stat-number">&infin;</div>
+        <div class="stat-label">Systems Learnable</div>
     </div>
 </div>
 
-<div class="problem-solution">
-    <div class="problem">
-        <h3>Without SDK</h3>
+<h2>Two Products</h2>
+
+<div class="two-products">
+    <div class="product-card">
+        <span class="tag tag-app">Application</span>
+        <h3>MYSTES</h3>
         <ul>
-            <li>2-month onboarding per agency</li>
-            <li>No public API documentation</li>
-            <li>Manual session token management</li>
-            <li>Trial-and-error field mapping</li>
-            <li>Undocumented error codes</li>
-            <li>High agency drop-off rate</li>
+            <li>Ready-to-go OTA &mdash; flights today, more verticals as ANASTASiA learns</li>
+            <li>Our live business + sellable turnkey template (same codebase)</li>
+            <li>Consumer: clean search UI, no visible AI</li>
+            <li>Admin: ANASTASiA terminal for full control</li>
+            <li>Guided setup &mdash; ANASTASiA walks you through like installing software</li>
         </ul>
     </div>
-    <div class="solution">
-        <h3>With SDK</h3>
+    <div class="product-card">
+        <span class="tag tag-platform">Platform</span>
+        <h3>ANASTASiA AI Suite</h3>
         <ul>
-            <li>Same-day integration</li>
-            <li>Complete reference documentation</li>
-            <li>Automated authentication</li>
-            <li>Correct field mapping built-in</li>
-            <li>Structured error handling</li>
-            <li>Near-zero onboarding friction</li>
+            <li>AI terminal for agencies with existing codebases</li>
+            <li>Daemon installs on their infrastructure, learns their stack</li>
+            <li>Bridge: IP-safe co-development between competitors</li>
+            <li>AutoLearner: reverse-engineers any API autonomously</li>
+            <li>Claude Opus 4.6 intelligence &mdash; adapts to any tech stack</li>
         </ul>
     </div>
 </div>
 
-<h2>What's Included</h2>
+<h2>13-Neuron Architecture</h2>
 
-<div class="features">
-    <div class="feature">
-        <strong>Flight Search</strong>
-        <span>Multi-GDS search across Amadeus, Sabre, NDC — parsed results with pricing, segments, baggage</span>
+<div class="neuron-grid">
+    <div class="neuron">
+        <strong>Knowledge</strong>
+        <span>AutoLearner + ProfileStore + Catalog</span>
     </div>
-    <div class="feature">
-        <strong>End-to-End Booking</strong>
-        <span>Search → cart → checkout → PNR in one call. Passenger mapping handled automatically.</span>
+    <div class="neuron">
+        <strong>Daemon</strong>
+        <span>On-prem executor + codebase scanner</span>
     </div>
-    <div class="feature">
-        <strong>Automated Authentication</strong>
-        <span>Session token lifecycle — login, refresh, persistence, retry. Zero manual intervention.</span>
+    <div class="neuron">
+        <strong>Bridge</strong>
+        <span>IP-safe bilateral co-development</span>
     </div>
-    <div class="feature">
-        <strong>Complete Documentation</strong>
-        <span>Every endpoint, every field, every enum. The reference guide Redbox doesn't have.</span>
+    <div class="neuron">
+        <strong>Integrator</strong>
+        <span>Code generation for 6+ languages</span>
     </div>
-    <div class="feature">
-        <strong>Agency Fee Management</strong>
-        <span>BOOKING_FEE_OVERRIDE integration — markup tickets to customer-facing price automatically.</span>
+    <div class="neuron">
+        <strong>Payments</strong>
+        <span>5 adapters (Stripe, Adyen, Square...)</span>
     </div>
-    <div class="feature">
-        <strong>Production Ready</strong>
-        <span>Thread-safe, logging, error handling. Built for multi-threaded web servers.</span>
+    <div class="neuron">
+        <strong>Intelligence</strong>
+        <span>Pricing trends + anomaly detection</span>
+    </div>
+    <div class="neuron">
+        <strong>Compliance</strong>
+        <span>PCI / GDPR / CCPA / IATA / PSD2</span>
+    </div>
+    <div class="neuron">
+        <strong>Resilience</strong>
+        <span>Circuit breaker + fallback + queue</span>
+    </div>
+    <div class="neuron">
+        <strong>Tenancy</strong>
+        <span>3-tier hierarchy + data isolation</span>
+    </div>
+    <div class="neuron">
+        <strong>Credits</strong>
+        <span>4-tier rewards system</span>
+    </div>
+    <div class="neuron">
+        <strong>Portability</strong>
+        <span>Export + migrate (6 formats)</span>
+    </div>
+    <div class="neuron">
+        <strong>Sandbox</strong>
+        <span>Test environment + trial manager</span>
     </div>
 </div>
 
-<h2>Full API Coverage</h2>
-<ul class="endpoints">
-    <li>Flight search &amp; pagination</li>
-    <li>Fare rules (16 categories)</li>
-    <li>Seatmap retrieval</li>
-    <li>Shopping cart (CRUD)</li>
-    <li>Add-and-checkout (one-step)</li>
-    <li>Booking creation (SuperPNR)</li>
-    <li>Booking search &amp; management</li>
-    <li>Document generation (PDF/email)</li>
-    <li>Traveler profiles</li>
-    <li>Session configuration</li>
-    <li>Airport search (public)</li>
-    <li>4 GDS channels supported</li>
-</ul>
+<h2>The Knowledge Flywheel</h2>
 
-<h2>Integration</h2>
-<p style="font-size: 14px; color: #444; margin-bottom: 8px;">Python package — install and search flights in under 5 minutes:</p>
-<pre style="background: #1a1a2e; color: #e2e8f0; padding: 16px; border-radius: 8px; font-size: 13px; font-family: 'SF Mono', Monaco, monospace; overflow-x: auto;">
-pip install picasso-redbox-sdk
+<div class="flywheel">
+    <div class="flywheel-step">
+        <span class="step-num">1</span>
+        <span>Agency installs daemon &rarr; ANASTASiA scans their codebase</span>
+    </div>
+    <div class="flywheel-step">
+        <span class="step-num">2</span>
+        <span>AutoLearner (Claude Opus 4.6) reverse-engineers every connected API</span>
+    </div>
+    <div class="flywheel-step">
+        <span class="step-num">3</span>
+        <span>System Profiles stored permanently &mdash; API patterns are functional knowledge</span>
+    </div>
+    <div class="flywheel-step">
+        <span class="step-num">4</span>
+        <span>Learned systems become new MYSTES verticals &mdash; each a sellable turnkey business</span>
+    </div>
+    <div class="flywheel-step">
+        <span class="step-num">5</span>
+        <span>More clients &rarr; more systems learned &rarr; more verticals &rarr; more clients (repeat)</span>
+    </div>
+</div>
 
-<span style="color: #94a3b8;"># 5 lines to live flight search</span>
-from picasso import RedboxClient
+<h2>Daemon Bridge &mdash; Coopetition &amp; M&amp;A Infrastructure</h2>
 
-client = RedboxClient(agency_id=<span style="color: #fbbf24;">"YOUR_ID"</span>, branch=<span style="color: #fbbf24;">"YOUR_BRANCH"</span>)
-result = client.search_flights(<span style="color: #fbbf24;">"JFK"</span>, <span style="color: #fbbf24;">"LHR"</span>, <span style="color: #fbbf24;">"2026-06-15"</span>)
-</pre>
+<div class="bridge-section">
+    <div class="bridge-diagram">
+        Entity A &harr; Daemon A &harr; [Firewall] &harr; ANASTASiA Cloud &harr; [Firewall] &harr; Daemon B &harr; Entity B
+    </div>
+    <div class="bridge-benefits">
+        <div class="bridge-benefit"><strong>Replaces</strong> legal teams negotiating data sharing</div>
+        <div class="bridge-benefit"><strong>Replaces</strong> security audits per integration</div>
+        <div class="bridge-benefit"><strong>Replaces</strong> months of middleware development</div>
+        <div class="bridge-benefit"><strong>Replaces</strong> expensive opsec protocols</div>
+        <div class="bridge-benefit"><strong>Enables</strong> competitors to co-develop safely</div>
+        <div class="bridge-benefit"><strong>Enables</strong> N*(N-1)/2 bridges from N daemons</div>
+        <div class="bridge-benefit"><strong>M&amp;A</strong> 18-month integrations &rarr; first-week proposals</div>
+        <div class="bridge-benefit"><strong>M&amp;A</strong> Zero-pressure: run acquired GDS as-is, migrate on the side</div>
+        <div class="bridge-benefit"><strong>M&amp;A</strong> Own competitors' GDS shops &mdash; strategic asset, not liability</div>
+        <div class="bridge-benefit"><strong>Mergers</strong> Due diligence via daemons BEFORE signing</div>
+    </div>
+</div>
+
+<h2>Vertical Expansion &mdash; Each Learned System = New Product</h2>
+
+<div class="vertical-model">
+    <div class="vertical-card">
+        <div class="emoji">&#9992;</div>
+        <strong>Flights</strong>
+        <span>Cockpit/Redbox<br>LIVE</span>
+    </div>
+    <div class="vertical-card">
+        <div class="emoji">&#127976;</div>
+        <strong>Hotels</strong>
+        <span>Hotelbeds, liteAPI<br>LEARNING</span>
+    </div>
+    <div class="vertical-card">
+        <div class="emoji">&#128663;</div>
+        <strong>Car Rentals</strong>
+        <span>From client installs<br>NEXT</span>
+    </div>
+    <div class="vertical-card">
+        <div class="emoji">&#127796;</div>
+        <strong>Packages</strong>
+        <span>Multi-vertical<br>FUTURE</span>
+    </div>
+</div>
+
+<p style="text-align: center; font-size: 12px; color: #94a3b8; margin: 8px 0 0;">
+    Each vertical is sellable as: standalone turnkey business &bull; pluggable vertical for existing systems &bull; revenue in our MYSTES OTA
+</p>
+
+<h2>Cross-GDS Intelligence &mdash; We're Inside the Castle</h2>
+
+<div class="bridge-section">
+    <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 12px;">
+        Data brokers stand outside the walls buying stale snapshots. ANASTASiA is <strong style="color: #e9d5ff;">inside every castle simultaneously</strong> &mdash; generating live intelligence as a byproduct of running real operations across multiple GDS systems. Structural data, not proprietary. Subscription add-on for existing clients.
+    </p>
+    <div class="bridge-benefits">
+        <div class="bridge-benefit"><strong>Live pricing</strong> Real-time across Sabre/Travelport/Amadeus/Cockpit</div>
+        <div class="bridge-benefit"><strong>Demand</strong> Route popularity + booking velocity across ALL systems</div>
+        <div class="bridge-benefit"><strong>Benchmarks</strong> GDS-vs-GDS inventory and fare comparison</div>
+        <div class="bridge-benefit"><strong>Anomalies</strong> Real-time pricing errors + arbitrage windows</div>
+        <div class="bridge-benefit"><strong>Zero cost</strong> Natural exhaust of existing operations</div>
+        <div class="bridge-benefit"><strong>Unreplicable</strong> Requires our operational footprint to produce</div>
+    </div>
+</div>
 
 <div class="cta">
     <h3>Ready for a Live Demo?</h3>
-    <p>See the SDK search, book, and manage flights in real-time against the Redbox API.</p>
-    <div class="contact">MYSTES KYRIOS LLC &nbsp;|&nbsp; Contact for demo scheduling</div>
+    <p>See MYSTES search, book, and manage flights in real-time &mdash; powered by ANASTASiA's 13-neuron network.</p>
+    <div class="contact">MYSTES KYRIOS LLC &nbsp;&bull;&nbsp; anastasia-api.onrender.com &nbsp;&bull;&nbsp; Contact for demo</div>
 </div>
 
 <div class="footer">

@@ -20,7 +20,7 @@ BASE_TEMPLATE = '''
     <meta charset="UTF-8">
     <title>{{ title }} | MYSTES</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="MYSTES - AI-powered search engine for geographic price arbitrage. Compare flights, hotels, products, rentals and more across 195 markets. Pay with crypto. Powered by XRPL.">
+    <meta name="description" content="MYSTES - AI-powered travel intelligence. Compare flights, hotels, and more across 102 markets. Wholesale prices, real savings.">
     <!-- PWA Meta -->
     <meta name="theme-color" content="#7c3aed">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,7 +40,10 @@ BASE_TEMPLATE = '''
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-    <!-- Google OAuth handled via server-side redirect, no JS library needed -->
+    <!-- Google Identity Services (One Tap + Sign-In button) -->
+    {% if google_client_id %}
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    {% endif %}
     <style>
         /* ============================================
            MYSTES DESIGN SYSTEM
@@ -305,34 +308,6 @@ BASE_TEMPLATE = '''
             background: linear-gradient(135deg, #6d28d9, #14b8a6) !important;
         }
 
-        /* XRPL Trust Badge */
-        .xrpl-badge {
-            display: flex;
-            align-items: center;
-            gap: var(--space-sm);
-            padding: var(--space-xs) var(--space-md);
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 100px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            letter-spacing: 0.5px;
-        }
-
-        .xrpl-badge::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: var(--success-green);
-            border-radius: 50%;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
-            50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); }
-        }
 
         /* ============================================
            MAIN CONTENT
@@ -1104,9 +1079,6 @@ BASE_TEMPLATE = '''
                 padding: 0 var(--space-md);
             }
 
-            .xrpl-badge {
-                display: none;
-            }
 
             /* Cards */
             .card {
@@ -1563,96 +1535,35 @@ BASE_TEMPLATE = '''
 
         <div class="nav-links" id="navLinks">
             {% if current_user.is_authenticated %}
-                <a href="/ai" class="nav-link">AI Search</a>
+                <a href="/flights" class="nav-link">Flights</a>
+                <a href="/hotels" class="nav-link">Hotels</a>
                 <a href="/dashboard" class="nav-link">Dashboard</a>
-                <a href="/deals" class="nav-link">Deals</a>
-                <a href="/wallet" class="nav-link">Wallet</a>
+                <a href="/rewards" class="nav-link" style="color: var(--mystes-glow);">Rewards</a>
                 <div class="nav-more-wrapper">
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
                     <div class="nav-more-menu" id="navMoreMenu">
+                        {% if feature_rentals %}<a href="/cars" class="nav-more-link">Cars</a>{% endif %}
+                        {% if feature_activities %}<a href="/activities" class="nav-more-link">Activities</a>{% endif %}
+                        <a href="/deals" class="nav-more-link">Deals</a>
+                        <a href="/ai" class="nav-more-link">AI Search</a>
+                        {% if feature_trip_planner %}<a href="/trips" class="nav-more-link">My Trips</a>{% endif %}
+                        {% if feature_wishlist %}<a href="/collections" class="nav-more-link">Collections</a>{% endif %}
+                        {% if feature_friends %}<a href="/friends" class="nav-more-link">Friends</a>{% endif %}
                         <a href="/travelers" class="nav-more-link">Travelers</a>
-                        {% if current_user.is_admin %}<a href="/admin/nodes" class="nav-more-link" style="color: var(--mystes-glow);">Nodes</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/portal" class="nav-more-link" style="color: var(--mystes-glow);">Proxy Portal</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/helper" class="nav-more-link" style="color: var(--mystes-glow);">Helper</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/earn" class="nav-more-link" style="color: var(--mystes-glow);">Earn</a>{% endif %}
-                        {% if current_user.is_admin %}<a href="/setup" class="nav-more-link" style="color: var(--mystes-glow);">Setup Guides</a>{% endif %}
+                        <a href="/business" class="nav-more-link" style="color: var(--mystes-silver);">Business</a>
                         {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--mystes-glow);">Admin</a>{% endif %}
                     </div>
                 </div>
                 <a href="/logout" class="nav-link nav-cta">Logout</a>
             {% else %}
-                <a href="/" class="nav-link">Search</a>
+                <a href="/flights" class="nav-link">Flights</a>
+                <a href="/hotels" class="nav-link">Hotels</a>
                 <a href="/deals" class="nav-link">Deals</a>
                 <a href="/login" class="nav-link">Login</a>
                 <a href="/register" class="nav-link nav-cta">Get Started</a>
             {% endif %}
-            <span class="xrpl-badge">XRPL Secured</span>
         </div>
     </nav>
-
-    <!-- Onboarding Banner -->
-    {% if not current_user.is_authenticated %}
-    <div class="onboard-banner" id="onboardBanner">
-        <div class="onboard-banner-inner">
-            <div class="onboard-banner-text">
-                <strong>Join the Mystes Network</strong>
-                <span class="onboard-banner-sub">Sign in with Google. Your browser becomes a node. Earn while you search.</span>
-            </div>
-            <div class="onboard-banner-action">
-                <a href="/auth/google/start" class="onboard-btn google-signin-btn" id="googleSignInBtn" style="text-decoration:none;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:8px;"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 001 12c0 1.94.46 3.77 1.18 5.42l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                    Sign in with Google
-                </a>
-            </div>
-            <button class="onboard-banner-close" onclick="document.getElementById('onboardBanner').style.display='none';sessionStorage.setItem('banner_dismissed','1')" aria-label="Dismiss">&times;</button>
-        </div>
-    </div>
-    <script>
-    if(sessionStorage.getItem('banner_dismissed')){document.getElementById('onboardBanner').style.display='none';}
-    </script>
-    {% elif current_user.is_authenticated and not current_user.is_helper_node %}
-    <div class="onboard-banner onboard-banner-node" id="onboardBanner">
-        <div class="onboard-banner-inner">
-            <div class="onboard-banner-text">
-                <strong>Activate Your Node</strong>
-                <span class="onboard-banner-sub">One click to start earning. Your browser becomes part of the Mystes search network.</span>
-            </div>
-            <div class="onboard-banner-action">
-                <button class="onboard-btn" id="onboardNodeBtn" onclick="onboardNode()">Become a Node</button>
-            </div>
-            <button class="onboard-banner-close" onclick="document.getElementById('onboardBanner').style.display='none'" aria-label="Dismiss">&times;</button>
-        </div>
-    </div>
-    <script>
-    function onboardNode(){
-        var btn=document.getElementById('onboardNodeBtn');
-        btn.textContent='Activating...';btn.disabled=true;
-        fetch('/api/node/onboard',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name=csrf-token]')?.content||''},body:JSON.stringify({country_code:'US'})})
-        .then(r=>r.json()).then(d=>{
-            if(d.success){document.getElementById('onboardBanner').innerHTML='<div class=\"onboard-banner-inner\"><div class=\"onboard-banner-text\"><strong>Node Active!</strong> <span class=\"onboard-banner-sub\">You are now part of the Mystes network. Node ID: '+d.node_id+'</span></div></div>';setTimeout(()=>{document.getElementById('onboardBanner').style.display='none';},4000);}
-            else{btn.textContent='Become a Node';btn.disabled=false;alert(d.error||'Onboarding failed');}
-        }).catch(()=>{btn.textContent='Become a Node';btn.disabled=false;});
-    }
-    </script>
-    {% endif %}
-
-    <style>
-    .onboard-banner{position:fixed;top:60px;left:0;right:0;z-index:999;background:linear-gradient(135deg,rgba(124,58,237,0.15),rgba(138,43,226,0.12));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(124,58,237,0.3);padding:0;animation:bannerSlide .4s ease-out;}
-    @keyframes bannerSlide{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
-    .onboard-banner-inner{max-width:1200px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
-    .onboard-banner-text{flex:1;min-width:200px;font-family:'Rajdhani',sans-serif;}
-    .onboard-banner-text strong{color:var(--mystes-glow,#7c3aed);font-size:1.05rem;display:block;line-height:1.2;}
-    .onboard-banner-sub{color:var(--text-secondary,#999);font-size:0.88rem;}
-    .onboard-banner-action{flex-shrink:0;}
-    .onboard-banner-close{background:none;border:none;color:var(--text-secondary,#999);font-size:1.4rem;cursor:pointer;padding:0 0 0 12px;line-height:1;opacity:0.7;}
-    .onboard-banner-close:hover{opacity:1;color:var(--text-bright,#fff);}
-    .onboard-btn{background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff;border:none;padding:10px 28px;border-radius:25px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.95rem;cursor:pointer;transition:all .2s;}
-    .onboard-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(124,58,237,0.4);}
-    .onboard-btn:disabled{opacity:0.6;cursor:wait;transform:none;}
-    .google-signin-btn{display:inline-flex;align-items:center;background:#fff;color:#3c4043;border:none;padding:10px 24px;border-radius:25px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.95rem;cursor:pointer;transition:all .2s;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
-    .google-signin-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(0,0,0,0.3);background:#f8f8f8;}
-    @media(max-width:600px){.onboard-banner-inner{flex-direction:column;text-align:center;gap:10px;padding:10px 16px;}.onboard-banner-close{position:absolute;top:8px;right:12px;}}
-    </style>
 
     <!-- Main Content -->
     <main class="main">
@@ -1702,7 +1613,6 @@ BASE_TEMPLATE = '''
             </div>
             <div class="footer-copy">
                 &copy; 2026 MYSTES &mdash; <span class="footer-tagline">Breaking borders. Connecting humanity.</span>
-                <br>Powered by XRP Ledger
             </div>
         </div>
     </footer>
@@ -1842,22 +1752,30 @@ BASE_TEMPLATE = '''
         }
     </script>
 
-    <!-- Mystes Node Client (Build #91) — auto-initializes node for all users -->
-    <script src="/static/js/mystes-node-client.js"></script>
-    <script src="/static/js/mystes-node-capture.js"></script>
-    <script src="/static/js/mystes-node-bridge.js"></script>
-    {% if current_user.is_authenticated and current_user.is_helper_node %}
+    <!-- Google One Tap — auto-prompt for logged-out users -->
+    {% if google_client_id and not current_user.is_authenticated %}
     <script>
-        window.__MYSTES_NODE_CONFIG__ = {
-            serverUrl: window.location.origin,
-            helperToken: "{{ helper_token_for_node|default('') }}",
-            consent: {{ node_consent_json|default('{}')|safe }}
-        };
-        if (window.__MYSTES_NODE_CONFIG__.helperToken) {
-            autoInitMystesNode().catch(function(e) {
-                console.warn('[MystesNode] Auto-init failed:', e.message);
-            });
-        }
+    window.addEventListener('load', function() {
+        if (typeof google === 'undefined' || !google.accounts) return;
+        google.accounts.id.initialize({
+            client_id: '{{ google_client_id }}',
+            callback: function(response) {
+                // POST credential JWT to our callback endpoint
+                fetch('/auth/google/callback', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'credential=' + encodeURIComponent(response.credential)
+                }).then(function(r) { return r.json ? r.json() : r.text(); })
+                  .then(function() { window.location.reload(); })
+                  .catch(function() { window.location.href = '/auth/google/start'; });
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            context: 'signin'
+        });
+        // Show One Tap prompt (non-intrusive)
+        google.accounts.id.prompt();
+    });
     </script>
     {% endif %}
 
@@ -1913,382 +1831,109 @@ BASE_TEMPLATE = '''
 # Flight search homepage — direct Picasso overlay
 HOME_HERO = '''
 <style>
-    .search-page { min-height: calc(100vh - 80px); padding: 40px 20px 60px; }
-    .search-header { text-align: center; margin-bottom: 32px; opacity:0; animation: fadeInUp 0.6s var(--ease-out) 0.1s forwards; }
-    .search-header h1 { font-family: var(--font-display); font-size: clamp(36px, 8vw, 72px); font-weight: 600; letter-spacing: 8px; text-transform: uppercase; color: var(--text-bright); margin: 0 0 8px; text-shadow: 0 4px 40px rgba(0,0,0,0.5); }
-    .search-header p { font-size: 16px; color: var(--text-secondary); margin: 0; }
+    .home-page { min-height: calc(100vh - 80px); padding: 60px 20px 80px; }
 
-    .search-form-card {
-        max-width: 900px; margin: 0 auto 32px; padding: 28px 32px;
+    /* Brand header */
+    .home-brand { text-align: center; margin-bottom: 48px; opacity: 0; animation: fadeInUp 0.6s var(--ease-out) 0.1s forwards; }
+    .home-brand h1 {
+        font-family: var(--font-display); font-size: clamp(48px, 10vw, 96px); font-weight: 600;
+        letter-spacing: 12px; text-transform: uppercase; color: var(--text-bright); margin: 0 0 12px;
+        text-shadow: 0 4px 60px rgba(124, 58, 237, 0.3);
+    }
+    .home-brand .tagline {
+        font-family: var(--font-sans); font-size: 18px; color: var(--text-secondary);
+        letter-spacing: 4px; text-transform: uppercase; font-weight: 300; margin: 0;
+    }
+
+    /* Vertical cards grid */
+    .verticals-grid {
+        max-width: 900px; margin: 0 auto 48px;
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
+        opacity: 0; animation: fadeInUp 0.6s var(--ease-out) 0.25s forwards;
+    }
+    .vertical-card {
+        position: relative; padding: 36px 28px; border-radius: 16px;
         background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-        opacity:0; animation: fadeInUp 0.6s var(--ease-out) 0.2s forwards;
+        backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        text-decoration: none; color: inherit; display: flex; flex-direction: column;
+        align-items: center; text-align: center; gap: 14px;
+        transition: border-color 0.3s, background 0.3s, transform 0.3s;
     }
-
-    .sf-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-    .sf-field { flex: 1; min-width: 140px; }
-    .sf-field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.5); margin-bottom: 6px; font-family: var(--font-sans); }
-    .sf-field input, .sf-field select {
-        width: 100%; padding: 12px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 10px; color: var(--text-bright); font-size: 15px; font-family: var(--font-sans); outline: none;
-        transition: border-color 0.2s;
+    .vertical-card:hover {
+        border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.08);
+        transform: translateY(-4px);
     }
-    .sf-field input:focus, .sf-field select:focus { border-color: rgba(124,58,237,0.5); }
-    .sf-field input::placeholder { color: rgba(255,255,255,0.3); }
-    .sf-field select option { background: #1a1a2e; color: #fff; }
-
-    .sf-pax { display: flex; gap: 12px; flex-wrap: wrap; }
-    .sf-pax .sf-field { min-width: 100px; flex: 0 1 auto; }
-
-    .sf-submit-row { display: flex; justify-content: center; margin-top: 20px; }
-    .sf-submit {
-        padding: 14px 48px; border: none; border-radius: 12px; cursor: pointer;
-        font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
-        background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-deep)); color: white;
-        transition: opacity 0.2s, transform 0.2s;
+    .vertical-card.coming-soon { opacity: 0.5; pointer-events: none; }
+    .vc-icon { font-size: 40px; line-height: 1; }
+    .vc-name {
+        font-family: var(--font-display); font-size: 20px; font-weight: 600;
+        letter-spacing: 4px; text-transform: uppercase; color: var(--text-bright);
     }
-    .sf-submit:hover { opacity: 0.9; transform: translateY(-1px); }
-    .sf-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-    /* Trip type toggle */
-    .sf-trip-toggle { display: flex; gap: 0; margin-bottom: 18px; justify-content: center; }
-    .sf-trip-btn {
-        padding: 8px 20px; border: 1px solid rgba(255,255,255,0.15); background: transparent;
-        color: rgba(255,255,255,0.6); font-family: var(--font-sans); font-size: 13px; font-weight: 600;
-        cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px;
+    .vc-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+    .vc-badge {
+        position: absolute; top: 12px; right: 12px;
+        padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
     }
-    .sf-trip-btn:first-child { border-radius: 8px 0 0 8px; }
-    .sf-trip-btn:last-child { border-radius: 0 8px 8px 0; }
-    .sf-trip-btn.active { background: rgba(124,58,237,0.25); border-color: rgba(124,58,237,0.5); color: #fff; }
+    .vc-badge.live { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+    .vc-badge.soon { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
 
-    /* Results */
-    .search-results { max-width: 900px; margin: 0 auto; }
-    .sr-loading { text-align: center; padding: 60px 20px; display: none; }
-    .sr-loading .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--mystes-purple); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    .sr-loading p { color: var(--text-secondary); font-size: 14px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .sr-error { text-align: center; padding: 40px 20px; color: #f87171; display: none; }
-    .sr-summary { text-align: center; padding: 16px 0 24px; color: var(--text-secondary); font-size: 14px; display: none; }
-
-    .flight-card {
-        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 14px; padding: 20px 24px; margin-bottom: 14px;
-        display: grid; grid-template-columns: 140px 1fr 160px; align-items: center; gap: 20px;
-        transition: border-color 0.2s, background 0.2s; cursor: pointer;
+    /* Powered by badge */
+    .home-powered {
+        text-align: center; margin-top: 32px;
+        opacity: 0; animation: fadeInUp 0.6s var(--ease-out) 0.4s forwards;
     }
-    .flight-card:hover { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.06); }
-    .fc-airline { min-width: 120px; }
-    .fc-airline-name { font-weight: 700; color: var(--text-bright); font-size: 15px; }
-    .fc-flight-num { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-    .fc-route { display: flex; align-items: center; gap: 16px; justify-content: center; }
-    .fc-endpoint { text-align: center; }
-    .fc-time { font-size: 20px; font-weight: 700; color: var(--text-bright); letter-spacing: 0.5px; }
-    .fc-code { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-top: 2px; letter-spacing: 1px; }
-    .fc-arrow { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; position: relative; }
-    .fc-line { width: 100%; height: 1px; background: rgba(255,255,255,0.15); }
-    .fc-duration { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-    .fc-stops { font-size: 10px; color: rgba(124,58,237,0.8); font-weight: 600; }
-    .fc-price-section { text-align: right; min-width: 140px; }
-    .fc-price { font-size: 24px; font-weight: 800; color: var(--text-bright); }
-    .fc-savings { font-size: 12px; color: #34d399; font-weight: 600; margin-top: 2px; }
-    .fc-google-price { font-size: 12px; color: var(--text-secondary); text-decoration: line-through; }
-    .fc-book-btn {
-        padding: 10px 24px; border: none; border-radius: 10px; cursor: pointer;
-        background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-deep)); color: white;
-        font-weight: 700; font-size: 13px; font-family: var(--font-sans); transition: opacity 0.2s;
+    .home-powered span {
+        font-size: 12px; color: rgba(255,255,255,0.25); letter-spacing: 2px;
+        text-transform: uppercase; font-family: var(--font-sans);
     }
-    .fc-book-btn:hover { opacity: 0.85; }
-
-    .no-results { text-align: center; padding: 60px 20px; color: var(--text-secondary); display: none; }
 
     @keyframes fadeInUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
 
-    @media (max-width: 768px) {
-        .search-form-card { padding: 20px 16px; }
-        .sf-row { flex-direction: column; gap: 10px; }
-        .sf-field { min-width: 100%; }
-        .sf-pax { flex-direction: row; }
-        .sf-pax .sf-field { min-width: 80px; flex: 1; }
-        .flight-card { grid-template-columns: 1fr; gap: 12px; padding: 16px; }
-        .fc-price-section { text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; }
+    @media (max-width: 600px) {
+        .verticals-grid { grid-template-columns: 1fr; gap: 14px; }
+        .home-brand h1 { letter-spacing: 6px; }
     }
 </style>
 
-<section class="search-page">
-    <div class="search-header">
-        <h1><span class="mystes-brand">MYSTES</span></h1>
-        <p>Search 102 markets for the cheapest flights</p>
+<section class="home-page">
+    <div class="home-brand">
+        <h1>MYSTES</h1>
+        <p class="tagline">Travel Intelligence</p>
     </div>
 
-    <div class="search-form-card">
-        <div class="sf-trip-toggle">
-            <button type="button" class="sf-trip-btn active" onclick="setTripType(this,&apos;oneway&apos;)">One Way</button>
-            <button type="button" class="sf-trip-btn" onclick="setTripType(this,&apos;roundtrip&apos;)">Round Trip</button>
-        </div>
+    <div class="verticals-grid">
+        <a href="/flights" class="vertical-card">
+            <span class="vc-badge live">Live</span>
+            <div class="vc-icon">&#9992;</div>
+            <div class="vc-name">Flights</div>
+            <div class="vc-desc">Search 102 markets for the cheapest fares</div>
+        </a>
 
-        <div class="sf-row">
-            <div class="sf-field">
-                <label>From</label>
-                <input type="text" id="sfOrigin" placeholder="JFK, LAX, ORD..." maxlength="3" style="text-transform:uppercase;">
-            </div>
-            <div class="sf-field">
-                <label>To</label>
-                <input type="text" id="sfDest" placeholder="LHR, NRT, CDG..." maxlength="3" style="text-transform:uppercase;">
-            </div>
-            <div class="sf-field">
-                <label>Departure</label>
-                <input type="date" id="sfDate">
-            </div>
-            <div class="sf-field" id="sfReturnWrap" style="display:none;">
-                <label>Return</label>
-                <input type="date" id="sfReturn">
-            </div>
-        </div>
+        <a href="/hotels" class="vertical-card">
+            <span class="vc-badge live">Live</span>
+            <div class="vc-icon">&#127976;</div>
+            <div class="vc-name">Hotels</div>
+            <div class="vc-desc">Best rates from 2M+ properties worldwide</div>
+        </a>
 
-        <div class="sf-row sf-pax">
-            <div class="sf-field">
-                <label>Adults</label>
-                <select id="sfAdults">
-                    <option value="1" selected>1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
-                </select>
-            </div>
-            <div class="sf-field">
-                <label>Children</label>
-                <select id="sfChildren">
-                    <option value="0" selected>0</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                </select>
-            </div>
-            <div class="sf-field">
-                <label>Infants</label>
-                <select id="sfInfants">
-                    <option value="0" selected>0</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                </select>
-            </div>
-            <div class="sf-field">
-                <label>Cabin</label>
-                <select id="sfCabin">
-                    <option value="economy" selected>Economy</option>
-                    <option value="premium_economy">Premium Economy</option>
-                    <option value="business">Business</option>
-                    <option value="first">First</option>
-                </select>
-            </div>
-        </div>
+        <a href="/activities" class="vertical-card coming-soon">
+            <span class="vc-badge soon">Coming Soon</span>
+            <div class="vc-icon">&#127947;</div>
+            <div class="vc-name">Activities</div>
+            <div class="vc-desc">Tours, experiences, and things to do</div>
+        </a>
 
-        <div class="sf-submit-row">
-            <button class="sf-submit" id="sfSearchBtn" onclick="searchFlights()">Search Flights</button>
-        </div>
+        <a href="/cars" class="vertical-card coming-soon">
+            <span class="vc-badge soon">Coming Soon</span>
+            <div class="vc-icon">&#128663;</div>
+            <div class="vc-name">Cars</div>
+            <div class="vc-desc">Rental cars and airport transfers</div>
+        </a>
     </div>
 
-    <div class="search-results">
-        <div class="sr-loading" id="srLoading">
-            <div class="spinner"></div>
-            <p>Searching 102 markets for the best price...</p>
-        </div>
-        <div class="sr-error" id="srError"></div>
-        <div class="sr-summary" id="srSummary"></div>
-        <div id="srCards"></div>
-        <div class="no-results" id="srNoResults">No flights found. Try different dates or airports.</div>
+    <div class="home-powered">
+        <span>Powered by ANASTASiA</span>
     </div>
 </section>
-
-<script>
-var tripType = "oneway";
-
-function setTripType(btn, type) {
-    tripType = type;
-    document.querySelectorAll(".sf-trip-btn").forEach(function(b) { b.classList.remove("active"); });
-    btn.classList.add("active");
-    document.getElementById("sfReturnWrap").style.display = type === "roundtrip" ? "" : "none";
-}
-
-// Set default departure date to tomorrow
-(function() {
-    var d = new Date(); d.setDate(d.getDate() + 7);
-    var iso = d.toISOString().split("T")[0];
-    document.getElementById("sfDate").value = iso;
-    document.getElementById("sfDate").min = new Date().toISOString().split("T")[0];
-    document.getElementById("sfReturn").min = new Date().toISOString().split("T")[0];
-})();
-
-async function searchFlights() {
-    var origin = document.getElementById("sfOrigin").value.trim().toUpperCase();
-    var dest = document.getElementById("sfDest").value.trim().toUpperCase();
-    var date = document.getElementById("sfDate").value;
-    var returnDate = tripType === "roundtrip" ? document.getElementById("sfReturn").value : null;
-    var adults = parseInt(document.getElementById("sfAdults").value);
-    var children = parseInt(document.getElementById("sfChildren").value);
-    var infants = parseInt(document.getElementById("sfInfants").value);
-    var cabin = document.getElementById("sfCabin").value;
-
-    if (!origin || origin.length < 3) { document.getElementById("sfOrigin").focus(); return; }
-    if (!dest || dest.length < 3) { document.getElementById("sfDest").focus(); return; }
-    if (!date) { document.getElementById("sfDate").focus(); return; }
-    if (tripType === "roundtrip" && !returnDate) { document.getElementById("sfReturn").focus(); return; }
-
-    var btn = document.getElementById("sfSearchBtn");
-    btn.disabled = true;
-    btn.textContent = "Searching...";
-
-    document.getElementById("srLoading").style.display = "block";
-    document.getElementById("srError").style.display = "none";
-    document.getElementById("srSummary").style.display = "none";
-    document.getElementById("srCards").innerHTML = "";
-    document.getElementById("srNoResults").style.display = "none";
-
-    try {
-        var body = { origin: origin, destination: dest, date: date, cabin_class: cabin, adults: adults, children: children, infants: infants };
-        if (returnDate) body.return_date = returnDate;
-
-        var resp = await fetch("/api/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify(body)
-        });
-
-        document.getElementById("srLoading").style.display = "none";
-
-        if (!resp.ok) {
-            var err = await resp.json().catch(function() { return {}; });
-            document.getElementById("srError").textContent = err.error || "Search failed. Please try again.";
-            document.getElementById("srError").style.display = "block";
-            btn.disabled = false;
-            btn.textContent = "Search Flights";
-            return;
-        }
-
-        var data = await resp.json();
-        var flights = data.flights || data.all_flights || [];
-
-        if (!flights.length) {
-            document.getElementById("srNoResults").style.display = "block";
-            btn.disabled = false;
-            btn.textContent = "Search Flights";
-            return;
-        }
-
-        // Summary
-        var summary = flights.length + " flights found";
-        var proxy = data.proxy_results || {};
-        if (proxy.cheapest_price_usd) {
-            summary += " — best price: $" + parseFloat(proxy.cheapest_price_usd).toFixed(0);
-        }
-        document.getElementById("srSummary").textContent = summary;
-        document.getElementById("srSummary").style.display = "block";
-
-        // Render cards
-        var html = "";
-        flights.forEach(function(f) {
-            var airline = f.airline || "Unknown";
-            var flightNum = f.flight_number || "";
-            var depTime = f.departure_time || "";
-            var arrTime = f.arrival_time || "";
-            var duration = f.duration || "";
-            var stops = f.stops || 0;
-            var stopsText = stops === 0 ? "Nonstop" : stops + " stop" + (stops > 1 ? "s" : "");
-            var price = f.price || f.cheapest_price || 0;
-            var deal = f.deal || {};
-            var homePrice = deal.home_price || f.google_price || 0;
-            var savings = deal.user_savings || 0;
-            var savingsPct = deal.user_saves_pct || 0;
-
-            var fd = JSON.stringify({origin: origin, destination: dest, date: date, price: price, title: airline + " " + flightNum, airline: airline, flight_number: flightNum, departure_time: depTime, arrival_time: arrTime, stops: stops, home_price: homePrice, arbitrage_price: price, savings: savings, savings_pct: savingsPct});
-            html += "<div class=\\"flight-card\\" data-flight='" + fd.replace(/'/g, "&#39;") + "' onclick=\\"bookThisFlight(this)\\">";
-            html += "<div class=\\"fc-airline\\"><div class=\\"fc-airline-name\\">" + esc(airline) + "</div>";
-            if (flightNum) html += "<div class=\\"fc-flight-num\\">" + esc(flightNum) + "</div>";
-            html += "</div>";
-
-            // Format times — handle "2026-03-04T10:30:00" or "10:30" or "10:30 AM"
-            function fmtTime(t) {
-                if (!t) return "--:--";
-                if (t.includes("T")) t = t.split("T")[1];
-                return t.substring(0, 5);
-            }
-            // Format date for display
-            function fmtDate(d) {
-                if (!d) return "";
-                try { var dt = new Date(d); return dt.toLocaleDateString("en-US", {month:"short", day:"numeric"}); } catch(e) { return d; }
-            }
-            var depDisplay = fmtTime(depTime);
-            var arrDisplay = fmtTime(arrTime);
-
-            html += "<div class=\\"fc-route\\">";
-            html += "<div class=\\"fc-endpoint\\"><div class=\\"fc-time\\">" + esc(depDisplay) + "</div><div class=\\"fc-code\\">" + esc(origin) + "</div></div>";
-            html += "<div class=\\"fc-arrow\\"><div class=\\"fc-line\\"></div><div class=\\"fc-duration\\">" + esc(duration) + "</div><div class=\\"fc-stops\\">" + stopsText + "</div></div>";
-            html += "<div class=\\"fc-endpoint\\"><div class=\\"fc-time\\">" + esc(arrDisplay) + "</div><div class=\\"fc-code\\">" + esc(dest) + "</div></div>";
-            html += "</div>";
-
-            html += "<div class=\\"fc-price-section\\">";
-            html += "<div class=\\"fc-price\\">$" + parseFloat(price).toFixed(0) + "</div>";
-            if (homePrice && savings > 0) {
-                html += "<div class=\\"fc-google-price\\">Google: $" + parseFloat(homePrice).toFixed(0) + "</div>";
-                html += "<div class=\\"fc-savings\\">Save $" + parseFloat(savings).toFixed(0) + " (" + parseFloat(savingsPct).toFixed(0) + "%)</div>";
-            }
-            html += "</div>";
-
-
-            html += "</div>";
-        });
-
-        document.getElementById("srCards").innerHTML = html;
-
-    } catch(e) {
-        document.getElementById("srLoading").style.display = "none";
-        document.getElementById("srError").textContent = "Connection error. Please try again.";
-        document.getElementById("srError").style.display = "block";
-    }
-
-    btn.disabled = false;
-    btn.textContent = "Search Flights";
-}
-
-function esc(s) { return s ? String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") : ""; }
-
-// Allow Enter key to submit
-document.addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && (e.target.id === "sfOrigin" || e.target.id === "sfDest")) searchFlights();
-});
-
-async function bookThisFlight(card) {
-    if (card.classList.contains("booking")) return;
-    card.classList.add("booking");
-    card.style.opacity = "0.6";
-    try {
-        var d = JSON.parse(card.getAttribute("data-flight"));
-        var resp = await fetch("/api/v1/ai/book-flight", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            credentials: "same-origin",
-            body: JSON.stringify(d)
-        });
-        var result = await resp.json();
-        if (result.deal_id) {
-            window.location.href = "/book/" + result.deal_id;
-        } else if (resp.status === 401) {
-            window.location.href = "/login?next=/";
-        } else {
-            card.classList.remove("booking");
-            card.style.opacity = "1";
-            alert(result.error || "Could not prepare booking.");
-        }
-    } catch(e) {
-        card.classList.remove("booking");
-        card.style.opacity = "1";
-        alert("Booking unavailable. Please try again.");
-    }
-}
-</script>
 '''

@@ -947,62 +947,6 @@ class MystesIntelligence:
         except Exception as e:
             return {"error": str(e)}
 
-    def get_node_network(self):
-        """CitizenSERP node network stats."""
-        try:
-            from citizenserp_payouts import citizenserp_manager
-            stats = citizenserp_manager.get_network_stats()
-            return stats if stats else {"error": "No node data available"}
-        except Exception as e:
-            return {"error": str(e)}
-
-    def get_proxy_usage(self, days_back=7):
-        """Proxy portal usage stats."""
-        try:
-            from proxy_portal import portal_manager
-            from models import db, ProxySession
-            from datetime import datetime, timedelta
-            from sqlalchemy import func
-
-            cutoff = datetime.utcnow() - timedelta(days=days_back)
-
-            # Aggregate stats from portal manager
-            portal_stats = portal_manager.get_portal_stats() if hasattr(portal_manager, 'get_portal_stats') else {}
-
-            # Top target sites
-            top_sites = db.session.query(
-                ProxySession.target_site,
-                func.count(ProxySession.id).label('count')
-            ).filter(
-                ProxySession.created_at >= cutoff
-            ).group_by(ProxySession.target_site).order_by(
-                func.count(ProxySession.id).desc()
-            ).limit(10).all()
-
-            # Sessions by country
-            by_country = dict(
-                db.session.query(
-                    ProxySession.country_code,
-                    func.count(ProxySession.id)
-                ).filter(
-                    ProxySession.created_at >= cutoff
-                ).group_by(ProxySession.country_code).all()
-            )
-
-            total_sessions = db.session.query(func.count(ProxySession.id)).filter(
-                ProxySession.created_at >= cutoff
-            ).scalar() or 0
-
-            return {
-                "total_sessions": total_sessions,
-                "top_sites": [{"site": s.target_site, "count": s.count} for s in top_sites],
-                "by_country": by_country,
-                "portal_stats": portal_stats,
-                "days_back": days_back
-            }
-        except Exception as e:
-            return {"error": str(e)}
-
     def get_ai_analytics(self, days_back=30):
         """AI provider analytics: query volume, BYOAI adoption, market trends."""
         try:

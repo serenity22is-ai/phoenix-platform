@@ -13,11 +13,10 @@ Fee Model:
     - If volume drops below tier threshold for 2 consecutive 30-day periods,
       tier downgrades (rate cut suspended)
 
-Tier Ladder:
-    starter      —  0+   tickets/30d  → 20% of savings
-    professional —  50+  tickets/30d  → 15% of savings
-    enterprise   —  500+ tickets/30d  → 10% of savings
-    partner      —  5000+ tickets/30d → 7%  of savings
+Tier Ladder (Build #167 — B2B 3-tier pricing):
+    starter  ($49/mo)  —  0+   tickets/30d  → 25% of savings
+    growth   ($99/mo)  —  50+  tickets/30d  → 20% of savings
+    volume   ($199/mo) —  500+ tickets/30d  → 15% of savings (floor)
 
 Usage:
     from commercial import commercial_manager
@@ -63,32 +62,29 @@ logger = logging.getLogger(__name__)
 TIERS = {
     "starter": {
         "min_tickets_30d": 0,
-        "fee_percent": 20.0,
+        "fee_percent": 25.0,
+        "price_usd": 49,
         "max_daily_searches": 500,
         "max_concurrent_searches": 10,
     },
-    "professional": {
+    "growth": {
         "min_tickets_30d": 50,
-        "fee_percent": 15.0,
+        "fee_percent": 20.0,
+        "price_usd": 99,
         "max_daily_searches": 2000,
         "max_concurrent_searches": 25,
     },
-    "enterprise": {
+    "volume": {
         "min_tickets_30d": 500,
-        "fee_percent": 10.0,
+        "fee_percent": 15.0,
+        "price_usd": 199,
         "max_daily_searches": 10000,
         "max_concurrent_searches": 50,
-    },
-    "partner": {
-        "min_tickets_30d": 5000,
-        "fee_percent": 7.0,
-        "max_daily_searches": 50000,
-        "max_concurrent_searches": 100,
     },
 }
 
 # Ordered from highest to lowest for tier calculation
-TIER_ORDER = ["partner", "enterprise", "professional", "starter"]
+TIER_ORDER = ["volume", "growth", "starter"]
 
 # How many consecutive periods below threshold before downgrade
 DOWNGRADE_GRACE_PERIODS = 2
@@ -604,29 +600,6 @@ class CommercialManager:
         )
         return account.to_dict()
 
-    def activate_helper_node(self, user_id):
-        """
-        Mark a referred user as an active helper node.
-        Increments the referring account's helper count.
-        """
-        from models import db, User
-
-        user = User.query.get(user_id)
-        if not user or user.is_helper_node:
-            return False
-
-        user.is_helper_node = True
-
-        # Update referring account's helper count
-        if user.referred_by_account_id:
-            from models import CommercialAccount
-            account = CommercialAccount.query.get(user.referred_by_account_id)
-            if account:
-                account.total_referred_helpers = (account.total_referred_helpers or 0) + 1
-
-        db.session.commit()
-        return True
-
     def get_referral_stats(self, account_id):
         """Get referral statistics for a commercial account."""
         from models import db, User, CommercialAccount
@@ -637,7 +610,6 @@ class CommercialManager:
 
         referred = User.query.filter_by(referred_by_account_id=account.id)
         total_referred = referred.count()
-        active_helpers = referred.filter_by(is_helper_node=True).count()
 
         # Count referred users who have completed bookings
         from models import Booking
@@ -653,7 +625,6 @@ class CommercialManager:
             "account_id": account.account_id,
             "referral_code": account.referral_code,
             "total_referred_users": total_referred,
-            "active_helper_nodes": active_helpers,
             "active_bookers": active_bookers,
             "referral_url": f"/join/{account.referral_code}",
         }

@@ -15,7 +15,7 @@ load_dotenv()
 from picasso_client import search_with_picasso
 from google_flights_scraper import scrape_flights_sync
 
-MEMBER_FEE = 0.25
+MEMBER_FEE = 0.35
 NON_MEMBER_FEE = 0.50
 
 ROUTES = [

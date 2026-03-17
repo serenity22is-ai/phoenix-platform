@@ -12,7 +12,6 @@ from flask_login import current_user, login_required
 
 from arbitrage_search import ArbitrageSearchEngine, arbitrage_engine
 from models import db, Deal
-from node_consent_economy import node_consent_economy
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +23,13 @@ arbitrage_bp = Blueprint('arbitrage', __name__)
 # ---------------------------------------------------------------------------
 
 def _validate_api_key():
-    """Validate the X-API-Key header. Returns None if valid, or an error response."""
+    """Validate the X-API-Key header against CommercialAPIKey table."""
     api_key = request.headers.get('X-API-Key')
     if not api_key:
         return jsonify({'success': False, 'error': 'Missing X-API-Key header'}), 401
-    # Delegate actual key validation to the node consent economy layer
-    if not node_consent_economy.validate_api_key(api_key):
+    from models import CommercialAPIKey
+    key_record = CommercialAPIKey.query.filter_by(key=api_key, is_active=True).first()
+    if not key_record:
         return jsonify({'success': False, 'error': 'Invalid API key'}), 403
     return None
 
@@ -54,17 +54,6 @@ def search_arbitrage():
             user_id = current_user.id
 
         results = arbitrage_engine.search(query, user_id, home_market)
-
-        # Record platform activity for authenticated users
-        if user_id is not None:
-            try:
-                node_consent_economy.record_activity(
-                    user_id=user_id,
-                    activity_type='arbitrage_search',
-                    metadata={'query': query, 'home_market': home_market}
-                )
-            except Exception as exc:
-                logger.warning('Failed to record platform activity: %s', exc)
 
         deals_count = results.get('deals_count', 0) if isinstance(results, dict) else 0
 
@@ -105,20 +94,6 @@ def agent_search_arbitrage():
         agent_user_id = data.get('user_id')
 
         results = arbitrage_engine.search(query, agent_user_id, home_market)
-
-        # Record commercial activity
-        try:
-            node_consent_economy.record_activity(
-                user_id=agent_user_id,
-                activity_type='commercial_arbitrage_search',
-                metadata={
-                    'query': query,
-                    'home_market': home_market,
-                    'api_key': api_key[:8] + '...' if api_key and len(api_key) > 8 else api_key
-                }
-            )
-        except Exception as exc:
-            logger.warning('Failed to record commercial platform activity: %s', exc)
 
         deals_count = results.get('deals_count', 0) if isinstance(results, dict) else 0
 

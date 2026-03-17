@@ -36,18 +36,147 @@ except ImportError:
 def get_fee_percent(user=None):
     """Get platform fee percentage based on membership status.
 
-    Members (authenticated users): 25% of savings
-    Non-members (anonymous/guest): 50% of savings
+    Priority order (Build #170):
+    1. B2B agency (active subscription): account.fee_percent (25%/20%/15%)
+    2. Travel+ subscriber: 35%
+    3. Free member (authenticated, no subscription): 45%
+    4. Guest (anonymous): 50%
+
+    NO minimum savings threshold. NO maximum fee cap. $3 minimum fee only.
     """
-    if user and getattr(user, 'is_authenticated', False):
-        return 0.25
-    try:
-        from flask_login import current_user
-        if current_user and current_user.is_authenticated:
-            return 0.25
-    except Exception:
-        pass
-    return 0.50
+    resolved = user
+    if not resolved:
+        try:
+            from flask_login import current_user
+            if current_user and current_user.is_authenticated:
+                resolved = current_user
+        except Exception:
+            pass
+
+    if resolved and getattr(resolved, 'is_authenticated', False):
+        # B2B account takes precedence over regular member pricing
+        try:
+            from models import CommercialAccount
+            account = CommercialAccount.query.filter_by(
+                owner_user_id=resolved.id, is_active=True
+            ).first()
+            if account and account.subscription_status == 'active':
+                return account.fee_percent / 100.0  # 25.0 → 0.25
+        except Exception:
+            pass
+
+        # Travel+ subscriber gets 35%
+        try:
+            from models import Subscription
+            sub = Subscription.query.filter_by(
+                user_id=resolved.id, status='active'
+            ).first()
+            if sub and sub.tier == 'travel_plus':
+                return 0.35  # Travel+ = 35%
+        except Exception:
+            pass
+
+        return 0.45  # Free member (authenticated, no subscription) = 45%
+
+    return 0.50  # Guest (anonymous) = 50%
+
+
+def get_fee_tier_name(user=None):
+    """Return human-readable tier name for display in checkout UI."""
+    resolved = user
+    if not resolved:
+        try:
+            from flask_login import current_user
+            if current_user and current_user.is_authenticated:
+                resolved = current_user
+        except Exception:
+            pass
+
+    if resolved and getattr(resolved, 'is_authenticated', False):
+        try:
+            from models import CommercialAccount
+            account = CommercialAccount.query.filter_by(
+                owner_user_id=resolved.id, is_active=True
+            ).first()
+            if account and account.subscription_status == 'active':
+                return f"B2B {account.current_tier.title()}"
+        except Exception:
+            pass
+
+        try:
+            from models import Subscription
+            sub = Subscription.query.filter_by(
+                user_id=resolved.id, status='active'
+            ).first()
+            if sub and sub.tier == 'travel_plus':
+                return "Travel+"
+        except Exception:
+            pass
+
+        return "Free Member"
+
+    return "Guest"
+
+
+def calculate_savings_breakdown(retail_price, our_price, user=None, apply_share_discount=False,
+                                 points_to_redeem=0):
+    """Calculate the full savings breakdown for checkout display.
+
+    Returns dict with all pricing details for the savings waterfall UI.
+    """
+    from flask import current_app
+
+    savings = max(0, retail_price - our_price)
+    fee_pct = get_fee_percent(user)
+    tier_name = get_fee_tier_name(user)
+
+    # Base fee
+    fee = round(savings * fee_pct, 2) if savings > 0 else 0.0
+    # Minimum $3 fee
+    if fee > 0 and fee < 3.0:
+        fee = 3.0
+
+    # Share-to-save discount (5% off platform fee)
+    share_discount = 0.0
+    if apply_share_discount and fee > 0:
+        share_pct = current_app.config.get('SHARE_TO_SAVE_DISCOUNT', 0.05)
+        share_discount = round(fee * share_pct, 2)
+
+    # Points redemption (1000 points = $1)
+    points_value = 0.0
+    if points_to_redeem > 0:
+        redemption_rate = current_app.config.get('POINTS_REDEMPTION_VALUE', 0.001)
+        points_value = round(points_to_redeem * redemption_rate, 2)
+
+    final_fee = max(0, round(fee - share_discount - points_value, 2))
+    customer_price = round(our_price + final_fee, 2)
+    customer_savings = round(retail_price - customer_price, 2)
+
+    # What they'd save with Travel+ (for upsell)
+    travel_plus_fee = round(savings * 0.35, 2) if savings > 0 else 0.0
+    if travel_plus_fee > 0 and travel_plus_fee < 3.0:
+        travel_plus_fee = 3.0
+    travel_plus_extra_savings = round(fee - travel_plus_fee, 2) if fee > travel_plus_fee else 0.0
+
+    return {
+        'retail_price': retail_price,
+        'our_price': our_price,
+        'total_savings': savings,
+        'fee_percent': fee_pct,
+        'fee_percent_display': int(fee_pct * 100),
+        'tier_name': tier_name,
+        'base_fee': fee,
+        'share_discount': share_discount,
+        'points_applied': points_to_redeem,
+        'points_value': points_value,
+        'final_fee': final_fee,
+        'customer_price': customer_price,
+        'customer_savings': customer_savings,
+        # Upsell data
+        'travel_plus_fee': travel_plus_fee,
+        'travel_plus_extra_savings': travel_plus_extra_savings,
+        'travel_plus_monthly': 9.99,
+    }
 
 
 class PaymentMethod(Enum):
@@ -780,169 +909,3 @@ def get_payment_instructions(method, options):
         }
 
     return {"title": "Unknown Method", "instructions": []}
-
-
-# --- P2P ESCROW (Three-Party RLUSD) ---
-
-class P2PEscrowStatus(Enum):
-    PENDING = "pending"
-    LOCKED = "locked"
-    HELPER_ACCEPTED = "helper_accepted"
-    PURCHASING = "purchasing"
-    CONFIRMED = "confirmed"
-    RELEASED = "released"
-    CANCELLED = "cancelled"
-    DISPUTED = "disputed"
-
-
-P2P_FEE_CONFIG = {
-    "helper_cut_percent": 5.0,
-    "platform_cut_percent": 3.0,
-    "min_helper_earning_usd": 5.0,
-    "escrow_timeout_hours": int(os.getenv("ESCROW_TIMEOUT_HOURS", "24")),
-}
-
-
-def calculate_p2p_amounts(ticket_price_usd):
-    """
-    Calculate escrow breakdown for a P2P transaction.
-
-    Returns amounts for helper reimbursement, helper earning, platform fee, and total escrow.
-    """
-    helper_cut = max(
-        ticket_price_usd * (P2P_FEE_CONFIG["helper_cut_percent"] / 100),
-        P2P_FEE_CONFIG["min_helper_earning_usd"]
-    )
-    platform_cut = ticket_price_usd * (P2P_FEE_CONFIG["platform_cut_percent"] / 100)
-    total_escrow = ticket_price_usd + helper_cut + platform_cut
-
-    return {
-        "ticket_price_usd": round(ticket_price_usd, 2),
-        "helper_reimbursement": round(ticket_price_usd, 2),
-        "helper_earning": round(helper_cut, 2),
-        "helper_total": round(ticket_price_usd + helper_cut, 2),
-        "platform_fee": round(platform_cut, 2),
-        "total_escrow_rlusd": round(total_escrow, 2),
-    }
-
-
-def create_p2p_escrow(buyer_address, helper_address, amounts, condition=None, fulfillment=None):
-    """
-    Create a P2P XRPL escrow for a three-party transaction.
-    Locks buyer's RLUSD with a crypto-condition released on booking confirmation.
-    """
-    if not XRPL_AVAILABLE:
-        return {"error": "XRPL not available"}
-
-    import secrets
-
-    if not condition or not fulfillment:
-        fulfillment_bytes = secrets.token_bytes(32)
-        fulfillment_hex = fulfillment_bytes.hex()
-        condition_hex = hashlib.sha256(fulfillment_bytes).hexdigest()
-    else:
-        fulfillment_hex = fulfillment
-        condition_hex = condition
-
-    cancel_after = datetime.utcnow() + timedelta(
-        hours=P2P_FEE_CONFIG["escrow_timeout_hours"]
-    )
-
-    escrow_id = f"p2p_{secrets.token_hex(8)}"
-
-    return {
-        "escrow_id": escrow_id,
-        "buyer_address": buyer_address,
-        "helper_address": helper_address,
-        "platform_address": PAYMENT_CONFIG["platform_xrp_address"],
-        "total_rlusd": amounts["total_escrow_rlusd"],
-        "helper_amount_rlusd": amounts["helper_total"],
-        "platform_amount_rlusd": amounts["platform_fee"],
-        "condition": condition_hex,
-        "fulfillment": fulfillment_hex,
-        "cancel_after": cancel_after.isoformat(),
-        "network": PAYMENT_CONFIG["xrpl_network"],
-        "status": "pending",
-    }
-
-
-def verify_p2p_escrow_on_chain(escrow_tx_hash):
-    """
-    Verify a P2P escrow exists on the XRPL ledger.
-    Both buyer and helper can call this to confirm funds are locked.
-    """
-    if not XRPL_AVAILABLE:
-        return {"verified": False, "error": "XRPL not available"}
-
-    client = get_xrpl_client()
-    if not client:
-        return {"verified": False, "error": "Could not connect to XRPL"}
-
-    try:
-        from xrpl.models.requests import Tx
-        request = Tx(transaction=escrow_tx_hash)
-        response = client.request(request)
-
-        if not response.is_successful():
-            return {"verified": False, "error": "Transaction not found on ledger"}
-
-        tx_data = response.result
-        tx_type = tx_data.get("TransactionType")
-
-        if tx_type != "EscrowCreate":
-            return {"verified": False, "error": f"Transaction is {tx_type}, not EscrowCreate"}
-
-        amount = tx_data.get("Amount")
-        if isinstance(amount, dict):
-            locked_amount = float(amount.get("value", 0))
-            currency = amount.get("currency", "")
-        elif isinstance(amount, str):
-            locked_amount = float(drops_to_xrp(amount))
-            currency = "XRP"
-        else:
-            locked_amount = 0
-            currency = "unknown"
-
-        network = PAYMENT_CONFIG["xrpl_network"]
-        if network == "testnet":
-            explorer_url = f"https://testnet.xrpl.org/transactions/{escrow_tx_hash}"
-        else:
-            explorer_url = f"https://livenet.xrpl.org/transactions/{escrow_tx_hash}"
-
-        return {
-            "verified": True,
-            "tx_hash": escrow_tx_hash,
-            "sender": tx_data.get("Account"),
-            "destination": tx_data.get("Destination"),
-            "amount": locked_amount,
-            "currency": currency,
-            "condition": tx_data.get("Condition"),
-            "cancel_after": tx_data.get("CancelAfter"),
-            "finish_after": tx_data.get("FinishAfter"),
-            "ledger_index": tx_data.get("ledger_index"),
-            "explorer_url": explorer_url,
-            "network": network,
-        }
-
-    except Exception as e:
-        return {"verified": False, "error": str(e)}
-
-
-def release_p2p_escrow(escrow_tx_hash, fulfillment, helper_address, amounts):
-    """
-    Release a P2P escrow after booking confirmation.
-    Sends RLUSD to helper (reimbursement + cut) and platform (fee).
-
-    In production: submits EscrowFinish transaction to XRPL with fulfillment.
-    """
-    if not XRPL_AVAILABLE:
-        return {"error": "XRPL not available"}
-
-    return {
-        "status": "released",
-        "escrow_tx_hash": escrow_tx_hash,
-        "helper_address": helper_address,
-        "helper_amount_rlusd": amounts["helper_total"],
-        "platform_amount_rlusd": amounts["platform_fee"],
-        "platform_address": PAYMENT_CONFIG["platform_xrp_address"],
-    }

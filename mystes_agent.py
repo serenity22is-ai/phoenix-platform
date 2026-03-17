@@ -72,7 +72,6 @@ AGENT_CONFIG = {
 
     # Discovery
     "discovery_interval_hours": int(os.getenv("AGENT_DISCOVERY_INTERVAL", "6")),
-    "min_savings_threshold_pct": float(os.getenv("AGENT_MIN_SAVINGS_PCT", "5.0")),
 
     # AI ensemble
     "use_ensemble_for_analysis": True,
@@ -318,94 +317,8 @@ class MarketSelector:
     def select_zones(self, origin: str = None, destination: str = None,
                      user_market: str = "US",
                      max_zones: int = None) -> List[Dict[str, Any]]:
-        """
-        Zone-level market selection. Returns zone codes instead of country codes.
-        Falls back to country-level when zone data isn't available.
-
-        Key feature: includes intra-country zones for the user's home market
-        to capture domestic price discrimination.
-        """
-        if max_zones is None:
-            max_zones = AGENT_CONFIG["max_markets_per_search"] * 2  # More zones than markets
-
-        try:
-            from geographic_zones import (
-                get_zones_for_country, resolve_market, is_zone_code,
-                get_zone_for_city
-            )
-        except ImportError:
-            # Fallback to country-level selection
-            markets = self.select_markets(origin, destination, user_market=user_market)
-            return markets
-
-        candidates = []
-
-        # 1. Add multiple zones within user's home country (intra-country arbitrage)
-        home_zones = get_zones_for_country(user_market)
-        for zone in home_zones:
-            candidates.append({
-                "market": zone.zone_code,
-                "confidence": 0.7,
-                "reason": f"home_country_zone_{zone.name}",
-                "zone": True,
-            })
-
-        # 2. Get country-level selections, expand to zones where possible
-        country_markets = self.select_markets(
-            origin, destination, user_market=user_market,
-            max_markets=AGENT_CONFIG["max_markets_per_search"],
-        )
-        for cm in country_markets:
-            mkt = cm["market"]
-            if mkt == user_market:
-                continue  # Already added zones above
-            foreign_zones = get_zones_for_country(mkt)
-            if foreign_zones:
-                # Add top zone(s) from each foreign country (major tier first)
-                major_zones = [z for z in foreign_zones if z.population_tier == "major"]
-                if major_zones:
-                    for z in major_zones[:2]:
-                        candidates.append({
-                            "market": z.zone_code,
-                            "confidence": cm["confidence"],
-                            "reason": f"{cm['reason']}_zone_{z.name}",
-                            "zone": True,
-                        })
-                else:
-                    # Use first zone for smaller countries
-                    candidates.append({
-                        "market": foreign_zones[0].zone_code,
-                        "confidence": cm["confidence"],
-                        "reason": f"{cm['reason']}_zone_{foreign_zones[0].name}",
-                        "zone": True,
-                    })
-            else:
-                # No zones defined — keep country code
-                candidates.append({**cm, "zone": False})
-
-        # 3. Check node network for zone-level availability
-        network_data = self.tools.node_network()
-        if "error" not in network_data:
-            nodes_by_zone = network_data.get("nodes_by_zone", {})
-            # Boost confidence for zones with active nodes
-            for c in candidates:
-                if c["market"] in nodes_by_zone:
-                    c["confidence"] = min(1.0, c["confidence"] + 0.2)
-                    c["reason"] += "_node_available"
-
-        # Deduplicate by market code
-        seen = set()
-        unique = []
-        for c in candidates:
-            if c["market"] not in seen:
-                seen.add(c["market"])
-                unique.append(c)
-
-        # Sort and limit
-        min_conf = AGENT_CONFIG["min_market_confidence"]
-        unique = [c for c in unique if c["confidence"] >= min_conf]
-        unique.sort(key=lambda x: x["confidence"], reverse=True)
-        return unique[:max_zones]
+        """Zone-level market selection. Falls back to country-level selection."""
+        return self.select_markets(origin, destination, user_market=user_market)
 
     def select_markets_for_product(self, query: str,
                                     product_category: str = "general",
@@ -522,21 +435,8 @@ class MystesAgent:
                 product_category=intent.get("category", "general"),
             )
 
-        # Step 3: Dispatch tasks to CitizenSERP nodes
-        from citizenserp_tasks import task_dispatcher, task_registry
-
-        task_params = {**params, **intent.get("params", {})}
-        market_codes = [m["market"] for m in markets]
-
-        dispatch_result = task_dispatcher.dispatch_multi_market(
-            task_type=intent["task_type"],
-            params=task_params,
-            markets=market_codes,
-            requester_user_id=user_id,
-            requester_type="agent",
-        )
-
-        # Step 4: Gather intelligence context
+        # Step 3: Gather intelligence context (CitizenSERP dispatch archived in Build #168)
+        dispatch_result = {"dispatched": 0, "markets": [m["market"] for m in markets]}
         context = self._gather_context(intent)
 
         # Step 5: Build response
@@ -777,7 +677,7 @@ class MystesAgent:
             if "error" not in savings_data:
                 top_routes = savings_data.get("top_routes", [])
                 for route in top_routes:
-                    if route.get("avg_savings_pct", 0) > AGENT_CONFIG["min_savings_threshold_pct"]:
+                    if route.get("avg_savings_pct", 0) > 0:
                         opportunities.append({
                             "type": "proven_savings_route",
                             "origin": route.get("origin"),
@@ -828,27 +728,6 @@ class MystesAgent:
                         })
         except Exception as e:
             logger.error(f"Discovery error (proxy): {e}")
-
-        # 5. Intra-country arbitrage — zones within the same country showing price variance
-        try:
-            from geographic_zones import get_zones_for_country, get_all_countries
-            node_data = self.tools.node_network()
-            if "error" not in node_data:
-                nodes_by_zone = node_data.get("nodes_by_zone", {})
-                for country in get_all_countries():
-                    zones = get_zones_for_country(country)
-                    zones_with_nodes = [z for z in zones if z.zone_code in nodes_by_zone]
-                    if len(zones_with_nodes) >= 2:
-                        opportunities.append({
-                            "type": "intra_country_arbitrage",
-                            "country": country,
-                            "zones_covered": [z.zone_code for z in zones_with_nodes],
-                            "zone_count": len(zones_with_nodes),
-                            "action": "compare_intra_country_prices",
-                            "priority": "high",
-                        })
-        except (ImportError, Exception) as e:
-            logger.error(f"Discovery error (intra-country): {e}")
 
         # 6. Cruise demand — travel searches mentioning cruise lines or ports
         try:
@@ -975,8 +854,6 @@ class MystesAgent:
 
     def get_agent_status(self) -> Dict[str, Any]:
         """Get current agent capabilities and operational status."""
-        from citizenserp_tasks import task_dispatcher, task_registry
-
         # Tool availability check
         tools_status = {}
         tool_checks = {
@@ -1000,8 +877,6 @@ class MystesAgent:
                 "universal_search", "search_engine_extract",
                 "opportunity_discovery", "route_analysis", "market_selection",
             ],
-            "task_types": task_registry.list_types(),
-            "dispatcher_stats": task_dispatcher.get_stats(),
             "tools": tools_status,
             "config": {
                 "max_markets_per_search": AGENT_CONFIG["max_markets_per_search"],

@@ -19,7 +19,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _mock_member():
-    """Return a mock authenticated user (member pricing = 25% fee)."""
+    """Return a mock authenticated free member (45% fee per Build #170).
+
+    Fee tiers: Guest=50% | Free Member=45% | Travel+=35% | B2B=25%/20%/15%
+    """
     user = MagicMock()
     user.is_authenticated = True
     return user
@@ -63,7 +66,7 @@ class TestLiteAPIClient:
                     "roomTypes": [{
                         "offerId": "OFF-001",
                         "offerRetailRate": {"amount": "120.00", "currency": "USD"},
-                        "offerInitialPrice": {"amount": "180.00", "currency": "USD"},
+                        "suggestedSellingPrice": {"amount": "180.00", "currency": "USD"},
                         "rates": [{
                             "retailRate": {
                                 "total": [{"amount": "120.00", "currency": "USD"}]
@@ -82,10 +85,10 @@ class TestLiteAPIClient:
         )
         mock_post.return_value.raise_for_status = MagicMock()
 
-        # Hotel name lookup
+        # Bulk hotel name lookup
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=lambda: {"data": {"name": "Grand Hotel Paris"}}
+            json=lambda: {"data": [{"id": "H001", "name": "Grand Hotel Paris"}]}
         )
 
         from liteapi_client import LiteAPIHotelClient
@@ -116,7 +119,7 @@ class TestLiteAPIClient:
                     "roomTypes": [{
                         "offerId": "OFF-001",
                         "offerRetailRate": {"amount": "200.00", "currency": "USD"},
-                        "offerInitialPrice": {"amount": "180.00", "currency": "USD"},
+                        "suggestedSellingPrice": {"amount": "180.00", "currency": "USD"},
                         "rates": [{
                             "retailRate": {"total": [{"amount": "200.00", "currency": "USD"}]},
                             "name": "Room", "boardName": "", "boardType": "",
@@ -129,7 +132,7 @@ class TestLiteAPIClient:
                     "roomTypes": [{
                         "offerId": "OFF-002",
                         "offerRetailRate": {"amount": "100.00", "currency": "USD"},
-                        "offerInitialPrice": {"amount": "180.00", "currency": "USD"},
+                        "suggestedSellingPrice": {"amount": "180.00", "currency": "USD"},
                         "rates": [{
                             "retailRate": {"total": [{"amount": "100.00", "currency": "USD"}]},
                             "name": "Room", "boardName": "", "boardType": "",
@@ -142,7 +145,7 @@ class TestLiteAPIClient:
         mock_post.return_value.raise_for_status = MagicMock()
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=lambda: {"data": {"name": "Hotel"}}
+            json=lambda: {"data": [{"id": "H001", "name": "Hotel"}, {"id": "H002", "name": "Hotel"}]}
         )
 
         from liteapi_client import LiteAPIHotelClient
@@ -160,7 +163,7 @@ class TestLiteAPIClient:
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
     def test_savings_calculation(self, mock_get, mock_post):
-        """MYSTES price = our_cost + 25% of savings. User saves 75%."""
+        """MYSTES price = our_cost + 35% of savings. Subscriber saves 65%."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -169,7 +172,7 @@ class TestLiteAPIClient:
                     "roomTypes": [{
                         "offerId": "OFF-001",
                         "offerRetailRate": {"amount": "100.00", "currency": "USD"},
-                        "offerInitialPrice": {"amount": "200.00", "currency": "USD"},
+                        "suggestedSellingPrice": {"amount": "200.00", "currency": "USD"},
                         "rates": [{
                             "retailRate": {"total": [{"amount": "100.00", "currency": "USD"}]},
                             "name": "Room", "boardName": "", "boardType": "",
@@ -182,7 +185,7 @@ class TestLiteAPIClient:
         mock_post.return_value.raise_for_status = MagicMock()
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=lambda: {"data": {"name": "Hotel"}}
+            json=lambda: {"data": [{"id": "H001", "name": "Hotel"}]}
         )
 
         from liteapi_client import LiteAPIHotelClient
@@ -193,21 +196,21 @@ class TestLiteAPIClient:
         hotel = result["hotels"][0]
 
         # Google price: $200, our cost: $100, savings_raw = $100
-        # Member fee: 25% of $100 = $25
-        # MYSTES price: $100 + $25 = $125
-        # User savings: $200 - $125 = $75
-        # Savings pct: 75/200 = 37.5%
+        # Free member fee: 45% of $100 = $45 (Build #170)
+        # MYSTES price: $100 + $45 = $145
+        # User savings: $200 - $145 = $55
+        # Savings pct: 55/200 = 27.5%
         assert hotel["google_price"] == 200.00
         assert hotel["our_cost"] == 100.00
-        assert hotel["platform_fee"] == 25.00
-        assert hotel["price_total"] == 125.00
-        assert hotel["user_savings"] == 75.00
-        assert hotel["savings_pct"] == 37.5
+        assert hotel["platform_fee"] == 45.0
+        assert hotel["price_total"] == 145.00
+        assert hotel["user_savings"] == 55.00
+        assert hotel["savings_pct"] == 27.5
 
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
     def test_platform_fee_small_savings(self, mock_get, mock_post):
-        """Platform fee is flat 25% even on small savings."""
+        """Platform fee is 45% for free members on small savings (Build #170)."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -216,7 +219,7 @@ class TestLiteAPIClient:
                     "roomTypes": [{
                         "offerId": "OFF-001",
                         "offerRetailRate": {"amount": "95.00", "currency": "USD"},
-                        "offerInitialPrice": {"amount": "100.00", "currency": "USD"},
+                        "suggestedSellingPrice": {"amount": "100.00", "currency": "USD"},
                         "rates": [{
                             "retailRate": {"total": [{"amount": "95.00", "currency": "USD"}]},
                             "name": "Room", "boardName": "", "boardType": "",
@@ -229,7 +232,7 @@ class TestLiteAPIClient:
         mock_post.return_value.raise_for_status = MagicMock()
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=lambda: {"data": {"name": "Hotel"}}
+            json=lambda: {"data": [{"id": "H001", "name": "Hotel"}]}
         )
 
         from liteapi_client import LiteAPIHotelClient
@@ -239,14 +242,14 @@ class TestLiteAPIClient:
         result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # savings_raw = $5, member 25% = $1.25
-        assert hotel["platform_fee"] == 1.25
-        assert hotel["price_total"] == 96.25  # $95 + $1.25
+        # savings_raw = $5, free member 45% = $2.25 (Build #170)
+        assert hotel["platform_fee"] == 2.25
+        assert hotel["price_total"] == 97.25  # $95 + $2.25
 
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
     def test_platform_fee_large_savings(self, mock_get, mock_post):
-        """Platform fee is flat 25% even on large savings (no cap)."""
+        """Platform fee is 45% for free members on large savings, no cap (Build #170)."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -255,7 +258,7 @@ class TestLiteAPIClient:
                     "roomTypes": [{
                         "offerId": "OFF-001",
                         "offerRetailRate": {"amount": "500.00", "currency": "USD"},
-                        "offerInitialPrice": {"amount": "1000.00", "currency": "USD"},
+                        "suggestedSellingPrice": {"amount": "1000.00", "currency": "USD"},
                         "rates": [{
                             "retailRate": {"total": [{"amount": "500.00", "currency": "USD"}]},
                             "name": "Room", "boardName": "", "boardType": "",
@@ -268,7 +271,7 @@ class TestLiteAPIClient:
         mock_post.return_value.raise_for_status = MagicMock()
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=lambda: {"data": {"name": "Hotel"}}
+            json=lambda: {"data": [{"id": "H001", "name": "Hotel"}]}
         )
 
         from liteapi_client import LiteAPIHotelClient
@@ -278,9 +281,9 @@ class TestLiteAPIClient:
         result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # savings_raw = $500, member 25% = $125
-        assert hotel["platform_fee"] == 125.00
-        assert hotel["price_total"] == 625.00  # $500 + $125
+        # savings_raw = $500, free member 45% = $225 (Build #170, no cap)
+        assert hotel["platform_fee"] == 225.0
+        assert hotel["price_total"] == 725.00  # $500 + $225
 
     @patch("liteapi_client.requests.post")
     def test_validate_offer_returns_prebook_id(self, mock_post):
@@ -354,19 +357,22 @@ class TestLiteAPIClient:
 
         result = client.create_booking(
             offer_id="OFF-001",
-            guest={"first_name": "John", "last_name": "Doe", "email": "john@test.com"},
-            payment={"card_number": "4242424242424242", "expiry_date": "12/28", "cvc": "123", "vendor_code": "VI"},
+            guest={"first_name": "John", "last_name": "Doe", "email": "john@test.com", "phone": "+1234567890"},
             prebook_id="PB-12345",
+            client_reference="deal_001",
         )
         assert result["success"] is True
         assert result["booking_id"] == "BK-999"
         assert result["provider_confirmation"] == "REF-ABC"
 
-        # Verify payload shape
+        # Verify payload shape (holder/guests/ACC_CREDIT_CARD format)
         call_kwargs = mock_post.call_args
         payload = call_kwargs.kwargs.get("json", call_kwargs[1].get("json", {}))
         assert payload["prebookId"] == "PB-12345"
-        assert payload["guestInfo"]["guestFirstName"] == "John"
+        assert payload["holder"]["firstName"] == "John"
+        assert payload["guests"][0]["lastName"] == "Doe"
+        assert payload["payment"]["method"] == "ACC_CREDIT_CARD"
+        assert payload["clientReference"] == "deal_001"
 
     @patch("liteapi_client.requests.post")
     def test_search_handles_http_error(self, mock_post):
@@ -393,303 +399,157 @@ class TestLiteAPIClient:
 # ===================================================================
 
 class TestPicassoClient:
-    """Test picasso_client.py multi-POS flight search and booking."""
+    """Test picasso_client.py Redbox API flight search and booking."""
 
-    def test_not_configured(self):
-        """Search returns error when PICASSO_API_KEY is missing."""
+    def _make_client(self, token="test_valid_session_token_xyz"):
+        """Create a PicassoClient with mocked token manager and session."""
         from picasso_client import PicassoClient
         client = PicassoClient()
-        client.api_key = ""
+        client._token_manager = MagicMock()
+        client._token_manager.get_token.return_value = token
+        client._token_manager.invalidate = MagicMock()
+        client._session = MagicMock()
+        return client
+
+    def test_not_configured(self):
+        """Search returns error when token manager has no token."""
+        client = self._make_client(token="")
 
         result = client.search_flights("JFK", "LHR", "2026-03-15")
         assert result["success"] is False
         assert "not configured" in result["error"].lower()
 
     def test_is_configured(self):
-        """is_configured returns True when key is set."""
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
+        """is_configured returns True when token manager has a valid token."""
+        client = self._make_client(token="valid_session_token_12345678901234567890")
         assert client.is_configured() is True
 
-    @patch("picasso_client.requests.post")
-    def test_search_flights_multi_pos(self, mock_post):
-        """Search parses multi-POS pricing and calculates arbitrage."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {
-                "data": [
-                    {
-                        "id": "OFF-001",
-                        "pricing": [
-                            {"pos": "US", "amount": 450},
-                            {"pos": "DK", "amount": 350},
-                            {"pos": "ES", "amount": 380},
-                        ],
-                        "itineraries": [{
-                            "segments": [{
-                                "carrierCode": "AA",
-                                "number": "100",
-                                "carrierName": "American Airlines",
-                                "departure": {"iataCode": "JFK", "at": "2026-03-15T08:00:00"},
-                                "arrival": {"iataCode": "LHR", "at": "2026-03-15T20:00:00"},
-                            }]
-                        }],
-                        "duration": "PT7H",
-                        "cabinClass": "ECONOMY",
-                    }
-                ],
-                "marketsSearched": 105,
-            }
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
+    def test_is_not_configured_short_token(self):
+        """is_configured returns False for tokens shorter than 20 chars."""
+        client = self._make_client(token="short")
+        assert client.is_configured() is False
 
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
+    def test_search_flights_redbox(self):
+        """Search submits to Redbox availableFare and parses results."""
+        client = self._make_client()
+
+        # Mock step 1: search submission returns fareSearchId
+        search_response = MagicMock()
+        search_response.status_code = 200
+        search_response.json.return_value = {
+            "fareSearchId": "FS-12345",
+            "numberOfResults": 1,
+            "numberOfAirlines": 1,
+        }
+        search_response.raise_for_status = MagicMock()
+
+        # Mock step 2: results fetch returns flight data
+        results_response = MagicMock()
+        results_response.status_code = 200
+        results_response.json.return_value = {
+            "currencyIsoCode": "EUR",
+            "results": [{
+                "fareId": "FARE-001",
+                "gds": "1A",
+                "validatingAirline": {"code": "AA", "name": "American Airlines", "icao": "AAL"},
+                "total": 350.0,
+                "totalTax": 85.0,
+                "cabinClassList": ["ECONOMY"],
+                "fareCharacteristicList": ["PUB"],
+                "priceDetails": [{"gdsFarePerPax": 265.0, "taxPerPax": 85.0, "ticketFeeDetails": {"originalTicketFee": 0}}],
+                "legList": [{
+                    "departure": {"code": "JFK", "name": "John F Kennedy"},
+                    "destination": {"code": "LHR", "name": "London Heathrow"},
+                    "departureTimestamp": "2026-03-15T08:00:00",
+                    "arrivalTimestamp": "2026-03-15T20:00:00",
+                    "totalTravelTime": "PT7H",
+                    "stops": [],
+                    "itineraryList": [{"segmentList": [{
+                        "departure": {"code": "JFK"},
+                        "destination": {"code": "LHR"},
+                        "departureTimestamp": "2026-03-15T08:00:00",
+                        "marketingAirline": {"code": "AA", "name": "American Airlines"},
+                        "flightNumber": "100",
+                        "cabinClass": "ECONOMY",
+                        "bookingClass": {"code": "V"},
+                    }]}],
+                }],
+                "additionalFareInfos": [],
+                "fareFamilies": [],
+            }],
+        }
+        results_response.raise_for_status = MagicMock()
+
+        # Wire mocks: first POST = search, second POST = results
+        client._session.post.side_effect = [search_response, results_response]
 
         result = client.search_flights("JFK", "LHR", "2026-03-15")
 
         assert result["success"] is True
         assert len(result["flights"]) == 1
-        assert result["markets_searched"] == 105
         assert result["source"] == "picasso"
+        assert result["fare_search_id"] == "FS-12345"
 
         flight = result["flights"][0]
-        assert flight["us_price"] == 450
-        assert flight["cheapest_market"] == "MYSTES"  # B2C safe — real POS in _internal fields
-        assert flight["_internal_pos_market"] == "DK"
-        assert flight["_internal_cheapest_price"] == 350
+        assert flight["airline"] == "AA"
+        assert flight["origin"] == "JFK"
+        assert flight["destination"] == "LHR"
+        assert flight["price"] == 350.0
+        assert flight["fare_id"] == "FARE-001"
 
-    @patch("picasso_client.requests.post")
-    def test_pos_arbitrage_pricing(self, mock_post):
-        """Verify MYSTES pricing: cheapest + 25% of savings (min $3, max $50)."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {
-                "data": [{
-                    "id": "OFF-001",
-                    "pricing": [
-                        {"pos": "US", "amount": 400},
-                        {"pos": "DK", "amount": 300},
-                    ],
-                    "itineraries": [{"segments": [{
-                        "carrierCode": "AA", "number": "1",
-                        "departure": {"iataCode": "JFK", "at": "2026-03-15T08:00:00"},
-                        "arrival": {"iataCode": "LHR", "at": "2026-03-15T20:00:00"},
-                    }]}],
-                    "duration": "PT7H",
-                }],
-                "marketsSearched": 2,
-            }
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
+    def test_search_no_results(self):
+        """Search returns gracefully when no flights found."""
+        client = self._make_client()
 
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
+        search_response = MagicMock()
+        search_response.json.return_value = {
+            "fareSearchId": None,
+            "numberOfResults": 0,
+        }
+        search_response.raise_for_status = MagicMock()
+        client._session.post.return_value = search_response
 
         result = client.search_flights("JFK", "LHR", "2026-03-15")
-        flight = result["flights"][0]
+        assert result["success"] is False
+        assert "no flights" in result["error"].lower()
 
-        # US: $400, DK: $300, savings_raw = $100
-        # Platform fee: 25% of $100 = $25
-        # MYSTES price: $300 + $25 = $325
-        # User savings: $400 - $325 = $75
-        assert flight["mystes_price"] == 325.0
-        assert flight["platform_fee"] == 25.0
-        assert flight["savings"] == 75.0
-        assert flight["savings_pct"] == pytest.approx(18.75, abs=0.1)
+    def test_parse_iso_duration(self):
+        """Duration parser handles ISO 8601 format (PT10H25M)."""
+        client = self._make_client()
 
-    @patch("picasso_client.requests.post")
-    def test_no_arbitrage_when_us_cheapest(self, mock_post):
-        """When US is the cheapest POS, no savings and zero platform fee."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {
-                "data": [{
-                    "id": "OFF-001",
-                    "pricing": [
-                        {"pos": "US", "amount": 300},
-                        {"pos": "DK", "amount": 350},
-                    ],
-                    "itineraries": [{"segments": [{
-                        "carrierCode": "UA", "number": "1",
-                        "departure": {"iataCode": "JFK", "at": "2026-03-15T08:00:00"},
-                        "arrival": {"iataCode": "LHR", "at": "2026-03-15T20:00:00"},
-                    }]}],
-                    "duration": "PT7H",
-                }],
-                "marketsSearched": 2,
-            }
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
+        assert client._parse_iso_duration("PT7H30M") == 450
+        assert client._parse_iso_duration("PT14H") == 840
+        assert client._parse_iso_duration("PT45M") == 45
+        assert client._parse_iso_duration("") == 0
+        assert client._parse_iso_duration(None) == 0
 
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
-
-        result = client.search_flights("JFK", "LHR", "2026-03-15")
-        flight = result["flights"][0]
-
-        assert flight["savings"] == 0
-        assert flight["platform_fee"] == 0
-        assert flight["mystes_price"] == 300.0
-        assert flight["deal"] is None  # No deal object when no savings
-
-    # Note: platform_fee is NOT computed in picasso_client.py — it's computed
-    # in search.py when comparing Picasso prices against Google prices.
-    # Fee invariant tests are in TestPricingInvariants below.
-
-    def test_parse_duration_iso(self):
-        """Duration parser handles ISO 8601 format."""
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-
-        assert client._parse_duration("PT7H30M") == 450
-        assert client._parse_duration("PT14H") == 840
-        assert client._parse_duration("PT45M") == 45
-        assert client._parse_duration("") == 0
-        assert client._parse_duration(None) == 0
-        assert client._parse_duration(120) == 120
-
-    def test_format_duration(self):
+    def test_format_iso_duration(self):
         """Duration formatter outputs human-readable strings."""
-        from picasso_client import PicassoClient
-        client = PicassoClient()
+        client = self._make_client()
 
-        assert client._format_duration(450) == "7h 30m"
-        assert client._format_duration(120) == "2h"
-        assert client._format_duration(45) == "45m"
-        assert client._format_duration(0) == ""
+        assert client._format_iso_duration("PT7H30M") == "7h 30m"
+        assert client._format_iso_duration("PT2H") == "2h"
+        assert client._format_iso_duration("PT45M") == "45m"
+        assert client._format_iso_duration("") == ""
 
-    @patch("picasso_client.requests.post")
-    def test_price_confirm(self, mock_post):
-        """price_confirm validates offer and returns confirmed price."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {"data": {
-                "price": 325.50,
-                "currency": "USD",
-                "pointOfSale": "DK",
-                "bookable": True,
-            }}
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
+    def test_create_booking(self):
+        """create_booking sends cart ID and returns PNR."""
+        client = self._make_client()
 
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
+        booking_response = MagicMock()
+        booking_response.status_code = 200
+        booking_response.json.return_value = {
+            "superPnrId": "SPNR-001",
+            "locator": "ABC123",
+            "status": "CONFIRMED",
+        }
+        booking_response.raise_for_status = MagicMock()
+        client._session.post.return_value = booking_response
 
-        result = client.price_confirm("OFF-001", pos_market="DK")
-        assert result["success"] is True
-        assert result["confirmed_price"] == 325.50
-        assert result["pos_market"] == "DK"
-        assert result["bookable"] is True
-
-    @patch("picasso_client.requests.post")
-    def test_create_booking(self, mock_post):
-        """create_booking sends traveler data and returns PNR."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {"data": {
-                "bookingId": "BK-PIC-001",
-                "pnr": "ABC123",
-                "totalPrice": 325.50,
-                "currency": "USD",
-                "segments": [{
-                    "departure": {"iataCode": "JFK"},
-                    "arrival": {"iataCode": "LHR"},
-                    "carrierCode": "AA",
-                    "number": "100",
-                }],
-            }}
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
-
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
-
-        result = client.create_booking(
-            offer_id="OFF-001",
-            travelers=[{
-                "first_name": "John",
-                "last_name": "Doe",
-                "date_of_birth": "1990-05-15",
-                "gender": "MALE",
-                "email": "john@test.com",
-                "phone": "+15551234567",
-                "passport_number": "P12345678",
-                "passport_expiry": "2030-01-01",
-                "passport_country": "US",
-            }],
-            pos_market="DK",
-            contact_email="john@test.com",
-        )
-
+        result = client.create_booking(shopping_cart_id="CART-001")
         assert result["success"] is True
         assert result["pnr"] == "ABC123"
-        assert result["booking_id"] == "BK-PIC-001"
-        assert result["travelers_booked"] == 1
-        assert result["provider"] == "picasso"
-
-        # Verify payload includes passport info
-        call_kwargs = mock_post.call_args
-        payload = call_kwargs.kwargs.get("json", call_kwargs[1].get("json", {}))
-        assert payload["travelers"][0]["document"]["type"] == "PASSPORT"
-        assert payload["pointOfSale"] == "DK"
-
-    @patch("picasso_client.requests.post")
-    def test_create_booking_no_travelers(self, mock_post):
-        """create_booking fails with empty travelers list."""
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
-
-        result = client.create_booking(
-            offer_id="OFF-001",
-            travelers=[],
-            pos_market="DK",
-        )
-        assert result["success"] is False
-        assert "traveler" in result["error"].lower()
-
-    @patch("picasso_client.requests.post")
-    def test_deal_object_for_renderflight_compat(self, mock_post):
-        """Flight offers with savings include a deal object for renderFlightCards."""
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {
-                "data": [{
-                    "id": "OFF-001",
-                    "pricing": [
-                        {"pos": "US", "amount": 500},
-                        {"pos": "ES", "amount": 400},
-                    ],
-                    "itineraries": [{"segments": [{
-                        "carrierCode": "IB", "number": "1",
-                        "departure": {"iataCode": "JFK", "at": "2026-03-15T08:00:00"},
-                        "arrival": {"iataCode": "MAD", "at": "2026-03-15T20:00:00"},
-                    }]}],
-                    "duration": "PT8H",
-                }],
-                "marketsSearched": 2,
-            }
-        )
-        mock_post.return_value.raise_for_status = MagicMock()
-
-        from picasso_client import PicassoClient
-        client = PicassoClient()
-        client.api_key = "test_key"
-
-        result = client.search_flights("JFK", "MAD", "2026-03-15")
-        flight = result["flights"][0]
-
-        assert flight["deal"] is not None
-        assert flight["deal"]["home_price"] == 500.0
-        assert flight["deal"]["cheapest_market"] == "MYSTES"  # B2C safe
-        assert flight["deal"]["price_difference"] > 0
+        assert result["super_pnr_id"] == "SPNR-001"
 
     def test_module_level_search(self):
         """Module-level search_flights_multi_pos maps cabin class correctly."""
@@ -740,12 +600,6 @@ class TestNewRoutes:
                 'password': 'TestPass123!',
             }, follow_redirects=True)
             yield client
-
-    def test_node_yield_dashboard_loads(self, auth_client):
-        """Node yield dashboard page loads successfully."""
-        resp = auth_client.get('/node/dashboard')
-        assert resp.status_code == 200
-        assert b'Yield Dashboard' in resp.data or b'yield' in resp.data.lower()
 
     def test_health_endpoint(self, client):
         """Health endpoint still works after all changes."""
@@ -863,10 +717,10 @@ class TestHotelSessionCaching:
 class TestPricingInvariants:
     """Test core pricing model invariants that must always hold."""
 
-    def test_member_fee_is_25_percent(self):
-        """Authenticated members get 25% platform fee."""
+    def test_free_member_fee_is_45_percent(self):
+        """Authenticated free members get 45% platform fee (Build #170)."""
         from payments import get_fee_percent
-        assert get_fee_percent(_mock_member()) == 0.25
+        assert get_fee_percent(_mock_member()) == 0.45
 
     def test_non_member_fee_is_50_percent(self):
         """Anonymous/guest users get 50% platform fee."""

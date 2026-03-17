@@ -1,11 +1,11 @@
 """
 Billing — Stripe subscription management with usage metering.
 
-Pricing channels:
-    Retail (direct OTA):
-        Starter $249/mo, Pro $599/mo, Enterprise $1,499/mo
+THE PYRAMID — Pricing (Build #156):
+    Retail (direct):
+        Starter $99/mo, Pro $299/mo, Enterprise $799/mo
     Wholesale (consolidator resale):
-        Starter $99/mo, Pro $249/mo, Enterprise $599/mo
+        Starter $49/mo, Pro $149/mo, Enterprise $399/mo
     Partner (AERTiCKET platform license — volume-committed per-agency):
         1-10,000 agencies: $299/mo per agency
         10,001-50,000:     $199/mo per agency (blended)
@@ -13,6 +13,24 @@ Pricing channels:
         100,001+:          $99/mo per agency (blended)
         + $250K/yr platform integration fee
         All agencies get full Enterprise feature set.
+
+Credential Routing Fees:
+    Pro: 5% on every routed transaction (network credentials)
+    Enterprise: 3% on every routed transaction (network credentials)
+    Own credentials: 0% routing fee
+
+Three-Way Split (after routing fee):
+    Client Provisionary (brings the sale): 70%
+    Portal Host (credential provider): 30%
+
+Sandbox (Free Tier) — Pay-Per-Query Past Free Limits:
+    All services metered. Free quota included, then pay-per-query:
+        API calls:              500/mo free, then $0.02/call
+        Suite AI requests:      100/mo free, then $0.10/request
+        Dev AI requests:        10/mo free, then $0.15/request
+        Credential queries:     $0.25/query (preview access)
+    Bookings execute at B2C consumer rates (35-50% of savings).
+    Subscription break-even: Starter pays for itself at ~150 API calls + 50 AI requests.
 
 Usage metering:
     - AI requests (chat + assist messages) counted per billing period
@@ -43,7 +61,8 @@ class PlanLimits:
     searches_per_month: int = 0
     bookings_per_month: int = 0
     sessions_per_key: int = 10
-    overage_rate_usd: float = 0.01         # Per AI request over limit
+    overage_rate_usd: float = 0.01         # Per AI request over limit (suite AI)
+    dev_ai_overage_rate_usd: float = 0.09  # Per dev AI request over limit
 
 
 @dataclass
@@ -51,7 +70,7 @@ class BillingPlan:
     """Billing plan definition."""
     plan_id: str = ""
     name: str = ""
-    tier: str = "starter"                  # starter, pro, enterprise
+    tier: str = "pro"                       # pro, enterprise
     price_monthly_usd: float = 0.0
     wholesale_monthly_usd: float = 0.0
     limits: PlanLimits = field(default_factory=PlanLimits)
@@ -78,14 +97,15 @@ PLANS = {
         plan_id="starter",
         name="Starter",
         tier="starter",
-        price_monthly_usd=249.00,
-        wholesale_monthly_usd=99.00,
+        price_monthly_usd=99.00,
+        wholesale_monthly_usd=49.00,
         limits=PlanLimits(
-            ai_requests_per_month=2000,
+            ai_requests_per_month=500,
             searches_per_month=5000,
             bookings_per_month=100,
             sessions_per_key=10,
             overage_rate_usd=0.01,
+            dev_ai_overage_rate_usd=0.0,  # No dev AI on Starter
         ),
         features=[
             "ai_chat",
@@ -94,20 +114,29 @@ PLANS = {
             "airport_search",
             "fare_rules",
             "seatmap",
+            "booking_enabled",
+            "booking_management",
+            "document_generation",
+            "credential_portal",
+            "bundle_builder",
+            "unified_search",
+            "white_label",
+            "custom_branding",
         ],
     ),
     "pro": BillingPlan(
         plan_id="pro",
         name="Pro",
         tier="pro",
-        price_monthly_usd=599.00,
-        wholesale_monthly_usd=249.00,
+        price_monthly_usd=299.00,
+        wholesale_monthly_usd=149.00,
         limits=PlanLimits(
             ai_requests_per_month=10000,
             searches_per_month=25000,
-            bookings_per_month=1000,
+            bookings_per_month=500,
             sessions_per_key=50,
             overage_rate_usd=0.008,
+            dev_ai_overage_rate_usd=0.10,
         ),
         features=[
             "ai_chat",
@@ -122,20 +151,30 @@ PLANS = {
             "auto_heal_daemon",
             "audit_trail",
             "extras_discovery",
+            "credential_portal",
+            "credential_network",
+            "bundle_builder",
+            "unified_search",
+            "white_label",
+            "custom_branding",
+            "webhooks",
+            "dev_terminal",
+            "module_marketplace",
         ],
     ),
     "enterprise": BillingPlan(
         plan_id="enterprise",
         name="Enterprise",
         tier="enterprise",
-        price_monthly_usd=1499.00,
-        wholesale_monthly_usd=599.00,
+        price_monthly_usd=799.00,
+        wholesale_monthly_usd=399.00,
         limits=PlanLimits(
             ai_requests_per_month=50000,
             searches_per_month=0,       # unlimited
             bookings_per_month=0,       # unlimited
             sessions_per_key=200,
             overage_rate_usd=0.005,
+            dev_ai_overage_rate_usd=0.08,
         ),
         features=[
             "ai_chat",
@@ -150,14 +189,142 @@ PLANS = {
             "auto_heal_daemon",
             "audit_trail",
             "extras_discovery",
+            "credential_portal",
+            "credential_network",
+            "bundle_builder",
+            "unified_search",
             "consumer_ui",
             "white_label",
             "custom_branding",
             "webhooks",
             "priority_support",
+            "dev_terminal",
+            "module_marketplace",
+            "bulk_provisioning",
         ],
     ),
 }
+
+
+# ============================================================================
+# AI TOKEN PRICING — Anthropic API cost basis (updated 2026-03)
+# ============================================================================
+
+# Opus 4.6 — standard API rates (per million tokens)
+OPUS_INPUT_PER_MTOK = 5.00
+OPUS_OUTPUT_PER_MTOK = 25.00
+
+# Batch API — 50% discount for async workloads (audits, code review, analysis)
+OPUS_BATCH_INPUT_PER_MTOK = 2.50
+OPUS_BATCH_OUTPUT_PER_MTOK = 12.50
+
+# Prompt caching — cache reads at 0.1x, writes at 1.25x
+OPUS_CACHE_READ_PER_MTOK = 0.50      # 90% savings on cached system prompts
+OPUS_CACHE_WRITE_PER_MTOK = 6.25     # 1.25x for initial cache write
+
+# ANASTASiA markup on customer-facing dev AI queries
+ANASTASIA_AI_MARKUP = 1.50  # 50% margin on top of Anthropic cost
+
+# Average cost per dev AI request (4K input + 1.5K output tokens)
+# Standard: $0.058/req. With caching: ~$0.042/req. Batch+cache: ~$0.028/req
+DEV_AI_COST_PER_REQUEST = 0.058      # Our COGS (standard, no optimizations)
+DEV_AI_PRICE_PER_REQUEST = 0.09      # What we charge ($0.058 × 1.5 markup, rounded)
+
+# Dev AI overage rates (per request past tier limit)
+DEV_AI_OVERAGE_PRO = 0.10            # Pro: $0.10/request overage
+DEV_AI_OVERAGE_ENTERPRISE = 0.08     # Enterprise: $0.08/request overage
+
+# Suite AI requests (booking, search, chat) — platform COGS, NOT metered to customers
+# These are baked into the subscription price. Estimated per-customer per-month:
+# ~2,000 suite AI requests × $0.058 = ~$116 COGS (before caching optimization)
+SUITE_AI_ESTIMATED_REQUESTS_PER_CUSTOMER = 2000
+
+
+# ============================================================================
+# SANDBOX PAY-PER-QUERY RATES (Free tier — past free limits)
+# ============================================================================
+# All services universally metered. Free quota included in the free tier,
+# then every query past the limit costs per-use. This naturally forces
+# subscription at any meaningful volume.
+#
+# Break-even vs Starter ($99/mo):
+#   150 API calls × $0.02 = $3 + 50 AI requests × $0.10 = $5 → already $8
+#   At Starter volume (5,000 calls + 500 AI): $100 + $50 = $150 sandbox cost
+#   Subscription is cheaper. Economics force graduation.
+
+SANDBOX_OVERAGE_RATES = {
+    "api_call":           0.02,   # Per API call past 500/mo
+    "suite_ai_request":   0.10,   # Per suite AI request past 100/mo
+    "dev_ai_request":     0.15,   # Per dev AI request past 10/mo
+    "credential_query":   0.25,   # Credential network preview (premium)
+    "search_query":       0.01,   # Per search past 50/day (form-based, low cost)
+}
+
+# Free tier included quotas (mirrored in saas/__init__.py limits)
+SANDBOX_FREE_LIMITS = {
+    "api_calls_per_month":        500,
+    "suite_ai_requests_per_month": 100,
+    "dev_ai_requests_per_month":   10,
+    "searches_per_day":            50,
+    "bookings_per_month":          0,    # Bookings at B2C rates via MYSTES consumer
+}
+
+
+# ============================================================================
+# CREDENTIAL ROUTING FEES & THREE-WAY SPLIT
+# ============================================================================
+
+# Routing fee — taken off the top on every routed transaction
+# (Only applies when booking uses NETWORK credentials, not own)
+ROUTING_FEE_PCT = {
+    "starter": 0.0,    # Starter uses OUR credentials only (no network routing)
+    "pro": 5.0,        # 5% routing fee
+    "enterprise": 3.0,  # 3% routing fee (volume discount)
+}
+
+# After our routing fee, remaining margin split between parties
+CLIENT_PROVISIONARY_SPLIT_PCT = 70.0  # Agency bringing the sale
+PORTAL_HOST_SPLIT_PCT = 30.0          # Credential provider
+
+
+def calculate_routing_split(
+    savings_usd: float,
+    tier: str,
+) -> dict:
+    """
+    Calculate the three-way split on a routed booking.
+
+    Our routing fee comes out FIRST, then remaining margin splits
+    70/30 between Client Provisionary and Portal Host.
+
+    Args:
+        savings_usd: Total savings on the booking (home_price - arbitrage_price).
+        tier: Agency tier ("starter", "pro", "enterprise").
+
+    Returns:
+        {
+            "savings": float,
+            "routing_fee_pct": float,
+            "routing_fee_usd": float,
+            "remaining_margin": float,
+            "client_provisionary_usd": float,
+            "portal_host_usd": float,
+        }
+    """
+    fee_pct = ROUTING_FEE_PCT.get(tier, 5.0)
+    routing_fee = round(savings_usd * (fee_pct / 100), 2)
+    remaining = round(savings_usd - routing_fee, 2)
+    client_share = round(remaining * (CLIENT_PROVISIONARY_SPLIT_PCT / 100), 2)
+    portal_share = round(remaining - client_share, 2)  # Avoid float drift
+
+    return {
+        "savings": savings_usd,
+        "routing_fee_pct": fee_pct,
+        "routing_fee_usd": routing_fee,
+        "remaining_margin": remaining,
+        "client_provisionary_usd": client_share,
+        "portal_host_usd": portal_share,
+    }
 
 
 # ============================================================================
@@ -576,7 +743,7 @@ class BillingManager:
 
         Args:
             key_hash: Agency API key hash
-            plan_id: Plan ID (starter, pro, enterprise, or partner_enterprise)
+            plan_id: Plan ID (pro, enterprise, or partner_enterprise)
             email: Billing email
             agency_name: Agency name for Stripe customer
             stripe_payment_method: Stripe PaymentMethod ID (pm_...)

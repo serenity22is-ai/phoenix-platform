@@ -578,11 +578,15 @@ def register_mystes_ai_routes(app, csrf=None):
         platform_fee = round(savings * get_fee_percent(), 2) if savings > 0 else 0
         savings_pct = float(data.get("savings_pct", 0) or 0)
 
-        # Store Amadeus raw offer if present
+        # Store Amadeus raw offer if present + extract booking references
         amadeus_offer_json = None
+        fare_id_val = None
+        fare_search_id_val = None
         raw_offer = data.get("raw_offer")
         if raw_offer:
             amadeus_offer_json = json.dumps(raw_offer)
+            fare_id_val = raw_offer.get("fare_id")
+            fare_search_id_val = raw_offer.get("fare_search_id")
 
         # Get flight number from title (e.g., "American AA 1234")
         title = data.get("title", "")
@@ -619,6 +623,8 @@ def register_mystes_ai_routes(app, csrf=None):
                 user_savings_usd=round(savings - platform_fee, 2) if savings > 0 else 0,
                 savings_percent=savings_pct,
                 destination_tag=destination_tag,
+                fare_id=fare_id_val or data.get("fare_id"),
+                fare_search_id=fare_search_id_val or data.get("fare_search_id"),
                 amadeus_offer_data=amadeus_offer_json,
                 is_active=True,
                 expires_at=datetime.utcnow() + __import__('datetime').timedelta(hours=24),
