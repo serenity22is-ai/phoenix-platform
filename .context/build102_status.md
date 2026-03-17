@@ -36,7 +36,7 @@
 - Created `picasso_client.py` (~580 lines) — multi-POS flight search + booking
 - `PicassoClient` class: `search_flights()`, `price_confirm()`, `create_booking()`
 - Multi-POS arbitrage pricing: US price = benchmark, cheapest POS = our cost
-- Platform fee: 25% of savings (min $3, max $50)
+- Platform fee: 25% of savings (min $3, no maximum cap)
 - Module-level: `search_flights_multi_pos()`, `search_with_picasso()`
 - Compatible with existing `renderFlightCards()` JS
 - Ready to plug in when Picasso credentials arrive
@@ -58,7 +58,7 @@
 - Updated `liteapi_client.py` search_hotels():
   - Extracts suggestedSellingPrice/offerInitialPrice as Google benchmark
   - Skips hotels where our cost >= Google price (inverted margin)
-  - Calculates MYSTES pricing: our_cost + 25% of savings (min $3, max $50)
+  - Calculates MYSTES pricing: our_cost + 25% of savings (min $3, no maximum cap)
   - Adds google_price, our_cost, platform_fee, user_savings, savings_pct to hotel dict
 
 ### 8. Mobile/PWA Polish (COMPLETE — Task 5)
