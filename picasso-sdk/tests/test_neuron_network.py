@@ -282,10 +282,10 @@ class TestModuleRegistry:
 
 class TestAnastasiaPlatform:
     def test_start_all_neurons(self, platform):
-        """All 18 neurons should initialize successfully (16 core + 2 verticals)."""
+        """All 21 neurons should initialize successfully (16 core + 5 verticals)."""
         results = platform.start()
 
-        assert len(results) == 18
+        assert len(results) == 21
         for name, success in results.items():
             assert success is True, f"Neuron {name} failed to initialize"
 
@@ -295,9 +295,10 @@ class TestAnastasiaPlatform:
 
         # Platform may be "degraded" if flights has no credentials (expected in tests)
         assert health["platform"] in ("healthy", "degraded")
-        # 16 total neurons; flights neuron reports unhealthy without API credentials
-        assert health["neurons_online"] >= 17  # 17 or 18 depending on env
-        assert health["neurons_total"] == 18
+        # 21 total neurons; flights + cars + activities + insurance report unhealthy
+        # without API credentials (expected in tests)
+        assert health["neurons_online"] >= 17  # 17-21 depending on env vars
+        assert health["neurons_total"] == 21
         assert health["uptime_seconds"] >= 0
 
     def test_selective_module_loading(self, temp_dir):
@@ -349,14 +350,14 @@ class TestAnastasiaPlatform:
     def test_list_modules(self, platform):
         platform.start()
         modules = platform.list_modules()
-        assert len(modules) == 18
+        assert len(modules) == 21
         names = {m["name"] for m in modules}
         expected = {
             "knowledge", "daemon", "integrator", "payments",
             "intelligence", "resilience", "tenancy", "compliance",
             "credits", "portability", "sandbox", "bridge",
             "credentials", "saas", "devterminal", "search",
-            "flights", "hotels",
+            "flights", "hotels", "cars", "activities", "insurance",
         }
         assert names == expected
 
@@ -381,7 +382,7 @@ class TestInterNeuronEvents:
 
         start_events = [e for e in received if e.data.get("action") == "platform_started"]
         assert len(start_events) == 1
-        assert start_events[0].data["neurons_online"] == 18
+        assert start_events[0].data["neurons_online"] == 21
 
     def test_cross_neuron_event_flow(self, platform):
         """Events published by one neuron should be visible to others."""
@@ -431,10 +432,10 @@ class TestNeuronHealth:
         platform.start()
         health = platform.health()
 
+        # Verticals report unhealthy when no API credentials are set (expected in tests)
+        verticals_without_creds = {"flights", "cars", "activities", "insurance"}
         for name, status in health["neurons"].items():
-            if name == "flights":
-                # Flights neuron reports unhealthy when no API credentials are set
-                # (expected in tests — no PICASSO_SESSION_TOKEN, DUFFEL_ACCESS_TOKEN, etc.)
+            if name in verticals_without_creds:
                 continue
             assert status["healthy"] is True, f"{name} reported unhealthy: {status.get('details')}"
 

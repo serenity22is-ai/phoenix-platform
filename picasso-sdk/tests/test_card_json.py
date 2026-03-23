@@ -128,10 +128,10 @@ class TestLoadAllCards:
         assert cards[0].vertical == "hotels"
 
     def test_load_all_cards(self):
-        """Load all cards across verticals — should be 8."""
+        """Load all cards across verticals — should be 11 (7 flight + 1 hotel + 1 car + 1 activity + 1 insurance)."""
         cards = load_all_json_cards(vertical=None)
-        assert len(cards) == 8, (
-            f"Expected 8 total cards, got {len(cards)}: "
+        assert len(cards) == 11, (
+            f"Expected 11 total cards, got {len(cards)}: "
             f"{[c.module_id for c in cards]}"
         )
 
@@ -414,17 +414,26 @@ class TestBuildModulesFromJson:
         assert modules[0].knowledge_card.module_id == "liteapi_hotels"
 
     def test_build_all_modules_count(self):
-        """Total modules = 8 (7 flights + 1 hotel)."""
+        """Total modules = 11 (7 flights + 1 hotel + 1 car + 1 activity + 1 insurance)."""
         modules = build_all_modules(from_json=True)
-        assert len(modules) == 8
+        assert len(modules) == 11
 
         # Verify the breakdown
         flight_ids = [m.knowledge_card.module_id for m in modules
                       if m.knowledge_card.vertical == "flights"]
         hotel_ids = [m.knowledge_card.module_id for m in modules
                      if m.knowledge_card.vertical == "hotels"]
+        car_ids = [m.knowledge_card.module_id for m in modules
+                   if m.knowledge_card.vertical == "car_rental"]
+        activity_ids = [m.knowledge_card.module_id for m in modules
+                        if m.knowledge_card.vertical == "activities"]
+        insurance_ids = [m.knowledge_card.module_id for m in modules
+                         if m.knowledge_card.vertical == "insurance"]
         assert len(flight_ids) == 7
         assert len(hotel_ids) == 1
+        assert len(car_ids) == 1
+        assert len(activity_ids) == 1
+        assert len(insurance_ids) == 1
 
     def test_json_and_python_produce_same_module_ids(self):
         """JSON path and Python path produce the same set of module IDs."""

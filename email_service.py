@@ -882,3 +882,182 @@ def send_p2p_escrow_refunded(to: str, name: str = None, amount_rlusd: float = 0)
     """
 
     return send_email(to, f"Escrow Refunded: {amount_rlusd:.2f} RLUSD Returned", html_content)
+
+
+# --- ANASTASiA DEV PORTAL EMAILS (Build #184) ---
+
+def send_devportal_welcome(to: str, name: str = None) -> bool:
+    """Welcome email for new APAi admin portal accounts."""
+    greeting = f"Hi {name}!" if name else "Welcome!"
+    html = f"""
+    <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#0d0d1a;padding:30px;">
+        <div style="text-align:center;margin-bottom:25px;">
+            <h1 style="font-family:'Cinzel',serif;color:#b388ff;margin:0;font-size:28px;">ANASTASiA</h1>
+            <p style="color:#8a8278;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:4px 0;">APAi Admin Portal</p>
+        </div>
+        <div style="background:#1a1a2e;border:1px solid rgba(179,136,255,0.2);border-radius:12px;padding:30px;">
+            <h2 style="color:#b388ff;margin:0 0 15px;">{greeting}</h2>
+            <p style="color:#d0c8bc;line-height:1.6;">
+                Your APAi admin portal account is ready. You now have access to
+                ANASTASiA &mdash; your AI development platform.
+            </p>
+            <div style="background:rgba(179,136,255,0.08);border:1px solid rgba(179,136,255,0.2);border-radius:10px;padding:20px;margin:20px 0;">
+                <p style="color:#e8dcc8;margin:0 0 8px;font-weight:600;">What you can do:</p>
+                <ul style="color:#b0a89a;margin:0;padding-left:18px;line-height:1.8;">
+                    <li>Build full-stack applications, APIs, and integrations</li>
+                    <li>Write, review, and debug code in any language</li>
+                    <li>Customize your turnkey OTA template</li>
+                    <li>Manage your dev team and usage</li>
+                </ul>
+            </div>
+            <div style="text-align:center;margin-top:25px;">
+                <a href="{EMAIL_CONFIG['base_url']}/apai/admin/terminal"
+                   style="background:linear-gradient(135deg,#7c3aed,#b388ff);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                    Open Terminal
+                </a>
+            </div>
+        </div>
+    </div>
+    """
+    return send_email(to, "Welcome to APAi Admin Portal", html)
+
+
+def send_team_invitation_email(to: str, name: str = None, inviter_name: str = None,
+                                temp_password: str = None, company: str = None) -> bool:
+    """Send team member invitation email with temp password.
+
+    Build #195 — APAi admin portal team invitations.
+    Admin provisions team member, this email is sent with login credentials.
+    """
+    greeting = f"Hi {name}," if name else "Hi,"
+    inviter_text = f"<strong>{inviter_name}</strong> has" if inviter_name else "Your team admin has"
+    company_text = f" at <strong>{company}</strong>" if company else ""
+    html = f"""
+    <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#0d0d1a;padding:30px;">
+        <div style="text-align:center;margin-bottom:25px;">
+            <h1 style="font-family:'Cinzel',serif;color:#b388ff;margin:0;font-size:28px;">ANASTASiA</h1>
+            <p style="color:#8a8278;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:4px 0;">APAi Admin Portal</p>
+        </div>
+        <div style="background:#1a1a2e;border:1px solid rgba(179,136,255,0.2);border-radius:12px;padding:30px;">
+            <h2 style="color:#b388ff;margin:0 0 15px;">{greeting}</h2>
+            <p style="color:#d0c8bc;line-height:1.6;">
+                {inviter_text} added you to their APAi dev team{company_text}.
+                You now have access to the ANASTASiA development terminal.
+            </p>
+            <div style="background:rgba(179,136,255,0.08);border:1px solid rgba(179,136,255,0.2);border-radius:10px;padding:20px;margin:20px 0;">
+                <p style="color:#e8dcc8;margin:0 0 8px;font-weight:600;">Your login credentials:</p>
+                <p style="color:#b0a89a;margin:4px 0;">Email: <strong style="color:#e8dcc8;">{to}</strong></p>
+                <p style="color:#b0a89a;margin:4px 0;">Temporary password: <strong style="color:#e8dcc8;">{temp_password}</strong></p>
+                <p style="color:#f59e0b;font-size:0.85rem;margin-top:12px;">Please change your password after your first login.</p>
+            </div>
+            <div style="text-align:center;margin-top:25px;">
+                <a href="{EMAIL_CONFIG['base_url']}/apai/admin/login"
+                   style="background:linear-gradient(135deg,#7c3aed,#b388ff);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                    Log In to APAi
+                </a>
+            </div>
+            <p style="color:#666;font-size:13px;margin-top:20px;text-align:center;">
+                All queries count against your team's subscription pool.
+            </p>
+        </div>
+    </div>
+    """
+    return send_email_smtp(to, "You've been added to an APAi dev team", html)
+
+
+# --- Build #191: Social Notification Emails ---
+
+def send_friend_request_email(to: str, from_name: str, to_name: str = None) -> bool:
+    """Notify user of a new friend request."""
+    greeting = f"Hi {to_name}," if to_name else "Hi,"
+    html = f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:0 auto;background:#0f0a19;border-radius:12px;padding:40px;color:#e2e8f0;">
+        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <p>{greeting}</p>
+        <p><strong>{from_name}</strong> sent you a friend request on MYSTES.</p>
+        <p>Accept the request to start sharing trips, collections, and travel plans together.</p>
+        <div style="text-align:center;margin:24px 0;">
+            <a href="{EMAIL_CONFIG['base_url']}/friends"
+               style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                View Request
+            </a>
+        </div>
+        <p style="color:#666;font-size:12px;margin-top:20px;">MYSTES KYRIOS LLC</p>
+    </div>
+    """
+    return send_email_smtp(to, f"{from_name} wants to be your friend on MYSTES", html)
+
+
+def send_trip_invite_email(to: str, inviter_name: str, trip_name: str, trip_id: int, to_name: str = None) -> bool:
+    """Notify user of a trip planner invitation."""
+    greeting = f"Hi {to_name}," if to_name else "Hi,"
+    html = f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:0 auto;background:#0f0a19;border-radius:12px;padding:40px;color:#e2e8f0;">
+        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <p>{greeting}</p>
+        <p><strong>{inviter_name}</strong> invited you to collaborate on a trip:</p>
+        <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:20px;margin:16px 0;text-align:center;">
+            <div style="font-family:'Cinzel',serif;font-size:18px;color:#e2e8f0;letter-spacing:2px;">{trip_name}</div>
+        </div>
+        <p>Join to add flights, hotels, activities, and more. Vote on options and plan together.</p>
+        <div style="text-align:center;margin:24px 0;">
+            <a href="{EMAIL_CONFIG['base_url']}/trips/{trip_id}"
+               style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                View Trip
+            </a>
+        </div>
+        <p style="color:#666;font-size:12px;margin-top:20px;">MYSTES KYRIOS LLC</p>
+    </div>
+    """
+    return send_email_smtp(to, f"You're invited to \"{trip_name}\" on MYSTES", html)
+
+
+def send_collection_shared_email(to: str, sharer_name: str, collection_name: str, share_slug: str, to_name: str = None) -> bool:
+    """Notify user when a collection is shared with them."""
+    greeting = f"Hi {to_name}," if to_name else "Hi,"
+    html = f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:0 auto;background:#0f0a19;border-radius:12px;padding:40px;color:#e2e8f0;">
+        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <p>{greeting}</p>
+        <p><strong>{sharer_name}</strong> shared a travel collection with you:</p>
+        <div style="background:rgba(20,184,166,0.08);border:1px solid rgba(20,184,166,0.2);border-radius:10px;padding:20px;margin:16px 0;text-align:center;">
+            <div style="font-family:'Cinzel',serif;font-size:18px;color:#e2e8f0;letter-spacing:2px;">{collection_name}</div>
+        </div>
+        <div style="text-align:center;margin:24px 0;">
+            <a href="{EMAIL_CONFIG['base_url']}/c/{share_slug}"
+               style="background:linear-gradient(135deg,#14b8a6,#0d9488);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                View Collection
+            </a>
+        </div>
+        <p style="color:#666;font-size:12px;margin-top:20px;">MYSTES KYRIOS LLC</p>
+    </div>
+    """
+    return send_email_smtp(to, f"{sharer_name} shared \"{collection_name}\" with you", html)
+
+
+def send_cancellation_email(to: str, to_name: str = None, booking_ref: str = "",
+                            route_info: str = "", refund_amount: float = 0) -> bool:
+    """Send booking cancellation confirmation email."""
+    greeting = f"Hi {to_name}," if to_name else "Hi,"
+    refund_line = f"<p>A refund of <strong>${refund_amount:.2f}</strong> will be returned to your original payment method within 5-10 business days.</p>" if refund_amount > 0 else ""
+    html = f"""
+    <div style="font-family:'Outfit',sans-serif;max-width:500px;margin:0 auto;background:#0a0612;color:#e2e8f0;padding:40px 30px;border-radius:16px;">
+        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <p>{greeting}</p>
+        <p>Your booking has been cancelled.</p>
+        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:20px;margin:16px 0;text-align:center;">
+            <div style="font-size:12px;color:#999;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Cancelled Booking</div>
+            <div style="font-family:monospace;font-size:22px;color:#f87171;letter-spacing:4px;">{booking_ref}</div>
+            <div style="font-size:14px;color:#ccc;margin-top:8px;">{route_info}</div>
+        </div>
+        {refund_line}
+        <div style="text-align:center;margin:24px 0;">
+            <a href="{EMAIL_CONFIG['base_url']}/flights"
+               style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+                Search New Flights
+            </a>
+        </div>
+        <p style="color:#666;font-size:12px;margin-top:20px;">MYSTES KYRIOS LLC</p>
+    </div>
+    """
+    return send_email_smtp(to, "MYSTES — Booking Cancelled", html)

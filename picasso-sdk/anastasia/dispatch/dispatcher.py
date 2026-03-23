@@ -49,6 +49,9 @@ class BookingDispatcher:
     _SOURCE_ALIASES = {
         "picasso": "picasso_redbox",
         "liteapi": "liteapi_hotels",
+        "discover_cars": "discover_cars",
+        "viator": "viator_activities",
+        "safetywing": "safetywing_insurance",
     }
 
     def _load_cards(self, cards_dir: Optional[str] = None):
@@ -359,10 +362,155 @@ def _book_airgateway_ndc(raw_offer, passengers, client, card, markup):
     }
 
 
+def _book_discover_cars(raw_offer, passengers, client, card, markup):
+    """
+    Discover Cars aggregator booking.
+
+    Flow: search → select offer → create_booking
+    Client method: create_booking(offer_id, driver, flight_number)
+    """
+    offer_id = raw_offer.get("offer_id")
+
+    if not offer_id:
+        return {
+            "success": False,
+            "error": "Missing offer_id for Discover Cars booking",
+            "booking_source": "discover_cars",
+        }
+
+    lead = passengers[0] if passengers else {}
+    driver = {
+        "first_name": lead.get("first_name", ""),
+        "last_name": lead.get("last_name", ""),
+        "email": lead.get("email", ""),
+        "phone": lead.get("phone", ""),
+        "country_code": lead.get("nationality", ""),
+        "age": lead.get("age", 30),
+    }
+
+    result = client.create_booking(
+        offer_id=offer_id,
+        driver=driver,
+        flight_number=raw_offer.get("flight_number"),
+    )
+
+    if result and result.get("success"):
+        return {
+            "success": True,
+            "confirmation_code": result.get("booking_id") or result.get("confirmation_code"),
+            "booking_source": "discover_cars",
+        }
+
+    return {
+        "success": False,
+        "error": result.get("error", "Discover Cars booking failed")
+        if result
+        else "Discover Cars booking returned empty result",
+        "booking_source": "discover_cars",
+    }
+
+
+def _book_viator(raw_offer, passengers, client, card, markup):
+    """
+    Viator activities booking.
+
+    Flow: search → product_details → availability_check → book
+    Client method: create_booking(product_code, travel_date, currency, pax_mix, booker, ...)
+    """
+    product_code = raw_offer.get("product_code")
+    travel_date = raw_offer.get("travel_date")
+
+    if not product_code:
+        return {
+            "success": False,
+            "error": "Missing product_code for Viator booking",
+            "booking_source": "viator",
+        }
+
+    lead = passengers[0] if passengers else {}
+    pax_mix = raw_offer.get("pax_mix", [{"ageBand": "ADULT", "numberOfTravelers": 1}])
+
+    result = client.create_booking(
+        product_code=product_code,
+        travel_date=travel_date,
+        currency=raw_offer.get("currency", "USD"),
+        pax_mix=pax_mix,
+        first_name=lead.get("first_name", ""),
+        last_name=lead.get("last_name", ""),
+        email=lead.get("email", ""),
+        phone=lead.get("phone", ""),
+    )
+
+    if result and result.get("success"):
+        return {
+            "success": True,
+            "confirmation_code": result.get("booking_ref") or result.get("confirmation_code"),
+            "booking_source": "viator",
+        }
+
+    return {
+        "success": False,
+        "error": result.get("error", "Viator booking failed")
+        if result
+        else "Viator booking returned empty result",
+        "booking_source": "viator",
+    }
+
+
+def _book_safetywing(raw_offer, passengers, client, card, markup):
+    """
+    SafetyWing insurance booking.
+
+    Flow: get_plans → get_quote → add_member (member creation IS policy creation)
+    Client method: add_member(plan_id, member, start_date)
+    """
+    plan_id = raw_offer.get("plan_id")
+
+    if not plan_id:
+        return {
+            "success": False,
+            "error": "Missing plan_id for SafetyWing booking",
+            "booking_source": "safetywing",
+        }
+
+    lead = passengers[0] if passengers else {}
+    member = {
+        "first_name": lead.get("first_name", ""),
+        "last_name": lead.get("last_name", ""),
+        "email": lead.get("email", ""),
+        "date_of_birth": lead.get("date_of_birth", ""),
+        "nationality": lead.get("nationality", ""),
+    }
+
+    result = client.add_member(
+        plan_id=plan_id,
+        member=member,
+        start_date=raw_offer.get("start_date"),
+    )
+
+    if result and result.get("success"):
+        return {
+            "success": True,
+            "confirmation_code": result.get("policy_id") or result.get("member_id"),
+            "booking_source": "safetywing",
+        }
+
+    return {
+        "success": False,
+        "error": result.get("error", "SafetyWing booking failed")
+        if result
+        else "SafetyWing add_member returned empty result",
+        "booking_source": "safetywing",
+    }
+
+
 # Handler registry — maps source module_id to booking function
 _HANDLERS = {
     "picasso": _book_picasso,
     "duffel_ndc": _book_duffel_ndc,
     "kiwi_tequila": _book_kiwi_tequila,
     "airgateway_ndc": _book_airgateway_ndc,
+    "discover_cars": _book_discover_cars,
+    "viator": _book_viator,
+    "safetywing": _book_safetywing,
 }

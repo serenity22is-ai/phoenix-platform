@@ -587,6 +587,32 @@ def register_mystes_ai_routes(app, csrf=None):
             amadeus_offer_json = json.dumps(raw_offer)
             fare_id_val = raw_offer.get("fare_id")
             fare_search_id_val = raw_offer.get("fare_search_id")
+        else:
+            # Safety guard: reconstruct minimal raw_offer from top-level fields
+            _fallback_fare = data.get("fare_id")
+            _fallback_search = data.get("fare_search_id")
+            _fallback_offer = data.get("offer_id")
+            if _fallback_fare or _fallback_search or _fallback_offer:
+                raw_offer = {
+                    "fare_id": _fallback_fare,
+                    "fare_search_id": _fallback_search,
+                    "offer_id": _fallback_offer,
+                    "source": data.get("source", "unknown"),
+                    "_reconstructed": True,
+                }
+                amadeus_offer_json = json.dumps(raw_offer)
+                fare_id_val = _fallback_fare
+                fare_search_id_val = _fallback_search
+                logger.warning(
+                    "raw_offer missing from booking request — reconstructed from top-level fields: "
+                    "fare_id=%s fare_search_id=%s offer_id=%s",
+                    _fallback_fare, _fallback_search, _fallback_offer,
+                )
+            else:
+                logger.warning(
+                    "No raw_offer or booking references in request for %s->%s on %s",
+                    origin, destination, date,
+                )
 
         # Get flight number from title (e.g., "American AA 1234")
         title = data.get("title", "")

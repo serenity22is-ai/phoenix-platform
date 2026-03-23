@@ -13,5 +13,14 @@ MYSTES KYRIOS LLC — Confidential.
 
 from .flights import FlightsNeuron
 from .hotels import HotelsNeuron
+from .cars import CarsNeuron
+from .activities import ActivitiesNeuron
+from .insurance import InsuranceNeuron
 
-__all__ = ["FlightsNeuron", "HotelsNeuron"]
+__all__ = [
+    "FlightsNeuron",
+    "HotelsNeuron",
+    "CarsNeuron",
+    "ActivitiesNeuron",
+    "InsuranceNeuron",
+]

@@ -1,0 +1,10 @@
+{
+  "flow_id": "trip_planner_intro",
+  "type": "question",
+  "message": "Plan your perfect trip! Collaborate with friends, save ideas, and book everything in one place.",
+  "options": [
+    {"id": "create", "label": "Create a Trip", "redirect_url": "/trips/create"},
+    {"id": "browse", "label": "My Trips", "redirect_url": "/trips"},
+    {"id": "collections", "label": "My Collections", "redirect_url": "/collections"}
+  ]
+}

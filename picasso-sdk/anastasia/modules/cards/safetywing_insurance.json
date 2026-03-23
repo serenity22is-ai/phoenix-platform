@@ -1,0 +1,48 @@
+{
+  "module_id": "safetywing_insurance",
+  "name": "SafetyWing Insurance",
+  "vendor": "SafetyWing",
+  "version": "1.0",
+  "vertical": "insurance",
+  "source_type": "direct",
+  "auth_type": "api_key_header",
+  "credential_env_vars": ["SAFETYWING_API_KEY"],
+  "auth_notes": "X-API-KEY header. Sandbox at chick.test-bird.one. Signup at test-bird.one.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": false,
+    "quote": true,
+    "plans": true
+  },
+  "carrier_count": 2,
+  "coverage_notes": "Nomad Insurance (travel medical) + Remote Health (comprehensive). Global coverage.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "implicit",
+  "passenger_format": {
+    "name_fields": ["firstName", "lastName"],
+    "requires_email": true,
+    "requires_dob": true,
+    "dob_format": "YYYY-MM-DD",
+    "requires_nationality": true
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Affiliate commission on policy purchases. Monthly or per-trip pricing.",
+  "priority": 70,
+  "strengths": ["nomad_focused", "global_coverage", "simple_api", "sandbox_available"],
+  "weaknesses": ["limited_products", "no_change_support"],
+  "best_for": ["travel_insurance", "nomad_insurance", "health_insurance_abroad", "upsell_on_bookings"],
+  "quirks": [
+    {"issue": "Two possible quote endpoints", "workaround": "Try /api/remote-health/v1/quotes first, fall back to /api/v1/insurance/quotes"},
+    {"issue": "Member creation = policy creation", "workaround": "add_member creates the policy directly"}
+  ],
+  "booking_steps": ["get_plans", "get_quote", "add_member"],
+  "booking_notes": "Insurance upsell on flight/hotel bookings. Member creation IS policy creation. Returns policy_number.",
+  "readiness": "tested",
+  "confidence": 0.70,
+  "learned_from": ["mystes_internal", "safetywing_docs"],
+  "last_updated": "2026-03-17",
+  "docs_url": "https://documentation.safetywing.com/docs/getting-started"
+}

@@ -55,11 +55,10 @@ class Config:
     STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
     STRIPE_ISSUING_ENABLED = os.environ.get('STRIPE_ISSUING_ENABLED', 'false').lower() == 'true'
 
-    # Payment Ramp Networks (Build #86)
+    # Payment Ramps (Build #86, cleaned Build #196)
+    # Stripe + MoonPay ONLY. Coinbase PERMANENTLY RETIRED. Transak RETIRED.
     MOONPAY_API_KEY = os.environ.get('MOONPAY_API_KEY')
     MOONPAY_SECRET_KEY = os.environ.get('MOONPAY_SECRET_KEY')
-    TRANSAK_API_KEY = os.environ.get('TRANSAK_API_KEY')
-    COINBASE_ONRAMP_APP_ID = os.environ.get('COINBASE_ONRAMP_APP_ID')
 
     # Platform fee by membership status (Build #156 → Build #170)
     # Guest (anonymous): 50% | Free Member (authenticated): 45% | Travel+: 35%
@@ -87,6 +86,13 @@ class Config:
     AI_SESSION_PRICE_USD = 2.99
     AI_SESSION_DURATION_MINUTES = 30
     AI_SESSION_MAX_MESSAGES = 30
+
+    # APAi Tiers (Build #194 — replaces standalone Dev Portal pricing)
+    # Actual tier configs in dev_portal_billing.py TIER_CONFIG
+    # Pro $299/500q, Enterprise $599/2000q, Scale $999/5000q (ALL PROVISIONAL)
+    APAI_PRO_STRIPE_PRICE_ID = os.environ.get('APAI_PRO_STRIPE_PRICE_ID', '')
+    APAI_ENTERPRISE_STRIPE_PRICE_ID = os.environ.get('APAI_ENTERPRISE_STRIPE_PRICE_ID', '')
+    APAI_SCALE_STRIPE_PRICE_ID = os.environ.get('APAI_SCALE_STRIPE_PRICE_ID', '')
 
     # Referral System (Build #170)
     REFERRAL_SIGNUP_POINTS = 2000         # Points when referee signs up
@@ -161,10 +167,14 @@ class ProductionConfig(Config):
         'pool_recycle': 300,
         'pool_size': 10,
         'max_overflow': 20,
+        'connect_args': {
+            'connect_timeout': 5,        # Fail fast if DB unreachable (5s, not 30s)
+            'options': '-c statement_timeout=30000',  # Kill queries after 30s
+        },
     }
 
-    # Redis-backed rate limiting
-    RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'redis://redis:6379/1')
+    # Redis-backed rate limiting (falls back to memory:// if REDIS not configured)
+    RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
     RATELIMIT_DEFAULT = "1000 per day;100 per hour"
 
     REMEMBER_COOKIE_SECURE = True

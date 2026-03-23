@@ -579,4 +579,13 @@ def build_all_hotel_modules(from_json: bool = True) -> list:
 
 def build_all_modules(from_json: bool = True) -> list:
     """Build all known modules across all verticals."""
-    return build_all_flight_modules(from_json) + build_all_hotel_modules(from_json)
+    from .car_modules import build_all_car_modules
+    from .activity_modules import build_all_activity_modules
+    from .insurance_modules import build_all_insurance_modules
+    return (
+        build_all_flight_modules(from_json)
+        + build_all_hotel_modules(from_json)
+        + build_all_car_modules(from_json)
+        + build_all_activity_modules(from_json)
+        + build_all_insurance_modules(from_json)
+    )

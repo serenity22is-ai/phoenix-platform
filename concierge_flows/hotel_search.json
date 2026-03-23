@@ -1,0 +1,14 @@
+{
+  "flow_id": "hotel_search",
+  "type": "question",
+  "message": "Where are you staying? Search our 2M+ properties worldwide.",
+  "options": [
+    {"id": "search", "label": "Search Hotels", "redirect_url": "/hotels"},
+    {"id": "deals", "label": "Today's Deals", "redirect_url": "/hotels"}
+  ],
+  "cross_sell": {
+    "message": "Need a car at your destination?",
+    "link": "/api/concierge/message",
+    "flow_id": "car_search"
+  }
+}

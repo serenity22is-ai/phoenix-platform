@@ -1019,8 +1019,8 @@ def register_hotel_routes(app, csrf, limiter):
             })
 
         except Exception as e:
-            logger.error(f"Hotel search error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.error("Hotel search error: %s", e, exc_info=True)
+            return jsonify({"success": False, "error": "Hotel search failed. Please try again."}), 500
 
     @app.route("/api/hotels/select", methods=["POST"])
     @csrf.exempt
@@ -1104,5 +1104,5 @@ def register_hotel_routes(app, csrf, limiter):
             })
 
         except Exception as e:
-            logger.error(f"Hotel select error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.error("Hotel select error: %s", e, exc_info=True)
+            return jsonify({"success": False, "error": "Hotel selection failed. Please try again."}), 500

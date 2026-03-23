@@ -1,0 +1,29 @@
+# MYSTES — robots.txt
+# AI-powered travel intelligence platform
+
+User-agent: *
+Allow: /
+Allow: /flights
+Allow: /hotels
+Allow: /cars
+Allow: /activities
+Allow: /insurance
+Allow: /about
+Allow: /pricing
+Allow: /faq
+Allow: /contact
+Allow: /price-guarantee
+Allow: /privacy
+Allow: /terms
+Allow: /travel-plus
+
+Disallow: /admin
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /book/
+Disallow: /settings
+Disallow: /devportal
+Disallow: /health
+Disallow: /metrics
+
+Sitemap: https://mystes.app/sitemap.xml

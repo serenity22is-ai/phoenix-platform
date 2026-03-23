@@ -1555,6 +1555,20 @@ def register_trip_routes(app, csrf, limiter):
         db.session.commit()
 
         logger.info("Trip invite: trip=%d invited_user=%d by user=%d", trip_id, target_user.id, current_user.id)
+
+        # Send email notification (best-effort, non-blocking)
+        try:
+            from email_service import send_trip_invite_email
+            send_trip_invite_email(
+                to=target_user.email,
+                inviter_name=current_user.name or current_user.email,
+                trip_name=trip.name,
+                trip_id=trip_id,
+                to_name=target_user.name,
+            )
+        except Exception as _email_err:
+            logger.debug("Trip invite email failed (non-critical): %s", _email_err)
+
         return jsonify({
             "success": True,
             "member_id": member.id,
@@ -1606,5 +1620,194 @@ def register_trip_routes(app, csrf, limiter):
             "currency": "USD",
             "items": item_details,
         })
+
+    # ------------------------------------------------------------------
+    # 11. POST /api/trips/<trip_id>/duplicate — Duplicate trip (Build #185)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/duplicate", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_trip_duplicate(trip_id):
+        """Duplicate a trip as a new draft (template copy)."""
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        new_trip = TripPlan(
+            creator_id=current_user.id,
+            name=f"{trip.name} (Copy)",
+            description=trip.description,
+            destinations_json=trip.destinations_json,
+            status="draft",
+        )
+        db.session.add(new_trip)
+        db.session.flush()
+
+        # Copy owner as member
+        owner_member = TripMember(
+            trip_plan_id=new_trip.id,
+            user_id=current_user.id,
+            role="owner",
+            invitation_status="accepted",
+            joined_at=datetime.now(),
+        )
+        db.session.add(owner_member)
+
+        # Copy all items
+        items = TripItem.query.filter_by(trip_plan_id=trip_id).all()
+        for item in items:
+            new_item = TripItem(
+                trip_plan_id=new_trip.id,
+                added_by_user_id=current_user.id,
+                vertical=item.vertical,
+                item_data_json=item.item_data_json,
+                destination_index=item.destination_index,
+                day_number=item.day_number,
+                status="proposed",
+            )
+            db.session.add(new_item)
+
+        # Increment template copy count on source
+        if trip.is_template:
+            trip.template_copies_count = (trip.template_copies_count or 0) + 1
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "trip_id": new_trip.id,
+            "name": new_trip.name,
+        })
+
+    # ------------------------------------------------------------------
+    # 12. GET /api/trips/<trip_id>/budget — Budget check (Build #185)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/budget")
+    @csrf.exempt
+    @login_required
+    def api_trip_budget(trip_id):
+        """Check trip budget status per member."""
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        items = TripItem.query.filter_by(trip_plan_id=trip_id).all()
+        members = TripMember.query.filter_by(trip_plan_id=trip_id).all()
+
+        total_cost = 0.0
+        for item in items:
+            try:
+                idata = json.loads(item.item_data_json) if item.item_data_json else {}
+                total_cost += float(idata.get("price", 0))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+
+        member_count = len(members) or 1
+        per_person = total_cost / member_count
+
+        budget_status = []
+        for member in members:
+            cap = member.budget_cap
+            over_budget = cap is not None and per_person > cap
+            budget_status.append({
+                "user_id": member.user_id,
+                "role": member.role,
+                "budget_cap": cap,
+                "share": round(per_person, 2),
+                "over_budget": over_budget,
+            })
+
+        return jsonify({
+            "success": True,
+            "trip_id": trip_id,
+            "total_cost": round(total_cost, 2),
+            "per_person": round(per_person, 2),
+            "member_budgets": budget_status,
+            "any_over_budget": any(b["over_budget"] for b in budget_status),
+        })
+
+    # ------------------------------------------------------------------
+    # 13. GET /api/trips/<trip_id>/activity — Trip activity feed (Build #185)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/activity")
+    @csrf.exempt
+    @login_required
+    def api_trip_activity(trip_id):
+        """Get trip activity feed (recent items, votes, members)."""
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        from models import User
+
+        # Recent items (last 20)
+        items = TripItem.query.filter_by(trip_plan_id=trip_id)\
+            .order_by(TripItem.created_at.desc()).limit(20).all()
+
+        activity = []
+        for item in items:
+            user = db.session.get(User, item.added_by_user_id)
+            idata = {}
+            try:
+                idata = json.loads(item.item_data_json) if item.item_data_json else {}
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+            activity.append({
+                "type": "item_added",
+                "user_name": user.name or user.email if user else "Unknown",
+                "vertical": item.vertical,
+                "title": idata.get("title", idata.get("name", item.vertical)),
+                "day_number": item.day_number,
+                "status": item.status,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            })
+
+        # Recent members
+        members = TripMember.query.filter_by(trip_plan_id=trip_id)\
+            .order_by(TripMember.invited_at.desc()).all()
+        for member in members:
+            user = db.session.get(User, member.user_id)
+            activity.append({
+                "type": "member_joined" if member.invitation_status == "accepted" else "member_invited",
+                "user_name": user.name or user.email if user else "Unknown",
+                "role": member.role,
+                "created_at": (member.joined_at or member.invited_at).isoformat() if (member.joined_at or member.invited_at) else None,
+            })
+
+        # Sort by time
+        activity.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+
+        return jsonify({"success": True, "activity": activity[:30]})
+
+    # ------------------------------------------------------------------
+    # 14. PUT /api/trips/<trip_id>/items/<item_id>/status — Update item status (Build #185)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/items/<int:item_id>/status", methods=["PUT"])
+    @csrf.exempt
+    @login_required
+    def api_trip_item_status(trip_id, item_id):
+        """Update a trip item's status (proposed/approved/booked/cancelled)."""
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        item = TripItem.query.filter_by(id=item_id, trip_plan_id=trip_id).first()
+        if not item:
+            return jsonify({"success": False, "error": "Item not found."}), 404
+
+        # Only owner/editor can change status
+        role = _get_member_role(trip_id, current_user.id)
+        if trip.creator_id != current_user.id and role not in ("owner", "editor"):
+            return jsonify({"success": False, "error": "Only trip owners and editors can change item status."}), 403
+
+        data = request.get_json(silent=True) or {}
+        new_status = data.get("status")
+        if new_status not in ("proposed", "approved", "booked", "cancelled"):
+            return jsonify({"success": False, "error": "Invalid status."}), 400
+
+        item.status = new_status
+        db.session.commit()
+
+        return jsonify({"success": True, "item_id": item.id, "status": new_status})
 
     logger.info("Trip planner routes registered")

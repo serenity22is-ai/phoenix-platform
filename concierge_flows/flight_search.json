@@ -1,0 +1,15 @@
+{
+  "flow_id": "flight_search",
+  "type": "question",
+  "message": "Let's find you a flight! What type of trip?",
+  "options": [
+    {"id": "roundtrip", "label": "Round Trip", "redirect_url": "/flights"},
+    {"id": "oneway", "label": "One Way", "redirect_url": "/flights"},
+    {"id": "multi", "label": "Multi-City", "redirect_url": "/flights"}
+  ],
+  "cross_sell": {
+    "message": "Don't forget travel insurance for your trip!",
+    "link": "/api/concierge/message",
+    "flow_id": "insurance_info"
+  }
+}

@@ -12,8 +12,11 @@ All payments unlock the same deal access.
 
 import os
 import hashlib
+import logging
 from datetime import datetime, timedelta
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 # XRPL imports
 try:
@@ -51,7 +54,7 @@ def get_fee_percent(user=None):
             if current_user and current_user.is_authenticated:
                 resolved = current_user
         except Exception:
-            pass
+            pass  # Flask-Login not available outside request context
 
     if resolved and getattr(resolved, 'is_authenticated', False):
         # B2B account takes precedence over regular member pricing
@@ -62,8 +65,8 @@ def get_fee_percent(user=None):
             ).first()
             if account and account.subscription_status == 'active':
                 return account.fee_percent / 100.0  # 25.0 → 0.25
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("B2B fee lookup failed for user %s: %s", getattr(resolved, 'id', '?'), e)
 
         # Travel+ subscriber gets 35%
         try:
@@ -73,8 +76,8 @@ def get_fee_percent(user=None):
             ).first()
             if sub and sub.tier == 'travel_plus':
                 return 0.35  # Travel+ = 35%
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Subscription lookup failed for user %s: %s", getattr(resolved, 'id', '?'), e)
 
         return 0.45  # Free member (authenticated, no subscription) = 45%
 
@@ -90,7 +93,7 @@ def get_fee_tier_name(user=None):
             if current_user and current_user.is_authenticated:
                 resolved = current_user
         except Exception:
-            pass
+            pass  # Flask-Login not available outside request context
 
     if resolved and getattr(resolved, 'is_authenticated', False):
         try:
@@ -100,8 +103,8 @@ def get_fee_tier_name(user=None):
             ).first()
             if account and account.subscription_status == 'active':
                 return f"B2B {account.current_tier.title()}"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("B2B tier name lookup failed for user %s: %s", getattr(resolved, 'id', '?'), e)
 
         try:
             from models import Subscription
@@ -110,8 +113,8 @@ def get_fee_tier_name(user=None):
             ).first()
             if sub and sub.tier == 'travel_plus':
                 return "Travel+"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Subscription tier lookup failed for user %s: %s", getattr(resolved, 'id', '?'), e)
 
         return "Free Member"
 
@@ -239,8 +242,8 @@ def get_xrp_price():
             if price:
                 PAYMENT_CONFIG["xrp_usd_rate"] = price
                 return price
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("XRP price fetch failed (using cached rate): %s", e)
     return PAYMENT_CONFIG["xrp_usd_rate"]
 
 
@@ -667,7 +670,8 @@ def verify_xrp_payment(destination_tag, expected_xrp, tolerance=0.01):
         return {"verified": False, "error": "Payment not found"}
 
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        logger.error("XRP payment verification failed for dt=%s: %s", destination_tag, e, exc_info=True)
+        return {"verified": False, "error": f"Verification error: {type(e).__name__}"}
 
 
 def verify_rlusd_payment(destination_tag, expected_amount, tolerance=0.01):
@@ -726,7 +730,8 @@ def verify_rlusd_payment(destination_tag, expected_amount, tolerance=0.01):
         return {"verified": False, "error": "Payment not found"}
 
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        logger.error("RLUSD payment verification failed for dt=%s: %s", destination_tag, e, exc_info=True)
+        return {"verified": False, "error": f"Verification error: {type(e).__name__}"}
 
 
 # --- UNIFIED PAYMENT VERIFICATION ---

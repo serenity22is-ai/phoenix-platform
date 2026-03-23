@@ -8,10 +8,13 @@ Features:
 - Optimal market detection for any origin/destination pair
 """
 
+import logging
 import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 import hashlib
+
+logger = logging.getLogger(__name__)
 
 # Import from main module
 from main import (
@@ -579,7 +582,7 @@ def search_global(
                             })
                 except Exception as _serp_err:
                     if "not configured" not in str(_serp_err).lower():
-                        print(f"  [SERPAPI] Failed: {_serp_err}")
+                        logger.warning("[SERPAPI] Failed: %s", _serp_err)
 
                 # Match orchestrator flights to Google flights for real deal pricing
                 matched_count = 0
@@ -688,9 +691,9 @@ def search_global(
                     "data_sources": {"prices": "+".join(_sources_searched), "flight_details": "+".join(_sources_searched)},
                 }
             else:
-                print(f"  [ANASTASiA] No results from orchestrator, falling through to legacy search")
+                logger.info("[ANASTASiA] No results from orchestrator, falling through to legacy search")
     except Exception as _orch_err:
-        print(f"  [ANASTASiA] Orchestrator unavailable: {_orch_err} — using legacy search")
+        logger.warning("[ANASTASiA] Orchestrator unavailable: %s — using legacy search", _orch_err)
 
     # --- PICASSO / REDBOX SEARCH (Priority — consolidator pricing) ---
     if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
@@ -798,23 +801,23 @@ def search_global(
                                 "booking_token": sf.get("booking_token", ""),
                             })
                     else:
-                        print(f"\n  [SERPAPI] Not configured — trying Playwright scraper")
+                        logger.info("[SERPAPI] Not configured — trying Playwright scraper")
                         raise ImportError("SerpAPI not configured, try scraper")
                 except Exception as e:
                     if "not configured" not in str(e).lower():
-                        print(f"  [SERPAPI] Failed: {e}")
+                        logger.warning("[SERPAPI] Failed: %s", e)
                     # Fallback to Playwright scraper (works locally, not in Docker)
                     try:
                         from google_flights_scraper import scrape_flights_sync
-                        print(f"  [GOOGLE] Scraping Google Flights (US) for price comparison...")
+                        logger.info("[GOOGLE] Scraping Google Flights (US) for price comparison...")
                         google_result = scrape_flights_sync(
                             origin=origin, destination=destination, date=date,
                             markets=["US"], cabin_class=cabin_class, return_date=return_date,
                         )
                         google_flights = google_result.get("all_results", {}).get("US", {}).get("flights", [])
-                        print(f"  [GOOGLE] Found {len(google_flights)} US flights")
+                        logger.info("[GOOGLE] Found %d US flights", len(google_flights))
                     except Exception as e2:
-                        print(f"  [GOOGLE] Scrape failed: {e2}")
+                        logger.warning("[GOOGLE] Scrape failed: %s", e2)
 
                 # Match Picasso flights to Google flights and populate deal objects
                 matched_count = 0
@@ -995,18 +998,18 @@ def search_global(
                                     formatted_flights.append(ndc_flight)
                                     duffel_count += 1
 
-                            print(f"  [DUFFEL] Added {duffel_count} unique NDC flights to results")
+                            logger.info("[DUFFEL] Added %d unique NDC flights to results", duffel_count)
                         else:
-                            print(f"  [DUFFEL] No NDC results: {duffel_result.get('error', 'No offers')}")
+                            logger.info("[DUFFEL] No NDC results: %s", duffel_result.get('error', 'No offers'))
                     except Exception as e:
-                        print(f"  [DUFFEL] NDC search error: {e}")
+                        logger.error("[DUFFEL] NDC search error: %s", e)
 
                 # --- KIWI TEQUILA SEARCH (aggregator — 750+ carriers, virtual interlining) ---
                 kiwi_count = 0
                 if KIWI_AVAILABLE and KIWI_CONFIGURED:
                     try:
                         from kiwi_client import search_with_kiwi
-                        print(f"\n  [KIWI] Searching aggregator fares (750+ carriers)...")
+                        logger.info("[KIWI] Searching aggregator fares (750+ carriers)...")
 
                         kiwi_result = search_with_kiwi(
                             origin=origin,
@@ -1101,11 +1104,11 @@ def search_global(
                                     formatted_flights.append(kiwi_flight)
                                     kiwi_count += 1
 
-                            print(f"  [KIWI] Added {kiwi_count} unique aggregator flights to results")
+                            logger.info("[KIWI] Added %d unique aggregator flights to results", kiwi_count)
                         else:
-                            print(f"  [KIWI] No aggregator results: {kiwi_result.get('error', 'No offers')}")
+                            logger.info("[KIWI] No aggregator results: %s", kiwi_result.get('error', 'No offers'))
                     except Exception as e:
-                        print(f"  [KIWI] Aggregator search error: {e}")
+                        logger.error("[KIWI] Aggregator search error: %s", e)
 
                 # Deals = flights with a populated deal object (verified or estimated)
                 deals = [f for f in formatted_flights if f.get("deal")]
@@ -1152,18 +1155,18 @@ def search_global(
                 }
             else:
                 error = picasso_result.get("error", "No results")
-                print(f"  [PICASSO] No results: {error}")
+                logger.info("[PICASSO] No results: %s", error)
                 # Fall through to Amadeus + Proxy search
 
         except Exception as e:
-            print(f"  [PICASSO] Error: {e}")
+            logger.error("[PICASSO] Error: %s", e)
             # Fall through to Amadeus + Proxy search
 
     # --- DUFFEL-ONLY FALLBACK (when Picasso is unavailable/failed) ---
     if DUFFEL_AVAILABLE and DUFFEL_CONFIGURED:
         try:
             from duffel_client import search_with_duffel
-            print(f"\n[DUFFEL/NDC] Picasso unavailable — searching NDC-direct fares only...")
+            logger.info("[DUFFEL/NDC] Picasso unavailable — searching NDC-direct fares only...")
 
             adults = 1
             if search_options and search_options.get("passengers"):
@@ -1277,15 +1280,15 @@ def search_global(
                     "data_sources": {"prices": "duffel_ndc", "flight_details": "duffel_ndc"},
                 }
             else:
-                print(f"  [DUFFEL] No NDC results: {duffel_result.get('error', 'No offers')}")
+                logger.info("[DUFFEL] No NDC results: %s", duffel_result.get('error', 'No offers'))
         except Exception as e:
-            print(f"  [DUFFEL] NDC search error: {e}")
+            logger.error("[DUFFEL] NDC search error: %s", e)
 
     # --- KIWI-ONLY FALLBACK (when Picasso + Duffel unavailable/failed) ---
     if KIWI_AVAILABLE and KIWI_CONFIGURED:
         try:
             from kiwi_client import search_with_kiwi
-            print(f"\n[KIWI] Picasso+Duffel unavailable — searching aggregator fares only...")
+            logger.info("[KIWI] Picasso+Duffel unavailable — searching aggregator fares only...")
 
             adults = 1
             if search_options and search_options.get("passengers"):
@@ -1397,9 +1400,9 @@ def search_global(
                     "data_sources": {"prices": "kiwi_tequila", "flight_details": "kiwi_tequila"},
                 }
             else:
-                print(f"  [KIWI] No aggregator results: {kiwi_result.get('error', 'No offers')}")
+                logger.info("[KIWI] No aggregator results: %s", kiwi_result.get('error', 'No offers'))
         except Exception as e:
-            print(f"  [KIWI] Aggregator search error: {e}")
+            logger.error("[KIWI] Aggregator search error: %s", e)
 
     if use_direct_scraping and DIRECT_SCRAPER_AVAILABLE:
         try:
@@ -1453,7 +1456,7 @@ def search_global(
                     print(f"  Markets: {', '.join(flights_by_market.keys())}")
 
         except Exception as e:
-            print(f"[SEARCH MODE] Error: {e}")
+            logger.error("[SEARCH MODE] Error: %s", e)
             hybrid_result = None
 
     # Refresh XRP price only - use static currency rates for more stable arbitrage detection

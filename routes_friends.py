@@ -634,6 +634,17 @@ def register_friend_routes(app, csrf, limiter):
         db.session.commit()
         logger.info(f"Friend request sent: user {me} -> user {target.id}")
 
+        # Send email notification (best-effort, non-blocking)
+        try:
+            from email_service import send_friend_request_email
+            send_friend_request_email(
+                to=target.email,
+                from_name=current_user.name or current_user.email,
+                to_name=target.name,
+            )
+        except Exception as _email_err:
+            logger.debug("Friend request email failed (non-critical): %s", _email_err)
+
         return jsonify({"success": True, "message": "Friend request sent!"}), 201
 
     # ------------------------------------------------------------------
@@ -764,3 +775,122 @@ def register_friend_routes(app, csrf, limiter):
                 break
 
         return jsonify({"users": results})
+
+    # ------------------------------------------------------------------
+    # API: Block/Unblock Friend (Build #185)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/friends/<int:friendship_id>/block", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_friends_block(friendship_id):
+        """Block a user. Changes friendship status to 'blocked'."""
+        friendship = Friendship.query.get(friendship_id)
+        if not friendship:
+            return jsonify({"success": False, "error": "Friendship not found."}), 404
+
+        me = current_user.id
+        if friendship.requester_id != me and friendship.addressee_id != me:
+            return jsonify({"success": False, "error": "Not your friendship."}), 403
+
+        friendship.status = "blocked"
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "User blocked."})
+
+    @app.route("/api/friends/<int:friendship_id>/unblock", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_friends_unblock(friendship_id):
+        """Unblock a user. Removes the friendship entirely (they can re-request)."""
+        friendship = Friendship.query.get(friendship_id)
+        if not friendship:
+            return jsonify({"success": False, "error": "Friendship not found."}), 404
+
+        me = current_user.id
+        if friendship.requester_id != me and friendship.addressee_id != me:
+            return jsonify({"success": False, "error": "Not your friendship."}), 403
+
+        if friendship.status != "blocked":
+            return jsonify({"success": False, "error": "Not blocked."}), 400
+
+        db.session.delete(friendship)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "User unblocked."})
+
+    # ------------------------------------------------------------------
+    # API: Friends Activity Feed (Build #185)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/friends/activity")
+    @csrf.exempt
+    @login_required
+    def api_friends_activity():
+        """Get recent activity from friends (bookings, collections, trips)."""
+        me = current_user.id
+
+        # Get friend IDs
+        friendships = Friendship.query.filter(
+            Friendship.status == "accepted",
+            db.or_(
+                Friendship.requester_id == me,
+                Friendship.addressee_id == me,
+            )
+        ).all()
+
+        friend_ids = set()
+        for f in friendships:
+            friend_ids.add(f.requester_id if f.addressee_id == me else f.addressee_id)
+
+        if not friend_ids:
+            return jsonify({"activity": []})
+
+        activity = []
+
+        # Recent bookings from friends
+        try:
+            from models import Booking, Deal
+            bookings = Booking.query.filter(
+                Booking.user_id.in_(friend_ids),
+                Booking.status.in_(["booked", "confirmed", "completed"]),
+            ).order_by(Booking.created_at.desc()).limit(10).all()
+
+            for b in bookings:
+                user = db.session.get(User, b.user_id)
+                deal = db.session.get(Deal, b.deal_id) if b.deal_id else None
+                activity.append({
+                    "type": "booking",
+                    "user_name": user.name or "Friend" if user else "Friend",
+                    "destination": deal.destination if deal else None,
+                    "airline": deal.airline if deal else None,
+                    "vertical": deal.deal_type if deal else "flight",
+                    "created_at": b.created_at.isoformat() if b.created_at else None,
+                })
+        except Exception as e:
+            logger.debug("Friend activity feed (bookings) failed: %s", e)
+
+        # Recent shared collections from friends
+        try:
+            from models import Collection
+            collections = Collection.query.filter(
+                Collection.user_id.in_(friend_ids),
+                Collection.is_shared == True,
+            ).order_by(Collection.updated_at.desc()).limit(10).all()
+
+            for c in collections:
+                user = db.session.get(User, c.user_id)
+                activity.append({
+                    "type": "collection",
+                    "user_name": user.name or "Friend" if user else "Friend",
+                    "title": c.name,
+                    "share_slug": c.share_slug,
+                    "created_at": c.updated_at.isoformat() if c.updated_at else None,
+                })
+        except Exception as e:
+            logger.debug("Friend activity feed (collections) failed: %s", e)
+
+        # Sort by time
+        activity.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+
+        return jsonify({"activity": activity[:20]})

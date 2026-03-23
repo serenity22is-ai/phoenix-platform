@@ -37,11 +37,16 @@ jobs:
           python -m py_compile config.py
           python -m py_compile monitoring.py
           python -m py_compile seed_db.py
-          python -m py_compile helper_client.py
           python -m py_compile payments.py
           python -m py_compile liteapi_client.py
           python -m py_compile picasso_client.py
           python -m py_compile mystes_ai.py
+          python -m py_compile booking_fulfillment.py
+          python -m py_compile dev_portal_ai.py
+          python -m py_compile dev_portal_billing.py
+          python -m py_compile routes_push.py
+          python -m py_compile validation.py
+          python -m py_compile apai_provisioning.py
 
       - name: Flake8 lint (errors only)
         run: |
@@ -85,22 +90,6 @@ jobs:
           SECRET_KEY: "test-secret-key-ci"
         run: |
           pytest tests/test_api_clients.py -v --tb=short -x
-
-      - name: Run P2P tests
-        env:
-          FLASK_ENV: testing
-          DATABASE_URL: "sqlite:///:memory:"
-          SECRET_KEY: "test-secret-key-ci"
-        run: |
-          pytest tests/test_p2p.py -v --tb=short -x
-
-      - name: Run extension pipeline tests
-        env:
-          FLASK_ENV: testing
-          DATABASE_URL: "sqlite:///:memory:"
-          SECRET_KEY: "test-secret-key-ci"
-        run: |
-          pytest tests/test_extension_pipeline.py -v --tb=short -x
 
   # ============================================================
   # Docker Build

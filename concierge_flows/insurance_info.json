@@ -1,0 +1,9 @@
+{
+  "flow_id": "insurance_info",
+  "type": "question",
+  "message": "Protect your next trip with travel insurance. Coverage starts at just a few dollars per day.",
+  "options": [
+    {"id": "quote", "label": "Get a Quote", "redirect_url": "/flights"},
+    {"id": "learn", "label": "Learn More", "redirect_url": "/flights"}
+  ]
+}

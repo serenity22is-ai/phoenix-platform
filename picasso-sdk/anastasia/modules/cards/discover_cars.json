@@ -1,0 +1,48 @@
+{
+  "module_id": "discover_cars",
+  "name": "Discover Cars",
+  "vendor": "Discover Cars",
+  "version": "1.0",
+  "vertical": "car_rental",
+  "source_type": "aggregator",
+  "auth_type": "custom",
+  "credential_env_vars": ["DISCOVER_CARS_USERNAME", "DISCOVER_CARS_PASSWORD", "DISCOVER_CARS_TOKEN"],
+  "auth_notes": "Triple auth: username + password + token sent as query params. B4B partner signup required.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": false,
+    "location_search": true
+  },
+  "carrier_count": 500,
+  "coverage_notes": "500+ car rental suppliers (Hertz, Alamo, Enterprise, Sixt, Europcar) across 10,000+ locations in 145+ countries.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {
+    "name_fields": ["firstName", "lastName"],
+    "requires_age": true,
+    "requires_email": true,
+    "requires_phone": true,
+    "requires_country_code": true
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "70% commission share from offers, ~$20 per booking average.",
+  "priority": 80,
+  "strengths": ["500_suppliers", "145_countries", "10k_locations", "commission_share"],
+  "weaknesses": ["no_change_support", "requires_location_id_lookup"],
+  "best_for": ["car_rental_search", "airport_pickups", "global_coverage"],
+  "quirks": [
+    {"issue": "Requires location ID, not IATA code", "workaround": "Call search_locations first to resolve"},
+    {"issue": "Auth is triple param (username/password/token)", "workaround": "All three sent as query parameters"},
+    {"issue": "Returns voucher URL on booking", "workaround": "Store voucher_url for customer access"}
+  ],
+  "booking_steps": ["search_locations", "search_cars", "get_details", "create_booking"],
+  "booking_notes": "Location must be resolved to ID before car search. Returns voucher URL on booking.",
+  "readiness": "tested",
+  "confidence": 0.80,
+  "learned_from": ["mystes_internal", "discover_cars_b4b_docs"],
+  "last_updated": "2026-03-17",
+  "docs_url": "https://api-partner.discovercars.com/help"
+}

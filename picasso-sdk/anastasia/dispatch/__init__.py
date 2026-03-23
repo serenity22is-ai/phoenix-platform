@@ -26,5 +26,6 @@ Usage from MYSTES:
 from .dispatcher import BookingDispatcher
 from .transformer import PassengerTransformer
 from .search_orchestrator import SearchOrchestrator
+from .coordinator import VerticalSearchCoordinator
 
-__all__ = ["BookingDispatcher", "PassengerTransformer", "SearchOrchestrator"]
+__all__ = ["BookingDispatcher", "PassengerTransformer", "SearchOrchestrator", "VerticalSearchCoordinator"]

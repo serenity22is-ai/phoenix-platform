@@ -237,6 +237,9 @@ class AnastasiaPlatform:
             # Vertical neurons (travel verticals — each manages its own API modules):
             ("flights", "anastasia.verticals.flights", "FlightsNeuron"),
             ("hotels", "anastasia.verticals.hotels", "HotelsNeuron"),
+            ("cars", "anastasia.verticals.cars", "CarsNeuron"),
+            ("activities", "anastasia.verticals.activities", "ActivitiesNeuron"),
+            ("insurance", "anastasia.verticals.insurance", "InsuranceNeuron"),
         ]
 
         for name, module_path, class_name in neuron_specs:

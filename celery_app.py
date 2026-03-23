@@ -61,6 +61,7 @@ celery.conf.update(
         "celery_app.generate_daily_airline_reports": {"queue": "maintenance"},
         "celery_app.generate_airline_pricing_report": {"queue": "maintenance"},
         "celery_app.snapshot_ancillary_data": {"queue": "maintenance"},
+        "celery_app.refresh_saved_item_prices": {"queue": "maintenance"},
     },
     beat_schedule={
         "verify-payments-30s": {
@@ -102,6 +103,11 @@ celery.conf.update(
         # Build #80 — Strategy aggregation
         "aggregate-strategy-insights-6h": {
             "task": "celery_app.aggregate_strategy_insights",
+            "schedule": 21600.0,  # 6 hours
+        },
+        # Build #186 — Saved item price refresh
+        "refresh-saved-item-prices-6h": {
+            "task": "celery_app.refresh_saved_item_prices",
             "schedule": 21600.0,  # 6 hours
         },
     },
@@ -644,3 +650,115 @@ def aggregate_strategy_insights():
         except Exception as e:
             logger.error(f"Strategy aggregation error: {e}")
             return {"error": str(e)}
+
+
+# ============================================================
+# Saved Item Price Refresh (Build #186)
+# ============================================================
+
+@celery.task
+def refresh_saved_item_prices():
+    """
+    Refresh current_price for saved items that have price_alert_enabled.
+
+    Runs every 6 hours. Re-searches the saved route/vertical and updates
+    current_price so users see price changes in their collections.
+    """
+    app = _get_flask_app()
+    with app.app_context():
+        import json as json_lib
+        from models import db, SavedItem
+
+        items = SavedItem.query.filter_by(price_alert_enabled=True).limit(200).all()
+        updated = 0
+
+        for item in items:
+            try:
+                if not item.item_data_json:
+                    continue
+
+                data = json_lib.loads(item.item_data_json)
+                vertical = item.vertical
+
+                new_price = None
+
+                if vertical == "flight":
+                    origin = data.get("origin") or data.get("departure_airport")
+                    dest = data.get("destination") or data.get("arrival_airport")
+                    dep_date = data.get("departure_date") or data.get("date")
+
+                    if origin and dest and dep_date:
+                        try:
+                            from search import search_global
+                            results = search_global(
+                                origin=origin,
+                                destination=dest,
+                                departure_date=dep_date,
+                                adults=1,
+                            )
+                            if results and isinstance(results, list) and len(results) > 0:
+                                # Find cheapest matching result
+                                prices = [
+                                    r.get("price", r.get("total_price", 0))
+                                    for r in results
+                                    if r.get("price") or r.get("total_price")
+                                ]
+                                if prices:
+                                    new_price = min(prices)
+                        except Exception as search_err:
+                            logger.debug(f"Flight price refresh failed for item {item.id}: {search_err}")
+
+                elif vertical == "hotel":
+                    # Hotel prices change frequently — just check if we have a stored price
+                    new_price = data.get("price_total") or data.get("price")
+                    if new_price:
+                        new_price = float(new_price)
+
+                if new_price and new_price > 0:
+                    item.current_price = new_price
+                    updated += 1
+
+            except Exception as e:
+                logger.debug(f"Price refresh error for item {item.id}: {e}")
+
+        if updated:
+            db.session.commit()
+            logger.info(f"Refreshed prices for {updated}/{len(items)} saved items")
+
+        return {"items_checked": len(items), "prices_updated": updated}
+
+
+@celery.task(bind=True, max_retries=2)
+def provision_template_deployment(self, deployment_id):
+    """Provision a turnkey OTA template for an APAi customer.
+
+    Build #189: Uses APAiProvisioner for Render API automated deployment.
+    Falls back to manual provisioning when RENDER_API_KEY is not set.
+    """
+    app = _get_flask_app()
+    with app.app_context():
+        from models import db, TemplateDeployment
+
+        deployment = TemplateDeployment.query.get(deployment_id)
+        if not deployment:
+            logger.error(f"Deployment {deployment_id} not found")
+            return {"error": "not_found"}
+
+        try:
+            from apai_provisioning import APAiProvisioner
+            provisioner = APAiProvisioner()
+            result = provisioner.provision(deployment, db.session)
+
+            logger.info(f"Deployment {deployment.deployment_id}: {result.get('status', 'unknown')}")
+            return {
+                "deployment_id": deployment.deployment_id,
+                "status": result.get("status", "unknown"),
+                "url": result.get("url"),
+                "success": result.get("success", False),
+            }
+
+        except Exception as exc:
+            deployment.status = "failed"
+            deployment.status_message = f"Provisioning error: {str(exc)[:200]}"
+            db.session.commit()
+            raise self.retry(exc=exc, countdown=60)

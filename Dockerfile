@@ -25,7 +25,8 @@ COPY . .
 # Non-root user
 RUN groupadd -r mystes && useradd -r -g mystes -d /app -s /sbin/nologin mystes \
     && mkdir -p /app/instance /app/logs \
-    && chown -R mystes:mystes /app
+    && chown -R mystes:mystes /app \
+    && chmod 1777 /dev/shm
 
 USER mystes
 

@@ -786,6 +786,230 @@ async function selectCar(btn) {
 """
 
 
+CAR_BOOK_CONTENT = """
+<style>
+    .payment-method-card { border: 2px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: white; }
+    .payment-method-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
+    .payment-method-card.selected { border-color: #7c3aed; background: #f5f3ff; }
+    .payment-method-card .method-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+    .payment-method-card .method-icon { font-size: 32px; width: 50px; text-align: center; }
+    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: #16213e; }
+    .payment-method-card .method-subtitle { color: #666; font-size: 14px; }
+    .payment-details-panel { display: none; background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 15px; }
+    .payment-details-panel.active { display: block; }
+    .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
+    .order-summary h3 { margin: 0 0 20px 0; color: #14b8a6; }
+    .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .order-row:last-child { border-bottom: none; }
+    .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.3); }
+    .flight-leg-item { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; }
+    .processing-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
+    .processing-overlay.active { display: flex; }
+    .processing-box { background: white; border-radius: 16px; padding: 40px; text-align: center; max-width: 400px; }
+    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="card card-light" style="max-width: 800px; margin: 40px auto;">
+    <h2 style="text-align: center; margin-bottom: 25px; color: #1a1a2e;">Complete Your Car Rental</h2>
+
+    <!-- Order Summary -->
+    <div class="order-summary">
+        <h3>Car Rental Reservation</h3>
+        <div class="flight-leg-item">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{ deal.hotel_name }}</strong><br>
+                    <span style="color: #14b8a6;">{{ deal.city_code }}</span><br>
+                    <small>{{ deal.check_in_date }} to {{ deal.check_out_date }} ({{ deal.nights }} day{{ 's' if deal.nights != 1 else '' }})</small>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.price_total_usd or 0) }}</span>
+                    <br><small style="color: #14b8a6;">${{ "%.0f"|format(deal.price_per_night_usd or 0) }}/day</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-row">
+            <span>Rental ({{ deal.nights }} day{{ 's' if deal.nights != 1 else '' }})</span>
+            <span>${{ "%.2f"|format(deal.price_total_usd or 0) }}</span>
+        </div>
+        <div class="order-row">
+            <span>Service Fee ({{ fee_tier_name }})</span>
+            <span>${{ "%.2f"|format(deal.platform_fee_usd or 0) }}</span>
+        </div>
+        <div class="order-row total">
+            <span>MYSTES Price</span>
+            <span>${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}</span>
+        </div>
+    </div>
+
+    {% if payment_verified %}
+        <!-- Payment Complete - Collect Driver Details -->
+        <div class="alert alert-success" style="text-align: center; padding: 25px;">
+            <span style="font-size: 48px;">&#9989;</span>
+            <h3 style="margin: 15px 0;">Payment Verified!</h3>
+            <p>Your payment has been confirmed. Please provide driver details to complete your booking.</p>
+        </div>
+
+        <form id="guest-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" style="margin-top: 20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px;">
+                <h4 style="margin: 0 0 20px 0; color: #1a1a2e;">Driver Information</h4>
+                <p style="color: #666; margin-bottom: 20px;">Enter details for the primary driver (must match driver's license).</p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">First Name *</label>
+                        <input type="text" name="first_name" required placeholder="John" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Last Name *</label>
+                        <input type="text" name="last_name" required placeholder="Doe" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Email *</label>
+                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Phone *</label>
+                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Country *</label>
+                        <select name="nationality" required style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                            <option value="US">United States</option>
+                            <option value="GB">United Kingdom</option>
+                            <option value="CA">Canada</option>
+                            <option value="AU">Australia</option>
+                            <option value="DE">Germany</option>
+                            <option value="FR">France</option>
+                            <option value="ES">Spain</option>
+                            <option value="IT">Italy</option>
+                            <option value="JP">Japan</option>
+                            <option value="BR">Brazil</option>
+                            <option value="MX">Mexico</option>
+                            <option value="IN">India</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Driver Age *</label>
+                        <input type="number" name="driver_age" required min="18" max="99" value="30" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Flight Number (optional, for airport pickup)</label>
+                        <input type="text" name="flight_number" placeholder="AA 1234" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    </div>
+                </div>
+
+                <div style="margin-top: 25px; padding: 20px; background: #f5f3ff; border-radius: 8px;">
+                    <h5 style="margin: 0 0 10px 0;">Booking Method</h5>
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
+                        <span><strong>Automated Booking</strong> - We book for you (recommended)</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 25px; padding: 15px; font-size: 18px;">
+                    Complete Car Rental Booking
+                </button>
+            </div>
+        </form>
+
+    {% else %}
+        <!-- Guest Email Collection -->
+        {% if not current_user.is_authenticated %}
+        <div style="background: #f5f3ff; border: 2px solid #7c3aed; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
+            <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
+            <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="guest_email" style="font-weight: bold; color: #16213e;">Email Address *</label>
+                <input type="email" id="guest_email" name="guest_email" required
+                       value="{{ session.get('guest_email', '') }}"
+                       placeholder="your@email.com"
+                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       onchange="saveGuestEmail(this.value)">
+            </div>
+            <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                <a href="/register?deal={{ deal.deal_id }}" style="color: #7c3aed;">Create an account</a> to track your bookings.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Payment Selection -->
+        <h3 style="margin-bottom: 20px;">Choose Payment Method</h3>
+
+        <div class="payment-method-card" onclick="selectPayment('card')" id="method-card">
+            <div class="method-header">
+                <span class="method-icon">&#128179;</span>
+                <div>
+                    <div class="method-title">Credit or Debit Card</div>
+                    <div class="method-subtitle">Visa, Mastercard, American Express</div>
+                </div>
+                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
+                    ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
+                </div>
+            </div>
+            <div class="payment-details-panel" id="details-card">
+                <p>Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
+                <button class="btn" onclick="payWithCard(event)" style="width: 100%; margin-top: 10px;">
+                    Pay ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} with Card
+                </button>
+            </div>
+        </div>
+
+        <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
+            All payments are secure and encrypted<br>
+            <small>By proceeding, you agree to our Terms of Service</small>
+        </p>
+    {% endif %}
+</div>
+
+<!-- Processing Overlay -->
+<div class="processing-overlay" id="processing-overlay">
+    <div class="processing-box">
+        <div class="spinner"></div>
+        <h3 id="processing-title">Processing Payment...</h3>
+        <p id="processing-message">Please wait while we verify your payment.</p>
+    </div>
+</div>
+
+<script>
+const dealId = "{{ deal.deal_id }}";
+const totalAmount = {{ (deal.price_total_usd or 0) + (deal.platform_fee_usd or 0) }};
+let guestEmail = "{{ session.get('guest_email', '') }}";
+
+function saveGuestEmail(email) {
+    guestEmail = email;
+    fetch('/api/save-guest-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) });
+}
+function selectPayment(method) {
+    document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('.payment-details-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('method-' + method).classList.add('selected');
+    document.getElementById('details-' + method).classList.add('active');
+}
+async function payWithCard(event) {
+    event.stopPropagation();
+    const overlay = document.getElementById('processing-overlay');
+    overlay.classList.add('active');
+    document.getElementById('processing-title').textContent = 'Redirecting to Stripe...';
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch('/api/payment/stripe/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ deal_id: dealId, amount: totalAmount })
+        });
+        const data = await resp.json();
+        if (data.checkout_url) { window.location.href = data.checkout_url; }
+        else { overlay.classList.remove('active'); alert('Error: ' + (data.error || 'Failed to create payment session')); }
+    } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
+}
+</script>
+"""
+
+
 def register_car_routes(app, csrf, limiter):
     """Register all car rental routes on the Flask app."""
     from server import BASE_TEMPLATE, is_feature_enabled
@@ -826,8 +1050,8 @@ def register_car_routes(app, csrf, limiter):
             })
 
         except Exception as e:
-            logger.error(f"Car location search error: {e}")
-            return jsonify({"success": False, "error": str(e), "locations": []})
+            logger.error("Car location search error: %s", e, exc_info=True)
+            return jsonify({"success": False, "error": "Location search failed. Please try again.", "locations": []})
 
     @app.route("/api/cars/search", methods=["POST"])
     @csrf.exempt
@@ -868,16 +1092,37 @@ def register_car_routes(app, csrf, limiter):
             if not pickup_location_id:
                 return jsonify({"success": False, "error": "Pickup location required"}), 400
 
-            result = client.search_cars(
-                pickup_location_id=pickup_location_id,
-                pickup_date=pickup_date,
-                pickup_time=pickup_time,
-                dropoff_date=dropoff_date,
-                dropoff_time=dropoff_time,
-                dropoff_location_id=dropoff_location_id if dropoff_location_id else None,
-                currency="USD",
-                driver_age=int(driver_age),
-            )
+            # ANASTASiA CarsNeuron dispatch (Build #185) — fallback to direct client
+            _used_neuron = False
+            result = None
+            try:
+                from anastasia.verticals.cars import CarsNeuron
+                from anastasia.core.events import EventBus
+                _cars_neuron = CarsNeuron()
+                _cars_neuron.initialize(EventBus(), {"cars_enabled": True})
+                result = _cars_neuron.search(
+                    pickup_location=pickup_location_name or pickup_location_id,
+                    pickup_date=pickup_date,
+                    dropoff_date=dropoff_date,
+                    client=client,
+                )
+                _used_neuron = result.get("success", False)
+                if _used_neuron:
+                    logger.info("[ANASTASiA] CarsNeuron handled search (%d results)", len(result.get("cars", [])))
+            except Exception as _neuron_err:
+                logger.debug("[ANASTASiA] CarsNeuron unavailable, using direct client: %s", _neuron_err)
+
+            if not _used_neuron:
+                result = client.search_cars(
+                    pickup_location_id=pickup_location_id,
+                    pickup_date=pickup_date,
+                    pickup_time=pickup_time,
+                    dropoff_date=dropoff_date,
+                    dropoff_time=dropoff_time,
+                    dropoff_location_id=dropoff_location_id if dropoff_location_id else None,
+                    currency="USD",
+                    driver_age=int(driver_age),
+                )
 
             try:
                 from monitoring import track_search
@@ -904,8 +1149,8 @@ def register_car_routes(app, csrf, limiter):
             })
 
         except Exception as e:
-            logger.error(f"Car search error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.error("Car search error: %s", e, exc_info=True)
+            return jsonify({"success": False, "error": "Car search failed. Please try again."}), 500
 
     @app.route("/api/cars/select", methods=["POST"])
     @csrf.exempt
@@ -949,8 +1194,13 @@ def register_car_routes(app, csrf, limiter):
                 except ValueError:
                     rental_days = 1
 
-            # Platform fee: 10% of total price, minimum $3 (no google comparison for cars)
-            platform_fee = max(3.0, price_total * 0.10)
+            # Platform fee — use standard fee calculation
+            try:
+                from payments import get_fee_percent
+                fee_pct = get_fee_percent(current_user)
+            except Exception:
+                fee_pct = 0.50  # Default consumer rate (50%)
+            platform_fee = max(3.0, price_total * fee_pct)
 
             deal = Deal(
                 deal_id=deal_id,
@@ -989,5 +1239,5 @@ def register_car_routes(app, csrf, limiter):
             })
 
         except Exception as e:
-            logger.error(f"Car select error: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            logger.error("Car select error: %s", e, exc_info=True)
+            return jsonify({"success": False, "error": "Car selection failed. Please try again."}), 500

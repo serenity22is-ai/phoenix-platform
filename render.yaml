@@ -7,8 +7,9 @@ services:
       - key: FLASK_ENV
         value: production
       - key: DATABASE_URL
-        value: "sqlite:///mystes.db"
-        # Override in Render dashboard with PostgreSQL URL when ready
+        fromDatabase:
+          name: mystes-db
+          property: connectionURI
       - key: SECRET_KEY
         generateValue: true
       - key: REDIS_URL
@@ -18,3 +19,9 @@ services:
         value: "2"
     healthCheckPath: /health
     autoDeploy: true
+
+databases:
+  - name: mystes-db
+    plan: starter
+    databaseName: mystes_db
+    user: mystes

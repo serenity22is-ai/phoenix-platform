@@ -1,0 +1,14 @@
+{
+  "flow_id": "car_search",
+  "type": "question",
+  "message": "Find a rental car from 500+ suppliers worldwide.",
+  "options": [
+    {"id": "search", "label": "Search Cars", "redirect_url": "/cars"},
+    {"id": "airport", "label": "Airport Pickup", "redirect_url": "/cars"}
+  ],
+  "cross_sell": {
+    "message": "Protect your trip with travel insurance",
+    "link": "/api/concierge/message",
+    "flow_id": "insurance_info"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "flow_id": "activity_search",
+  "type": "question",
+  "message": "Discover 300,000+ tours, activities, and experiences worldwide.",
+  "options": [
+    {"id": "search", "label": "Browse Activities", "redirect_url": "/activities"},
+    {"id": "popular", "label": "Most Popular", "redirect_url": "/activities"}
+  ],
+  "cross_sell": {
+    "message": "Planning a full trip? Try our Trip Planner!",
+    "link": "/api/concierge/message",
+    "flow_id": "trip_planner_intro"
+  }
+}

@@ -29,9 +29,16 @@ from anastasia.modules.flight_modules import (
     build_airgateway_card,
     build_liteapi_card,
 )
+from anastasia.modules.car_modules import build_all_car_modules, build_discover_cars_card
+from anastasia.modules.activity_modules import build_all_activity_modules, build_viator_card
+from anastasia.modules.insurance_modules import build_all_insurance_modules, build_safetywing_card
 from anastasia.verticals.flights import FlightsNeuron
 from anastasia.verticals.hotels import HotelsNeuron
+from anastasia.verticals.cars import CarsNeuron
+from anastasia.verticals.activities import ActivitiesNeuron
+from anastasia.verticals.insurance import InsuranceNeuron
 from anastasia.platform import AnastasiaPlatform
+from anastasia.dispatch.coordinator import VerticalSearchCoordinator
 
 
 @pytest.fixture
@@ -527,3 +534,680 @@ class TestAirGatewayCard:
     def test_airgateway_credential_env_vars(self):
         card = build_airgateway_card()
         assert "AIRGATEWAY_API_KEY" in card.credential_env_vars
+
+
+# ---------------------------------------------------------------------------
+# CarsNeuron Tests (Build #181)
+# ---------------------------------------------------------------------------
+
+
+class TestCarsNeuron:
+    def test_name(self):
+        neuron = CarsNeuron()
+        assert neuron.name == "cars"
+
+    def test_version(self):
+        neuron = CarsNeuron()
+        assert neuron.version == "1.0.0"
+
+    def test_dependencies(self):
+        neuron = CarsNeuron()
+        assert "knowledge" in neuron.dependencies
+
+    def test_health_before_init(self):
+        neuron = CarsNeuron()
+        health = neuron.health_check()
+        assert health["healthy"] is False
+        assert "not initialized" in health["details"].lower()
+
+    def test_initialize_disabled(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": False})
+
+        health = neuron.health_check()
+        assert health["vertical"] == "cars"
+        assert health["enabled"] is False
+        assert health["healthy"] is True
+        assert "disabled" in health["details"].lower()
+
+    def test_initialize_enabled(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": True})
+
+        health = neuron.health_check()
+        assert health["enabled"] is True
+        assert health["modules_total"] == 1  # Discover Cars
+        assert health["modules_configured"] == 0  # No env vars set
+
+    def test_initialize_with_credentials(self, event_bus):
+        os.environ["DISCOVER_CARS_USERNAME"] = "test_user"
+        os.environ["DISCOVER_CARS_PASSWORD"] = "test_pass"
+        os.environ["DISCOVER_CARS_TOKEN"] = "test_token_12345678"
+        try:
+            neuron = CarsNeuron()
+            neuron.initialize(event_bus, {"cars_enabled": True})
+
+            health = neuron.health_check()
+            assert health["modules_configured"] == 1
+            assert health["can_search"] is True
+            assert health["can_book"] is True
+        finally:
+            del os.environ["DISCOVER_CARS_USERNAME"]
+            del os.environ["DISCOVER_CARS_PASSWORD"]
+            del os.environ["DISCOVER_CARS_TOKEN"]
+
+    def test_enable_disable(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": False})
+
+        assert neuron.is_enabled is False
+        neuron.enable()
+        assert neuron.is_enabled is True
+        neuron.disable()
+        assert neuron.is_enabled is False
+
+    def test_plan_search_disabled(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": False})
+
+        plan = neuron.plan_search()
+        assert plan.modules == []
+        assert "disabled" in plan.notes[0].lower()
+
+    def test_plan_search_enabled(self, event_bus):
+        os.environ["DISCOVER_CARS_USERNAME"] = "test_user"
+        os.environ["DISCOVER_CARS_PASSWORD"] = "test_pass"
+        os.environ["DISCOVER_CARS_TOKEN"] = "test_token_12345678"
+        try:
+            neuron = CarsNeuron()
+            neuron.initialize(event_bus, {"cars_enabled": True})
+
+            plan = neuron.plan_search(location="Paris")
+            assert len(plan.modules) == 1
+            assert plan.primary == "discover_cars"
+        finally:
+            del os.environ["DISCOVER_CARS_USERNAME"]
+            del os.environ["DISCOVER_CARS_PASSWORD"]
+            del os.environ["DISCOVER_CARS_TOKEN"]
+
+    def test_event_tracking(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": True})
+
+        event_bus.publish(Event(
+            type=EventType.BOOKING_CREATED,
+            source="cars",
+            data={"booking_id": "CB001", "source": "discover_cars"},
+        ))
+
+        health = neuron.health_check()
+        assert health["bookings_handled"] == 1
+
+    def test_shutdown(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {})
+        neuron.shutdown()
+
+        health = neuron.health_check()
+        assert health["healthy"] is False
+
+    def test_registry_accessor(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {})
+        assert neuron.registry is not None
+
+    def test_director_accessor(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {})
+        assert neuron.director is not None
+
+
+# ---------------------------------------------------------------------------
+# ActivitiesNeuron Tests (Build #181)
+# ---------------------------------------------------------------------------
+
+
+class TestActivitiesNeuron:
+    def test_name(self):
+        neuron = ActivitiesNeuron()
+        assert neuron.name == "activities"
+
+    def test_version(self):
+        neuron = ActivitiesNeuron()
+        assert neuron.version == "1.0.0"
+
+    def test_dependencies(self):
+        neuron = ActivitiesNeuron()
+        assert "knowledge" in neuron.dependencies
+
+    def test_health_before_init(self):
+        neuron = ActivitiesNeuron()
+        health = neuron.health_check()
+        assert health["healthy"] is False
+        assert "not initialized" in health["details"].lower()
+
+    def test_initialize_disabled(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": False})
+
+        health = neuron.health_check()
+        assert health["vertical"] == "activities"
+        assert health["enabled"] is False
+        assert health["healthy"] is True
+
+    def test_initialize_enabled(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": True})
+
+        health = neuron.health_check()
+        assert health["enabled"] is True
+        assert health["modules_total"] == 1  # Viator
+        assert health["modules_configured"] == 0
+
+    def test_initialize_with_credentials(self, event_bus):
+        os.environ["VIATOR_API_KEY"] = "viator_test_key_12345678"
+        try:
+            neuron = ActivitiesNeuron()
+            neuron.initialize(event_bus, {"activities_enabled": True})
+
+            health = neuron.health_check()
+            assert health["modules_configured"] == 1
+            assert health["can_search"] is True
+            assert health["can_book"] is True
+        finally:
+            del os.environ["VIATOR_API_KEY"]
+
+    def test_enable_disable(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": False})
+
+        assert neuron.is_enabled is False
+        neuron.enable()
+        assert neuron.is_enabled is True
+        neuron.disable()
+        assert neuron.is_enabled is False
+
+    def test_plan_search_disabled(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": False})
+
+        plan = neuron.plan_search()
+        assert plan.modules == []
+        assert "disabled" in plan.notes[0].lower()
+
+    def test_plan_search_enabled(self, event_bus):
+        os.environ["VIATOR_API_KEY"] = "viator_test_key_12345678"
+        try:
+            neuron = ActivitiesNeuron()
+            neuron.initialize(event_bus, {"activities_enabled": True})
+
+            plan = neuron.plan_search(destination="Paris")
+            assert len(plan.modules) == 1
+            assert plan.primary == "viator_activities"
+        finally:
+            del os.environ["VIATOR_API_KEY"]
+
+    def test_event_tracking(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": True})
+
+        event_bus.publish(Event(
+            type=EventType.BOOKING_CREATED,
+            source="activities",
+            data={"booking_id": "AB001", "source": "viator"},
+        ))
+
+        health = neuron.health_check()
+        assert health["bookings_handled"] == 1
+
+    def test_shutdown(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {})
+        neuron.shutdown()
+
+        health = neuron.health_check()
+        assert health["healthy"] is False
+
+    def test_registry_accessor(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {})
+        assert neuron.registry is not None
+
+    def test_director_accessor(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {})
+        assert neuron.director is not None
+
+
+# ---------------------------------------------------------------------------
+# InsuranceNeuron Tests (Build #181)
+# ---------------------------------------------------------------------------
+
+
+class TestInsuranceNeuron:
+    def test_name(self):
+        neuron = InsuranceNeuron()
+        assert neuron.name == "insurance"
+
+    def test_version(self):
+        neuron = InsuranceNeuron()
+        assert neuron.version == "1.0.0"
+
+    def test_dependencies(self):
+        neuron = InsuranceNeuron()
+        assert "knowledge" in neuron.dependencies
+
+    def test_health_before_init(self):
+        neuron = InsuranceNeuron()
+        health = neuron.health_check()
+        assert health["healthy"] is False
+        assert "not initialized" in health["details"].lower()
+
+    def test_initialize_disabled(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": False})
+
+        health = neuron.health_check()
+        assert health["vertical"] == "insurance"
+        assert health["enabled"] is False
+        assert health["healthy"] is True
+
+    def test_initialize_enabled(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": True})
+
+        health = neuron.health_check()
+        assert health["enabled"] is True
+        assert health["modules_total"] == 1  # SafetyWing
+        assert health["modules_configured"] == 0
+
+    def test_initialize_with_credentials(self, event_bus):
+        os.environ["SAFETYWING_API_KEY"] = "safetywing_test_key_12345678"
+        try:
+            neuron = InsuranceNeuron()
+            neuron.initialize(event_bus, {"insurance_enabled": True})
+
+            health = neuron.health_check()
+            assert health["modules_configured"] == 1
+            assert health["can_search"] is True
+            assert health["can_book"] is True
+        finally:
+            del os.environ["SAFETYWING_API_KEY"]
+
+    def test_enable_disable(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": False})
+
+        assert neuron.is_enabled is False
+        neuron.enable()
+        assert neuron.is_enabled is True
+        neuron.disable()
+        assert neuron.is_enabled is False
+
+    def test_plan_search_disabled(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": False})
+
+        plan = neuron.plan_search()
+        assert plan.modules == []
+        assert "disabled" in plan.notes[0].lower()
+
+    def test_plan_search_enabled(self, event_bus):
+        os.environ["SAFETYWING_API_KEY"] = "safetywing_test_key_12345678"
+        try:
+            neuron = InsuranceNeuron()
+            neuron.initialize(event_bus, {"insurance_enabled": True})
+
+            plan = neuron.plan_search(destination_country="FR")
+            assert len(plan.modules) == 1
+            assert plan.primary == "safetywing_insurance"
+        finally:
+            del os.environ["SAFETYWING_API_KEY"]
+
+    def test_event_tracking(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": True})
+
+        event_bus.publish(Event(
+            type=EventType.BOOKING_CREATED,
+            source="insurance",
+            data={"booking_id": "IB001", "source": "safetywing"},
+        ))
+
+        health = neuron.health_check()
+        assert health["bookings_handled"] == 1
+
+    def test_shutdown(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {})
+        neuron.shutdown()
+
+        health = neuron.health_check()
+        assert health["healthy"] is False
+
+    def test_registry_accessor(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {})
+        assert neuron.registry is not None
+
+    def test_director_accessor(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {})
+        assert neuron.director is not None
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Card Module Builder Tests (Build #181)
+# ---------------------------------------------------------------------------
+
+
+class TestCarModules:
+    def test_discover_cars_card(self):
+        card = build_discover_cars_card()
+        assert card.module_id == "discover_cars"
+        assert card.vertical == "car_rental"
+        assert card.carrier_count == 500
+        assert card.capabilities["search"] is True
+        assert card.capabilities["book"] is True
+
+    def test_build_all_car_modules(self):
+        modules = build_all_car_modules(from_json=True)
+        assert len(modules) >= 1
+        assert modules[0].knowledge_card.vertical == "car_rental"
+
+
+class TestActivityModules:
+    def test_viator_card(self):
+        card = build_viator_card()
+        assert card.module_id == "viator_activities"
+        assert card.vertical == "activities"
+        assert card.carrier_count == 300000
+        assert card.capabilities["search"] is True
+        assert card.capabilities["book"] is True
+
+    def test_build_all_activity_modules(self):
+        modules = build_all_activity_modules(from_json=True)
+        assert len(modules) >= 1
+        assert modules[0].knowledge_card.vertical == "activities"
+
+
+class TestInsuranceModules:
+    def test_safetywing_card(self):
+        card = build_safetywing_card()
+        assert card.module_id == "safetywing_insurance"
+        assert card.vertical == "insurance"
+        assert card.carrier_count == 2
+        assert card.capabilities["search"] is True
+        assert card.capabilities["book"] is True
+
+    def test_build_all_insurance_modules(self):
+        modules = build_all_insurance_modules(from_json=True)
+        assert len(modules) >= 1
+        assert modules[0].knowledge_card.vertical == "insurance"
+
+
+# ---------------------------------------------------------------------------
+# Updated Platform Integration Tests (Build #181)
+# ---------------------------------------------------------------------------
+
+
+class TestNewVerticalPlatformIntegration:
+    def test_platform_includes_new_verticals(self, temp_dir):
+        """Platform should include cars, activities, and insurance neurons."""
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        results = platform.start()
+
+        assert "cars" in results
+        assert "activities" in results
+        assert "insurance" in results
+        assert results["cars"] is True
+        assert results["activities"] is True
+        assert results["insurance"] is True
+
+        platform.stop()
+
+
+# ---------------------------------------------------------------------------
+# Vertical Neuron Search Method Tests (Build #182)
+# ---------------------------------------------------------------------------
+
+
+class TestCarsNeuronSearch:
+    """Test CarsNeuron.search() with injected client."""
+
+    def test_search_disabled_returns_error(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": False})
+        result = neuron.search("LAX", "2026-06-01", "2026-06-05")
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()
+
+    def test_search_no_client_returns_error(self, event_bus):
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": True})
+        result = neuron.search("LAX", "2026-06-01", "2026-06-05", client=None)
+        assert result["success"] is False
+        assert "client" in result["error"].lower()
+
+    def test_search_with_mock_client(self, event_bus):
+        class MockClient:
+            def search_locations(self, q):
+                return [{"id": "LOC1", "name": q}]
+            def search_cars(self, **kw):
+                return [{"id": "C1", "name": "Economy", "price": 45.0, "supplier": "Hertz"}]
+
+        neuron = CarsNeuron()
+        neuron.initialize(event_bus, {"cars_enabled": True})
+        result = neuron.search("LAX", "2026-06-01", "2026-06-05", client=MockClient())
+        assert result["success"] is True
+        assert len(result["cars"]) == 1
+        assert result["cars"][0]["raw_offer"]["source"] == "discover_cars"
+        assert result["cars"][0]["raw_offer"]["pickup_location_id"] == "LOC1"
+        assert result["source"] == "discover_cars"
+
+
+class TestActivitiesNeuronSearch:
+    """Test ActivitiesNeuron.search() with injected client."""
+
+    def test_search_disabled_returns_error(self, event_bus):
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": False})
+        result = neuron.search("Paris")
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()
+
+    def test_search_with_mock_client(self, event_bus):
+        class MockClient:
+            def search_freetext(self, q):
+                return [{"dest_id": "D1", "name": q}]
+            def search_products(self, **kw):
+                return [{"code": "P1", "title": "Eiffel Tour", "price": 25.0}]
+
+        neuron = ActivitiesNeuron()
+        neuron.initialize(event_bus, {"activities_enabled": True})
+        result = neuron.search("Paris", query="eiffel", client=MockClient())
+        assert result["success"] is True
+        assert len(result["activities"]) == 1
+        assert result["activities"][0]["raw_offer"]["source"] == "viator"
+        assert result["activities"][0]["raw_offer"]["product_code"] == "P1"
+        assert result["source"] == "viator"
+
+
+class TestInsuranceNeuronSearch:
+    """Test InsuranceNeuron.search() with injected client."""
+
+    def test_search_disabled_returns_error(self, event_bus):
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": False})
+        result = neuron.search("US", "2026-06-01", "2026-06-15")
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()
+
+    def test_search_with_mock_client(self, event_bus):
+        class MockClient:
+            def get_quote(self, **kw):
+                return [{"plan_id": "NI1", "name": "Nomad Insurance", "price_per_day": 1.68}]
+
+        neuron = InsuranceNeuron()
+        neuron.initialize(event_bus, {"insurance_enabled": True})
+        result = neuron.search("FR", "2026-06-01", "2026-06-15", travelers=2, client=MockClient())
+        assert result["success"] is True
+        assert len(result["quotes"]) == 1
+        assert result["quotes"][0]["raw_offer"]["source"] == "safetywing"
+        assert result["quotes"][0]["raw_offer"]["plan_id"] == "NI1"
+        assert result["quotes"][0]["raw_offer"]["travelers"] == 2
+        assert result["source"] == "safetywing"
+
+    def test_cars_neuron_accessible(self, temp_dir):
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        cars = platform.get_module("cars")
+        assert cars is not None
+        assert cars.name == "cars"
+
+        health = cars.health_check()
+        assert health["vertical"] == "cars"
+
+        platform.stop()
+
+    def test_activities_neuron_accessible(self, temp_dir):
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        activities = platform.get_module("activities")
+        assert activities is not None
+        assert activities.name == "activities"
+
+        health = activities.health_check()
+        assert health["vertical"] == "activities"
+
+        platform.stop()
+
+    def test_insurance_neuron_accessible(self, temp_dir):
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        insurance = platform.get_module("insurance")
+        assert insurance is not None
+        assert insurance.name == "insurance"
+
+        health = insurance.health_check()
+        assert health["vertical"] == "insurance"
+
+        platform.stop()
+
+
+# ---------------------------------------------------------------------------
+# VerticalSearchCoordinator Tests (Build #183)
+# ---------------------------------------------------------------------------
+
+
+class TestVerticalSearchCoordinator:
+    """Test the thin search routing wrapper."""
+
+    def test_route_to_cars(self, temp_dir):
+        """Coordinator routes search to CarsNeuron."""
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        coordinator = VerticalSearchCoordinator(platform)
+        result = coordinator.search("cars", pickup_location="LAX", pickup_date="2026-05-01", dropoff_date="2026-05-05")
+        # Without a real client, search should return error or empty results
+        assert isinstance(result, dict)
+
+        platform.stop()
+
+    def test_route_to_activities(self, temp_dir):
+        """Coordinator routes search to ActivitiesNeuron."""
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        coordinator = VerticalSearchCoordinator(platform)
+        result = coordinator.search("activities", destination="Rome")
+        assert isinstance(result, dict)
+
+        platform.stop()
+
+    def test_unknown_vertical_returns_error(self, temp_dir):
+        """Unknown vertical should return error dict."""
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        coordinator = VerticalSearchCoordinator(platform)
+        result = coordinator.search("spaceflights")
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+        platform.stop()
+
+    def test_available_verticals_list(self, temp_dir):
+        """Available verticals lists neurons with search()."""
+        platform = AnastasiaPlatform({"data_dir": temp_dir})
+        platform.start()
+
+        coordinator = VerticalSearchCoordinator(platform)
+        verticals = coordinator.available_verticals
+        assert isinstance(verticals, list)
+        # Cars, activities, insurance all have search() methods (Build #182)
+        assert "cars" in verticals
+        assert "activities" in verticals
+        assert "insurance" in verticals
+
+        platform.stop()
+
+
+# ============================================================
+# Neuron Edge Cases (Build #188)
+# ============================================================
+
+class TestNeuronEdgeCases:
+    """Edge cases: disabled neurons, missing clients."""
+
+    def test_cars_search_no_client(self):
+        """CarsNeuron.search with client=None returns error."""
+        neuron = CarsNeuron()
+        neuron._enabled = True
+        result = neuron.search("LAX", "2026-04-01", "2026-04-05", client=None)
+        assert result["success"] is False
+        assert "client" in result["error"].lower()
+
+    def test_cars_search_disabled(self):
+        """CarsNeuron disabled returns error."""
+        neuron = CarsNeuron()
+        neuron._enabled = False
+        result = neuron.search("LAX", "2026-04-01", "2026-04-05")
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()
+
+    def test_activities_search_no_client(self):
+        """ActivitiesNeuron.search with client=None returns error."""
+        neuron = ActivitiesNeuron()
+        neuron._enabled = True
+        result = neuron.search("Paris", client=None)
+        assert result["success"] is False
+        assert "client" in result["error"].lower()
+
+    def test_activities_search_disabled(self):
+        """ActivitiesNeuron disabled returns error."""
+        neuron = ActivitiesNeuron()
+        neuron._enabled = False
+        result = neuron.search("Paris")
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()
+
+    def test_insurance_search_no_client(self):
+        """InsuranceNeuron.search with client=None returns error."""
+        neuron = InsuranceNeuron()
+        neuron._enabled = True
+        result = neuron.search("US", "2026-04-01", "2026-04-15", client=None)
+        assert result["success"] is False
+        assert "client" in result["error"].lower()
+
+    def test_insurance_search_disabled(self):
+        """InsuranceNeuron disabled returns error."""
+        neuron = InsuranceNeuron()
+        neuron._enabled = False
+        result = neuron.search("US", "2026-04-01", "2026-04-15")
+        assert result["success"] is False
+        assert "disabled" in result["error"].lower()

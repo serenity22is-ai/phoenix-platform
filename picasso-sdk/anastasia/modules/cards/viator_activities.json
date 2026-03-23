@@ -1,0 +1,50 @@
+{
+  "module_id": "viator_activities",
+  "name": "Viator Activities",
+  "vendor": "Viator (TripAdvisor)",
+  "version": "2.0",
+  "vertical": "activities",
+  "source_type": "aggregator",
+  "auth_type": "api_key_header",
+  "credential_env_vars": ["VIATOR_API_KEY"],
+  "auth_notes": "Static API key in exp-api-key header. Sandbox available at api.sandbox.viator.com.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": true,
+    "hold": true,
+    "cart": true,
+    "reviews": true
+  },
+  "carrier_count": 300000,
+  "coverage_notes": "300,000+ tours, activities, and experiences across 200+ countries. Largest activities marketplace.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "currency",
+  "passenger_format": {
+    "name_fields": ["firstName", "lastName"],
+    "age_bands": ["ADULT", "CHILD", "INFANT", "YOUTH", "SENIOR", "TRAVELER"],
+    "requires_phone": true,
+    "phone_must_start_with_plus": true
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Free to search. 8% commission on bookings. Viator is merchant of record.",
+  "priority": 90,
+  "strengths": ["300k_products", "200_countries", "tripadvisor_reviews", "instant_confirmation", "free_cancellation", "sandbox_available"],
+  "weaknesses": ["destination_id_required", "complex_booking_questions"],
+  "best_for": ["activities_search", "tour_booking", "destination_experiences", "skip_the_line"],
+  "quirks": [
+    {"issue": "Destination search via freetext returns ref IDs", "workaround": "Resolve destination name to numeric ID via freetext search"},
+    {"issue": "Phone must start with + for booking", "workaround": "Prepend country code if missing"},
+    {"issue": "partnerBookingRef required and must be unique", "workaround": "Generate MYSTES-{uuid} format"},
+    {"issue": "Availability check required before booking", "workaround": "Always call /availability/check first"}
+  ],
+  "booking_steps": ["search", "product_details", "availability_check", "hold_optional", "book"],
+  "booking_notes": "Two booking paths: direct book or hold->book. Returns BR-XXXXXXXXX booking reference. 8% commission. Cart booking supports multiple items.",
+  "readiness": "tested",
+  "confidence": 0.85,
+  "learned_from": ["mystes_internal", "viator_openapi_spec"],
+  "last_updated": "2026-03-17",
+  "docs_url": "https://docs.viator.com/partner-api/technical/"
+}

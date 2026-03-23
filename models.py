@@ -9,6 +9,7 @@ Tables:
 """
 
 import json
+import logging
 from datetime import datetime, timedelta, date, timezone
 
 
@@ -87,8 +88,9 @@ class User(UserMixin, db.Model):
     kyc_verified_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
-    payments = db.relationship('Payment', backref='user', lazy='dynamic')
-    bookings = db.relationship('Booking', backref='user', lazy='dynamic')
+    # Financial records: passive_deletes prevents ORM cascade — DB FK RESTRICT is correct
+    payments = db.relationship('Payment', backref='user', lazy='dynamic', passive_deletes=True)
+    bookings = db.relationship('Booking', backref='user', lazy='dynamic', passive_deletes=True)
     referred_by = db.relationship('CommercialAccount', foreign_keys=[referred_by_account_id], backref='referred_users')
 
     def set_password(self, password):
@@ -158,6 +160,10 @@ class User(UserMixin, db.Model):
 class Deal(db.Model):
     """Cached deal model — supports flights and hotels."""
     __tablename__ = 'deals'
+    __table_args__ = (
+        db.Index('ix_deals_route_date', 'origin', 'destination', 'departure_date'),
+        db.Index('ix_deals_type_status', 'deal_type', 'deal_status'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     deal_id = db.Column(db.String(20), unique=True, nullable=False, index=True)
@@ -243,6 +249,7 @@ class Deal(db.Model):
     # Picasso / Redbox API references (critical for booking flow)
     fare_id = db.Column(db.String(100), nullable=True)  # Redbox fareId from search
     fare_search_id = db.Column(db.String(100), nullable=True)  # Redbox fareSearchId
+    offer_id = db.Column(db.String(100), nullable=True)  # NDC/aggregator offer ID (Duffel, Kiwi)
     picasso_gds = db.Column(db.String(20), nullable=True)  # GDS: AMADEUS, AER_DC, SABRE
     fare_type = db.Column(db.String(10), nullable=True)  # PUB/NET/NEG
 
@@ -315,7 +322,7 @@ class Deal(db.Model):
         }
         if self.is_multi_leg:
             result['flight_legs'] = self.get_flight_legs()
-        if self.deal_type != 'hotel':
+        if self.deal_type not in ('hotel', 'activity', 'car_rental'):
             result.update({
                 'cabin_class': self.cabin_class,
                 'fare_family': self.fare_family,
@@ -327,7 +334,7 @@ class Deal(db.Model):
                 'duration': self.duration,
                 'layovers': self.layovers,
             })
-        if self.deal_type == 'hotel':
+        if self.deal_type in ('hotel', 'activity', 'car_rental'):
             result.update({
                 'hotel_name': self.hotel_name,
                 'hotel_id': self.hotel_id,
@@ -346,6 +353,11 @@ class Deal(db.Model):
                 'cancellation_policy': self.cancellation_policy,
                 'room_description': self.room_description,
             })
+        if self.deal_type in ('activity', 'car_rental') and self.amadeus_offer_data:
+            try:
+                result['offer_data'] = json.loads(self.amadeus_offer_data)
+            except (json.JSONDecodeError, TypeError):
+                result['offer_data'] = {}
         return result
 
 
@@ -415,6 +427,7 @@ class Booking(db.Model):
     __tablename__ = 'bookings'
     __table_args__ = (
         db.UniqueConstraint('deal_id', 'payment_id', name='uq_booking_deal_payment'),
+        db.Index('ix_bookings_user_status', 'user_id', 'status', 'created_at'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -483,6 +496,11 @@ class Booking(db.Model):
     special_requests = db.Column(db.Text, nullable=True)
     hotel_confirmation_id = db.Column(db.String(100), nullable=True)
     provider_reference = db.Column(db.String(100), nullable=True)
+
+    # Cancellation / Refund
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    refund_amount_usd = db.Column(db.Float, nullable=True)
+    cancellation_reason = db.Column(db.String(200), nullable=True)
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=_utcnow)
@@ -573,8 +591,8 @@ class PriceAlert(db.Model):
     created_at = db.Column(db.DateTime, default=_utcnow)
     last_triggered = db.Column(db.DateTime)
 
-    # Relationship
-    user = db.relationship('User', backref='price_alerts')
+    # Relationship — ephemeral data, safe to cascade on user delete
+    user = db.relationship('User', backref=db.backref('price_alerts', cascade='all, delete-orphan'))
 
     def to_dict(self):
         return {
@@ -1061,6 +1079,11 @@ class CommercialAccount(db.Model):
     # Referral system
     referral_code = db.Column(db.String(20), unique=True, index=True)  # e.g. "APEXTRAVEL"
     total_referred_users = db.Column(db.Integer, default=0)
+
+    # Consumer markup — B2B seller sets this on top of MYSTES price (Build #185)
+    consumer_markup_percent = db.Column(db.Float, default=0.0)  # 0-50%, added to consumer price
+    consumer_markup_flat_usd = db.Column(db.Float, default=0.0)  # Flat USD added per ticket
+    referral_link_enabled = db.Column(db.Boolean, default=True)  # Enable/disable referral selling
 
     # Access controls
     is_active = db.Column(db.Boolean, default=True)
@@ -2133,15 +2156,15 @@ class FeatureFlag(db.Model):
             ('b2b_accounts', 'B2B Accounts', 'Allow agencies to sign up for B2B accounts', 1, True),
             ('travel_plus', 'Travel+ Subscription', 'Travel+ consumer subscription tier', 1, True),
             ('rewards_points', 'Rewards Points', 'MYSTES rewards points system', 1, True),
-            ('trip_planner', 'Trip Planner', 'Collaborative trip planning', 2, False),
-            ('wishlist', 'Wishlist & Collections', 'Save items and create collections', 2, False),
-            ('friends_system', 'Friends System', 'Add friends and plan together', 2, False),
+            ('trip_planner', 'Trip Planner', 'Collaborative trip planning', 2, True),
+            ('wishlist', 'Wishlist & Collections', 'Save items and create collections', 2, True),
+            ('friends_system', 'Friends System', 'Add friends and plan together', 2, True),
 
             # Layer 2 - Funded (admin-enabled only until flights perfected)
             ('local_businesses', 'Local Businesses', 'Restaurant and venue listings', 2, False),
-            ('vertical_activities', 'Activities Vertical', 'Tours and activities via Viator', 2, False),
+            ('vertical_activities', 'Activities Vertical', 'Tours and activities via Viator', 2, True),
             ('vertical_products', 'Products Vertical', 'Price comparison for physical products', 2, False),
-            ('vertical_rentals', 'Rentals Vertical', 'Car and vacation rentals', 2, False),
+            ('vertical_rentals', 'Rentals Vertical', 'Car and vacation rentals', 2, True),
             ('vertical_cruises', 'Cruises Vertical', 'Cruise booking and comparison', 2, False),
         ]
 
@@ -2729,6 +2752,268 @@ class ReferralCard(db.Model):
     user = db.relationship('User', backref=db.backref('referral_card', uselist=False))
 
 
+class CrossSellEvent(db.Model):
+    """Track cross-sell impressions and clicks for conversion analytics (Build #183)."""
+    __tablename__ = 'cross_sell_events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    event_type = db.Column(db.String(20))  # impression, click, dismiss
+    source_vertical = db.Column(db.String(30))
+    recommended_vertical = db.Column(db.String(30))
+    page_url = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+
+# ========== APAi Template Deployment (Build #186, fixed #193) ==========
+
+class TemplateDeployment(db.Model):
+    """Tracks deployment of turnkey OTA instances for APAi subscribers.
+
+    Lifecycle: requested → provisioning → active → suspended → terminated
+    """
+    __tablename__ = 'template_deployments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    deployment_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    commercial_account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=False)
+
+    # Instance details
+    instance_name = db.Column(db.String(100), nullable=False)  # e.g. "apex-travel"
+    subdomain = db.Column(db.String(100), unique=True, nullable=True)  # e.g. "apex-travel.mystes.app"
+    custom_domain = db.Column(db.String(255), nullable=True)  # e.g. "book.apextravel.com"
+
+    # Branding
+    brand_name = db.Column(db.String(200), nullable=True)
+    brand_color_primary = db.Column(db.String(7), default='#7c3aed')
+    brand_color_secondary = db.Column(db.String(7), default='#a855f7')
+    logo_url = db.Column(db.String(500), nullable=True)
+
+    # Configuration
+    config_json = db.Column(db.Text, nullable=True)  # Full template config
+
+    # Render deployment
+    render_service_id = db.Column(db.String(100), nullable=True)
+    render_deploy_url = db.Column(db.String(500), nullable=True)
+
+    # Status
+    status = db.Column(db.String(30), default='requested')  # requested/provisioning/active/suspended/terminated
+    status_message = db.Column(db.String(500), nullable=True)
+
+    # Timestamps
+    requested_at = db.Column(db.DateTime, default=_utcnow)
+    provisioned_at = db.Column(db.DateTime, nullable=True)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    suspended_at = db.Column(db.DateTime, nullable=True)
+
+    # Relationships
+    commercial_account = db.relationship('CommercialAccount', backref='deployments')
+
+    def to_dict(self):
+        return {
+            'deployment_id': self.deployment_id,
+            'instance_name': self.instance_name,
+            'subdomain': self.subdomain,
+            'custom_domain': self.custom_domain,
+            'brand_name': self.brand_name,
+            'brand_color_primary': self.brand_color_primary,
+            'brand_color_secondary': self.brand_color_secondary,
+            'logo_url': self.logo_url,
+            'status': self.status,
+            'status_message': self.status_message,
+            'requested_at': self.requested_at.isoformat() if self.requested_at else None,
+            'activated_at': self.activated_at.isoformat() if self.activated_at else None,
+        }
+
+
+# ========== APAi Admin Portal (Build #194 — repurposed from Dev Portal #184) ==========
+
+class DevPortalAccount(db.Model):
+    """APAi admin portal team member account — Build #194.
+
+    APAi subscribers provision dev team members. All queries count against
+    the subscriber's pool. One subscription, one bill, unlimited seats.
+    Standalone Dev Portal SCRAPPED — ANASTASiA is APAi-exclusive.
+    """
+    __tablename__ = 'dev_portal_accounts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.String(50), unique=True, nullable=False, index=True)  # dpa_{hex}
+
+    # Identity
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=True)  # nullable for future OAuth
+    name = db.Column(db.String(200), nullable=True)
+    company = db.Column(db.String(200), nullable=True)
+
+    # Team management (Build #194 — multi-seat)
+    commercial_account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=True, index=True)
+    role = db.Column(db.String(20), default='member')  # admin (subscriber) or member (team)
+    added_by_id = db.Column(db.Integer, db.ForeignKey('dev_portal_accounts.id'), nullable=True)
+    query_limit = db.Column(db.Integer, nullable=True)  # optional per-member cap (NULL = unlimited)
+
+    # Linkage to MYSTES user (for admin = APAi subscriber)
+    mystes_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    apai_subscriber = db.Column(db.Boolean, default=False)
+    apai_template_config = db.Column(db.Text, nullable=True)  # JSON: turnkey config for contextual help
+
+    # Billing tier: pro ($299/mo), enterprise ($599/mo), scale ($999/mo)
+    billing_tier = db.Column(db.String(20), default='pro')
+    stripe_customer_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
+    stripe_subscription_id = db.Column(db.String(100), unique=True, nullable=True)
+    stripe_metered_item_id = db.Column(db.String(100), nullable=True)  # for usage_record reporting
+    subscription_status = db.Column(db.String(20), default='none')  # none/active/past_due/cancelled
+
+    # Usage tracking (per-member + aggregate on admin)
+    queries_used_this_period = db.Column(db.Integer, default=0)
+    queries_included = db.Column(db.Integer, default=0)  # 500=Pro, 2000=Enterprise, 5000=Scale
+    period_start = db.Column(db.DateTime, nullable=True)
+    period_end = db.Column(db.DateTime, nullable=True)
+    total_queries_lifetime = db.Column(db.Integer, default=0)
+
+    # Status
+    is_active = db.Column(db.Boolean, default=True)
+    is_verified = db.Column(db.Boolean, default=False)
+    verification_token = db.Column(db.String(100), nullable=True)
+
+    # Invitation flow (Build #195 — team member invitations)
+    invitation_token = db.Column(db.String(100), nullable=True, index=True)
+    invitation_sent_at = db.Column(db.DateTime, nullable=True)
+    invitation_expires_at = db.Column(db.DateTime, nullable=True)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    last_login = db.Column(db.DateTime, nullable=True)
+
+    def set_password(self, password):
+        self.password_hash = bcrypt.hashpw(
+            password.encode('utf-8'), bcrypt.gensalt()
+        ).decode('utf-8')
+
+    def check_password(self, password):
+        if not self.password_hash:
+            return False
+        return bcrypt.checkpw(
+            password.encode('utf-8'), self.password_hash.encode('utf-8')
+        )
+
+    def to_dict(self):
+        return {
+            'account_id': self.account_id,
+            'email': self.email,
+            'name': self.name,
+            'company': self.company,
+            'role': self.role,
+            'billing_tier': self.billing_tier,
+            'subscription_status': self.subscription_status,
+            'queries_used': self.queries_used_this_period,
+            'queries_included': self.queries_included,
+            'query_limit': self.query_limit,
+            'total_queries': self.total_queries_lifetime,
+            'apai_subscriber': self.apai_subscriber,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class DevPortalKey(db.Model):
+    """API key for programmatic dev portal access. Prefix: dpt_"""
+    __tablename__ = 'dev_portal_keys'
+
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('dev_portal_accounts.id'), nullable=False, index=True)
+    key_prefix = db.Column(db.String(12), nullable=False)  # first 8 chars of dpt_{hex}
+    key_hash = db.Column(db.String(128), nullable=False)  # bcrypt hash of full key
+    label = db.Column(db.String(100), default='Default')
+    is_active = db.Column(db.Boolean, default=True)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    total_requests = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    account = db.relationship('DevPortalAccount', backref=db.backref('api_keys', lazy='dynamic'))
+
+
+class DevPortalConversation(db.Model):
+    """Dev portal chat conversation."""
+    __tablename__ = 'dev_portal_conversations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.String(50), unique=True, nullable=False, index=True)  # dpc_{hex}
+    account_id = db.Column(db.Integer, db.ForeignKey('dev_portal_accounts.id'), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=True)
+    message_count = db.Column(db.Integer, default=0)
+    total_tokens_used = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    last_message_at = db.Column(db.DateTime, default=_utcnow)
+
+    account = db.relationship('DevPortalAccount', backref=db.backref('conversations', lazy='dynamic'))
+
+
+class DevPortalMessage(db.Model):
+    """Individual message in a dev portal conversation."""
+    __tablename__ = 'dev_portal_messages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.String(50), db.ForeignKey('dev_portal_conversations.conversation_id'), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)  # user, assistant
+    content = db.Column(db.Text, nullable=False)
+    tokens_used = db.Column(db.Integer, default=0)
+    model_used = db.Column(db.String(50), nullable=True)
+    response_time_ms = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    conversation = db.relationship('DevPortalConversation', backref=db.backref('messages', lazy='dynamic'))
+
+
+class DeviceToken(db.Model):
+    """Push notification device token for Capacitor mobile apps."""
+    __tablename__ = 'device_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    platform = db.Column(db.String(20), nullable=False)  # ios, android, web
+    token = db.Column(db.String(500), unique=True, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('device_tokens', lazy='dynamic'))
+
+
+# ========== Webhook Idempotency (Build #189) ==========
+
+class WebhookEvent(db.Model):
+    """Tracks processed webhook events to prevent duplicate handling."""
+    __tablename__ = 'webhook_events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    event_type = db.Column(db.String(100), nullable=False)
+    processed_at = db.Column(db.DateTime, default=_utcnow)
+    result_json = db.Column(db.Text, nullable=True)
+
+
+# ========== APAi Instance Keys (Build #189) ==========
+
+class APAiInstanceKey(db.Model):
+    """API keys for APAi turnkey instances to authenticate with MYSTES credential network."""
+    __tablename__ = 'apai_instance_keys'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    api_key_hash = db.Column(db.String(128), nullable=False)  # SHA-256 hash of the raw key
+    deployment_id = db.Column(db.Integer, db.ForeignKey('template_deployments.id'), nullable=False)
+    tier_id = db.Column(db.String(30), default='starter')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    usage_count = db.Column(db.Integer, default=0)
+
+    deployment = db.relationship('TemplateDeployment', backref=db.backref('api_keys', lazy='dynamic'))
+
+
 def generate_referral_code(user_name=None):
     """Generate a unique consumer referral code like MYS-ABCD1234."""
     import secrets
@@ -2749,11 +3034,20 @@ def generate_referral_code(user_name=None):
 
 
 def init_db(app):
-    """Initialize database with Flask app."""
+    """Initialize database with Flask app.
+
+    Resilient — catches DB failures so app can start in degraded mode.
+    """
     db.init_app(app)
     with app.app_context():
-        db.create_all()
-        # Initialize default feature flags and system settings
-        FeatureFlag.init_default_flags()
-        SystemSetting.init_defaults()
+        try:
+            db.create_all()
+        except Exception as e:
+            logging.getLogger(__name__).error("db.create_all() failed: %s", e)
+            return  # App starts without tables — will recover when DB comes back
+        try:
+            FeatureFlag.init_default_flags()
+            SystemSetting.init_defaults()
+        except Exception as e:
+            logging.getLogger(__name__).warning("Feature flag/setting init failed (DB may be read-only): %s", e)
         print("Database initialized successfully!")

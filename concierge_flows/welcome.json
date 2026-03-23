@@ -1,0 +1,13 @@
+{
+  "flow_id": "welcome",
+  "type": "question",
+  "message": "Welcome to MYSTES! What are you looking for today?",
+  "options": [
+    {"id": "flights", "label": "Flights", "next_flow": "flight_search"},
+    {"id": "hotels", "label": "Hotels", "next_flow": "hotel_search"},
+    {"id": "cars", "label": "Car Rentals", "next_flow": "car_search"},
+    {"id": "activities", "label": "Activities & Tours", "next_flow": "activity_search"},
+    {"id": "insurance", "label": "Travel Insurance", "next_flow": "insurance_info"},
+    {"id": "trip", "label": "Plan a Trip", "next_flow": "trip_planner_intro"}
+  ]
+}

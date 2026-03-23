@@ -414,7 +414,11 @@ function renderFlightCards(flights) {
         var date = (window._lastSearch || {}).date || "";
 
         var rawOffer = f.raw_offer || null;
-        var fd = JSON.stringify({origin: origin, destination: dest, date: date, price: wholesalePrice, title: airline + " " + flightNum, airline: airline, flight_number: flightNum, departure_time: depTime, arrival_time: arrTime, stops: stops, home_price: homePrice, arbitrage_price: wholesalePrice, savings: customerSavings, savings_pct: savingsPct, raw_offer: rawOffer});
+        var picassoGds = f.picasso_gds || null;
+        var fareId = f.fare_id || null;
+        var fareSearchId = f.fare_search_id || null;
+        var offerId = f.offer_id || null;
+        var fd = JSON.stringify({origin: origin, destination: dest, date: date, price: wholesalePrice, title: airline + " " + flightNum, airline: airline, flight_number: flightNum, departure_time: depTime, arrival_time: arrTime, stops: stops, home_price: homePrice, arbitrage_price: wholesalePrice, savings: customerSavings, savings_pct: savingsPct, raw_offer: rawOffer, picasso_gds: picassoGds, fare_id: fareId, fare_search_id: fareSearchId, offer_id: offerId, source: f.source || null});
         html += "<div class=\\"flight-card\\" data-flight='" + fd.replace(/'/g, "&#39;") + "' onclick=\\"bookThisFlight(this)\\">";
         html += "<div class=\\"fc-airline\\"><div class=\\"fc-airline-name\\">" + esc(airline) + "</div>";
         if (flightNum) html += "<div class=\\"fc-flight-num\\">" + esc(flightNum) + "</div>";
@@ -439,6 +443,9 @@ function renderFlightCards(flights) {
         html += "<div class=\\"fc-actions\\" style=\\"display:flex;gap:6px;margin-top:8px;\\">";
         html += "<button class=\\"fc-compare-btn\\" onclick=\\"event.stopPropagation();comparePrices(this,"+fd+")\\" style=\\"background:transparent;border:1px solid rgba(255,255,255,0.2);color:#aaa;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;\\">Compare</button>";
         html += "<button class=\\"fc-save-btn\\" onclick=\\"event.stopPropagation();saveToFavorites("+fd+")\\" style=\\"background:transparent;border:1px solid rgba(255,255,255,0.2);color:#aaa;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;\\">&#9825; Save</button>";
+        if (fareSearchId && fareId) {
+            html += "<button onclick=\\"event.stopPropagation();showFareRules('" + fareSearchId + "','" + fareId + "')\\" style=\\"background:transparent;border:1px solid rgba(255,255,255,0.2);color:#aaa;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;\\">Fare Rules</button>";
+        }
         html += "</div>";
         html += "</div>";
     });
@@ -598,7 +605,64 @@ function saveToFavorites(flightData) {
         }
     }).catch(function() { alert('Please log in to save items.'); });
 }
+
+function showFareRules(fareSearchId, fareId) {
+    var modal = document.getElementById('fareRulesModal');
+    var content = document.getElementById('fareRulesContent');
+    modal.style.display = 'flex';
+    content.innerHTML = '<div style="text-align:center;padding:40px;"><div style="display:inline-block;width:32px;height:32px;border:3px solid rgba(124,58,237,0.3);border-top-color:#7c3aed;border-radius:50%;animation:spin 0.8s linear infinite;"></div><p style="color:rgba(255,255,255,0.5);margin-top:12px;">Loading fare rules...</p></div>';
+    fetch('/api/picasso/fare-rules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({fare_search_id: fareSearchId, fare_id: fareId})
+    }).then(function(r){ return r.json(); }).then(function(data) {
+        if (!data.success || !data.rules) {
+            content.innerHTML = '<div style="text-align:center;padding:30px;color:rgba(255,255,255,0.5);">Unable to load fare rules. This may not be available for all fare types.</div>';
+            return;
+        }
+        var rules = data.rules;
+        var categoryLabels = {PE:'Penalties',AP:'Advance Purchase',MN:'Minimum Stay',MX:'Maximum Stay',FL:'Flight Application',RU:'Rule Application',BG:'Baggage',CO:'Combinations',SR:'Sales Restrictions',TF:'Transfers',HI:'Higher Intermediate Point',CD:'Child Discounts'};
+        var categoryColors = {PE:'rgba(239,68,68,0.15)',BG:'rgba(59,130,246,0.15)'};
+        var categoryBorders = {PE:'#ef4444',BG:'#3b82f6'};
+        var order = ['PE','BG','AP','MN','MX','FL','SR','CO','TF','RU','HI','CD'];
+        var keys = Object.keys(rules);
+        keys.sort(function(a,b){
+            var ai = order.indexOf(a); var bi = order.indexOf(b);
+            if (ai === -1) ai = 99; if (bi === -1) bi = 99;
+            return ai - bi;
+        });
+        var html = '<h3 style="font-family:Cinzel,serif;font-size:18px;color:#f5f5f5;margin:0 0 20px;letter-spacing:2px;">FARE RULES</h3>';
+        keys.forEach(function(cat){
+            var rule = rules[cat];
+            var label = categoryLabels[cat] || rule.title || cat;
+            var bg = categoryColors[cat] || 'rgba(255,255,255,0.04)';
+            var bc = categoryBorders[cat] || 'rgba(255,255,255,0.15)';
+            html += '<div style="margin-bottom:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">';
+            html += '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.fr-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'\\u25B6\':\'\\u25BC\'" style="padding:12px 16px;background:' + bg + ';cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-left:3px solid ' + bc + ';">';
+            html += '<span style="font-weight:600;font-size:14px;color:#e2e8f0;">' + label + '</span>';
+            html += '<span class="fr-arrow" style="color:rgba(255,255,255,0.4);font-size:11px;">&#9654;</span></div>';
+            html += '<div style="display:none;padding:14px 16px;font-size:13px;line-height:1.6;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.2);max-height:300px;overflow-y:auto;">';
+            html += (rule.text || 'No details available.').replace(/\\n/g, '<br>');
+            html += '</div></div>';
+        });
+        if (keys.length === 0) {
+            html += '<p style="color:rgba(255,255,255,0.5);text-align:center;padding:20px;">No fare rules available for this fare.</p>';
+        }
+        content.innerHTML = html;
+    }).catch(function(err){
+        content.innerHTML = '<div style="text-align:center;padding:30px;color:rgba(255,255,255,0.5);">Error loading fare rules. Please try again.</div>';
+    });
+}
+function closeFareRules() { document.getElementById('fareRulesModal').style.display = 'none'; }
 </script>
+
+<div id="fareRulesModal" onclick="if(event.target===this)closeFareRules()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;justify-content:center;align-items:center;padding:20px;">
+    <div style="background:rgba(15,10,25,0.98);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.1);border-radius:16px;max-width:700px;width:100%;max-height:80vh;overflow-y:auto;padding:28px;position:relative;">
+        <button onclick="closeFareRules()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;padding:4px 8px;">&times;</button>
+        <div id="fareRulesContent"></div>
+    </div>
+</div>
 '''
 
 

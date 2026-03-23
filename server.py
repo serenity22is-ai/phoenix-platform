@@ -42,7 +42,8 @@ from models import (db, init_db, User, Deal, Payment, Booking, PriceAlert, Escro
                     CommercialAccount, ConsumerReferral, SocialShare,
                     RewardsAccount, PointsTransaction, PointsEscrow, PointGift,
                     Subscription, generate_referral_code, ReferralCard,
-                    TripPlan, TripMember, TripItem, Collection, SavedItem, Friendship)
+                    TripPlan, TripMember, TripItem, Collection, SavedItem, Friendship,
+                    CrossSellEvent, TemplateDeployment, WebhookEvent)
 from translation import (
     translate_html, translate_text, translate_form_data,
     detect_language, detect_language_from_html,
@@ -133,7 +134,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 if not app.config.get('SECRET_KEY') or app.config['SECRET_KEY'] == 'dev-secret-key-change-in-production':
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
-CORS(app, supports_credentials=True)
+_allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+_allowed_origins = [o.strip() for o in _allowed_origins if o.strip()]
+if _allowed_origins:
+    CORS(app, supports_credentials=True, origins=_allowed_origins)
+else:
+    CORS(app, supports_credentials=True)
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -197,7 +203,11 @@ try:
     init_db(app)
 except Exception as _db_err:
     logging.error(f"Database init failed (app will start without DB): {_db_err}")
-    db.init_app(app)
+    # Only register db with app if init_db didn't get that far
+    try:
+        db.init_app(app)
+    except RuntimeError:
+        pass  # Already registered — db.init_app() succeeded inside init_db()
 
 # Initialize Flask-Migrate for database migrations
 migrate = Migrate(app, db)
@@ -209,7 +219,10 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        return User.query.get(int(user_id))
+    except Exception:
+        return None  # DB unreachable — treat as anonymous
 
 # --- CONFIGURATION ---
 SERVER_HOST = "0.0.0.0"
@@ -227,7 +240,8 @@ try:
     print("Loaded world-class MYSTES template")
     # Inject google_client_id into all template renders (Build #91)
     app.jinja_env.globals['google_client_id'] = os.environ.get("GOOGLE_CLIENT_ID", "")
-except ImportError:
+except Exception as _tmpl_err:
+    logger.warning("Template load failed (app will use fallback): %s", _tmpl_err)
     HOME_HERO = None
     # Fallback to inline template if import fails
     pass
@@ -1181,7 +1195,7 @@ HOME_CONTENT = """
         </a>
         {% endif %}
         {% if feature_hotels %}
-        <a class="mystes-vertical" onclick="homeQuick('Search hotels')">
+        <a class="mystes-vertical" href="/hotels">
             <span class="v-icon">&#127976;</span>
             <span class="v-label">Hotels</span>
         </a>
@@ -1199,7 +1213,7 @@ HOME_CONTENT = """
         </a>
         {% endif %}
         {% if feature_rentals %}
-        <a class="mystes-vertical" onclick="homeQuick('Search car rentals')">
+        <a class="mystes-vertical" href="/cars">
             <span class="v-icon">&#128663;</span>
             <span class="v-label">Rentals</span>
         </a>
@@ -1352,136 +1366,266 @@ REGISTER_CONTENT = """
 """
 
 DASHBOARD_CONTENT = """
-<h1>Welcome, {{ user.name or user.email }}!</h1>
+<style>
+.dash-page { max-width: 960px; margin: 0 auto; animation: dashFadeIn 0.6s ease-out; }
+@keyframes dashFadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.dash-welcome { text-align: center; margin-bottom: 32px; }
+.dash-welcome h1 {
+    font-family: 'Cinzel', serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;
+    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; margin: 0 0 6px;
+}
+.dash-welcome p { color: rgba(255,255,255,0.5); font-size: 14px; margin: 0; }
+.dash-actions {
+    display: flex; gap: 10px; overflow-x: auto; padding: 4px 0 16px; margin-bottom: 24px;
+    scrollbar-width: none; -ms-overflow-style: none;
+}
+.dash-actions::-webkit-scrollbar { display: none; }
+.dash-action {
+    display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    padding: 10px 18px; border-radius: 24px; color: rgba(255,255,255,0.8);
+    text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.2s ease; flex-shrink: 0;
+}
+.dash-action:hover {
+    background: rgba(124,58,237,0.15); border-color: rgba(124,58,237,0.4);
+    color: #fff; box-shadow: 0 0 20px rgba(124,58,237,0.15);
+}
+.dash-action svg { width: 16px; height: 16px; opacity: 0.7; }
+.dash-stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px; margin-bottom: 28px;
+}
+.dash-stat {
+    border-radius: 14px; padding: 20px; text-align: center; position: relative; overflow: hidden;
+}
+.dash-stat::before {
+    content: ''; position: absolute; inset: 0; opacity: 0.08;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.3), transparent 70%);
+}
+.dash-stat-value { font-size: 28px; font-weight: 700; color: #fff; position: relative; }
+.dash-stat-label { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; position: relative; }
+.dash-stat-sub { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; position: relative; }
+.dash-stat.purple { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+.dash-stat.teal { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+.dash-stat.amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.dash-stat.pink { background: linear-gradient(135deg, #ec4899, #db2777); }
+.dash-section {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 24px; margin-bottom: 16px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.dash-section-title {
+    font-family: 'Cinzel', serif; font-size: 16px; font-weight: 600;
+    color: rgba(255,255,255,0.9); margin: 0 0 16px; letter-spacing: 0.5px;
+}
+.dash-booking-card {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-radius: 12px; margin-bottom: 8px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    transition: background 0.2s ease;
+}
+.dash-booking-card:hover { background: rgba(255,255,255,0.06); }
+.dash-booking-route { font-weight: 600; color: #fff; font-size: 14px; }
+.dash-booking-meta { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+.dash-booking-amount { font-weight: 700; color: #c4b5fd; font-size: 15px; text-align: right; }
+.dash-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.dash-badge-booked { background: rgba(16,185,129,0.15); color: #34d399; }
+.dash-badge-pending { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.dash-badge-failed { background: rgba(239,68,68,0.15); color: #f87171; }
+.dash-badge-completed { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.dash-feature-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px; margin-bottom: 16px;
+}
+.dash-feature {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 20px; display: flex; justify-content: space-between;
+    align-items: center; transition: all 0.2s ease;
+}
+.dash-feature:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+.dash-feature-title { font-weight: 600; color: #fff; font-size: 14px; margin-bottom: 3px; }
+.dash-feature-count { font-size: 12px; color: rgba(255,255,255,0.5); }
+.dash-feature-btn {
+    padding: 7px 16px; border-radius: 8px; text-decoration: none;
+    font-weight: 600; font-size: 12px; color: #fff; flex-shrink: 0;
+}
+.dash-account {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+}
+.dash-account-info { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.8; }
+.dash-account-info strong { color: rgba(255,255,255,0.85); }
+</style>
 
-<!-- Tier Card -->
-<div class="card" style="background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(255,77,0,0.05)); border: 1px solid rgba(124,58,237,0.3); margin-bottom: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-        <div>
-            <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 4px;">Your Tier</div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-                {% if tier_info.current_tier == 'platinum' %}
-                <span style="font-size: 1.8rem; font-weight: 700; color: #e5e4e2;">Platinum</span>
-                {% elif tier_info.current_tier == 'gold' %}
-                <span style="font-size: 1.8rem; font-weight: 700; color: #ffd700;">Gold</span>
-                {% elif tier_info.current_tier == 'silver' %}
-                <span style="font-size: 1.8rem; font-weight: 700; color: #c0c0c0;">Silver</span>
-                {% else %}
-                <span style="font-size: 1.8rem; font-weight: 700; color: #cd7f32;">Bronze</span>
-                {% endif %}
-            </div>
+<div class="dash-page">
+    <!-- Welcome Header -->
+    <div class="dash-welcome">
+        <h1>Welcome back, {{ user.name or user.email }}</h1>
+        <p>Your travel command center</p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="dash-actions">
+        <a href="/flights" class="dash-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l5.5 3.2-2 2-1.7-.5c-.4-.1-.8 0-1 .3l-.2.3c-.2.3-.1.7.2.9l2.8 1.9 1.9 2.8c.2.3.6.4.9.2l.3-.2c.3-.2.4-.6.3-1l-.5-1.7 2-2 3.2 5.5c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
+            Flights
+        </a>
+        <a href="/hotels" class="dash-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7a2 2 0 012-2h14a2 2 0 012 2v14"/><path d="M3 11h18"/><path d="M9 5v6"/><path d="M15 5v6"/><rect x="7" y="14" width="4" height="4" rx="1"/><rect x="13" y="14" width="4" height="4" rx="1"/></svg>
+            Hotels
+        </a>
+        <a href="/cars" class="dash-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h14M5 17a2 2 0 01-2-2V9a2 2 0 012-2h1l2-3h8l2 3h1a2 2 0 012 2v6a2 2 0 01-2 2M5 17v2m14-2v2"/><circle cx="7.5" cy="14.5" r="1.5"/><circle cx="16.5" cy="14.5" r="1.5"/></svg>
+            Cars
+        </a>
+        <a href="/activities" class="dash-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Activities
+        </a>
+        <a href="/insurance" class="dash-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Insurance
+        </a>
+        <a href="/rewards" class="dash-action">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+            Rewards
+        </a>
+    </div>
+
+    <!-- Gradient Stat Cards -->
+    <div class="dash-stats">
+        <div class="dash-stat purple">
+            <div class="dash-stat-value">{{ bookings_count }}</div>
+            <div class="dash-stat-label">Bookings</div>
         </div>
-        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
-            <div style="text-align: center;">
-                <div style="font-size: 1.4rem; font-weight: 700; color: #7c3aed;">{{ tier_info.queries_per_day }}</div>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">searches/day</div>
-            </div>
-            <div style="text-align: center;">
-                <div style="font-size: 1.4rem; font-weight: 700; color: #7c3aed;">{{ tier_info.markets_per_query }}</div>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">markets</div>
-            </div>
-            <div style="text-align: center;">
-                <div style="font-size: 1.4rem; font-weight: 700; color: #00c864;">{{ tier_info.user_keeps_pct }}%</div>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.6);">you keep</div>
-            </div>
+        <div class="dash-stat teal">
+            <div class="dash-stat-value">${{ "%.0f"|format(total_savings) }}</div>
+            <div class="dash-stat-label">Total Saved</div>
+        </div>
+        <div class="dash-stat amber">
+            <div class="dash-stat-value">{{ "{:,}".format(points_balance) }}</div>
+            <div class="dash-stat-label">Points</div>
+            <div class="dash-stat-sub">${{ "%.2f"|format(points_balance * 0.001) }} value</div>
+        </div>
+        <div class="dash-stat pink">
+            <div class="dash-stat-value">{{ fee_tier_name }}</div>
+            <div class="dash-stat-label">{{ fee_percent_display }}% Fee Tier</div>
         </div>
     </div>
-    {% if tier_info.current_tier != 'platinum' %}
-    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
-        <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">
-            {% if tier_info.current_tier == 'bronze' %}
-            <strong>Upgrade to Silver:</strong> <a href="/helper" style="color: #7c3aed;">Join the MYSTES Network</a> to get 10 searches/day and 5 markets.
-            {% elif tier_info.current_tier == 'silver' %}
-            <strong>Upgrade to Gold:</strong> Enable data sharing in your node settings for 20 searches/day and 8 markets.
-            {% elif tier_info.current_tier == 'gold' %}
-            <strong>Upgrade to Platinum:</strong> Maintain high uptime (95%+) for 40 searches/day and 12 markets.
+
+    <!-- Recent Bookings -->
+    <div class="dash-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 class="dash-section-title" style="margin: 0;">Recent Bookings</h3>
+            {% if recent_bookings|length > 0 %}
+            <a href="/bookings" style="color: #7c3aed; font-size: 13px; text-decoration: none; font-weight: 500;">Manage All</a>
             {% endif %}
         </div>
-    </div>
-    {% endif %}
-</div>
-
-<div class="stats">
-    <div class="stat-card">
-        <div class="stat-value">{{ payments_count }}</div>
-        <div class="stat-label">Payments</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bookings_count }}</div>
-        <div class="stat-label">Bookings</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">${{ "%.2f"|format(total_savings) }}</div>
-        <div class="stat-label">Total Saved</div>
-    </div>
-</div>
-
-<div class="card">
-    <h2>Recent Activity</h2>
-    {% if recent_payments %}
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr style="text-align: left; border-bottom: 1px solid #eee;">
-                <th style="padding: 10px;">Date</th>
-                <th>Amount</th>
-                <th>Status</th>
-            </tr>
-            {% for payment in recent_payments %}
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">{{ payment.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>${{ "%.2f"|format(payment.amount_usd or 0) }}</td>
-                <td><span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span></td>
-            </tr>
+        {% if recent_bookings %}
+            {% for booking in recent_bookings %}
+            <div class="dash-booking-card">
+                <div>
+                    <div class="dash-booking-route">
+                        {% if booking.deal and booking.deal.deal_type == 'flight' %}
+                            {{ booking.deal.origin or '---' }} &rarr; {{ booking.deal.destination or '---' }}
+                        {% elif booking.deal and booking.deal.deal_type == 'hotel' %}
+                            {{ booking.deal.destination or 'Hotel Booking' }}
+                        {% else %}
+                            Booking #{{ booking.id }}
+                        {% endif %}
+                    </div>
+                    <div class="dash-booking-meta">
+                        {% if booking.deal and booking.deal.departure_date %}
+                            {{ booking.deal.departure_date.strftime('%b %d, %Y') }}
+                        {% elif booking.created_at %}
+                            {{ booking.created_at.strftime('%b %d, %Y') }}
+                        {% endif %}
+                        {% if booking.deal and booking.deal.airline %} &middot; {{ booking.deal.airline }}{% endif %}
+                        {% if booking.confirmation_code %} &middot; {{ booking.confirmation_code }}{% endif %}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    {% if booking.deal and booking.deal.arbitrage_price_usd %}
+                    <div class="dash-booking-amount">${{ "%.0f"|format(booking.deal.arbitrage_price_usd) }}</div>
+                    {% endif %}
+                    <div style="margin-top: 4px;">
+                        {% if booking.status == 'booked' or booking.status == 'completed' %}
+                        <span class="dash-badge dash-badge-booked">{{ booking.status }}</span>
+                        {% elif booking.status == 'pending' or booking.status == 'pending_fulfillment' or booking.status == 'processing' %}
+                        <span class="dash-badge dash-badge-pending">{{ booking.status }}</span>
+                        {% elif booking.status == 'failed' or booking.status == 'cancelled' %}
+                        <span class="dash-badge dash-badge-failed">{{ booking.status }}</span>
+                        {% else %}
+                        <span class="dash-badge dash-badge-completed">{{ booking.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
             {% endfor %}
-        </table>
-    {% else %}
-        <p>No payment history yet. <a href="/deals">Browse deals</a> to get started!</p>
-    {% endif %}
-</div>
-
-<!-- Price Alerts Card (Build #172) -->
-<div class="card" style="border-left: 3px solid #7c3aed;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <h2 style="margin: 0 0 4px;">Price Alerts</h2>
-            <p style="margin: 0; color: rgba(255,255,255,0.6);">{{ alerts_count }} active alert{{ 's' if alerts_count != 1 else '' }}</p>
-        </div>
-        <a href="/alerts" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; padding: 8px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">Manage</a>
+        {% else %}
+            <div style="text-align: center; padding: 32px 16px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" style="margin-bottom: 12px;"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l5.5 3.2-2 2-1.7-.5c-.4-.1-.8 0-1 .3l-.2.3c-.2.3-.1.7.2.9l2.8 1.9 1.9 2.8c.2.3.6.4.9.2l.3-.2c.3-.2.4-.6.3-1l-.5-1.7 2-2 3.2 5.5c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
+                <p style="color: rgba(255,255,255,0.4); font-size: 14px; margin: 0;">No bookings yet. <a href="/flights" style="color: #7c3aed; text-decoration: none;">Search flights</a> to get started!</p>
+            </div>
+        {% endif %}
     </div>
-</div>
 
-{% if feature_trip_planner %}
-<!-- My Trips Card (Build #174) -->
-<div class="card" style="border-left: 3px solid #14b8a6;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <h2 style="margin: 0 0 4px;">My Trips</h2>
-            <p style="margin: 0; color: rgba(255,255,255,0.6);">{{ trips_count }} trip{{ 's' if trips_count != 1 else '' }}</p>
+    <!-- Feature Cards Row -->
+    <div class="dash-feature-row">
+        <div class="dash-feature" style="border-left: 3px solid #7c3aed;">
+            <div>
+                <div class="dash-feature-title">Price Alerts</div>
+                <div class="dash-feature-count">{{ alerts_count }} active alert{{ 's' if alerts_count != 1 else '' }}</div>
+            </div>
+            <a href="/alerts" class="dash-feature-btn" style="background: linear-gradient(135deg, #7c3aed, #5b21b6);">Manage</a>
         </div>
-        <a href="/trips" style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; padding: 8px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">View Trips</a>
-    </div>
-</div>
-{% endif %}
-
-{% if feature_wishlist %}
-<!-- Collections Card (Build #174) -->
-<div class="card" style="border-left: 3px solid #ec4899;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <h2 style="margin: 0 0 4px;">Collections</h2>
-            <p style="margin: 0; color: rgba(255,255,255,0.6);">{{ collections_count }} collection{{ 's' if collections_count != 1 else '' }}</p>
+        {% if feature_trip_planner %}
+        <div class="dash-feature" style="border-left: 3px solid #14b8a6;">
+            <div>
+                <div class="dash-feature-title">My Trips</div>
+                <div class="dash-feature-count">{{ trips_count }} trip{{ 's' if trips_count != 1 else '' }}</div>
+            </div>
+            <a href="/trips" class="dash-feature-btn" style="background: linear-gradient(135deg, #14b8a6, #0d9488);">View</a>
         </div>
-        <a href="/collections" style="background: linear-gradient(135deg, #ec4899, #db2777); color: white; padding: 8px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">View</a>
+        {% endif %}
     </div>
-</div>
-{% endif %}
 
-<div class="card">
-    <h2>Account Settings</h2>
-    <p><strong>Email:</strong> {{ user.email }}</p>
-    <p><strong>Preferred Currency:</strong> {{ user.preferred_currency }}</p>
-    <p><strong>Language:</strong> {{ language_name }}</p>
-    <br>
-    <a href="/settings" class="btn btn-secondary">Edit Settings</a>
+    <div class="dash-feature-row">
+        {% if feature_wishlist %}
+        <div class="dash-feature" style="border-left: 3px solid #ec4899;">
+            <div>
+                <div class="dash-feature-title">Collections</div>
+                <div class="dash-feature-count">{{ collections_count }} collection{{ 's' if collections_count != 1 else '' }}</div>
+            </div>
+            <a href="/collections" class="dash-feature-btn" style="background: linear-gradient(135deg, #ec4899, #db2777);">View</a>
+        </div>
+        {% endif %}
+        <div class="dash-feature" style="border-left: 3px solid #f59e0b;">
+            <div>
+                <div class="dash-feature-title">Rewards & Referrals</div>
+                <div class="dash-feature-count">{{ "{:,}".format(points_balance) }} pts available</div>
+            </div>
+            <a href="/rewards" class="dash-feature-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);">Earn</a>
+        </div>
+    </div>
+
+    <!-- Account Settings -->
+    <div class="dash-section">
+        <h3 class="dash-section-title">Account</h3>
+        <div class="dash-account">
+            <div class="dash-account-info">
+                <strong>Email:</strong> {{ user.email }}<br>
+                <strong>Currency:</strong> {{ user.preferred_currency }}<br>
+                <strong>Language:</strong> {{ language_name }}
+            </div>
+            <a href="/settings" style="padding: 8px 20px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: rgba(255,255,255,0.8); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s ease;">Edit Settings</a>
+        </div>
+    </div>
 </div>
 """
 
@@ -2459,6 +2603,23 @@ BOOK_CONTENT = """
                 + Add Another Passenger
             </button>
 
+            <!-- Seat Selection (Optional — Picasso GDS flights only) -->
+            {% if deal.fare_id %}
+            <div style="margin-top: 20px; padding: 20px; background: #f5f3ff; border-radius: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h5 style="margin: 0 0 4px; color: #1a1a2e;">Seat Selection</h5>
+                        <p style="margin: 0; font-size: 13px; color: #666;">Choose your preferred seat (optional)</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span id="selected-seat-label" style="font-weight: 600; color: #7c3aed; font-size: 14px; display: none;"></span>
+                        <button type="button" onclick="openSeatmap()" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Choose Seat</button>
+                    </div>
+                </div>
+                <input type="hidden" name="selected_seat" id="selected-seat-input" value="">
+            </div>
+            {% endif %}
+
             <!-- Booking Options -->
             <div style="margin-top: 20px; padding: 20px; background: #f5f3ff; border-radius: 12px;">
                 <h5 style="margin: 0 0 15px 0; color: #1a1a2e;">Booking Method</h5>
@@ -2772,6 +2933,129 @@ document.addEventListener('DOMContentLoaded', function() {
     selectPayment('card');
 });
 </script>
+
+<!-- Seatmap Modal -->
+<div id="seatmapModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:10001; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div style="background:rgba(15,10,25,0.98); border:1px solid rgba(255,255,255,0.12); border-radius:16px; max-width:700px; width:95%; max-height:85vh; display:flex; flex-direction:column; position:relative;">
+        <div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
+            <button onclick="closeSeatmap()" style="position:absolute; top:12px; right:16px; background:none; border:none; color:#999; font-size:24px; cursor:pointer; line-height:1;">&times;</button>
+            <h3 style="margin:0 0 4px; font-family:Cinzel,serif; color:#f5f5f5; font-size:17px;">Aircraft Seatmap</h3>
+            <div id="seatmapFlightInfo" style="font-size:13px; color:rgba(255,255,255,0.5);"></div>
+        </div>
+        <div style="padding:12px 24px; border-bottom:1px solid rgba(255,255,255,0.06); flex-shrink:0;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px;">
+                <span style="display:flex; align-items:center; gap:5px;"><span style="display:inline-block; width:16px; height:16px; border-radius:3px; background:rgba(124,58,237,0.25); border:1px solid rgba(124,58,237,0.5);"></span><span style="color:rgba(255,255,255,0.6);">Available</span></span>
+                <span style="display:flex; align-items:center; gap:5px;"><span style="display:inline-block; width:16px; height:16px; border-radius:3px; background:rgba(255,255,255,0.08);"></span><span style="color:rgba(255,255,255,0.6);">Occupied</span></span>
+                <span style="display:flex; align-items:center; gap:5px;"><span style="display:inline-block; width:16px; height:16px; border-radius:3px; background:rgba(20,184,166,0.25); border:1px solid rgba(20,184,166,0.4);"></span><span style="color:rgba(255,255,255,0.6);">Exit Row</span></span>
+                <span style="display:flex; align-items:center; gap:5px;"><span style="display:inline-block; width:16px; height:16px; border-radius:3px; background:#7c3aed;"></span><span style="color:rgba(255,255,255,0.6);">Selected</span></span>
+            </div>
+        </div>
+        <div id="seatmapGrid" style="flex:1; overflow-y:auto; padding:20px 24px; min-height:200px;"></div>
+        <div style="padding:16px 24px; border-top:1px solid rgba(255,255,255,0.1); flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+            <div id="seatmapPrice" style="font-size:14px; color:rgba(255,255,255,0.5);"></div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeSeatmap()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:rgba(255,255,255,0.7); padding:10px 20px; border-radius:8px; cursor:pointer; font-size:14px;">Cancel</button>
+                <button id="seatmapConfirmBtn" onclick="confirmSeat()" disabled style="background:linear-gradient(135deg,#7c3aed,#5b21b6); color:white; border:none; padding:10px 24px; border-radius:8px; cursor:pointer; font-weight:600; font-size:14px; opacity:0.5;">Confirm Seat</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+var _seatmapSelected = null;
+function openSeatmap() {
+    var modal = document.getElementById('seatmapModal');
+    var grid = document.getElementById('seatmapGrid');
+    var info = document.getElementById('seatmapFlightInfo');
+    modal.style.display = 'flex';
+    grid.innerHTML = '<div style="text-align:center;padding:40px;"><div style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.1);border-top-color:#7c3aed;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px;"></div><p style="color:rgba(255,255,255,0.5);font-size:14px;">Loading seatmap...</p></div>';
+    var airline = '{{ deal.airline or "" }}';
+    var flightNum = '{{ deal.flight_number or "" }}';
+    var origin = '{{ deal.origin or "" }}';
+    var dest = '{{ deal.destination or "" }}';
+    var depDate = '{{ deal.departure_date or "" }}';
+    info.textContent = airline + ' ' + flightNum + ' \u2022 ' + origin + ' \u2192 ' + dest + ' \u2022 ' + depDate;
+    var airlineCode = airline.length <= 3 ? airline : airline.substring(0, 2).toUpperCase();
+    var flightNumClean = flightNum.replace(/[^0-9]/g, '');
+    fetch('/api/picasso/seatmap', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({airline_code: airlineCode, flight_number: flightNumClean, departure: origin, destination: dest, departure_date: depDate})
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.seatmap) { renderSeatmap(data.seatmap); }
+        else { grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Seatmap not available for this flight.</p><p style="color:rgba(255,255,255,0.3);font-size:13px;">' + (data.error || '') + '</p></div>'; }
+    }).catch(function() {
+        grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Could not load seatmap. Please try again.</p></div>';
+    });
+}
+function renderSeatmap(seatmap) {
+    var grid = document.getElementById('seatmapGrid');
+    var rows = seatmap.rows || seatmap.deck && seatmap.deck[0] && seatmap.deck[0].rows || [];
+    if (!rows || rows.length === 0) { grid.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,0.5);">No seat data available.</div>'; return; }
+    var html = '<div style="display:flex; flex-direction:column; gap:3px; align-items:center;">';
+    var colLetters = [];
+    if (rows[0] && rows[0].seats) { rows[0].seats.forEach(function(s) { colLetters.push(s.column || s.seat_id && s.seat_id.replace(/[0-9]/g,'')); }); }
+    if (colLetters.length > 0) {
+        html += '<div style="display:flex; gap:2px; margin-bottom:6px;">';
+        html += '<div style="width:32px;"></div>';
+        for (var c = 0; c < colLetters.length; c++) {
+            var isAisle = (c === 3 && colLetters.length >= 6);
+            html += (isAisle ? '<div style="width:14px;"></div>' : '');
+            html += '<div style="width:34px; text-align:center; font-size:11px; color:rgba(255,255,255,0.4); font-weight:600;">' + (colLetters[c] || '') + '</div>';
+        }
+        html += '</div>';
+    }
+    rows.forEach(function(row) {
+        var rowNum = row.row_number || row.number || '';
+        html += '<div style="display:flex; gap:2px; align-items:center;">';
+        html += '<div style="width:32px; text-align:right; padding-right:8px; font-size:11px; color:rgba(255,255,255,0.35);">' + rowNum + '</div>';
+        var seats = row.seats || [];
+        for (var i = 0; i < seats.length; i++) {
+            var seat = seats[i];
+            var seatId = (rowNum + (seat.column || seat.seat_id || ''));
+            var isAvailable = seat.available !== false && seat.status !== 'occupied' && seat.status !== 'blocked';
+            var chars = seat.characteristics || seat.features || [];
+            var isExit = chars.indexOf('EXIT_ROW') >= 0 || chars.indexOf('exit') >= 0 || chars.indexOf('E') >= 0;
+            var price = seat.price || seat.amount || 0;
+            var isAisle = (i === 3 && seats.length >= 6);
+            if (isAisle) html += '<div style="width:14px;"></div>';
+            if (!isAvailable) {
+                html += '<div style="width:34px;height:34px;border-radius:4px;background:rgba(255,255,255,0.06);cursor:default;" title="Occupied"></div>';
+            } else {
+                var bg = isExit ? 'rgba(20,184,166,0.2);border:1px solid rgba(20,184,166,0.35)' : 'rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.35)';
+                html += '<button type="button" onclick="selectSeat(\'' + seatId + '\',' + price + ',this)" id="seat-' + seatId + '" style="width:34px;height:34px;border-radius:4px;background:' + bg + ';cursor:pointer;font-size:10px;color:rgba(255,255,255,0.7);padding:0;transition:all 0.15s;" title="Seat ' + seatId + (price > 0 ? ' ($' + price + ')' : '') + '">' + (seat.column || '') + '</button>';
+            }
+        }
+        html += '</div>';
+    });
+    html += '</div>';
+    grid.innerHTML = html;
+}
+function selectSeat(seatId, price, el) {
+    document.querySelectorAll('#seatmapGrid button').forEach(function(b) { b.style.background = b.style.background.indexOf('20,184,166') >= 0 ? 'rgba(20,184,166,0.2)' : 'rgba(124,58,237,0.2)'; b.style.color = 'rgba(255,255,255,0.7)'; });
+    el.style.background = '#7c3aed';
+    el.style.color = '#fff';
+    _seatmapSelected = {id: seatId, price: price};
+    var priceEl = document.getElementById('seatmapPrice');
+    priceEl.textContent = 'Seat ' + seatId + (price > 0 ? ' \u2022 +$' + price : ' \u2022 Free');
+    priceEl.style.color = '#c4b5fd';
+    var btn = document.getElementById('seatmapConfirmBtn');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+}
+function confirmSeat() {
+    if (!_seatmapSelected) return;
+    document.getElementById('selected-seat-input').value = _seatmapSelected.id;
+    var label = document.getElementById('selected-seat-label');
+    label.textContent = 'Seat ' + _seatmapSelected.id;
+    label.style.display = 'inline';
+    closeSeatmap();
+}
+function closeSeatmap() {
+    document.getElementById('seatmapModal').style.display = 'none';
+}
+document.getElementById('seatmapModal').addEventListener('click', function(e) { if (e.target === this) closeSeatmap(); });
+</script>
 """
 
 
@@ -2856,11 +3140,15 @@ def register():
                 mx_hosts = [str(r.exchange).rstrip(".") for r in answers]
                 if all(h == "" or h == "." for h in mx_hosts):
                     raise ValueError("null MX")
-            except Exception:
+            except ValueError:
+                # Known bad domain — block registration
                 flash("Invalid email domain — please use a real email address", "error")
                 if redirect_deal:
                     return redirect(f"/register?deal={redirect_deal}")
                 return redirect("/register")
+            except Exception as e:
+                # DNS lookup failed (network issue, etc.) — allow registration, verify via email
+                logger.warning("DNS MX check failed for %s (allowing registration): %s", email, e)
 
         # Create user
         user = User(email=email, name=name)
@@ -2913,11 +3201,11 @@ def register():
                             referee_action=f"{email} signed up",
                             points_earned=signup_pts
                         )
-                    except Exception:
-                        pass
+                    except Exception as notif_err:
+                        logger.debug("Referral notification email failed for %s (non-blocking): %s", email, notif_err)
             session.pop('referral_code', None)
         except Exception as ref_err:
-            logger.warning(f"Referral setup failed for {email} (non-blocking): {ref_err}")
+            logger.warning("Referral setup failed for %s (non-blocking): %s", email, ref_err)
 
         # Generate email verification token and send verification email
         try:
@@ -3064,6 +3352,17 @@ def referral_landing(code):
             ref_code=code,
             google_client_id=google_client_id,
         )
+
+    # Fallback: check B2B referral codes (Build #185)
+    b2b_account = CommercialAccount.query.filter_by(
+        referral_code=code.upper(), is_active=True
+    ).first()
+    if b2b_account:
+        session["referral_source"] = b2b_account.account_id
+        session["referral_markup_pct"] = b2b_account.consumer_markup_percent or 0
+        session["referral_markup_flat"] = b2b_account.consumer_markup_flat_usd or 0
+        return redirect("/flights")
+
     return redirect("/register")
 
 
@@ -3830,6 +4129,200 @@ def api_insurance_quote():
         return jsonify({"success": False, "error": "Could not get insurance quotes"})
 
 
+@app.route("/api/insurance/purchase", methods=["POST"])
+@login_required
+def api_insurance_purchase():
+    """Purchase travel insurance for an existing booking (Build #180)."""
+    data = request.get_json(silent=True) or {}
+    booking_id = data.get("booking_id")
+    plan_id = data.get("plan_id", "")
+    amount = float(data.get("amount", 0))
+
+    if not booking_id:
+        return jsonify({"success": False, "error": "Missing booking_id"}), 400
+
+    booking = Booking.query.filter_by(booking_id=booking_id, user_id=current_user.id).first()
+    if not booking:
+        return jsonify({"success": False, "error": "Booking not found"}), 404
+
+    if booking.insurance_policy_id:
+        return jsonify({"success": False, "error": "Insurance already purchased for this booking"}), 400
+
+    try:
+        from safetywing_client import SafetyWingClient
+        client = SafetyWingClient()
+
+        if not client.is_configured():
+            return jsonify({"success": False, "error": "Insurance service not configured"}), 503
+
+        # Get passenger data from booking
+        passenger_data = {}
+        if booking.passenger_data:
+            try:
+                passenger_data = json.loads(booking.passenger_data) if isinstance(booking.passenger_data, str) else booking.passenger_data
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Build member data for SafetyWing
+        # User model has 'name' (not first_name/last_name) — split safely
+        _name_parts = (current_user.name or "").split(None, 1)
+        _fallback_first = _name_parts[0] if _name_parts else ""
+        _fallback_last = _name_parts[1] if len(_name_parts) > 1 else ""
+        member = {
+            "first_name": passenger_data.get("first_name", _fallback_first),
+            "last_name": passenger_data.get("last_name", _fallback_last),
+            "email": passenger_data.get("email", current_user.email),
+        }
+
+        # Get trip dates from the associated deal
+        deal = Deal.query.filter_by(deal_id=booking.deal_id).first()
+        start_date = None
+        if deal:
+            if deal.deal_type in ('hotel', 'activity', 'car_rental'):
+                start_date = str(deal.check_in_date) if deal.check_in_date else None
+            else:
+                start_date = str(deal.departure_date) if deal.departure_date else None
+
+        result = client.add_member(
+            plan_id=plan_id,
+            member=member,
+            start_date=start_date,
+        )
+
+        if result.get("success"):
+            booking.insurance_policy_id = result.get("member_id") or result.get("policy_number", "")
+            booking.insurance_plan_name = result.get("plan_name", "SafetyWing Travel Insurance")
+            booking.insurance_amount_usd = amount
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "policy_id": booking.insurance_policy_id,
+                "plan_name": booking.insurance_plan_name,
+                "amount": amount,
+            })
+        else:
+            return jsonify({"success": False, "error": result.get("error", "Failed to create policy")}), 502
+
+    except ImportError:
+        return jsonify({"success": False, "error": "Insurance service not available"}), 503
+    except Exception as e:
+        logger.warning(f"Insurance purchase error: {e}")
+        return jsonify({"success": False, "error": "Could not process insurance purchase"}), 500
+
+
+# ── Concierge (Build #181 + #182) ─────────────────────────────────────────
+
+import time as _time
+
+_capabilities_cache = {"data": None, "ts": 0}
+
+
+def _get_vertical_capabilities():
+    """Cached env-var check for vertical availability. 5-min cache."""
+    now = _time.time()
+    if _capabilities_cache["data"] and now - _capabilities_cache["ts"] < 300:
+        return _capabilities_cache["data"]
+    caps = {
+        "flights": True,
+        "hotels": True,
+        "cars": bool(os.environ.get("DISCOVER_CARS_TOKEN")),
+        "activities": bool(os.environ.get("VIATOR_API_KEY")),
+        "insurance": bool(os.environ.get("SAFETYWING_API_KEY")),
+    }
+    _capabilities_cache["data"] = caps
+    _capabilities_cache["ts"] = now
+    return caps
+
+
+@app.route("/api/concierge/capabilities", methods=["GET"])
+def concierge_capabilities():
+    """Return which verticals have API credentials configured."""
+    return jsonify(_get_vertical_capabilities())
+
+
+@app.route("/api/concierge/message", methods=["POST"])
+def concierge_message():
+    """Process a concierge interaction step. Zero AI cost — pure decision tree."""
+    data = request.get_json(silent=True) or {}
+    from concierge_engine import ConciergeEngine
+    from cross_sell_engine import CrossSellEngine
+    capabilities = _get_vertical_capabilities()
+    engine = ConciergeEngine(cross_sell_engine=CrossSellEngine(capabilities))
+    return jsonify(engine.process(
+        flow_id=data.get("flow_id", "welcome"),
+        selected_option=data.get("selected_option"),
+        freetext=data.get("freetext"),
+        page_context=data.get("page_context", {}),
+    ))
+
+
+@app.route("/api/concierge/escalate", methods=["POST"])
+@login_required
+def concierge_escalate():
+    """Check if user can escalate to live AI chat. Stores concierge context for handoff."""
+    user = current_user
+    tier = "free"
+    if hasattr(user, "subscription_tier"):
+        tier = user.subscription_tier or "free"
+
+    allowed = tier in ("travel_plus", "b2b_starter", "b2b_growth", "b2b_volume")
+    if allowed:
+        # Store concierge context for AI handoff (Build #183)
+        data = request.get_json(silent=True) or {}
+        concierge_context = data.get("concierge_context", {})
+        if concierge_context:
+            session['concierge_context'] = concierge_context
+        return jsonify({"allowed": True, "redirect": "/ai"})
+    return jsonify({
+        "allowed": False,
+        "message": "AI chat is available with Travel+ ($9.99/mo). Upgrade to unlock!",
+        "redirect": "/subscribe",
+    })
+
+
+@app.route("/api/analytics/cross-sell", methods=["POST"])
+@csrf.exempt
+def api_track_cross_sell():
+    """Log cross-sell impression or click. Lightweight, fire-and-forget (Build #183)."""
+    data = request.get_json(silent=True) or {}
+    event = CrossSellEvent(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        event_type=data.get("event_type", "impression"),
+        source_vertical=data.get("source_vertical", "")[:30],
+        recommended_vertical=data.get("recommended_vertical", "")[:30],
+        page_url=data.get("page_url", "")[:500],
+    )
+    db.session.add(event)
+    db.session.commit()
+    return jsonify({"tracked": True})
+
+
+@app.route("/api/admin/analytics/cross-sell")
+@login_required
+def api_admin_cross_sell_analytics():
+    """Admin dashboard: cross-sell click-through rates (Build #183)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin only"}), 403
+
+    from sqlalchemy import func
+    stats = db.session.query(
+        CrossSellEvent.source_vertical,
+        CrossSellEvent.recommended_vertical,
+        CrossSellEvent.event_type,
+        func.count(CrossSellEvent.id).label('count')
+    ).group_by(
+        CrossSellEvent.source_vertical,
+        CrossSellEvent.recommended_vertical,
+        CrossSellEvent.event_type,
+    ).all()
+
+    return jsonify([{
+        "source": s.source_vertical, "recommended": s.recommended_vertical,
+        "event_type": s.event_type, "count": s.count,
+    } for s in stats])
+
+
 @app.route("/api/checkout/pricing", methods=["POST"])
 def api_checkout_pricing():
     """Calculate real-time checkout pricing with savings waterfall (Build #170).
@@ -4407,8 +4900,6 @@ def auth_google_token():
 
     except Exception as e:
         db.session.rollback()
-        import traceback
-        traceback.print_exc()
         logger.exception("Google token sign-in error: %s", e)
         return jsonify({"error": "Sign-in failed. Please try again."}), 500
 
@@ -4703,9 +5194,6 @@ def auth_google_web_callback():
 
     except Exception as e:
         db.session.rollback()
-        import traceback
-        traceback.print_exc()
-        print(f"[GOOGLE AUTH ERROR] {e}", flush=True)
         logger.exception("Google web sign-in error: %s", e)
         flash("Google sign-in failed. Please try again.", "error")
         return redirect(url_for("login"))
@@ -4923,6 +5411,20 @@ def dashboard():
         "queries_remaining": ai_quota.get("remaining", 0),
     }
 
+    # Points balance for dashboard
+    rewards = RewardsAccount.query.filter_by(user_id=current_user.id).first()
+    points_balance = rewards.points_balance if rewards else 0
+
+    # Recent bookings with deal info
+    recent_bookings = Booking.query.filter_by(user_id=current_user.id).order_by(
+        Booking.created_at.desc()
+    ).limit(5).all()
+
+    # Fee tier info
+    from payments import get_fee_percent, get_fee_tier_name
+    fee_tier_name = get_fee_tier_name(current_user)
+    fee_pct = get_fee_percent(current_user)
+
     return render_template_string(
         BASE_TEMPLATE,
         title="Dashboard",
@@ -4938,6 +5440,10 @@ def dashboard():
             alerts_count=PriceAlert.query.filter_by(user_id=current_user.id, is_active=True).count(),
             trips_count=TripPlan.query.filter_by(creator_id=current_user.id).count(),
             collections_count=Collection.query.filter_by(user_id=current_user.id).count(),
+            points_balance=points_balance,
+            recent_bookings=recent_bookings,
+            fee_tier_name=fee_tier_name,
+            fee_percent_display=int(fee_pct * 100),
         ),
         current_user=current_user
     )
@@ -5567,7 +6073,7 @@ def book(deal_id):
         return redirect("/flights")
 
     # Calculate total amount
-    if deal.deal_type == 'hotel':
+    if deal.deal_type in ('hotel', 'activity', 'car_rental'):
         total_amount = (deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)
     else:
         total_amount = (deal.arbitrage_price_usd or 0) + (deal.platform_fee_usd or 0)
@@ -5621,15 +6127,32 @@ def book(deal_id):
 
     # Select template based on deal type
     is_hotel = (deal.deal_type == 'hotel')
+    is_activity = (deal.deal_type == 'activity')
+    is_car = (deal.deal_type == 'car_rental')
     if is_hotel:
         try:
             from routes_hotels import HOTEL_BOOK_CONTENT
             book_template = HOTEL_BOOK_CONTENT
         except ImportError:
             book_template = "<p>Hotel booking is not available in this version.</p>"
+        page_title = "Book Hotel"
+    elif is_activity:
+        try:
+            from routes_activities import ACTIVITY_BOOK_CONTENT
+            book_template = ACTIVITY_BOOK_CONTENT
+        except ImportError:
+            book_template = "<p>Activity booking is not available in this version.</p>"
+        page_title = "Book Activity"
+    elif is_car:
+        try:
+            from routes_cars import CAR_BOOK_CONTENT
+            book_template = CAR_BOOK_CONTENT
+        except ImportError:
+            book_template = "<p>Car rental booking is not available in this version.</p>"
+        page_title = "Book Car Rental"
     else:
         book_template = BOOK_CONTENT
-    page_title = "Book Hotel" if is_hotel else "Book Flight"
+        page_title = "Book Flight"
 
     # Fee tier info for savings waterfall (Build #170)
     from payments import get_fee_percent, get_fee_tier_name
@@ -5976,8 +6499,10 @@ def complete_booking(deal_id):
         flash("Payment not verified. Please complete payment first.", "error")
         return redirect(f"/book/{deal_id}")
 
-    # Collect details from form — hotel vs flight have different required fields
+    # Collect details from form — each vertical has different required fields
     is_hotel = (deal.deal_type == 'hotel')
+    is_activity = (deal.deal_type == 'activity')
+    is_car = (deal.deal_type == 'car_rental')
 
     if is_hotel:
         passenger_data = {
@@ -5989,6 +6514,25 @@ def complete_booking(deal_id):
             "special_requests": request.form.get("special_requests", "").strip(),
         }
         required_fields = ["first_name", "last_name", "email"]
+    elif is_activity:
+        passenger_data = {
+            "first_name": request.form.get("first_name", "").strip(),
+            "last_name": request.form.get("last_name", "").strip(),
+            "email": request.form.get("email", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+        }
+        required_fields = ["first_name", "last_name", "email", "phone"]
+    elif is_car:
+        passenger_data = {
+            "first_name": request.form.get("first_name", "").strip(),
+            "last_name": request.form.get("last_name", "").strip(),
+            "email": request.form.get("email", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+            "nationality": request.form.get("nationality", "US").strip(),
+            "age": int(request.form.get("driver_age", 30)),
+            "flight_number": request.form.get("flight_number", "").strip(),
+        }
+        required_fields = ["first_name", "last_name", "email", "phone"]
     else:
         passenger_data = {
             "first_name": request.form.get("first_name", "").strip(),
@@ -6005,11 +6549,22 @@ def complete_booking(deal_id):
         }
         required_fields = ["first_name", "last_name", "email", "phone", "date_of_birth", "gender"]
 
-    # Validate required fields
+    # Validate required fields + format validation (Build #189)
     missing = [f for f in required_fields if not passenger_data.get(f)]
     if missing:
         flash(f"Please fill in required fields: {', '.join(missing)}", "error")
         return redirect(f"/book/{deal_id}")
+
+    # Server-side format validation
+    try:
+        from validation import validate_passenger_data
+        _deal_type = "hotel" if is_hotel else "activity" if is_activity else "car_rental" if is_car else "flight"
+        valid, validation_errors = validate_passenger_data(passenger_data, deal_type=_deal_type)
+        if not valid:
+            flash("; ".join(validation_errors[:3]), "error")
+            return redirect(f"/book/{deal_id}")
+    except ImportError:
+        pass  # Validation module not available — fall through to basic check
 
     # Collect additional passengers (multi-pax support, Build #171)
     additional_pax_json = request.form.get("additional_passengers_json", "[]")
@@ -6079,7 +6634,9 @@ def complete_booking(deal_id):
     if fulfillment_type == "automated":
         # Trigger automated booking — hotel vs flight
         try:
-            if deal.deal_type == 'car_rental':
+            if deal.deal_type == 'activity':
+                result = execute_automated_activity_booking(booking, deal, passenger_data)
+            elif deal.deal_type == 'car_rental':
                 result = execute_automated_car_booking(booking, deal, passenger_data)
             elif is_hotel:
                 result = execute_automated_hotel_booking(booking, deal, passenger_data)
@@ -6385,6 +6942,74 @@ def execute_automated_booking(booking, deal, passenger_data):
         return {"success": False, "error": str(e)}
 
 
+def execute_automated_activity_booking(booking, deal, passenger_data):
+    """Execute automated activity booking via Viator."""
+    try:
+        from viator_client import ViatorClient
+        client = ViatorClient()
+
+        # Extract product_code and offer data
+        offer_data = {}
+        if deal.amadeus_offer_data:
+            import json as _json
+            offer_data = _json.loads(deal.amadeus_offer_data)
+
+        product_code = deal.hotel_id  # product_code stored in hotel_id column
+        if not product_code and isinstance(offer_data, dict):
+            product_code = offer_data.get("product_code")
+
+        if not product_code:
+            return {"success": False, "error": "No activity product_code found"}
+
+        travel_date = None
+        if deal.check_in_date:
+            travel_date = deal.check_in_date.isoformat() if hasattr(deal.check_in_date, 'isoformat') else str(deal.check_in_date)
+        if not travel_date and isinstance(offer_data, dict):
+            travel_date = offer_data.get("travel_date")
+
+        pax_mix = [{"ageBand": "ADULT", "numberOfTravelers": deal.adults or deal.rooms or 1}]
+        if isinstance(offer_data, dict) and offer_data.get("pax_mix"):
+            pax_mix = offer_data["pax_mix"]
+
+        # Format phone with + prefix if missing (Viator requires it)
+        phone = passenger_data.get("phone", "")
+        if phone and not phone.startswith("+"):
+            phone = "+1" + phone.replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+
+        logger.info(f"[BOOKING] Attempting Viator booking for booking #{booking.id} (product={product_code})")
+
+        result = client.create_booking(
+            product_code=product_code,
+            travel_date=travel_date,
+            currency="USD",
+            pax_mix=pax_mix,
+            booker_first_name=passenger_data.get("first_name", ""),
+            booker_last_name=passenger_data.get("last_name", ""),
+            communication_phone=phone,
+            communication_email=passenger_data.get("email"),
+            partner_booking_ref=f"MYSTES-{deal.deal_id}",
+        )
+
+        if result.get("success") and result.get("status") != "REJECTED":
+            return {
+                "success": True,
+                "confirmation_code": result.get("booking_ref") or result.get("partner_booking_ref"),
+                "booking_id": result.get("booking_ref"),
+                "booking_source": "viator",
+            }
+        else:
+            reason = result.get("rejection_reason") or result.get("error", "Activity booking failed")
+            logger.warning(f"Activity booking failed: {reason}")
+            return {"success": False, "error": reason}
+
+    except ImportError:
+        logger.info("viator_client not available")
+        return {"success": False, "error": "Activity booking service not available"}
+    except Exception as e:
+        logger.error(f"Automated activity booking error: {e}")
+        return {"success": False, "error": str(e)}
+
+
 def execute_automated_car_booking(booking, deal, passenger_data):
     """Execute automated car rental booking via Discover Cars."""
     try:
@@ -6574,6 +7199,26 @@ BOOKING_CONFIRMATION_CONTENT = """
         <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Check-out:</strong> {{ deal.check_out_date }}</p>
         <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Room:</strong> {{ deal.room_type or 'Standard' }}</p>
     </div>
+    {% elif is_activity %}
+    <!-- Activity Details -->
+    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #999;">Activity Details</h3>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Activity:</strong> {{ deal.hotel_name }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Location:</strong> {{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Date:</strong> {{ deal.check_in_date }}</p>
+        {% if deal.room_type %}<p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Duration:</strong> {{ deal.room_type }}</p>{% endif %}
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Travelers:</strong> {{ deal.adults or deal.rooms or 1 }}</p>
+    </div>
+    {% elif is_car %}
+    <!-- Car Rental Details -->
+    <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #999;">Car Rental Details</h3>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Vehicle:</strong> {{ deal.hotel_name }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Pickup Location:</strong> {{ deal.city_code }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Pickup Date:</strong> {{ deal.check_in_date }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Dropoff Date:</strong> {{ deal.check_out_date }}</p>
+        <p style="margin: 5px 0; color: #ccc;"><strong style="color: #f5f5f5;">Duration:</strong> {{ deal.nights }} day{{ 's' if deal.nights != 1 else '' }}</p>
+    </div>
     {% else %}
     <!-- Flight Itinerary -->
     <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
@@ -6630,6 +7275,7 @@ BOOKING_CONFIRMATION_CONTENT = """
         <div style="font-size: 12px; color: #888; margin-top: 8px;">{{ deal.departure_date }}{% if deal.layovers %} &middot; {{ deal.layovers }}{% endif %}</div>
     </div>
 
+    {% if not is_activity and not is_car %}
     <!-- Fare Details Tags -->
     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px;">
         {% if deal.fare_family %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1);">{{ deal.fare_family }}</span>{% endif %}
@@ -6640,6 +7286,7 @@ BOOKING_CONFIRMATION_CONTENT = """
         {% if deal.flight_rebooking_policy == 'POSSIBLE' %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(76,175,80,0.15); color: #81c784; border: 1px solid rgba(76,175,80,0.2);">Changeable</span>{% endif %}
         {% if deal.cabin_class %}<span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1);">{{ deal.cabin_class }}</span>{% endif %}
     </div>
+    {% endif %}
 
     <!-- Savings Summary -->
     {% if deal.user_savings_usd %}
@@ -6811,7 +7458,44 @@ BOOKING_CONFIRMATION_CONTENT = """
     </script>
     {% endif %}
 
-    <!-- Next Steps -->
+    <!-- Next Steps (vertical-specific) -->
+    {% if is_activity %}
+    <div style="background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff;">What&apos;s Next</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">1</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Check your email</strong> for your activity voucher</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">2</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Show your voucher</strong> at the activity location on the day</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">3</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Arrive 15 minutes early</strong> to check in at the meeting point</div>
+            </div>
+        </div>
+    </div>
+    {% elif is_car %}
+    <div style="background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff;">What&apos;s Next</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">1</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Check your email</strong> for your rental voucher</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">2</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Bring your driver&apos;s license</strong> and a credit card in the driver&apos;s name</div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="background: rgba(124,58,237,0.3); color: #b388ff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0;">3</span>
+                <div style="color: #ccc; font-size: 13px;"><strong style="color: #f5f5f5;">Show your voucher</strong> at the rental counter to pick up your vehicle</div>
+            </div>
+        </div>
+    </div>
+    {% elif not is_hotel %}
     <div style="background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
         <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff;">What&apos;s Next</h3>
         <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -6839,6 +7523,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     <a href="{{ manage_booking_url }}" target="_blank" rel="noopener" class="btn" style="display: block; text-align: center; padding: 14px; margin-bottom: 15px; background: linear-gradient(135deg, #7c3aed, #a855f7);">
         Manage Booking on {{ deal.airline or 'Airline' }} Website
     </a>
+    {% endif %}
     {% endif %}
     {% endif %}
 
@@ -6879,38 +7564,139 @@ BOOKING_CONFIRMATION_CONTENT = """
     </div>
     {% endif %}
 
-    {% if not is_hotel and deal.destination %}
-    <!-- Cross-Sell: Hotels at Destination -->
+    <!-- Points Earned (Build #183) -->
+    {% if points_earned > 0 %}
+    <div style="background: rgba(201,169,110,0.1); border: 1px solid rgba(201,169,110,0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px; text-align: center;">
+        <span style="color: #C9A96E; font-size: 13px; font-family: Outfit, sans-serif;">You earned <strong style="font-size: 18px;">{{ points_earned }}</strong> MYSTES points</span>
+        {% if user_tier == 'free' %}
+        <div style="margin-top: 6px;"><a href="/subscribe" style="color: #C9A96E; font-size: 11px; text-decoration: underline;">Upgrade to Travel+ for 1.5x points + lower fees</a></div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Dynamic Cross-Sell (Build #183 — CrossSellEngine) -->
+    {% if cross_sell_recs %}
     <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #14b8a6;">Complete Your Trip</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <a href="/hotels?destination={{ deal.destination }}&check_in={{ deal.departure_date }}" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2); border-radius: 10px; transition: border-color 0.2s, background 0.2s;" onmouseover="this.style.borderColor='rgba(20,184,166,0.5)';this.style.background='rgba(20,184,166,0.12)'" onmouseout="this.style.borderColor='rgba(20,184,166,0.2)';this.style.background='rgba(20,184,166,0.08)'">
-                <span style="font-size: 28px;">&#127976;</span>
+        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #14b8a6; font-family: Cinzel, serif;">Complete Your Trip</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+            {% for rec in cross_sell_recs[:3] %}
+            <a href="{{ rec.url }}" onclick="trackCrossSell('click','{{ rec.vertical }}')" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2); border-radius: 10px; transition: border-color 0.2s, background 0.2s;" onmouseover="this.style.borderColor='rgba(20,184,166,0.5)';this.style.background='rgba(20,184,166,0.12)'" onmouseout="this.style.borderColor='rgba(20,184,166,0.2)';this.style.background='rgba(20,184,166,0.08)'">
+                <i class="{{ rec.icon }}" style="font-size: 24px; color: #14b8a6;"></i>
                 <div>
-                    <div style="font-size: 14px; font-weight: 600; color: #f5f5f5;">Find Hotels</div>
-                    <div style="font-size: 11px; color: #999;">in {{ deal.destination_city or deal.destination }}</div>
+                    <div style="font-size: 14px; font-weight: 600; color: #f5f5f5;">{{ rec.title }}</div>
+                    <div style="font-size: 11px; color: #999;">{{ rec.subtitle }}</div>
+                    {% if rec.points_multiplier and rec.points_multiplier > 1 %}
+                    <div style="font-size: 10px; color: #C9A96E; margin-top: 2px;">Earn {{ rec.points_multiplier }}x points</div>
+                    {% endif %}
                 </div>
             </a>
-            <a href="/flights?origin={{ deal.destination }}&destination={{ deal.origin }}" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2); border-radius: 10px; transition: border-color 0.2s, background 0.2s;" onmouseover="this.style.borderColor='rgba(124,58,237,0.5)';this.style.background='rgba(124,58,237,0.12)'" onmouseout="this.style.borderColor='rgba(124,58,237,0.2)';this.style.background='rgba(124,58,237,0.08)'">
-                <span style="font-size: 28px;">&#9992;&#65039;</span>
-                <div>
-                    <div style="font-size: 14px; font-weight: 600; color: #f5f5f5;">Return Flight</div>
-                    <div style="font-size: 11px; color: #999;">{{ deal.destination }} &#8594; {{ deal.origin }}</div>
-                </div>
-            </a>
+            {% endfor %}
         </div>
     </div>
-    {% elif is_hotel and deal.origin %}
-    <!-- Cross-Sell: Flights to Hotel -->
-    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #14b8a6;">Need a Flight?</h3>
-        <a href="/flights?destination={{ deal.city_code }}" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2); border-radius: 10px; transition: border-color 0.2s, background 0.2s;" onmouseover="this.style.borderColor='rgba(124,58,237,0.5)'" onmouseout="this.style.borderColor='rgba(124,58,237,0.2)'">
-            <span style="font-size: 28px;">&#9992;&#65039;</span>
-            <div>
-                <div style="font-size: 14px; font-weight: 600; color: #f5f5f5;">Search Flights</div>
-                <div style="font-size: 11px; color: #999;">to {{ deal.city_name or deal.city_code }}</div>
-            </div>
-        </a>
+    {% endif %}
+
+    <!-- Add to Trip (Build #183) -->
+    {% if active_trips %}
+    <div style="background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff; font-family: Cinzel, serif;">Add to Trip</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            {% for trip in active_trips %}
+            <button onclick="addBookingToTrip({{ trip.id }}, {{ booking.id }})" style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                {{ trip.name }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+    function addBookingToTrip(tripId, bookingId) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        fetch('/api/trips/' + tripId + '/items', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({booking_id: bookingId, item_type: 'booking'})
+        }).then(r => r.json()).then(d => {
+            if (d.success || d.item) {
+                event.target.textContent = 'Added!';
+                event.target.style.background = '#22c55e';
+                event.target.disabled = true;
+            } else {
+                event.target.textContent = d.error || 'Failed';
+                event.target.style.background = '#ef4444';
+            }
+        }).catch(() => { event.target.textContent = 'Error'; event.target.style.background = '#ef4444'; });
+    }
+    </script>
+    {% endif %}
+
+    <!-- Insurance Cross-Sell (post-purchase) -->
+    {% if not booking.insurance_policy_id %}
+    <div style="background: rgba(34,197,94,0.08); border: 2px solid rgba(34,197,94,0.25); border-radius: 16px; padding: 24px; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="margin: 0; color: #22c55e; font-family: Cinzel, serif; font-size: 17px;">Protect Your Trip</h3>
+            <span style="font-size: 12px; color: #6b7280;">Powered by SafetyWing</span>
+        </div>
+        <p style="color: #ccc; font-size: 14px; margin: 0 0 15px;">Medical coverage, trip cancellation, and baggage protection for peace of mind.</p>
+        <div id="post-insurance-quotes" style="display: none; margin-bottom: 15px;"></div>
+        <button id="post-insurance-btn" onclick="getPostInsuranceQuote()" style="background: #22c55e; color: white; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Get Insurance Quote</button>
+        <div id="post-insurance-loading" style="display: none; color: #6b7280; font-size: 13px; margin-top: 8px;">Loading quotes...</div>
+    </div>
+    <script>
+    async function getPostInsuranceQuote() {
+        const btn = document.getElementById('post-insurance-btn');
+        const loading = document.getElementById('post-insurance-loading');
+        const container = document.getElementById('post-insurance-quotes');
+        btn.style.display = 'none';
+        loading.style.display = 'block';
+        try {
+            const dest = '{{ deal.city_code or deal.destination or "US" }}';
+            const startDate = '{{ deal.check_in_date or deal.departure_date or "" }}';
+            const resp = await fetch('/api/insurance/quote?destination=' + dest + '&start_date=' + startDate + '&travelers=1');
+            const data = await resp.json();
+            if (data.quotes && data.quotes.length > 0) {
+                let html = '';
+                data.quotes.forEach(function(q) {
+                    html += '<div style="background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">';
+                    html += '<div><strong style="color: #f5f5f5;">' + (q.plan_name || 'Travel Insurance') + '</strong><br><span style="color: #999; font-size: 12px;">Coverage: $' + (q.coverage_amount || '50,000') + '</span></div>';
+                    html += '<div style="text-align: right;"><span style="font-size: 18px; font-weight: bold; color: #22c55e;">$' + (q.total_price || '0') + '</span><br>';
+                    html += '<button onclick="purchaseInsurance(\'' + (q.quote_id || q.plan_id || '') + '\', ' + (q.total_price || 0) + ')" style="background: #22c55e; color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 4px;">Add Insurance</button></div>';
+                    html += '</div>';
+                });
+                container.innerHTML = html;
+                container.style.display = 'block';
+            } else {
+                container.innerHTML = '<p style="color: #999; font-size: 13px;">No insurance quotes available for this trip.</p>';
+                container.style.display = 'block';
+            }
+        } catch (err) {
+            container.innerHTML = '<p style="color: #e57373; font-size: 13px;">Unable to load quotes. Please try again.</p>';
+            container.style.display = 'block';
+        }
+        loading.style.display = 'none';
+    }
+    async function purchaseInsurance(planId, amount) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const resp = await fetch('/api/insurance/purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ booking_id: {{ booking.id }}, plan_id: planId, amount: amount })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                document.getElementById('post-insurance-quotes').parentElement.innerHTML = '<div style="text-align: center; padding: 20px;"><span style="font-size: 36px;">&#9989;</span><h3 style="color: #22c55e; margin: 10px 0;">Insurance Added!</h3><p style="color: #ccc;">Policy: ' + (data.policy_number || 'Pending') + '</p></div>';
+            } else {
+                alert('Error: ' + (data.error || 'Failed to purchase insurance'));
+            }
+        } catch (err) { alert('Error: ' + err.message); }
+    }
+    </script>
+    {% endif %}
+
+    <!-- Cancel Booking (Build #192) -->
+    {% if is_authenticated and booking.status in ('booked', 'pending_fulfillment', 'processing') %}
+    <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.06);">
+        <a href="/cancel-booking/{{ booking.id }}" style="color: #f87171; font-size: 13px; text-decoration: none; border: 1px solid rgba(239,68,68,0.3); padding: 8px 20px; border-radius: 6px; display: inline-block; transition: all 0.2s;"
+           onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='transparent'">Cancel Booking</a>
     </div>
     {% endif %}
 
@@ -6918,7 +7704,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     <div style="text-align: center; margin-top: 20px;">
         <p style="color: #777; font-size: 13px;">Confirmation sent to {{ booking.passenger_email }}</p>
         {% if is_authenticated %}
-        <a href="/dashboard" class="btn btn-secondary" style="margin-top: 10px;">View My Bookings</a>
+        <a href="/bookings" class="btn btn-secondary" style="margin-top: 10px;">View All Bookings</a>
         {% else %}
         <a href="/register" class="btn btn-secondary" style="margin-top: 10px;">Create Account to Track Bookings</a>
         {% endif %}
@@ -7068,18 +7854,20 @@ def booking_confirmation(booking_id):
 
     deal_dict = deal.to_dict() if deal else {}
     is_hotel = (deal.deal_type == 'hotel') if deal else False
+    is_activity = (deal.deal_type == 'activity') if deal else False
+    is_car = (deal.deal_type == 'car_rental') if deal else False
 
-    # Parse segments for itinerary display
-    segments = deal.get_segments() if deal and not is_hotel else []
+    # Parse segments for itinerary display (flights only)
+    segments = deal.get_segments() if deal and not is_hotel and not is_activity and not is_car else []
 
-    # Get airline manage booking URL
+    # Get airline manage booking URL (flights only)
     from main import get_manage_booking_url
     airline_code = ""
     if segments:
         airline_code = segments[0].get("carrier", "")
-    elif deal:
+    elif deal and not is_hotel and not is_activity and not is_car:
         airline_code = deal.airline or ""
-    manage_url = get_manage_booking_url(airline_code) if not is_hotel else None
+    manage_url = get_manage_booking_url(airline_code) if not is_hotel and not is_activity and not is_car else None
 
     # Check for escrowed points (for guest signup prompt)
     escrow_points = 0
@@ -7091,22 +7879,75 @@ def booking_confirmation(booking_id):
             ).first()
             if escrow:
                 escrow_points = escrow.points_amount
+        except Exception as e:
+            logger.warning("Failed to fetch escrow points for %s: %s", booking.passenger_email, e)
+            escrow_points = 0  # Don't show false points — show 0 if lookup fails
+
+    # Dynamic cross-sell recommendations (Build #183)
+    from cross_sell_engine import CrossSellEngine
+    deal_vertical = "flight"
+    if is_hotel:
+        deal_vertical = "hotel"
+    elif is_activity:
+        deal_vertical = "activity"
+    elif is_car:
+        deal_vertical = "car"
+
+    user_tier = "free"
+    points_earned = 0
+    if current_user.is_authenticated:
+        user_tier = getattr(current_user, 'subscription_tier', 'free') or 'free'
+        booking_amount = float(deal.arbitrage_price_usd or 0) if deal else 0
+        multiplier = 1.5 if user_tier == 'travel_plus' else 1.0
+        points_earned = int(booking_amount * 10 * multiplier)
+
+    capabilities = _get_vertical_capabilities()
+    cross_sell_recs = CrossSellEngine(capabilities).recommend(
+        current_vertical=deal_vertical,
+        destination=deal.destination or deal.city_code or "",
+        date=str(deal.departure_date) if deal.departure_date else (deal.check_in_date or ""),
+        return_date=str(deal.return_date) if hasattr(deal, 'return_date') and deal.return_date else (deal.check_out_date or ""),
+        user_tier=user_tier,
+    )
+
+    # Active trips for "Add to Trip" (Build #183)
+    active_trips = []
+    if current_user.is_authenticated:
+        try:
+            active_trips = TripPlan.query.filter(
+                (TripPlan.created_by == current_user.id)
+            ).filter(TripPlan.status.in_(['planning', 'active'])).limit(3).all()
         except Exception:
-            escrow_points = 3500  # fallback default
+            pass
+
+    if is_hotel:
+        page_title = "Hotel Confirmed"
+    elif is_activity:
+        page_title = "Activity Confirmed"
+    elif is_car:
+        page_title = "Car Rental Confirmed"
+    else:
+        page_title = "Booking Confirmed"
 
     return render_template_string(
         BASE_TEMPLATE,
-        title="Hotel Confirmed" if is_hotel else "Booking Confirmed",
+        title=page_title,
         content=render_template_string(
             BOOKING_CONFIRMATION_CONTENT,
             booking=booking,
             deal=deal_dict,
             is_hotel=is_hotel,
+            is_activity=is_activity,
+            is_car=is_car,
             segments=segments,
             manage_booking_url=manage_url,
             is_authenticated=current_user.is_authenticated,
             escrow_points=escrow_points,
             google_client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
+            cross_sell_recs=cross_sell_recs,
+            points_earned=points_earned,
+            user_tier=user_tier,
+            active_trips=active_trips,
         ),
         current_user=current_user
     )
@@ -7151,7 +7992,7 @@ def booking_status(booking_id):
     )
 
 
-# --- BOOKING STATUS API (for auto-refresh polling) ---
+# --- BOOKING STATUS API (for auto-refresh polling, enhanced Build #189) ---
 
 @app.route("/api/v1/booking/<int:booking_id>/status")
 def api_booking_status(booking_id):
@@ -7160,20 +8001,28 @@ def api_booking_status(booking_id):
     if not booking:
         return jsonify({"error": "Not found"}), 404
 
-    # Security check
+    # Security check — allow admin override (Build #189)
     if current_user.is_authenticated:
         if booking.user_id and booking.user_id != current_user.id:
-            return jsonify({"error": "Access denied"}), 403
+            if not getattr(current_user, 'is_admin', False):
+                return jsonify({"error": "Access denied"}), 403
     else:
         if session.get('booking_id') != booking_id:
             return jsonify({"error": "Access denied"}), 403
+
+    deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
 
     return jsonify({
         "booking_id": booking.id,
         "status": booking.status,
         "fulfillment_type": booking.fulfillment_type,
         "confirmation_code": booking.confirmation_code,
-        "updated_at": booking.updated_at.isoformat() if booking.updated_at else None,
+        "passenger_email": booking.passenger_email,
+        "booked_at": booking.booked_at.isoformat() if getattr(booking, 'booked_at', None) else None,
+        "created_at": booking.created_at.isoformat() if booking.created_at else None,
+        "updated_at": booking.updated_at.isoformat() if getattr(booking, 'updated_at', None) else None,
+        "deal_id": deal.deal_id if deal else None,
+        "deal_type": deal.deal_type if deal else None,
     })
 
 
@@ -7275,6 +8124,445 @@ def submit_confirmation(booking_id):
 
     flash(f"Booking confirmed! Your confirmation code: {confirmation_code}", "success")
     return redirect(f"/booking-confirmation/{booking_id}")
+
+
+# --- MY BOOKINGS + CANCELLATION (Build #192) ---
+
+MY_BOOKINGS_CONTENT = """
+<style>
+.mb-page { max-width: 880px; margin: 0 auto; animation: mbFadeIn 0.5s ease-out; }
+@keyframes mbFadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.mb-header { text-align: center; margin-bottom: 28px; }
+.mb-header h1 {
+    font-family: 'Cinzel', serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;
+    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 6px;
+}
+.mb-header p { color: rgba(255,255,255,0.5); font-size: 14px; margin: 0; }
+.mb-filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.mb-filter {
+    padding: 7px 18px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
+    background: transparent; color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+}
+.mb-filter.active, .mb-filter:hover {
+    background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.5); color: #fff;
+}
+.mb-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 20px; margin-bottom: 12px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    transition: all 0.2s; flex-wrap: wrap;
+}
+.mb-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+.mb-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 200px; }
+.mb-icon {
+    width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center;
+    justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.mb-icon-flight { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.mb-icon-hotel { background: rgba(20,184,166,0.15); color: #2dd4bf; }
+.mb-icon-car { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.mb-icon-activity { background: rgba(236,72,153,0.15); color: #f472b6; }
+.mb-route { font-weight: 600; color: #fff; font-size: 15px; }
+.mb-meta { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+.mb-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.mb-amount { font-weight: 700; color: #c4b5fd; font-size: 16px; }
+.mb-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.mb-badge-booked { background: rgba(16,185,129,0.15); color: #34d399; }
+.mb-badge-pending { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.mb-badge-cancelled { background: rgba(239,68,68,0.15); color: #f87171; }
+.mb-badge-completed { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.mb-badge-refunded { background: rgba(148,163,184,0.15); color: #94a3b8; }
+.mb-actions { display: flex; gap: 8px; margin-top: 4px; }
+.mb-action-btn {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    text-decoration: none; transition: all 0.2s; border: 1px solid;
+}
+.mb-action-view { border-color: rgba(124,58,237,0.4); color: #a78bfa; background: transparent; }
+.mb-action-view:hover { background: rgba(124,58,237,0.15); }
+.mb-action-cancel { border-color: rgba(239,68,68,0.4); color: #f87171; background: transparent; }
+.mb-action-cancel:hover { background: rgba(239,68,68,0.15); }
+.mb-empty { text-align: center; padding: 60px 20px; }
+.mb-empty svg { margin-bottom: 16px; opacity: 0.2; }
+.mb-empty p { color: rgba(255,255,255,0.4); font-size: 14px; }
+.mb-empty a { color: #7c3aed; text-decoration: none; }
+@media (max-width: 600px) {
+    .mb-card { flex-direction: column; align-items: flex-start; }
+    .mb-right { align-items: flex-start; flex-direction: row; gap: 12px; flex-wrap: wrap; width: 100%; }
+}
+</style>
+
+<div class="mb-page">
+    <div class="mb-header">
+        <h1>My Bookings</h1>
+        <p>{{ bookings|length }} booking{{ 's' if bookings|length != 1 else '' }}</p>
+    </div>
+
+    <div class="mb-filters">
+        <button class="mb-filter active" onclick="filterBookings('all', this)">All</button>
+        <button class="mb-filter" onclick="filterBookings('upcoming', this)">Upcoming</button>
+        <button class="mb-filter" onclick="filterBookings('past', this)">Past</button>
+        <button class="mb-filter" onclick="filterBookings('cancelled', this)">Cancelled</button>
+    </div>
+
+    {% if bookings %}
+    {% for b in bookings %}
+    <div class="mb-card" data-status="{{ b.status }}" data-type="{{ b.deal_type or 'flight' }}">
+        <div class="mb-left">
+            <div class="mb-icon {% if b.deal_type == 'hotel' %}mb-icon-hotel{% elif b.deal_type == 'car' %}mb-icon-car{% elif b.deal_type == 'activity' %}mb-icon-activity{% else %}mb-icon-flight{% endif %}">
+                {% if b.deal_type == 'hotel' %}&#127976;{% elif b.deal_type == 'car' %}&#128663;{% elif b.deal_type == 'activity' %}&#11088;{% else %}&#9992;{% endif %}
+            </div>
+            <div>
+                <div class="mb-route">
+                    {% if b.deal_type == 'flight' %}
+                        {{ b.origin or '---' }} &rarr; {{ b.destination or '---' }}
+                    {% elif b.deal_type == 'hotel' %}
+                        {{ b.hotel_name or b.destination or 'Hotel' }}
+                    {% elif b.deal_type == 'car' %}
+                        {{ b.hotel_name or 'Car Rental' }}
+                    {% else %}
+                        {{ b.hotel_name or 'Booking' }} #{{ b.booking_id }}
+                    {% endif %}
+                </div>
+                <div class="mb-meta">
+                    {% if b.departure_date %}{{ b.departure_date }}{% endif %}
+                    {% if b.airline %} &middot; {{ b.airline }}{% endif %}
+                    {% if b.confirmation_code %} &middot; {{ b.confirmation_code }}{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="mb-right">
+            {% if b.price %}<div class="mb-amount">${{ "%.0f"|format(b.price) }}</div>{% endif %}
+            {% if b.status == 'booked' or b.status == 'completed' %}
+                <span class="mb-badge mb-badge-booked">{{ b.status }}</span>
+            {% elif b.status == 'cancelled' %}
+                <span class="mb-badge mb-badge-cancelled">cancelled</span>
+            {% elif b.status == 'refunded' %}
+                <span class="mb-badge mb-badge-refunded">refunded</span>
+            {% elif b.status in ('pending', 'pending_fulfillment', 'processing') %}
+                <span class="mb-badge mb-badge-pending">{{ b.status|replace('_', ' ') }}</span>
+            {% else %}
+                <span class="mb-badge mb-badge-completed">{{ b.status }}</span>
+            {% endif %}
+            <div class="mb-actions">
+                {% if b.confirmation_code %}
+                <a href="/booking-confirmation/{{ b.booking_id }}" class="mb-action-btn mb-action-view">View</a>
+                {% elif b.status in ('pending', 'pending_fulfillment', 'processing') %}
+                <a href="/booking-status/{{ b.booking_id }}" class="mb-action-btn mb-action-view">Status</a>
+                {% endif %}
+                {% if b.status in ('booked', 'pending_fulfillment', 'processing') %}
+                <a href="/cancel-booking/{{ b.booking_id }}" class="mb-action-btn mb-action-cancel">Cancel</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="mb-empty">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l5.5 3.2-2 2-1.7-.5c-.4-.1-.8 0-1 .3l-.2.3c-.2.3-.1.7.2.9l2.8 1.9 1.9 2.8c.2.3.6.4.9.2l.3-.2c.3-.2.4-.6.3-1l-.5-1.7 2-2 3.2 5.5c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
+        <p>No bookings yet. <a href="/flights">Search flights</a> to get started!</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function filterBookings(filter, btn) {
+    document.querySelectorAll('.mb-filter').forEach(f => f.classList.remove('active'));
+    btn.classList.add('active');
+    const now = new Date();
+    document.querySelectorAll('.mb-card').forEach(card => {
+        const status = card.dataset.status;
+        if (filter === 'all') { card.style.display = ''; return; }
+        if (filter === 'cancelled') { card.style.display = (status === 'cancelled' || status === 'refunded') ? '' : 'none'; return; }
+        if (filter === 'upcoming') { card.style.display = (status === 'booked' || status === 'pending' || status === 'pending_fulfillment' || status === 'processing') ? '' : 'none'; return; }
+        if (filter === 'past') { card.style.display = (status === 'completed') ? '' : 'none'; return; }
+    });
+}
+</script>
+"""
+
+CANCEL_BOOKING_CONTENT = """
+<style>
+.cancel-page { max-width: 600px; margin: 40px auto; animation: cancelFadeIn 0.5s ease-out; }
+@keyframes cancelFadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.cancel-card {
+    background: rgba(10,6,18,0.85); border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 16px; padding: 32px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.cancel-header { text-align: center; margin-bottom: 24px; }
+.cancel-header h2 { font-family: 'Cinzel', serif; font-size: 22px; color: #f87171; margin: 0 0 6px; }
+.cancel-header p { color: rgba(255,255,255,0.5); font-size: 14px; margin: 0; }
+.cancel-details {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 20px; margin-bottom: 20px;
+}
+.cancel-detail { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.cancel-detail:last-child { border-bottom: none; }
+.cancel-detail-label { color: rgba(255,255,255,0.5); font-size: 13px; }
+.cancel-detail-value { color: #fff; font-size: 13px; font-weight: 500; }
+.cancel-warning {
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 10px; padding: 16px; margin-bottom: 24px;
+    color: #fca5a5; font-size: 13px; line-height: 1.6; text-align: center;
+}
+.cancel-actions { display: flex; gap: 12px; justify-content: center; }
+.cancel-btn-confirm {
+    padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px;
+    background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.5);
+    color: #f87171; cursor: pointer; transition: all 0.2s;
+}
+.cancel-btn-confirm:hover { background: rgba(239,68,68,0.35); }
+.cancel-btn-keep {
+    padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px;
+    background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.4);
+    color: #a78bfa; text-decoration: none; transition: all 0.2s;
+}
+.cancel-btn-keep:hover { background: rgba(124,58,237,0.3); }
+.cancel-support {
+    text-align: center; margin-top: 20px; padding: 16px;
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 10px; color: #fbbf24; font-size: 13px;
+}
+.cancel-support a { color: #fbbf24; }
+</style>
+
+<div class="cancel-page">
+    <div class="cancel-card">
+        <div class="cancel-header">
+            <h2>Cancel Booking</h2>
+            <p>Review your booking details before cancelling</p>
+        </div>
+
+        <div class="cancel-details">
+            <div class="cancel-detail">
+                <span class="cancel-detail-label">Booking</span>
+                <span class="cancel-detail-value">#{{ booking.id }} {% if booking.confirmation_code %}&middot; {{ booking.confirmation_code }}{% endif %}</span>
+            </div>
+            <div class="cancel-detail">
+                <span class="cancel-detail-label">Route</span>
+                <span class="cancel-detail-value">{{ route_info }}</span>
+            </div>
+            {% if booking_date %}
+            <div class="cancel-detail">
+                <span class="cancel-detail-label">Date</span>
+                <span class="cancel-detail-value">{{ booking_date }}</span>
+            </div>
+            {% endif %}
+            <div class="cancel-detail">
+                <span class="cancel-detail-label">Amount Paid</span>
+                <span class="cancel-detail-value">${{ "%.2f"|format(refund_amount) }}</span>
+            </div>
+            <div class="cancel-detail">
+                <span class="cancel-detail-label">Estimated Refund</span>
+                <span class="cancel-detail-value" style="color: #34d399;">${{ "%.2f"|format(refund_amount) }}</span>
+            </div>
+        </div>
+
+        {% if is_gds_booking %}
+        <div class="cancel-support">
+            This booking was made through a GDS provider and requires manual cancellation.<br>
+            Please contact <a href="/contact">support</a> or email <a href="mailto:support@mystes.app">support@mystes.app</a>.
+        </div>
+        {% else %}
+        <div class="cancel-warning">
+            This action cannot be undone. Your refund will be processed to your original payment method within 5-10 business days.
+        </div>
+
+        <div class="cancel-actions">
+            <form method="POST" action="/cancel-booking/{{ booking.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="cancel-btn-confirm">Confirm Cancellation</button>
+            </form>
+            <a href="/bookings" class="cancel-btn-keep">Keep My Booking</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+"""
+
+
+@app.route("/bookings")
+@login_required
+def my_bookings():
+    """Full booking management page for authenticated users."""
+    bookings_raw = Booking.query.filter_by(user_id=current_user.id).order_by(
+        Booking.created_at.desc()
+    ).all()
+
+    # Build flat booking dicts with deal info to avoid template DetachedInstanceError
+    bookings = []
+    for b in bookings_raw:
+        deal = Deal.query.get(b.deal_id) if b.deal_id else None
+        bookings.append({
+            "booking_id": b.id,
+            "status": b.status or "pending",
+            "confirmation_code": b.confirmation_code,
+            "deal_type": deal.deal_type if deal else "flight",
+            "origin": deal.origin if deal else "",
+            "destination": deal.destination if deal else "",
+            "hotel_name": getattr(deal, "hotel_name", "") or (deal.destination if deal else ""),
+            "airline": deal.airline if deal else "",
+            "departure_date": str(deal.departure_date) if deal and deal.departure_date else "",
+            "price": float(deal.arbitrage_price_usd) if deal and deal.arbitrage_price_usd else None,
+        })
+
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="My Bookings",
+        content=render_template_string(MY_BOOKINGS_CONTENT, bookings=bookings),
+        current_user=current_user,
+        meta_description="Manage your MYSTES bookings — view status, confirmation codes, and cancellation options.",
+    )
+
+
+@app.route("/cancel-booking/<int:booking_id>", methods=["GET"])
+@login_required
+def cancel_booking_confirm(booking_id):
+    """Show cancellation confirmation page."""
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        flash("Booking not found.", "error")
+        return redirect("/bookings")
+
+    if booking.user_id != current_user.id:
+        flash("Access denied.", "error")
+        return redirect("/bookings")
+
+    cancellable = booking.status in ("booked", "pending_fulfillment", "processing")
+    if not cancellable:
+        flash("This booking cannot be cancelled.", "warning")
+        return redirect("/bookings")
+
+    deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+    payment = Payment.query.filter_by(id=booking.payment_id).first() if booking.payment_id else None
+
+    # Build route info
+    if deal and deal.deal_type == "flight":
+        route_info = f"{deal.origin or '---'} → {deal.destination or '---'}"
+    elif deal and deal.deal_type == "hotel":
+        route_info = deal.destination or deal.hotel_name or "Hotel"
+    else:
+        route_info = f"Booking #{booking.id}"
+
+    booking_date = str(deal.departure_date) if deal and deal.departure_date else None
+    refund_amount = float(payment.amount_usd) if payment and payment.amount_usd else (
+        float(deal.arbitrage_price_usd) if deal and deal.arbitrage_price_usd else 0
+    )
+
+    # Picasso GDS bookings need manual cancellation (no API cancel method)
+    is_gds_booking = bool(booking.picasso_super_pnr_id or booking.pnr_locator)
+
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Cancel Booking",
+        content=render_template_string(
+            CANCEL_BOOKING_CONTENT,
+            booking=booking,
+            route_info=route_info,
+            booking_date=booking_date,
+            refund_amount=refund_amount,
+            is_gds_booking=is_gds_booking,
+        ),
+        current_user=current_user,
+    )
+
+
+@app.route("/cancel-booking/<int:booking_id>", methods=["POST"])
+@login_required
+@limiter.limit("5 per hour")
+def cancel_booking_execute(booking_id):
+    """Execute booking cancellation with refund."""
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        flash("Booking not found.", "error")
+        return redirect("/bookings")
+
+    if booking.user_id != current_user.id:
+        flash("Access denied.", "error")
+        return redirect("/bookings")
+
+    cancellable = booking.status in ("booked", "pending_fulfillment", "processing")
+    if not cancellable:
+        flash("This booking cannot be cancelled.", "warning")
+        return redirect("/bookings")
+
+    deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+    payment = Payment.query.filter_by(id=booking.payment_id).first() if booking.payment_id else None
+    refund_amount = 0.0
+    errors = []
+
+    # Step 1: Cancel with airline if Duffel order
+    if deal and deal.amadeus_offer_data:
+        try:
+            import json as _json
+            offer_data = _json.loads(deal.amadeus_offer_data)
+            duffel_order_id = offer_data.get("duffel_order_id") or offer_data.get("order_id")
+            if duffel_order_id:
+                try:
+                    from duffel_client import DuffelClient
+                    duffel = DuffelClient()
+                    if duffel.is_configured():
+                        duffel.cancel_order(duffel_order_id)
+                        logger.info(f"Duffel order {duffel_order_id} cancelled for booking {booking.id}")
+                except Exception as e:
+                    logger.error(f"Duffel cancel failed for booking {booking.id}: {e}")
+                    errors.append(f"Airline cancellation issue: {e}")
+        except Exception:
+            pass
+
+    # Step 2: Refund via Stripe
+    if payment and payment.stripe_payment_intent:
+        try:
+            from payments import create_stripe_refund
+            refund_result = create_stripe_refund(payment.stripe_payment_intent)
+            if refund_result.get("success"):
+                refund_amount = refund_result.get("amount", 0) / 100.0  # cents → dollars
+                payment.status = "refunded"
+                logger.info(f"Stripe refund {refund_result.get('refund_id')} for booking {booking.id}")
+            else:
+                errors.append(f"Refund issue: {refund_result.get('error', 'Unknown')}")
+        except Exception as e:
+            logger.error(f"Stripe refund failed for booking {booking.id}: {e}")
+            errors.append(f"Refund processing error: {e}")
+    elif payment and payment.amount_usd:
+        refund_amount = float(payment.amount_usd)
+
+    # Step 3: Update booking status
+    booking.status = "cancelled"
+    booking.cancelled_at = datetime.utcnow()
+    booking.refund_amount_usd = refund_amount if refund_amount > 0 else None
+    booking.cancellation_reason = "Customer requested cancellation"
+    db.session.commit()
+
+    # Step 4: Send cancellation email
+    try:
+        from email_service import send_cancellation_email
+        if deal and deal.deal_type == "flight":
+            route_info = f"{deal.origin or '---'} → {deal.destination or '---'}"
+        elif deal:
+            route_info = deal.destination or "Booking"
+        else:
+            route_info = f"Booking #{booking.id}"
+
+        send_cancellation_email(
+            to=booking.passenger_email or current_user.email,
+            to_name=booking.passenger_name or current_user.name,
+            booking_ref=booking.confirmation_code or f"#{booking.id}",
+            route_info=route_info,
+            refund_amount=refund_amount,
+        )
+    except Exception as e:
+        logger.debug(f"Cancellation email failed (non-critical): {e}")
+
+    if errors:
+        flash(f"Booking cancelled with notes: {'; '.join(errors)}", "warning")
+    else:
+        flash("Booking cancelled successfully. Refund will be processed within 5-10 business days.", "success")
+    return redirect("/bookings")
 
 
 # --- TRIP BUNDLE ROUTES ---
@@ -7647,6 +8935,9 @@ def api_create_deal():
             service_fee = float(data.get("service_fee", 0))
             total_price = float(data.get("total_price", 0))
 
+            # Build raw_offer from top-level or first flight
+            multi_raw_offer = data.get("raw_offer") or (flights[0].get("raw_offer") if flights else None)
+
             # Create multi-leg deal
             deal = Deal(
                 deal_id=deal_id,
@@ -7663,6 +8954,12 @@ def api_create_deal():
                 platform_fee_usd=service_fee,
                 user_savings_usd=total_savings - service_fee if total_savings > service_fee else 0,
                 savings_percent=round((total_savings / total_us_price * 100) if total_us_price > 0 else 0, 1),
+                fare_id=data.get("fare_id") or (multi_raw_offer or {}).get("fare_id"),
+                fare_search_id=data.get("fare_search_id") or (multi_raw_offer or {}).get("fare_search_id"),
+                offer_id=data.get("offer_id") or (multi_raw_offer or {}).get("offer_id"),
+                amadeus_offer_data=json.dumps(multi_raw_offer) if multi_raw_offer else None,
+                picasso_gds=data.get("picasso_gds") or (flights[0].get("picasso_gds") if flights else None),
+                fare_type=data.get("fare_type") or (flights[0].get("fare_type") if flights else None),
                 is_multi_leg=True,
                 flight_legs=json.dumps(flights),
                 total_legs=len(flights),
@@ -7711,8 +9008,10 @@ def api_create_deal():
                 platform_fee_usd=service_fee,
                 user_savings_usd=user_savings,
                 savings_percent=round((savings / us_price * 100) if us_price > 0 else 0, 1),
-                fare_id=data.get("fare_id"),
-                fare_search_id=data.get("fare_search_id"),
+                fare_id=data.get("fare_id") or (data.get("raw_offer") or {}).get("fare_id"),
+                fare_search_id=data.get("fare_search_id") or (data.get("raw_offer") or {}).get("fare_search_id"),
+                offer_id=data.get("offer_id") or (data.get("raw_offer") or {}).get("offer_id"),
+                amadeus_offer_data=json.dumps(data.get("raw_offer")) if data.get("raw_offer") else None,
                 picasso_gds=data.get("picasso_gds"),
                 fare_type=data.get("fare_type"),
                 is_multi_leg=False,
@@ -8140,20 +9439,34 @@ def api_stripe_charge_saved():
         )
 
         if intent.status == "succeeded":
-            # Create verified payment record
-            payment = Payment(
-                user_id=current_user.id,
-                deal_id=deal.id,
-                payment_method='card',
-                amount_usd=amount,
-                tx_hash=intent.id,
-                stripe_payment_intent=intent.id,
-                status='verified',
-                verified_at=datetime.now(timezone.utc)
-            )
-            db.session.add(payment)
-            deal.deal_status = 'booked'
-            db.session.commit()
+            # Create payment record atomically — if DB fails after Stripe succeeds,
+            # log PaymentIntent ID for manual reconciliation
+            try:
+                payment = Payment(
+                    user_id=current_user.id,
+                    deal_id=deal.id,
+                    payment_method='card',
+                    amount_usd=amount,
+                    tx_hash=intent.id,
+                    stripe_payment_intent=intent.id,
+                    status='verified',
+                    verified_at=datetime.now(timezone.utc)
+                )
+                db.session.add(payment)
+                deal.deal_status = 'booked'
+                db.session.commit()
+            except Exception as db_err:
+                db.session.rollback()
+                logger.critical(
+                    "PAYMENT RECORD FAILED — Stripe PaymentIntent %s succeeded but DB commit failed: %s. "
+                    "Manual reconciliation required. User=%s Deal=%s Amount=$%.2f",
+                    intent.id, db_err, current_user.id, deal_id, amount
+                )
+                return jsonify({
+                    "success": False,
+                    "error": "Payment was processed but recording failed. Please contact support.",
+                    "payment_intent_id": intent.id,
+                }), 500
 
             # Trigger booking fulfillment
             trigger_booking_fulfillment(deal, payment)
@@ -8193,8 +9506,8 @@ def api_stripe_charge_saved():
         release_deal_claim(deal)
         if hasattr(e, 'user_message'):
             return jsonify({"error": f"Card declined: {e.user_message}"}), 402
-        logger.error(f"Stripe saved-card charge error: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error("Stripe saved-card charge error for deal %s: %s", deal_id, e, exc_info=True)
+        return jsonify({"error": "Payment processing failed. Please try again."}), 500
 
 
     # Coinbase Commerce routes removed — Stripe + MoonPay only
@@ -8383,6 +9696,7 @@ def payment_success_handler():
 
 @app.route("/webhooks/stripe", methods=["POST"])
 @csrf.exempt
+@limiter.exempt
 def webhook_stripe():
     """
     Handle Stripe webhook events for payment confirmations and B2B subscriptions.
@@ -8396,14 +9710,33 @@ def webhook_stripe():
     payload = request.get_data()
     signature = request.headers.get("Stripe-Signature", "")
 
-    # --- B2B Subscription Events (Build #158) ---
-    # Parse raw event first to catch subscription lifecycle before deal payment handling
+    # --- Webhook Idempotency (Build #189) ---
+    # Parse event first so we can check event_id for duplicates
     try:
         import stripe as stripe_mod
         webhook_secret = PAYMENT_CONFIG.get("stripe_webhook_secret", "")
         raw_event = stripe_mod.Webhook.construct_event(payload, signature, webhook_secret)
-    except Exception:
+    except stripe_mod.error.SignatureVerificationError as e:
+        logger.warning("Stripe webhook signature verification FAILED: %s", e)
+        return jsonify({"error": "Invalid signature"}), 400
+    except (ValueError, KeyError) as e:
+        logger.warning("Stripe webhook payload parse error: %s", e)
         raw_event = None
+    except Exception as e:
+        logger.error("Stripe webhook unexpected error during event construction: %s", e)
+        raw_event = None
+
+    # Idempotency check — skip already-processed events (Build #189)
+    if raw_event:
+        try:
+            from models import WebhookEvent
+            existing_event = WebhookEvent.query.filter_by(event_id=raw_event.id).first()
+            if existing_event:
+                logger.debug("Stripe webhook already processed: %s", raw_event.id)
+                return jsonify({"received": True, "duplicate": True})
+        except Exception as e:
+            logger.warning("Webhook dedup check failed (table may not exist): %s", e)
+            db.session.rollback()
 
     if raw_event and raw_event.type.startswith("customer.subscription"):
         try:
@@ -8454,6 +9787,47 @@ def webhook_stripe():
                         db.session.add(sub)
                     db.session.commit()
                     logger.info(f"Travel+ subscription {raw_event.type}: user {user.id} -> {new_status}")
+                else:
+                    # --- APAi Admin Portal subscription handling (Build #194/195) ---
+                    try:
+                        from models import DevPortalAccount
+                        dpa = DevPortalAccount.query.filter_by(
+                            stripe_customer_id=subscription.customer
+                        ).first()
+                        if dpa:
+                            dpa.subscription_status = subscription.status
+                            dpa.stripe_subscription_id = subscription.id
+                            if hasattr(subscription, 'current_period_end') and subscription.current_period_end:
+                                dpa.period_end = datetime.fromtimestamp(
+                                    subscription.current_period_end, tz=timezone.utc
+                                )
+                            if hasattr(subscription, 'current_period_start') and subscription.current_period_start:
+                                new_period_start = datetime.fromtimestamp(
+                                    subscription.current_period_start, tz=timezone.utc
+                                )
+                                # Period reset: if Stripe signals a new period, reset all counters
+                                if dpa.period_start is None or new_period_start > dpa.period_start:
+                                    dpa.queries_used_this_period = 0
+                                    dpa.period_start = new_period_start
+                                    # Reset all team members' period counters too (Build #195)
+                                    if dpa.commercial_account_id:
+                                        team = DevPortalAccount.query.filter(
+                                            DevPortalAccount.commercial_account_id == dpa.commercial_account_id,
+                                            DevPortalAccount.id != dpa.id,
+                                        ).all()
+                                        for member in team:
+                                            member.queries_used_this_period = 0
+                                            member.period_start = new_period_start
+                                            if dpa.period_end:
+                                                member.period_end = dpa.period_end
+                                    logger.info(f"APAi period reset: {dpa.account_id} + {len(team) if dpa.commercial_account_id else 0} members")
+                            elif subscription.status == 'active' and not dpa.period_start:
+                                dpa.queries_used_this_period = 0
+                                dpa.period_start = datetime.now(timezone.utc)
+                            db.session.commit()
+                            logger.info(f"APAi admin subscription {raw_event.type}: {dpa.account_id} -> {subscription.status}")
+                    except Exception as dp_e:
+                        logger.error(f"APAi admin subscription webhook error: {dp_e}", exc_info=True)
         except Exception as e:
             logger.error(f"Subscription webhook error: {e}", exc_info=True)
         return jsonify({"received": True})
@@ -8480,9 +9854,90 @@ def webhook_stripe():
                         sub.status = 'past_due'
                         db.session.commit()
                         logger.warning(f"Travel+ subscription past_due: user {user.id}")
+                else:
+                    # APAi admin portal invoice failure (Build #195)
+                    from models import DevPortalAccount
+                    dpa = DevPortalAccount.query.filter_by(
+                        stripe_customer_id=invoice.customer
+                    ).first()
+                    if dpa and dpa.subscription_status == 'active':
+                        dpa.subscription_status = 'past_due'
+                        db.session.commit()
+                        logger.warning(f"APAi admin subscription past_due: {dpa.account_id}")
         except Exception as e:
             logger.error(f"Invoice webhook error: {e}", exc_info=True)
         return jsonify({"received": True})
+
+    # --- APAi Checkout Completion (Build #195) ---
+    if raw_event and raw_event.type == "checkout.session.completed":
+        try:
+            checkout = raw_event.data.object
+            meta = checkout.get("metadata", {}) if isinstance(checkout, dict) else getattr(checkout, 'metadata', {})
+            if meta.get("type") == "apai_subscription":
+                import stripe as stripe_mod
+                stripe_mod.api_key = PAYMENT_CONFIG.get("stripe_secret_key", "")
+                tier = meta.get("tier", "pro")
+                account_id = meta.get("account_id")
+                user_id = meta.get("user_id")
+
+                from models import DevPortalAccount
+                from dev_portal_billing import get_tier_config
+
+                tier_config = get_tier_config(tier)
+                sub_id = checkout.get("subscription") if isinstance(checkout, dict) else getattr(checkout, 'subscription', None)
+                customer_id = checkout.get("customer") if isinstance(checkout, dict) else getattr(checkout, 'customer', None)
+
+                # Check if admin DevPortalAccount already exists for this user
+                user = User.query.get(int(user_id)) if user_id else None
+                existing_dpa = None
+                if user:
+                    existing_dpa = DevPortalAccount.query.filter_by(mystes_user_id=user.id, role='admin').first()
+
+                if existing_dpa:
+                    # Update existing account
+                    existing_dpa.billing_tier = tier
+                    existing_dpa.stripe_customer_id = customer_id
+                    existing_dpa.stripe_subscription_id = sub_id
+                    existing_dpa.subscription_status = 'active'
+                    existing_dpa.queries_included = tier_config['queries_included']
+                    existing_dpa.queries_used_this_period = 0
+                    existing_dpa.period_start = datetime.now(timezone.utc)
+                    existing_dpa.is_active = True
+                    existing_dpa.apai_subscriber = True
+                    db.session.commit()
+                    logger.info(f"APAi checkout: updated {existing_dpa.account_id} to {tier}")
+                elif user:
+                    # Create new admin DevPortalAccount
+                    import secrets as _secrets
+                    comm = CommercialAccount.query.filter_by(account_id=account_id).first() if account_id else None
+                    dpa = DevPortalAccount(
+                        account_id=f"dpa_{_secrets.token_hex(12)}",
+                        email=user.email,
+                        name=user.name,
+                        role='admin',
+                        commercial_account_id=comm.id if comm else None,
+                        mystes_user_id=user.id,
+                        apai_subscriber=True,
+                        billing_tier=tier,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=sub_id,
+                        subscription_status='active',
+                        queries_included=tier_config['queries_included'],
+                        queries_used_this_period=0,
+                        period_start=datetime.now(timezone.utc),
+                        is_active=True,
+                        is_verified=True,
+                    )
+                    dpa.set_password(_secrets.token_hex(8))
+                    db.session.add(dpa)
+                    db.session.commit()
+                    logger.info(f"APAi checkout: created admin account {dpa.account_id} for user {user.id} ({tier})")
+
+                    # Send welcome email
+                    from email_service import send_devportal_welcome
+                    send_devportal_welcome(user.email, user.name)
+        except Exception as e:
+            logger.error(f"APAi checkout webhook error: {e}", exc_info=True)
 
     # --- Deal Payment Events (existing) ---
     result = handle_stripe_webhook(payload, signature)
@@ -8625,6 +10080,17 @@ def webhook_stripe():
                     pending.status = 'expired'
                     db.session.commit()
                     logger.info(f"Stripe session expired: {session_id}")
+
+        # Record processed event for idempotency (Build #189)
+        if raw_event:
+            try:
+                from models import WebhookEvent
+                whe = WebhookEvent(event_id=raw_event.id, event_type=raw_event.type)
+                db.session.add(whe)
+                db.session.commit()
+            except Exception as e:
+                logger.warning("Failed to record webhook event %s for dedup: %s", raw_event.id, e)
+                db.session.rollback()
 
         # Always return 200 for successfully parsed events (even if processing had issues)
         return jsonify({"received": True})
@@ -8821,14 +10287,6 @@ def health_check():
         services["database"] = f"unhealthy: {str(e)}"
         logger.error(f"Health check - DB failed: {e}")
 
-    # XRPL connection
-    try:
-        from payments import XRPL_AVAILABLE, PAYMENT_CONFIG
-        services["xrpl"] = "available" if XRPL_AVAILABLE else "not installed"
-        services["xrpl_network"] = PAYMENT_CONFIG.get("xrpl_network", "unknown")
-    except Exception:
-        services["xrpl"] = "error"
-
     # Stripe
     try:
         from payments import STRIPE_AVAILABLE, PAYMENT_CONFIG as PAY_CFG
@@ -8836,18 +10294,23 @@ def health_check():
     except Exception:
         services["stripe"] = "error"
 
-    # Proxy scraper
-    try:
-        from main import DIRECT_SCRAPER_AVAILABLE
-        services["proxy_scraper"] = "available" if DIRECT_SCRAPER_AVAILABLE else "not available"
-    except Exception:
-        services["proxy_scraper"] = "error"
-
-    # Picasso / Redbox (primary flight search)
+    # Picasso / Redbox (primary flight search) — enhanced Build #189
     try:
         from main import PICASSO_AVAILABLE, PICASSO_CONFIGURED
         if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
             services["picasso_redbox"] = "configured"
+            # Check token health
+            try:
+                from picasso_auth import PicassoTokenManager
+                tm = PicassoTokenManager()
+                token_health = tm.health_check()
+                services["picasso_token"] = {
+                    "valid": token_health.get("has_token", False),
+                    "age_seconds": token_health.get("token_age_seconds"),
+                    "last_refresh": token_health.get("last_refresh"),
+                }
+            except Exception:
+                services["picasso_token"] = "check_unavailable"
         elif PICASSO_AVAILABLE:
             services["picasso_redbox"] = "installed (session token not set)"
         else:
@@ -8855,20 +10318,30 @@ def health_check():
     except Exception:
         services["picasso_redbox"] = "error"
 
-    # Amadeus (legacy fallback — Picasso handles Amadeus internally)
+    # Duffel NDC (Build #189)
     try:
-        from main import AMADEUS_AVAILABLE, AMADEUS_CONFIGURED
-        if AMADEUS_AVAILABLE and AMADEUS_CONFIGURED:
-            services["amadeus"] = "configured (legacy)"
-        elif AMADEUS_AVAILABLE:
-            services["amadeus"] = "installed (keys not set)"
+        duffel_token = os.environ.get("DUFFEL_ACCESS_TOKEN", "")
+        if duffel_token:
+            services["duffel"] = "configured"
+            is_live = not duffel_token.startswith("duffel_test_")
+            services["duffel_mode"] = "live" if is_live else "test"
         else:
-            services["amadeus"] = "not installed"
+            services["duffel"] = "not configured"
     except Exception:
-        services["amadeus"] = "error"
+        services["duffel"] = "error"
 
-    # Browser control — removed (Build #89)
-    services["browser_control"] = "removed"
+    # Redis
+    try:
+        import redis as _redis_mod
+        redis_url = os.environ.get("REDIS_URL", "")
+        if redis_url:
+            _r = _redis_mod.from_url(redis_url, socket_timeout=2)
+            _r.ping()
+            services["redis"] = "connected"
+        else:
+            services["redis"] = "not configured"
+    except Exception:
+        services["redis"] = "unavailable"
 
     # Email
     try:
@@ -8877,16 +10350,837 @@ def health_check():
     except Exception:
         services["email"] = "error"
 
-    # Overall status
-    overall = "healthy" if services.get("database") == "healthy" else "unhealthy"
-    status_code = 200 if overall == "healthy" else 503
+    # Overall status (Build #189: degraded state for non-critical failures)
+    db_ok = services.get("database") == "healthy"
+    if not db_ok:
+        overall = "unhealthy"
+        status_code = 503
+    else:
+        # Check if any flight providers are down (degraded, not unhealthy)
+        flights_ok = services.get("picasso_redbox") == "configured" or services.get("duffel") == "configured"
+        overall = "healthy" if flights_ok else "degraded"
+        status_code = 200
+
+    # APAi admin portal status (Build #195)
+    try:
+        from models import DevPortalAccount
+        apai_admins = DevPortalAccount.query.filter_by(role='admin', is_active=True).count()
+        apai_members = DevPortalAccount.query.filter_by(role='member', is_active=True).count()
+        services["apai_portal"] = {"admins": apai_admins, "members": apai_members}
+    except Exception:
+        services["apai_portal"] = "error"
+
+    # Anthropic API (for ANASTASiA)
+    services["anastasia_api"] = "configured" if os.environ.get("ANTHROPIC_API_KEY") else "not configured"
 
     return jsonify({
         "status": overall,
-        "version": "1.1.0",
+        "version": "1.3.0",
+        "build": 195,
         "services": services,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }), status_code
+
+
+@app.route("/api/status")
+@limiter.exempt
+def api_status():
+    """Extended status endpoint with build info and provider health."""
+    import time as _time
+    providers = {}
+
+    # Flight providers
+    try:
+        from main import PICASSO_AVAILABLE, PICASSO_CONFIGURED
+        providers["picasso"] = "active" if (PICASSO_AVAILABLE and PICASSO_CONFIGURED) else "inactive"
+    except Exception:
+        providers["picasso"] = "unknown"
+
+    try:
+        providers["duffel"] = "active" if os.environ.get("DUFFEL_ACCESS_TOKEN") else "inactive"
+    except Exception:
+        providers["duffel"] = "unknown"
+
+    # Hotel provider
+    providers["liteapi"] = "active" if os.environ.get("LITEAPI_KEY") else "inactive"
+
+    # Activity provider
+    providers["viator"] = "active" if os.environ.get("VIATOR_API_KEY") else "inactive"
+
+    # Car provider
+    providers["discover_cars"] = "active" if os.environ.get("DISCOVER_CARS_API_KEY") else "inactive"
+
+    # Insurance provider
+    providers["safetywing"] = "active" if os.environ.get("SAFETYWING_API_KEY") else "inactive"
+
+    return jsonify({
+        "version": "1.2.0",
+        "build": 189,
+        "tests": 980,
+        "status": "operational",
+        "providers": providers,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+# --- APAi SUBSCRIPTION MANAGEMENT (Build #189) ---
+
+APAI_TIER_PRICES = {
+    "pro": {"price_usd": 299, "name": "Pro"},
+    "enterprise": {"price_usd": 599, "name": "Enterprise"},
+}
+# NOTE: ALL PRICING PROVISIONAL — tier structure set, amounts pending COGS audit
+
+
+@app.route("/api/apai/subscribe", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_apai_subscribe():
+    """
+    Create Stripe checkout session for APAi subscription.
+
+    Body: { "tier": "starter" | "pro" | "enterprise" }
+    Returns: { "checkout_url": "..." }
+    """
+    data = request.get_json(silent=True) or {}
+    tier = data.get("tier", "").strip().lower()
+
+    if tier not in APAI_TIER_PRICES:
+        return jsonify({"error": f"Invalid tier. Choose: {', '.join(APAI_TIER_PRICES.keys())}"}), 400
+
+    tier_info = APAI_TIER_PRICES[tier]
+
+    # Check for existing active B2B account
+    account = CommercialAccount.query.filter_by(
+        owner_user_id=current_user.id, is_active=True
+    ).first()
+
+    if not account:
+        return jsonify({"error": "B2B account required. Sign up at /business/signup first."}), 403
+
+    try:
+        import stripe as stripe_mod
+        stripe_mod.api_key = PAYMENT_CONFIG.get("stripe_secret_key", "")
+
+        # Create Stripe checkout for recurring subscription
+        checkout_session = stripe_mod.checkout.Session.create(
+            customer_email=current_user.email,
+            mode="subscription",
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": tier_info["price_usd"] * 100,
+                    "recurring": {"interval": "month"},
+                    "product_data": {
+                        "name": f"APAi {tier_info['name']} — Turnkey OTA",
+                        "description": f"MYSTES turnkey OTA deployment with {tier_info['name']} features",
+                    },
+                },
+                "quantity": 1,
+            }],
+            metadata={
+                "type": "apai_subscription",
+                "tier": tier,
+                "account_id": account.account_id,
+                "user_id": str(current_user.id),
+            },
+            success_url=f"{request.host_url}apai/deploy?subscribed=true",
+            cancel_url=f"{request.host_url}apai",
+        )
+
+        return jsonify({
+            "success": True,
+            "checkout_url": checkout_session.url,
+            "tier": tier,
+        })
+
+    except Exception as e:
+        logger.error("APAi subscribe error: %s", e)
+        return jsonify({"error": f"Payment setup failed: {str(e)[:100]}"}), 500
+
+
+@app.route("/api/apai/billing")
+@login_required
+def api_apai_billing():
+    """
+    Get current APAi subscription status and usage.
+
+    Returns: tier, status, usage stats, instance info
+    """
+    account = CommercialAccount.query.filter_by(
+        owner_user_id=current_user.id, is_active=True
+    ).first()
+
+    if not account:
+        return jsonify({"error": "No B2B account"}), 403
+
+    deployment = TemplateDeployment.query.filter_by(
+        commercial_account_id=account.id
+    ).order_by(TemplateDeployment.requested_at.desc()).first()
+
+    # Get API key usage stats
+    key_stats = None
+    if deployment:
+        from models import APAiInstanceKey
+        key = APAiInstanceKey.query.filter_by(
+            deployment_id=deployment.id, is_active=True
+        ).first()
+        if key:
+            key_stats = {
+                "key_id": key.key_id,
+                "tier": key.tier_id,
+                "usage_count": key.usage_count,
+                "last_used": key.last_used_at.isoformat() if key.last_used_at else None,
+            }
+
+    return jsonify({
+        "account_id": account.account_id,
+        "subscription_status": account.subscription_status,
+        "current_tier": account.current_tier,
+        "deployment": deployment.to_dict() if deployment else None,
+        "api_key": key_stats,
+        "tiers_available": APAI_TIER_PRICES,
+    })
+
+
+# --- APAi PITCH PAGE + DEPLOYMENT (Build #193) ---
+# APAi = SEPARATE product from B2B. Subscribers deploy their OWN branded OTA.
+# B2B = inside MYSTES with reduced fees. NO turnkey. NO standalone site.
+
+APAI_PITCH_CONTENT = """
+<style>
+.apai-hero { max-width:900px; margin:0 auto; padding:60px 20px 40px; text-align:center; }
+.apai-hero h1 { font-family:'Cinzel',serif; font-size:2.4rem; margin-bottom:12px;
+    background:linear-gradient(135deg,#7c3aed,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.apai-hero .tagline { font-size:1.3rem; color:#a78bfa; font-weight:600; margin-bottom:8px; letter-spacing:1px; }
+.apai-hero .subtitle { color:#8a8278; font-size:1rem; max-width:600px; margin:0 auto 40px; line-height:1.6; }
+.apai-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:20px;
+    max-width:900px; margin:0 auto 50px; padding:0 20px; }
+.apai-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+    border-radius:16px; padding:24px; transition:border-color 0.3s; }
+.apai-card:hover { border-color:rgba(124,58,237,0.3); }
+.apai-card h3 { color:#e8dcc8; font-family:'Cinzel',serif; font-size:1rem; margin-bottom:8px; }
+.apai-card p { color:#8a8278; font-size:0.9rem; line-height:1.5; }
+.apai-pricing { display:grid; grid-template-columns:1fr 1fr; gap:24px;
+    max-width:700px; margin:0 auto 50px; padding:0 20px; }
+.apai-price-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+    border-radius:16px; padding:32px; text-align:center; position:relative; }
+.apai-price-card.featured { border-color:rgba(124,58,237,0.4);
+    box-shadow:0 0 30px rgba(124,58,237,0.1); }
+.apai-price-card h3 { color:#a78bfa; font-family:'Cinzel',serif; font-size:1.1rem; margin-bottom:4px; }
+.apai-price-card .price { font-size:2.2rem; color:#e8dcc8; font-weight:700; margin:12px 0 4px; }
+.apai-price-card .price span { font-size:1rem; color:#666; font-weight:400; }
+.apai-price-card .features { color:#8a8278; font-size:0.85rem; line-height:1.8; text-align:left; margin:16px 0; }
+.apai-price-card .features li { list-style:none; padding-left:20px; position:relative; }
+.apai-price-card .features li::before { content:'\\2713'; position:absolute; left:0; color:#22c55e; }
+.apai-cta { display:inline-block; padding:14px 32px; background:linear-gradient(135deg,#7c3aed,#a855f7);
+    color:#fff; border:none; border-radius:10px; font-size:1rem; font-weight:600;
+    text-decoration:none; cursor:pointer; transition:opacity 0.2s; }
+.apai-cta:hover { opacity:0.9; }
+.apai-cta-outline { display:inline-block; padding:14px 32px; background:transparent;
+    border:1px solid rgba(124,58,237,0.4); color:#a78bfa; border-radius:10px;
+    font-size:1rem; font-weight:600; text-decoration:none; cursor:pointer; }
+.apai-steps { max-width:700px; margin:0 auto 50px; padding:0 20px; }
+.apai-steps h2 { font-family:'Cinzel',serif; font-size:1.4rem; color:#e8dcc8; text-align:center; margin-bottom:30px; }
+.apai-step { display:flex; align-items:flex-start; gap:16px; margin-bottom:20px; }
+.apai-step-num { flex-shrink:0; width:36px; height:36px; border-radius:50%;
+    background:linear-gradient(135deg,#7c3aed,#06b6d4); color:#fff; font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-size:0.9rem; }
+.apai-step-text h4 { color:#e2e8f0; margin:0 0 4px; font-size:0.95rem; }
+.apai-step-text p { color:#8a8278; margin:0; font-size:0.85rem; }
+.apai-grad { max-width:700px; margin:0 auto 40px; padding:24px; text-align:center;
+    background:rgba(124,58,237,0.05); border:1px solid rgba(124,58,237,0.15); border-radius:16px; }
+.apai-grad h3 { font-family:'Cinzel',serif; color:#e8dcc8; margin-bottom:8px; font-size:1.1rem; }
+.apai-grad p { color:#8a8278; font-size:0.9rem; line-height:1.5; margin-bottom:16px; }
+.apai-note { text-align:center; color:#666; font-size:0.8rem; max-width:600px; margin:0 auto 40px; padding:0 20px; }
+@media (max-width:600px) {
+    .apai-hero h1 { font-size:1.6rem; }
+    .apai-pricing { grid-template-columns:1fr; }
+    .apai-grid { grid-template-columns:1fr; }
+}
+</style>
+
+<div class="apai-hero">
+    <h1>Launch Your Own Branded OTA</h1>
+    <div class="tagline">Click. Pay. Deploy.</div>
+    <p class="subtitle">
+        Get direct wholesale pricing and deploy your own consumer-facing travel booking site
+        &mdash; without the volume requirements, accreditation gatekeeping, or $20K+ startup
+        costs of a traditional OTA.
+    </p>
+</div>
+
+<div class="apai-grid">
+    <div class="apai-card">
+        <h3>No IATA Accreditation</h3>
+        <p>ANASTASiA handles airline compliance and credential routing. You focus on selling.</p>
+    </div>
+    <div class="apai-card">
+        <h3>No Volume Minimums</h3>
+        <p>Sell one ticket or ten thousand. Same wholesale pricing from day one. No commercial deposits.</p>
+    </div>
+    <div class="apai-card">
+        <h3>No Consolidator Gatekeeping</h3>
+        <p>Direct access to wholesale pricing through the ANASTASiA credential network. Skip the middlemen.</p>
+    </div>
+    <div class="apai-card">
+        <h3>ANASTASiA Dev Terminal</h3>
+        <p>Your AI tech team lives in your admin panel. Customize your OTA, troubleshoot, and build &mdash; all through natural language.</p>
+    </div>
+    <div class="apai-card">
+        <h3>Immutable Core</h3>
+        <p>Template engine stays locked and updated automatically. Your custom modules sit on top &mdash; safe, isolated, unbreakable.</p>
+    </div>
+    <div class="apai-card">
+        <h3>Your Brand, Your Domain</h3>
+        <p>Custom branding, colors, logo, and domain. Your customers see YOUR travel agency &mdash; not ours.</p>
+    </div>
+</div>
+
+<div class="apai-steps">
+    <h2>How It Works</h2>
+    <div class="apai-step">
+        <div class="apai-step-num">1</div>
+        <div class="apai-step-text">
+            <h4>Subscribe to APAi</h4>
+            <p>Choose Pro or Enterprise. Payment via Stripe &mdash; cancel anytime.</p>
+        </div>
+    </div>
+    <div class="apai-step">
+        <div class="apai-step-num">2</div>
+        <div class="apai-step-text">
+            <h4>ANASTASiA Install Wizard</h4>
+            <p>Your AI-guided deployment wizard activates. She walks you through every step.</p>
+        </div>
+    </div>
+    <div class="apai-step">
+        <div class="apai-step-num">3</div>
+        <div class="apai-step-text">
+            <h4>Enter Credentials + Branding</h4>
+            <p>Add your API credentials (or use the credential network), set your brand name, colors, and logo.</p>
+        </div>
+    </div>
+    <div class="apai-step">
+        <div class="apai-step-num">4</div>
+        <div class="apai-step-text">
+            <h4>Deploy</h4>
+            <p>Your OTA goes live on your chosen hosting. ANASTASiA handles the infrastructure.</p>
+        </div>
+    </div>
+    <div class="apai-step">
+        <div class="apai-step-num">5</div>
+        <div class="apai-step-text">
+            <h4>Build &amp; Customize</h4>
+            <p>&ldquo;Welcome to your admin panel. I&rsquo;m ANASTASiA. Ask me anything.&rdquo; &mdash; Use the dev terminal to customize your UI, integrate custom features, and grow.</p>
+        </div>
+    </div>
+</div>
+
+<div class="apai-pricing">
+    <div class="apai-price-card featured">
+        <h3>APAi Pro</h3>
+        <div class="price">$299<span>/mo</span></div>
+        <ul class="features">
+            <li>Turnkey MYSTES OTA code copy</li>
+            <li>Your brand, domain, and colors</li>
+            <li>Credential network access</li>
+            <li>ANASTASiA dev terminal</li>
+            <li>Automatic engine updates</li>
+            <li>All travel verticals</li>
+        </ul>
+        <a href="/business/signup" class="apai-cta" onclick="event.preventDefault();subscribeAPAi('pro')">Get Started</a>
+    </div>
+    <div class="apai-price-card">
+        <h3>APAi Enterprise</h3>
+        <div class="price">$599<span>/mo</span></div>
+        <ul class="features">
+            <li>Everything in Pro</li>
+            <li>Priority support</li>
+            <li>Advanced credential routing</li>
+            <li>Daemon bridge access</li>
+            <li>Custom module development</li>
+            <li>Dedicated onboarding</li>
+        </ul>
+        <a href="/business/signup" class="apai-cta-outline" onclick="event.preventDefault();subscribeAPAi('enterprise')">Get Started</a>
+    </div>
+</div>
+
+<div class="apai-grad">
+    <h3>Already Using MYSTES?</h3>
+    <p>
+        Many of our APAi subscribers started as MYSTES consumers, then upgraded to B2B to sell
+        through our platform. When you&rsquo;re ready for your own branded OTA with even more
+        competitive wholesale rates &mdash; APAi is the next step.
+    </p>
+    <a href="/business" class="apai-cta-outline" style="font-size:0.9rem;padding:10px 24px;">
+        Start with B2B &rarr;
+    </a>
+</div>
+
+<p class="apai-note">
+    All pricing provisional. $3 minimum fee per transaction. Same wholesale pricing for every APAi subscriber
+    &mdash; no volume discounts, no enterprise deals. All bookings include real airline-issued tickets.
+</p>
+
+<script>
+function subscribeAPAi(tier) {
+    {% if current_user.is_authenticated %}
+    fetch('/api/apai/subscribe', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tier: tier})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.checkout_url) {
+            window.location.href = data.checkout_url;
+        } else if (data.error && data.error.includes('B2B account required')) {
+            if (confirm('A B2B account is required first. Would you like to create one?')) {
+                window.location.href = '/business/signup';
+            }
+        } else {
+            alert(data.error || 'Something went wrong');
+        }
+    })
+    .catch(err => alert('Error: ' + err.message));
+    {% else %}
+    window.location.href = '/login?next=/apai';
+    {% endif %}
+}
+</script>
+"""
+
+
+@app.route("/apai")
+def apai_pitch():
+    """APAi pitch page — sell prospective OTAs on the turnkey model."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="APAi — Launch Your Own OTA",
+        meta_description="Deploy your own branded travel booking site with APAi. Direct wholesale pricing, AI-powered admin, no IATA required. From $299/mo.",
+        content=APAI_PITCH_CONTENT,
+        current_user=current_user,
+    )
+
+
+# --- APAi DEPLOYMENT MANAGEMENT (Build #193, moved from routes_business.py) ---
+# Gated behind APAi subscription — NOT available to B2B accounts
+
+@app.route("/apai/deploy")
+@login_required
+def apai_deploy_page():
+    """APAi deployment management page. Requires APAi subscription."""
+    from models import CommercialAccount, TemplateDeployment
+
+    account = CommercialAccount.query.filter_by(
+        owner_user_id=current_user.id, is_active=True
+    ).first()
+
+    if not account:
+        flash("An account is required. Sign up for B2B first, then upgrade to APAi.", "info")
+        return redirect("/business/signup")
+
+    deployment = TemplateDeployment.query.filter_by(
+        commercial_account_id=account.id
+    ).order_by(TemplateDeployment.requested_at.desc()).first()
+
+    content = _render_apai_deploy_page(account, deployment)
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="APAi Deployment",
+        content=content,
+        current_user=current_user,
+    )
+
+
+@app.route("/api/apai/deploy", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_apai_deploy():
+    """Request a new APAi template deployment."""
+    import secrets as _secrets
+    from models import db, CommercialAccount, TemplateDeployment
+
+    account = CommercialAccount.query.filter_by(
+        owner_user_id=current_user.id, is_active=True
+    ).first()
+
+    if not account:
+        return jsonify({"success": False, "error": "No active account"}), 403
+
+    if account.subscription_status not in ("active", "trialing"):
+        return jsonify({"success": False, "error": "Active subscription required"}), 402
+
+    # Check for existing active deployment
+    existing = TemplateDeployment.query.filter_by(
+        commercial_account_id=account.id
+    ).filter(
+        TemplateDeployment.status.in_(["requested", "provisioning", "active"])
+    ).first()
+
+    if existing:
+        return jsonify({
+            "success": False,
+            "error": "Deployment already exists",
+            "deployment": existing.to_dict(),
+        }), 409
+
+    data = request.get_json() or {}
+    instance_name = (data.get("instance_name") or account.name or "my-ota").lower()
+    instance_name = "".join(c if c.isalnum() or c == "-" else "-" for c in instance_name)[:50]
+
+    deployment = TemplateDeployment(
+        deployment_id=f"dep_{_secrets.token_hex(12)}",
+        commercial_account_id=account.id,
+        instance_name=instance_name,
+        subdomain=f"{instance_name}.mystes.app",
+        brand_name=data.get("brand_name") or account.name,
+        brand_color_primary=data.get("color_primary") or "#7c3aed",
+        brand_color_secondary=data.get("color_secondary") or "#a855f7",
+        logo_url=data.get("logo_url"),
+        config_json=json.dumps({
+            "account_id": account.account_id,
+            "agency_name": account.name,
+            "tier": account.current_tier,
+            "fee_percent": account.fee_percent,
+            "markup_percent": account.consumer_markup_percent,
+            "markup_flat": account.consumer_markup_flat_usd,
+            "referral_code": account.referral_code,
+            "verticals_enabled": data.get("verticals", ["flights", "hotels"]),
+            "custom_domain": data.get("custom_domain"),
+        }),
+        custom_domain=data.get("custom_domain"),
+        status="requested",
+        status_message="Deployment request received. Provisioning will begin shortly.",
+    )
+    db.session.add(deployment)
+    db.session.commit()
+
+    logger.info("APAi deployment requested: %s for %s", deployment.deployment_id, account.account_id)
+
+    try:
+        from celery_app import provision_template_deployment
+        provision_template_deployment.delay(deployment.id)
+    except (ImportError, Exception) as e:
+        logger.debug("Async provisioning not available, will be handled manually: %s", e)
+
+    return jsonify({
+        "success": True,
+        "deployment": deployment.to_dict(),
+        "message": "Deployment requested. You will be notified when your OTA is live.",
+    })
+
+
+@app.route("/api/apai/deploy/status")
+@login_required
+def api_apai_deploy_status():
+    """Get current APAi deployment status."""
+    from models import CommercialAccount, TemplateDeployment
+
+    account = CommercialAccount.query.filter_by(
+        owner_user_id=current_user.id, is_active=True
+    ).first()
+
+    if not account:
+        return jsonify({"success": False, "error": "No account"}), 403
+
+    deployment = TemplateDeployment.query.filter_by(
+        commercial_account_id=account.id
+    ).order_by(TemplateDeployment.requested_at.desc()).first()
+
+    if not deployment:
+        return jsonify({"success": True, "deployment": None})
+
+    return jsonify({"success": True, "deployment": deployment.to_dict()})
+
+
+def _render_apai_deploy_page(account, deployment):
+    """Render the APAi deployment management page."""
+    if deployment:
+        status_color = {
+            "requested": "#f59e0b", "provisioning": "#3b82f6",
+            "active": "#22c55e", "suspended": "#ef4444", "terminated": "#6b7280",
+        }.get(deployment.status, "#999")
+
+        return f"""
+        <div style="max-width:700px;margin:0 auto;padding:40px 20px;">
+            <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;text-align:center;
+                       background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;
+                       -webkit-text-fill-color:transparent;">Your APAi Instance</h1>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+                        border-radius:16px;padding:24px;margin-top:24px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h2 style="color:#e2e8f0;margin:0;font-size:1.2rem;">{deployment.brand_name or deployment.instance_name}</h2>
+                    <span style="background:{status_color};color:#fff;padding:4px 12px;border-radius:20px;
+                                 font-size:0.8rem;font-weight:600;text-transform:uppercase;">{deployment.status}</span>
+                </div>
+                <div style="color:#999;font-size:0.9rem;line-height:1.8;">
+                    <div><strong style="color:#ccc;">Instance:</strong> {deployment.instance_name}</div>
+                    <div><strong style="color:#ccc;">Subdomain:</strong> {deployment.subdomain or 'Pending'}</div>
+                    <div><strong style="color:#ccc;">Custom Domain:</strong> {deployment.custom_domain or 'Not configured'}</div>
+                    <div><strong style="color:#ccc;">Requested:</strong> {deployment.requested_at.strftime('%Y-%m-%d %H:%M') if deployment.requested_at else 'N/A'}</div>
+                </div>
+                {f'<p style="margin-top:12px;color:#06b6d4;font-size:0.9rem;">{deployment.status_message}</p>' if deployment.status_message else ''}
+            </div>
+            <div style="text-align:center;margin-top:24px;">
+                <a href="/apai" style="color:#7c3aed;font-size:0.9rem;">Back to APAi</a>
+            </div>
+        </div>
+        """
+
+    instance_default = account.name.lower().replace(' ', '-') if account.name else 'my-ota'
+    return f"""
+    <div style="max-width:700px;margin:0 auto;padding:40px 20px;">
+        <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;text-align:center;
+                   background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;
+                   -webkit-text-fill-color:transparent;">Deploy Your APAi OTA</h1>
+        <p style="text-align:center;color:#999;margin-bottom:32px;">
+            Launch your own branded travel booking site powered by MYSTES + ANASTASiA.
+        </p>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
+                    border-radius:16px;padding:28px;">
+            <div style="margin-bottom:16px;">
+                <label style="display:block;color:#ccc;font-size:0.85rem;margin-bottom:6px;">Instance Name</label>
+                <input type="text" id="deployInstanceName" value="{instance_default}"
+                       style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);
+                              border-radius:8px;color:#fff;font-size:0.95rem;" />
+                <small style="color:#666;">Your site: <span id="subdomainPreview">{instance_default}.mystes.app</span></small>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;color:#ccc;font-size:0.85rem;margin-bottom:6px;">Brand Name</label>
+                <input type="text" id="deployBrandName" value="{account.name or ''}"
+                       style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);
+                              border-radius:8px;color:#fff;font-size:0.95rem;" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div>
+                    <label style="display:block;color:#ccc;font-size:0.85rem;margin-bottom:6px;">Primary Color</label>
+                    <input type="color" id="deployColorPrimary" value="#7c3aed"
+                           style="width:100%;height:40px;border:none;border-radius:8px;cursor:pointer;" />
+                </div>
+                <div>
+                    <label style="display:block;color:#ccc;font-size:0.85rem;margin-bottom:6px;">Secondary Color</label>
+                    <input type="color" id="deployColorSecondary" value="#a855f7"
+                           style="width:100%;height:40px;border:none;border-radius:8px;cursor:pointer;" />
+                </div>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;color:#ccc;font-size:0.85rem;margin-bottom:6px;">Custom Domain (optional)</label>
+                <input type="text" id="deployCustomDomain" placeholder="book.yourdomain.com"
+                       style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);
+                              border-radius:8px;color:#fff;font-size:0.95rem;" />
+            </div>
+            <button onclick="requestAPAiDeployment()" id="deployBtn"
+                    style="width:100%;padding:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;
+                           border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;">
+                Request Deployment
+            </button>
+        </div>
+    </div>
+    <script>
+    document.getElementById('deployInstanceName').addEventListener('input', function() {{
+        document.getElementById('subdomainPreview').textContent = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') + '.mystes.app';
+    }});
+    function requestAPAiDeployment() {{
+        const btn = document.getElementById('deployBtn');
+        btn.disabled = true; btn.textContent = 'Requesting...';
+        fetch('/api/apai/deploy', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                instance_name: document.getElementById('deployInstanceName').value,
+                brand_name: document.getElementById('deployBrandName').value,
+                color_primary: document.getElementById('deployColorPrimary').value,
+                color_secondary: document.getElementById('deployColorSecondary').value,
+                custom_domain: document.getElementById('deployCustomDomain').value || null,
+            }})
+        }})
+        .then(r => r.json())
+        .then(data => {{
+            if (data.success) {{ window.location.reload(); }}
+            else {{ alert(data.error || 'Deployment request failed'); btn.disabled = false; btn.textContent = 'Request Deployment'; }}
+        }})
+        .catch(err => {{ alert('Error: ' + err.message); btn.disabled = false; btn.textContent = 'Request Deployment'; }});
+    }}
+    </script>
+    """
+
+
+# --- APAi CREDENTIAL ROUTING API (Build #189) ---
+
+@app.route("/api/credential/search", methods=["POST"])
+@csrf.exempt
+@limiter.limit("60/minute")
+def api_credential_search():
+    """
+    APAi instance searches flights through MYSTES credential network.
+
+    Auth: X-APAi-Key header with valid instance key.
+    Body: {origin, destination, departure_date, return_date, adults, cabin_class}
+    Returns: Deduped flight results (no POS market codes per airline compliance).
+    """
+    from apai_provisioning import verify_instance_key
+
+    api_key = request.headers.get("X-APAi-Key", "")
+    instance = verify_instance_key(api_key)
+    if not instance:
+        return jsonify({"error": "Invalid or inactive API key"}), 401
+
+    # Feature gate check
+    try:
+        from picasso_sdk_import import get_feature_gate
+        gate = get_feature_gate()
+        if gate:
+            decision = gate.check_feature_access(instance.tier_id, "flights_search")
+            if not decision.allowed:
+                return jsonify({
+                    "error": "Feature not available on your tier",
+                    "upgrade": decision.upgrade_prompt,
+                }), 403
+    except Exception:
+        pass  # Feature gating optional — allow if gate unavailable
+
+    data = request.get_json(silent=True) or {}
+    origin = data.get("origin", "").strip().upper()
+    destination = data.get("destination", "").strip().upper()
+    departure_date = data.get("departure_date", "")
+    return_date = data.get("return_date")
+    adults = int(data.get("adults", 1))
+    cabin_class = data.get("cabin_class", "economy")
+
+    if not origin or not destination or not departure_date:
+        return jsonify({"error": "origin, destination, and departure_date are required"}), 400
+
+    # Search using MYSTES credentials (Picasso + Duffel)
+    results = []
+    errors = []
+
+    # Picasso search
+    try:
+        from picasso_client import PicassoClient
+        client = PicassoClient()
+        picasso_results = client.search_flights(
+            origin=origin,
+            destination=destination,
+            departure_date=departure_date,
+            return_date=return_date,
+            adults=adults,
+            cabin_class=cabin_class,
+        )
+        if picasso_results and isinstance(picasso_results, list):
+            for r in picasso_results:
+                # Strip POS market codes (airline compliance)
+                r.pop("pos_market_code", None)
+                r.pop("point_of_sale", None)
+                r["source"] = "gds"
+            results.extend(picasso_results)
+    except Exception as e:
+        errors.append(f"gds: {str(e)[:100]}")
+
+    # Duffel search
+    try:
+        from duffel_client import DuffelClient
+        client = DuffelClient()
+        duffel_results = client.search_flights(
+            origin=origin,
+            destination=destination,
+            departure_date=departure_date,
+            return_date=return_date,
+            adults=adults,
+            cabin_class=cabin_class,
+        )
+        if duffel_results and isinstance(duffel_results, list):
+            for r in duffel_results:
+                r.pop("pos_market_code", None)
+                r.pop("point_of_sale", None)
+                r["source"] = "ndc"
+            results.extend(duffel_results)
+    except Exception as e:
+        errors.append(f"ndc: {str(e)[:100]}")
+
+    return jsonify({
+        "results": results,
+        "count": len(results),
+        "errors": errors if errors else None,
+        "instance": instance.key_id,
+    })
+
+
+@app.route("/api/credential/book", methods=["POST"])
+@csrf.exempt
+@limiter.limit("10/minute")
+def api_credential_book():
+    """
+    APAi instance books a flight through MYSTES credential network.
+
+    Auth: X-APAi-Key header.
+    Body: {offer_id, source, passengers, payment_reference}
+    Returns: Booking confirmation or error.
+    """
+    from apai_provisioning import verify_instance_key
+
+    api_key = request.headers.get("X-APAi-Key", "")
+    instance = verify_instance_key(api_key)
+    if not instance:
+        return jsonify({"error": "Invalid or inactive API key"}), 401
+
+    # Feature gate — booking requires starter tier or above
+    try:
+        from picasso_sdk_import import get_feature_gate
+        gate = get_feature_gate()
+        if gate:
+            decision = gate.check_feature_access(instance.tier_id, "booking")
+            if not decision.allowed:
+                return jsonify({
+                    "error": "Booking not available on your tier",
+                    "upgrade": decision.upgrade_prompt,
+                }), 403
+    except Exception:
+        pass
+
+    data = request.get_json(silent=True) or {}
+    offer_id = data.get("offer_id", "").strip()
+    source = data.get("source", "").strip()
+    passengers = data.get("passengers", [])
+    payment_ref = data.get("payment_reference", "").strip()
+
+    if not offer_id or not passengers:
+        return jsonify({"error": "offer_id and passengers are required"}), 400
+
+    # Route to appropriate booking provider
+    try:
+        if source == "ndc":
+            from duffel_client import DuffelClient
+            client = DuffelClient()
+            result = client.create_order(
+                offer_id=offer_id,
+                passengers=passengers,
+            )
+        else:
+            from picasso_client import PicassoClient
+            client = PicassoClient()
+            result = client.book_flight(
+                fare_id=offer_id,
+                passengers=passengers,
+            )
+
+        if result and result.get("success"):
+            logger.info("APAi booking success: instance=%s offer=%s", instance.key_id, offer_id)
+            return jsonify({
+                "success": True,
+                "confirmation_code": result.get("confirmation_code") or result.get("booking_reference"),
+                "booking_id": result.get("booking_id") or result.get("order_id"),
+                "instance": instance.key_id,
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": result.get("error", "Booking failed"),
+            }), 400
+
+    except Exception as e:
+        logger.error("APAi booking error: instance=%s error=%s", instance.key_id, e)
+        return jsonify({"success": False, "error": str(e)[:200]}), 500
 
 
 # --- LEGAL PAGES ---
@@ -9261,6 +11555,453 @@ def price_guarantee():
         content=GUARANTEE_CONTENT,
         current_user=current_user
     )
+
+
+# --- Build #191: SEO + Production Polish ---
+
+@app.route("/robots.txt")
+def robots_txt():
+    """Serve robots.txt from static directory."""
+    return app.send_static_file("robots.txt")
+
+
+@app.route("/sitemap.xml")
+@limiter.exempt
+def sitemap_xml():
+    """Dynamic XML sitemap for SEO crawlers."""
+    from flask import Response
+    base = request.url_root.rstrip("/")
+    pages = [
+        ("", "1.0", "daily"),         # Homepage
+        ("/flights", "0.9", "daily"),
+        ("/hotels", "0.9", "daily"),
+        ("/cars", "0.8", "daily"),
+        ("/activities", "0.8", "daily"),
+        ("/insurance", "0.8", "weekly"),
+        ("/pricing", "0.7", "monthly"),
+        ("/about", "0.6", "monthly"),
+        ("/faq", "0.6", "monthly"),
+        ("/contact", "0.5", "monthly"),
+        ("/travel-plus", "0.7", "monthly"),
+        ("/price-guarantee", "0.5", "monthly"),
+        ("/terms", "0.3", "yearly"),
+        ("/privacy", "0.3", "yearly"),
+    ]
+    xml_items = []
+    for path, priority, freq in pages:
+        xml_items.append(
+            f"<url><loc>{base}{path}</loc>"
+            f"<changefreq>{freq}</changefreq>"
+            f"<priority>{priority}</priority></url>"
+        )
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += "\n".join(xml_items)
+    xml += "\n</urlset>"
+    return Response(xml, mimetype="application/xml")
+
+
+# --- Build #191: Marketing Pages (Pricing, FAQ, Contact) ---
+
+PRICING_PAGE_CONTENT = """
+<style>
+.pricing-page{max-width:1100px;margin:0 auto;padding:40px 20px;opacity:0;animation:priceFadeIn .6s ease-out forwards}
+.pricing-header{text-align:center;margin-bottom:48px}
+.pricing-brand{font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+.pricing-title{font-family:'Cinzel',serif;font-size:2.2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 10px}
+.pricing-subtitle{color:rgba(255,255,255,0.5);font-size:16px;max-width:600px;margin:0 auto}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:48px}
+.pricing-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px 24px;text-align:center;transition:transform .2s,border-color .2s;position:relative;overflow:hidden}
+.pricing-card:hover{transform:translateY(-4px);border-color:rgba(124,58,237,0.3)}
+.pricing-card.featured{border:2px solid #7c3aed}
+.pricing-card.featured::before{content:'MOST POPULAR';position:absolute;top:16px;right:-28px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:10px;font-weight:700;padding:4px 32px;transform:rotate(45deg);letter-spacing:1px}
+.pricing-tier{font-family:'Cinzel',serif;font-size:18px;color:#e2e8f0;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+.pricing-price{font-size:2.8rem;font-weight:800;color:#fff;margin:12px 0 4px}
+.pricing-price span{font-size:14px;font-weight:400;color:rgba(255,255,255,0.5)}
+.pricing-fee{display:inline-block;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:600;margin:8px 0 20px}
+.pricing-fee-green{background:rgba(74,222,128,0.12);color:#4ade80;border:1px solid rgba(74,222,128,0.2)}
+.pricing-fee-purple{background:rgba(124,58,237,0.12);color:#a78bfa;border:1px solid rgba(124,58,237,0.2)}
+.pricing-fee-teal{background:rgba(20,184,166,0.12);color:#14b8a6;border:1px solid rgba(20,184,166,0.2)}
+.pricing-features{text-align:left;margin:0;padding:0;list-style:none}
+.pricing-features li{padding:8px 0;color:rgba(255,255,255,0.7);font-size:14px;display:flex;align-items:center;gap:10px}
+.pricing-features li::before{content:'\\2713';color:#4ade80;font-weight:700;flex-shrink:0}
+.pricing-cta{display:block;margin-top:24px;padding:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;text-align:center;cursor:pointer;letter-spacing:1px;transition:opacity .2s}
+.pricing-cta:hover{opacity:0.9}
+.pricing-cta.outline{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#e2e8f0}
+.pricing-cta.outline:hover{border-color:rgba(124,58,237,0.4)}
+.pricing-section{margin-bottom:48px}
+.pricing-section-title{font-family:'Cinzel',serif;font-size:1.4rem;color:#e2e8f0;letter-spacing:3px;text-align:center;margin-bottom:24px}
+.pricing-b2b-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.pricing-b2b-card{background:rgba(10,6,18,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:24px;text-align:center}
+.pricing-b2b-card h4{font-family:'Cinzel',serif;font-size:15px;color:#14b8a6;letter-spacing:2px;margin:0 0 8px}
+.pricing-b2b-card .price{font-size:2rem;font-weight:700;color:#fff;margin:8px 0}
+.pricing-b2b-card .price span{font-size:13px;font-weight:400;color:rgba(255,255,255,0.4)}
+.pricing-b2b-card .fee-tag{font-size:12px;color:#a78bfa}
+.pricing-note{text-align:center;color:rgba(255,255,255,0.4);font-size:13px;margin-top:32px;line-height:1.6}
+@keyframes priceFadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){.pricing-title{font-size:1.6rem}.pricing-price{font-size:2rem}.pricing-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="pricing-page">
+    <div class="pricing-header">
+        <div class="pricing-brand">MYSTES</div>
+        <h1 class="pricing-title">Simple, Transparent Pricing</h1>
+        <p class="pricing-subtitle">We charge a percentage of the savings we find. No hidden fees. If we don't save you money, you pay nothing.</p>
+    </div>
+
+    <!-- Consumer Tiers -->
+    <div class="pricing-section">
+        <h2 class="pricing-section-title">For Travelers</h2>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <div class="pricing-tier">Guest</div>
+                <div class="pricing-price">Free</div>
+                <div class="pricing-fee pricing-fee-green">50% of savings</div>
+                <ul class="pricing-features">
+                    <li>Search flights, hotels, cars, activities</li>
+                    <li>Compare against Google Flights</li>
+                    <li>Secure Stripe checkout</li>
+                    <li>Real airline-issued tickets</li>
+                </ul>
+                <a href="/flights" class="pricing-cta outline">Start Searching</a>
+            </div>
+            <div class="pricing-card">
+                <div class="pricing-tier">Free Member</div>
+                <div class="pricing-price">Free</div>
+                <div class="pricing-fee pricing-fee-green">45% of savings</div>
+                <ul class="pricing-features">
+                    <li>Everything in Guest</li>
+                    <li>Save searches and collections</li>
+                    <li>Price drop alerts</li>
+                    <li>Trip planner &amp; collaboration</li>
+                    <li>Earn MYSTES Rewards (10pts/$1)</li>
+                </ul>
+                <a href="/register" class="pricing-cta outline">Create Account</a>
+            </div>
+            <div class="pricing-card featured">
+                <div class="pricing-tier">Travel+</div>
+                <div class="pricing-price">$9.99<span>/mo</span></div>
+                <div class="pricing-fee pricing-fee-purple">35% of savings</div>
+                <ul class="pricing-features">
+                    <li>Everything in Free Member</li>
+                    <li>Lowest consumer fee tier</li>
+                    <li>Unlimited ANASTASiA AI chat</li>
+                    <li>1.5x rewards multiplier</li>
+                    <li>Priority support</li>
+                    <li>Annual option: $79.99/yr (save 33%)</li>
+                </ul>
+                <a href="/travel-plus" class="pricing-cta">Subscribe to Travel+</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- B2B Tiers -->
+    <div class="pricing-section">
+        <h2 class="pricing-section-title">For Businesses</h2>
+        <div class="pricing-b2b-grid">
+            <div class="pricing-b2b-card">
+                <h4>Starter</h4>
+                <div class="price">$49<span>/mo</span></div>
+                <div class="fee-tag">25% fee on savings</div>
+            </div>
+            <div class="pricing-b2b-card">
+                <h4>Growth</h4>
+                <div class="price">$99<span>/mo</span></div>
+                <div class="fee-tag">20% fee on savings</div>
+            </div>
+            <div class="pricing-b2b-card">
+                <h4>Volume</h4>
+                <div class="price">$199<span>/mo</span></div>
+                <div class="fee-tag">15% fee on savings</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APAi — Separate product, NOT a B2B tier -->
+    <div class="pricing-section" style="margin-top:40px;">
+        <h2 class="pricing-section-title" style="background:linear-gradient(135deg,#7c3aed,#06b6d4);
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;">Launch Your Own OTA</h2>
+        <p style="text-align:center;color:#8a8278;font-size:0.9rem;margin-bottom:20px;">
+            Deploy your own branded travel booking site with direct wholesale pricing.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:500px;margin:0 auto;">
+            <div class="pricing-b2b-card" style="border-color:rgba(124,58,237,0.3);text-align:center;">
+                <h4 style="color:#a78bfa;">APAi Pro</h4>
+                <div class="price">$299<span>/mo</span></div>
+                <div class="fee-tag">Turnkey OTA + AI terminal</div>
+            </div>
+            <div class="pricing-b2b-card" style="border-color:rgba(124,58,237,0.2);text-align:center;">
+                <h4 style="color:#a78bfa;">APAi Enterprise</h4>
+                <div class="price">$599<span>/mo</span></div>
+                <div class="fee-tag">Pro + priority support</div>
+            </div>
+        </div>
+        <div style="text-align:center;margin-top:16px;">
+            <a href="/apai" style="color:#a78bfa;font-size:0.9rem;text-decoration:underline;">Learn more about APAi &rarr;</a>
+        </div>
+    </div>
+
+    <p class="pricing-note">
+        $3 minimum fee per transaction. Same pricing for every customer at every tier &mdash; no volume discounts, no enterprise deals.<br>
+        All bookings include real airline-issued tickets via our GDS and NDC connections. All pricing provisional.
+    </p>
+</div>
+"""
+
+
+FAQ_PAGE_CONTENT = """
+<style>
+.faq-page{max-width:800px;margin:0 auto;padding:40px 20px;opacity:0;animation:faqFadeIn .6s ease-out forwards}
+.faq-brand{text-align:center;font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+.faq-title{text-align:center;font-family:'Cinzel',serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
+.faq-subtitle{text-align:center;color:rgba(255,255,255,0.5);font-size:15px;margin-bottom:36px}
+.faq-section{margin-bottom:32px}
+.faq-section-title{font-family:'Cinzel',serif;font-size:1rem;color:#a78bfa;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.faq-item{background:rgba(10,6,18,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.faq-q{padding:16px 20px;cursor:pointer;color:#e2e8f0;font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
+.faq-q:hover{background:rgba(124,58,237,0.06)}
+.faq-q::after{content:'\\25BC';font-size:11px;color:rgba(255,255,255,0.3);transition:transform .2s}
+.faq-item.open .faq-q::after{transform:rotate(180deg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease-out}
+.faq-item.open .faq-a{max-height:500px}
+.faq-a-inner{padding:0 20px 16px;color:rgba(255,255,255,0.6);font-size:14px;line-height:1.7}
+@keyframes faqFadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+</style>
+
+<div class="faq-page">
+    <div class="faq-brand">MYSTES</div>
+    <h1 class="faq-title">Frequently Asked Questions</h1>
+    <p class="faq-subtitle">Everything you need to know about MYSTES.</p>
+
+    <div class="faq-section">
+        <div class="faq-section-title">Booking &amp; Pricing</div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does MYSTES find cheaper flights?</div>
+            <div class="faq-a"><div class="faq-a-inner">We access wholesale consolidator fares through GDS (Global Distribution Systems) and NDC (New Distribution Capability) airline connections. These are the same systems travel agencies use to find fares not available on consumer booking sites. We search across multiple providers simultaneously and deduplicate results to show you the cheapest option.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is the platform fee?</div>
+            <div class="faq-a"><div class="faq-a-inner">We charge a percentage of the savings we find. Guests pay 50%, free members 45%, and Travel+ subscribers 35%. The minimum fee is $3 per transaction. If we don't find a price lower than what you'd find on Google Flights, you pay nothing extra &mdash; just the ticket price.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Are these real airline tickets?</div>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Every flight booking produces a genuine airline e-ticket with a PNR (Passenger Name Record) issued through the airline's own systems. You can manage your booking directly with the airline using your confirmation code. Your ticket appears in the airline's system exactly like any other ticket.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is my payment secure?</div>
+            <div class="faq-a"><div class="faq-a-inner">All payments are processed through Stripe, which is PCI-DSS Level 1 certified &mdash; the highest level of payment security certification. MYSTES never sees or stores your credit card details. We also support MoonPay for cryptocurrency payments.</div></div>
+        </div>
+    </div>
+
+    <div class="faq-section">
+        <div class="faq-section-title">Account &amp; Subscriptions</div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What's the difference between free and Travel+?</div>
+            <div class="faq-a"><div class="faq-a-inner">Free members get a 45% fee (vs 50% for guests), collections, trip planning, and rewards points. Travel+ ($9.99/mo) drops the fee to 35%, adds unlimited ANASTASiA AI assistant access, 1.5x rewards multiplier, and priority support. Annual pricing is $79.99/yr (saves 33%).</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What are MYSTES Rewards?</div>
+            <div class="faq-a"><div class="faq-a-inner">You earn 10 points per $1 spent on any booking (flights, hotels, cars, activities, insurance). Travel+ members earn at 1.5x. Points can be redeemed for future bookings at 1,000 points = $1, gifted to friends, or used across all verticals. Points expire after 12 months of account inactivity.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Can I cancel Travel+ anytime?</div>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Travel+ is billed monthly (or annually) through Stripe and can be cancelled at any time. Your benefits remain active through the end of your billing period. No cancellation fees.</div></div>
+        </div>
+    </div>
+
+    <div class="faq-section">
+        <div class="faq-section-title">Travel Features</div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What can I book on MYSTES?</div>
+            <div class="faq-a"><div class="faq-a-inner">Flights (300+ airlines via GDS &amp; NDC), hotels (2M+ properties via liteAPI), car rentals (500+ suppliers via DiscoverCars), activities &amp; tours (300,000+ via Viator), and travel insurance (via SafetyWing). All from one platform.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is ANASTASiA?</div>
+            <div class="faq-a"><div class="faq-a-inner">ANASTASiA is our AI travel intelligence platform. For Travel+ subscribers, she provides unlimited conversational search, trip recommendations, and booking assistance. She's powered by compiled knowledge cards that understand airline pricing, routing, and availability patterns.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does the Trip Planner work?</div>
+            <div class="faq-a"><div class="faq-a-inner">Create a trip, invite friends by email, and collaboratively add flights, hotels, cars, activities, and dining. Members can vote on options, set budget caps, and when everyone agrees, checkout with a shared cart that splits costs per person.</div></div>
+        </div>
+    </div>
+
+    <div class="faq-section">
+        <div class="faq-section-title">For Businesses</div>
+
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">How does B2B pricing work?</div>
+            <div class="faq-a"><div class="faq-a-inner">B2B plans reduce your platform fee: Starter ($49/mo, 25% fee), Growth ($99/mo, 20%), Volume ($199/mo, 15%). These are inside MYSTES &mdash; you get reduced fees on every booking. Same inventory, same prices, lower fees.</div></div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What is APAi?</div>
+            <div class="faq-a"><div class="faq-a-inner">APAi gives you a full turnkey copy of the MYSTES OTA platform with your own brand and domain, plus access to ANASTASiA &mdash; your AI development platform. Plans start at $299/mo (Pro). Build your own travel agency with zero development cost. <a href="/apai" style="color:#b388ff;">Learn more &rarr;</a></div></div>
+        </div>
+    </div>
+</div>
+"""
+
+
+CONTACT_PAGE_CONTENT = """
+<style>
+.contact-page{max-width:700px;margin:0 auto;padding:40px 20px;opacity:0;animation:contactFadeIn .6s ease-out forwards}
+.contact-brand{text-align:center;font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+.contact-title{text-align:center;font-family:'Cinzel',serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
+.contact-subtitle{text-align:center;color:rgba(255,255,255,0.5);font-size:15px;margin-bottom:36px}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:32px}
+.contact-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;text-align:center;transition:border-color .2s}
+.contact-card:hover{border-color:rgba(124,58,237,0.3)}
+.contact-icon{font-size:32px;margin-bottom:12px;opacity:0.8}
+.contact-card h3{font-family:'Cinzel',serif;font-size:14px;color:#e2e8f0;letter-spacing:2px;margin:0 0 8px}
+.contact-card p{color:rgba(255,255,255,0.5);font-size:14px;margin:0 0 12px;line-height:1.5}
+.contact-card a{color:#a78bfa;text-decoration:none;font-size:14px;transition:color .2s}
+.contact-card a:hover{color:#7c3aed}
+.contact-form-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px}
+.contact-form-title{font-family:'Cinzel',serif;font-size:16px;color:#e2e8f0;letter-spacing:2px;margin:0 0 20px}
+.contact-label{display:block;color:rgba(255,255,255,0.6);font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+.contact-input,.contact-textarea{width:100%;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;font-size:15px;font-family:'Outfit',sans-serif;transition:border-color .2s,box-shadow .2s;box-sizing:border-box;margin-bottom:16px}
+.contact-input:focus,.contact-textarea:focus{outline:none;border-color:rgba(124,58,237,0.5);box-shadow:0 0 0 3px rgba(124,58,237,0.15)}
+.contact-textarea{min-height:120px;resize:vertical}
+.contact-submit{width:100%;padding:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:opacity .2s,transform .2s}
+.contact-submit:hover{opacity:0.9;transform:translateY(-1px)}
+.contact-hours{text-align:center;color:rgba(255,255,255,0.35);font-size:13px;margin-top:32px;line-height:1.6}
+@keyframes contactFadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){.contact-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="contact-page">
+    <div class="contact-brand">MYSTES</div>
+    <h1 class="contact-title">Contact Us</h1>
+    <p class="contact-subtitle">We'd love to hear from you.</p>
+
+    <div class="contact-grid">
+        <div class="contact-card">
+            <div class="contact-icon">&#9993;</div>
+            <h3>General</h3>
+            <p>Questions, feedback, or partnerships</p>
+            <a href="mailto:hello@mystes.app">hello@mystes.app</a>
+        </div>
+        <div class="contact-card">
+            <div class="contact-icon">&#128736;</div>
+            <h3>Support</h3>
+            <p>Booking issues or account help</p>
+            <a href="mailto:support@mystes.app">support@mystes.app</a>
+        </div>
+        <div class="contact-card">
+            <div class="contact-icon">&#128188;</div>
+            <h3>Business</h3>
+            <p>B2B plans, APAi, or API access</p>
+            <a href="mailto:business@mystes.app">business@mystes.app</a>
+        </div>
+        <div class="contact-card">
+            <div class="contact-icon">&#128220;</div>
+            <h3>Press</h3>
+            <p>Media inquiries and press kits</p>
+            <a href="mailto:press@mystes.app">press@mystes.app</a>
+        </div>
+    </div>
+
+    <div class="contact-form-card">
+        <h3 class="contact-form-title">Send a Message</h3>
+        <form id="contactForm" onsubmit="submitContact(event)">
+            <label class="contact-label" for="contact-name">Name</label>
+            <input class="contact-input" type="text" id="contact-name" name="name" placeholder="Your name" required>
+            <label class="contact-label" for="contact-email">Email</label>
+            <input class="contact-input" type="email" id="contact-email" name="email" placeholder="your@email.com" required>
+            <label class="contact-label" for="contact-subject">Subject</label>
+            <input class="contact-input" type="text" id="contact-subject" name="subject" placeholder="How can we help?">
+            <label class="contact-label" for="contact-message">Message</label>
+            <textarea class="contact-textarea" id="contact-message" name="message" placeholder="Tell us what's on your mind..." required></textarea>
+            <button type="submit" class="contact-submit">Send Message</button>
+        </form>
+        <div id="contactSuccess" style="display:none;text-align:center;padding:20px;color:#4ade80;font-weight:600;">
+            Message sent! We'll get back to you soon.
+        </div>
+    </div>
+
+    <p class="contact-hours">MYSTES KYRIOS LLC<br>Response time: within 24 hours</p>
+</div>
+
+<script>
+function submitContact(e){
+    e.preventDefault();
+    const form=document.getElementById('contactForm');
+    const data=Object.fromEntries(new FormData(form));
+    fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name=csrf-token]').content},body:JSON.stringify(data)})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){form.style.display='none';document.getElementById('contactSuccess').style.display='block';}
+        else{alert(d.error||'Failed to send. Please email us directly.');}
+    }).catch(()=>alert('Network error. Please email us directly.'));
+}
+</script>
+"""
+
+
+@app.route("/pricing")
+def pricing():
+    """Pricing page — the full MYSTES pyramid."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Pricing",
+        meta_description="MYSTES pricing: Free to start, Travel+ for $9.99/mo, B2B plans from $49/mo. No hidden fees.",
+        content=PRICING_PAGE_CONTENT,
+        current_user=current_user
+    )
+
+
+@app.route("/faq")
+def faq():
+    """Frequently Asked Questions page."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="FAQ",
+        meta_description="Frequently asked questions about MYSTES: pricing, booking, Travel+, rewards, and business plans.",
+        content=FAQ_PAGE_CONTENT,
+        current_user=current_user
+    )
+
+
+@app.route("/contact")
+def contact():
+    """Contact page with form."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Contact Us",
+        meta_description="Contact MYSTES for general inquiries, support, business partnerships, or press.",
+        content=CONTACT_PAGE_CONTENT,
+        current_user=current_user
+    )
+
+
+@app.route("/api/contact", methods=["POST"])
+@csrf.exempt
+@limiter.limit("5 per hour")
+def api_contact():
+    """Handle contact form submission."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data"}), 400
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip()
+    message = (data.get("message") or "").strip()
+    if not name or not email or not message:
+        return jsonify({"success": False, "error": "Name, email, and message are required"}), 400
+    subject = (data.get("subject") or "").strip() or "Contact Form"
+    # Log contact and attempt email notification to admin
+    logger.info("[CONTACT] From: %s <%s> Subject: %s", name, email, subject)
+    try:
+        from email_service import send_email_smtp
+        send_email_smtp(
+            to=app.config.get("MAIL_USERNAME", "hello@mystes.app"),
+            subject=f"[MYSTES Contact] {subject}",
+            html_body=f"<p><strong>From:</strong> {name} ({email})</p><p><strong>Subject:</strong> {subject}</p><p>{message}</p>",
+            text_body=f"From: {name} ({email})\nSubject: {subject}\n\n{message}",
+        )
+    except Exception as e:
+        logger.warning("Contact email failed (logged anyway): %s", e)
+    return jsonify({"success": True, "message": "Message received"})
 
 
 # --- Travel+ Subscription Routes (Build #172) ---
@@ -10080,6 +12821,18 @@ function checkAutoQuery() {
         setTimeout(function() { sendMessage(); }, 500);
         // Clean up URL
         window.history.replaceState({}, '', '/ai');
+        return;
+    }
+    // Concierge context handoff (Build #183)
+    if (window.__CONCIERGE_CONTEXT__) {
+        const ctx = window.__CONCIERGE_CONTEXT__;
+        let msg = 'I was looking at ' + (ctx.vertical || 'travel options');
+        if (ctx.destination) msg += ' to ' + ctx.destination;
+        if (ctx.date) msg += ' on ' + ctx.date;
+        msg += '. Can you help me?';
+        document.getElementById('chatInput').value = msg;
+        setTimeout(function() { sendMessage(); }, 500);
+        delete window.__CONCIERGE_CONTEXT__;
     }
 }
 
@@ -11005,6 +13758,17 @@ def mystes_ai_page():
     """MYSTES AI conversational interface."""
     is_auth = "true" if current_user.is_authenticated else "false"
     content = MYSTES_AI_CONTENT.replace("__IS_AUTHENTICATED__", is_auth)
+
+    # Load concierge context for AI handoff (Build #183)
+    concierge_context = session.pop('concierge_context', None)
+    if concierge_context:
+        import json as _json
+        ctx_json = _json.dumps(concierge_context)
+        content = content.replace(
+            '<script>\nlet currentConvId = null;',
+            f'<script>\nwindow.__CONCIERGE_CONTEXT__ = {ctx_json};\nlet currentConvId = null;'
+        )
+
     return render_template_string(
         BASE_TEMPLATE,
         title="MYSTES AI",
@@ -13664,6 +16428,13 @@ function displayResults(data) {
                     is_round_trip: isActualRoundTrip,
                     price_type: isActualRoundTrip ? 'round_trip_total' : 'one_way',
                     converted_prices: {},
+                    fare_id: flight.fare_id || null,
+                    fare_search_id: flight.fare_search_id || null,
+                    offer_id: flight.offer_id || null,
+                    raw_offer: flight.raw_offer || null,
+                    picasso_gds: flight.picasso_gds || null,
+                    fare_type: flight.fare_type || null,
+                    source: flight.source || null,
                 }));
 
                 const stopsText = flight.stops === 0 ? 'Nonstop' : (flight.stops !== undefined ? flight.stops + ' stop' + (flight.stops > 1 ? 's' : '') : '');
@@ -14275,7 +17046,13 @@ function proceedToPayment() {
             cheapest_market: 'MYSTES',
             cheapest_price: flight.cheapest_price,
             us_price: flight.us_price,
-            savings: flight.savings
+            savings: flight.savings,
+            fare_id: flight.fare_id || null,
+            fare_search_id: flight.fare_search_id || null,
+            offer_id: flight.offer_id || null,
+            raw_offer: flight.raw_offer || null,
+            picasso_gds: flight.picasso_gds || null,
+            fare_type: flight.fare_type || null,
         });
     }
 
@@ -14301,7 +17078,12 @@ function proceedToPayment() {
         cheapest_market: 'MYSTES',
         cheapest_price: totalBestPrice,
         us_price: flights.reduce((sum, f) => sum + (f.us_price || f.cheapest_price), 0),
-        savings: totalSavings
+        savings: totalSavings,
+        raw_offer: flights[0]?.raw_offer || null,
+        fare_id: flights[0]?.fare_id || null,
+        fare_search_id: flights[0]?.fare_search_id || null,
+        picasso_gds: flights[0]?.picasso_gds || null,
+        fare_type: flights[0]?.fare_type || null,
     };
 
     // Show loading screen
@@ -15388,6 +18170,7 @@ def api_search_itinerary():
                         layovers=",".join(deal_data.get("layovers", [])) if deal_data.get("layovers") else None,
                         fare_id=deal_data.get("fare_id") or deal_data.get("raw_offer", {}).get("fare_id"),
                         fare_search_id=deal_data.get("fare_search_id") or deal_data.get("raw_offer", {}).get("fare_search_id"),
+                        amadeus_offer_data=json.dumps(deal_data.get("raw_offer")) if deal_data.get("raw_offer") else None,
                         picasso_gds=deal_data.get("picasso_gds"),
                         fare_type=deal_data.get("fare_type"),
                         is_active=True,
@@ -16151,10 +18934,23 @@ def payment_success():
 
 
 @app.route("/pay/webhook/stripe", methods=["POST"])
+@limiter.exempt
 def stripe_webhook():
     """Handle Stripe webhook events."""
     payload = request.get_data()
     signature = request.headers.get("Stripe-Signature")
+
+    # Idempotency check (Build #189) — parse event to get ID
+    try:
+        import stripe as stripe_mod
+        webhook_secret = PAYMENT_CONFIG.get("stripe_webhook_secret", "")
+        parsed_evt = stripe_mod.Webhook.construct_event(payload, signature, webhook_secret)
+        if parsed_evt:
+            from models import WebhookEvent
+            if WebhookEvent.query.filter_by(event_id=parsed_evt.id).first():
+                return jsonify({"received": True, "duplicate": True})
+    except Exception:
+        parsed_evt = None
 
     result = handle_stripe_webhook(payload, signature)
 
@@ -16173,6 +18969,16 @@ def stripe_webhook():
                 payment.status = 'verified'
                 payment.verified_at = datetime.now(timezone.utc)
                 db.session.commit()
+
+    # Record processed event (Build #189)
+    if parsed_evt:
+        try:
+            from models import WebhookEvent
+            whe = WebhookEvent(event_id=parsed_evt.id, event_type=parsed_evt.type)
+            db.session.add(whe)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     return jsonify({"received": True})
 
@@ -16438,6 +19244,127 @@ ADMIN_USERS_CONTENT = """
     {% endif %}
 </div>
 """
+
+
+# --- ADMIN: APAi DEPLOYMENT MANAGEMENT (Build #189) ---
+
+@app.route("/admin/deployments")
+@admin_required
+def admin_deployments():
+    """List all APAi template deployments with status."""
+    deployments = TemplateDeployment.query.order_by(
+        TemplateDeployment.requested_at.desc()
+    ).all()
+
+    rows = ""
+    for d in deployments:
+        status_color = {
+            "requested": "#f59e0b", "provisioning": "#3b82f6",
+            "active": "#22c55e", "suspended": "#ef4444",
+            "terminated": "#6b7280", "failed": "#ef4444",
+        }.get(d.status, "#999")
+
+        rows += f"""
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+            <td style="padding:10px;color:#e2e8f0;">{d.deployment_id[:16]}...</td>
+            <td style="padding:10px;">{d.brand_name or d.instance_name}</td>
+            <td style="padding:10px;">{d.subdomain or 'N/A'}</td>
+            <td style="padding:10px;"><span style="background:{status_color};color:#fff;padding:2px 8px;
+                border-radius:10px;font-size:0.75rem;">{d.status}</span></td>
+            <td style="padding:10px;color:#999;font-size:0.85rem;">{d.requested_at.strftime('%Y-%m-%d') if d.requested_at else ''}</td>
+            <td style="padding:10px;">
+                {'<form method="POST" action="/admin/deployments/' + str(d.id) + '/approve" style="display:inline;">'
+                 '<button style="background:#22c55e;color:#fff;border:none;padding:4px 10px;border-radius:6px;'
+                 'cursor:pointer;font-size:0.8rem;">Approve</button></form>' if d.status == 'requested' else ''}
+                {'<form method="POST" action="/admin/deployments/' + str(d.id) + '/suspend" style="display:inline;margin-left:4px;">'
+                 '<button style="background:#ef4444;color:#fff;border:none;padding:4px 10px;border-radius:6px;'
+                 'cursor:pointer;font-size:0.8rem;">Suspend</button></form>' if d.status == 'active' else ''}
+            </td>
+        </tr>"""
+
+    content = f"""
+    <div style="max-width:1000px;margin:0 auto;padding:40px 20px;">
+        <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;
+            background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;">APAi Deployments</h1>
+        <p style="color:#999;margin-bottom:24px;">{len(deployments)} total deployments</p>
+        <table style="width:100%;border-collapse:collapse;color:#ccc;">
+            <thead>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <th style="padding:10px;text-align:left;color:#999;">ID</th>
+                    <th style="padding:10px;text-align:left;color:#999;">Brand</th>
+                    <th style="padding:10px;text-align:left;color:#999;">Subdomain</th>
+                    <th style="padding:10px;text-align:left;color:#999;">Status</th>
+                    <th style="padding:10px;text-align:left;color:#999;">Requested</th>
+                    <th style="padding:10px;text-align:left;color:#999;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+        </table>
+        <div style="text-align:center;margin-top:24px;">
+            <a href="/admin" style="color:#7c3aed;">Back to Admin</a>
+        </div>
+    </div>"""
+
+    return render_template_string(BASE_TEMPLATE, title="APAi Deployments - Admin",
+                                  content=content, current_user=current_user)
+
+
+@app.route("/admin/deployments/<int:deployment_id>/approve", methods=["POST"])
+@admin_required
+def admin_approve_deployment(deployment_id):
+    """Approve and trigger provisioning for a requested deployment."""
+    deployment = TemplateDeployment.query.get(deployment_id)
+    if not deployment:
+        flash("Deployment not found.", "error")
+        return redirect("/admin/deployments")
+
+    if deployment.status != "requested":
+        flash(f"Cannot approve deployment in '{deployment.status}' state.", "error")
+        return redirect("/admin/deployments")
+
+    # Trigger provisioning
+    try:
+        from celery_app import provision_template_deployment
+        provision_template_deployment.delay(deployment.id)
+        flash(f"Provisioning started for {deployment.brand_name or deployment.instance_name}.", "success")
+    except Exception as e:
+        # Direct provisioning if Celery unavailable
+        try:
+            from apai_provisioning import APAiProvisioner
+            provisioner = APAiProvisioner()
+            result = provisioner.provision(deployment, db.session)
+            if result.get("success"):
+                flash(f"Deployment active: {result.get('url', 'pending')}", "success")
+            else:
+                flash(f"Provisioning queued (manual): {result.get('error', 'unknown')}", "warning")
+        except Exception as e2:
+            flash(f"Provisioning error: {str(e2)[:100]}", "error")
+
+    return redirect("/admin/deployments")
+
+
+@app.route("/admin/deployments/<int:deployment_id>/suspend", methods=["POST"])
+@admin_required
+def admin_suspend_deployment(deployment_id):
+    """Suspend an active APAi deployment."""
+    deployment = TemplateDeployment.query.get(deployment_id)
+    if not deployment:
+        flash("Deployment not found.", "error")
+        return redirect("/admin/deployments")
+
+    try:
+        from apai_provisioning import APAiProvisioner
+        provisioner = APAiProvisioner()
+        provisioner.suspend(deployment, db.session)
+        flash(f"Deployment {deployment.brand_name or deployment.instance_name} suspended.", "success")
+    except Exception as e:
+        deployment.status = "suspended"
+        deployment.suspended_at = datetime.now(timezone.utc)
+        db.session.commit()
+        flash("Deployment suspended (Render API unavailable).", "warning")
+
+    return redirect("/admin/deployments")
 
 
 @app.route("/admin")
@@ -17361,8 +20288,8 @@ try:
     from routes_flights import register_flight_routes
     register_flight_routes(app, csrf, limiter)
     logger.info("Flight routes registered at /flights")
-except ImportError as e:
-    logger.warning(f"Flight routes not loaded: {e}")
+except Exception as e:
+    logger.warning("Flight routes not loaded: %s", e)
 
 # --- Phase 2 Hotel Routes (liteAPI) ---
 # Always register — handlers check feature flag internally (return 410 when disabled)
@@ -17370,8 +20297,8 @@ try:
     from routes_hotels import register_hotel_routes
     register_hotel_routes(app, csrf, limiter)
     logger.info("Hotel routes registered (liteAPI)")
-except ImportError as e:
-    logger.warning(f"Hotel routes not loaded: {e}")
+except Exception as e:
+    logger.warning("Hotel routes not loaded: %s", e)
 
 # --- B2B Business Routes (Build #158) ---
 
@@ -17380,8 +20307,8 @@ if is_feature_enabled('b2b_accounts'):
         from routes_business import register_business_routes
         register_business_routes(app, csrf, limiter)
         logger.info("B2B business routes registered")
-    except ImportError as e:
-        logger.warning(f"B2B routes not loaded: {e}")
+    except Exception as e:
+        logger.warning("B2B routes not loaded: %s", e)
 
 # --- Activities & Tours Routes (Build #164) ---
 
@@ -17390,40 +20317,72 @@ if is_feature_enabled('vertical_activities'):
         from routes_activities import register_activities_routes
         register_activities_routes(app, csrf, limiter)
         logger.info("Activities routes registered (Viator)")
-    except ImportError as e:
-        logger.warning(f"Activities routes not loaded: {e}")
+    except Exception as e:
+        logger.warning("Activities routes not loaded: %s", e)
 
 # --- Car Rental Routes (Build #174) ---
 try:
     from routes_cars import register_car_routes
     register_car_routes(app, csrf, limiter)
     logger.info("Car rental routes registered (Discover Cars)")
-except ImportError as e:
-    logger.warning(f"Car rental routes not loaded: {e}")
+except Exception as e:
+    logger.warning("Car rental routes not loaded: %s", e)
 
 # --- Trip Planner Routes (Build #174) ---
 try:
     from routes_trips import register_trip_routes
     register_trip_routes(app, csrf, limiter)
     logger.info("Trip planner routes registered")
-except ImportError as e:
-    logger.warning(f"Trip planner routes not loaded: {e}")
+except Exception as e:
+    logger.warning("Trip planner routes not loaded: %s", e)
 
 # --- Collections / Wishlist Routes (Build #174) ---
 try:
     from routes_collections import register_collection_routes
     register_collection_routes(app, csrf, limiter)
     logger.info("Collections routes registered")
-except ImportError as e:
-    logger.warning(f"Collections routes not loaded: {e}")
+except Exception as e:
+    logger.warning("Collections routes not loaded: %s", e)
 
 # --- Friends System Routes (Build #174) ---
 try:
     from routes_friends import register_friend_routes
     register_friend_routes(app, csrf, limiter)
     logger.info("Friends routes registered")
-except ImportError as e:
-    logger.warning(f"Friends routes not loaded: {e}")
+except Exception as e:
+    logger.warning("Friends routes not loaded: %s", e)
+
+# --- Insurance Vertical (Build #186) ---
+try:
+    from routes_insurance import register_insurance_routes
+    register_insurance_routes(app, csrf, limiter)
+    logger.info("Insurance routes registered (SafetyWing)")
+except Exception as e:
+    logger.warning("Insurance routes not loaded: %s", e)
+
+# --- APAi Admin Portal (Build #194 — repurposed from Dev Portal #184) ---
+try:
+    from routes_devportal import register_devportal_routes
+    register_devportal_routes(app, csrf, limiter)
+    logger.info("APAi Admin Portal routes registered at /apai/admin")
+except Exception as e:
+    logger.warning("APAi admin portal routes not loaded: %s", e)
+
+# --- MYSTES AI Chat API (Build #187 — restore lost registration) ---
+try:
+    from mystes_ai_api import register_mystes_ai_routes
+    register_mystes_ai_routes(app, csrf=csrf)
+    logger.info("MYSTES AI API routes registered (/api/v1/ai/*)")
+except Exception as e:
+    logger.warning("MYSTES AI API routes not loaded: %s", e)
+
+# --- Push Notifications (Build #188 — Capacitor native) ---
+try:
+    from routes_push import register_push_routes
+    register_push_routes(app, csrf, limiter)
+    logger.info("Push notification routes registered (/api/push/*)")
+except Exception as e:
+    logger.warning("Push notification routes not loaded: %s", e)
 
 
 # --- MAIN ---
@@ -17437,10 +20396,27 @@ if __name__ == "__main__":
     from monitoring import init_monitoring
     init_monitoring(app)
 
+    # --- Startup Environment Validation (Build #186) ---
+    _env_warnings = []
+    if not os.environ.get("STRIPE_SECRET_KEY"):
+        _env_warnings.append("STRIPE_SECRET_KEY not set — payments will fail")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        _env_warnings.append("ANTHROPIC_API_KEY not set — AI chat disabled")
+    if app.config.get("SECRET_KEY") == "dev-secret-key-change-in-production" and os.environ.get("FLASK_ENV") == "production":
+        _env_warnings.append("SECRET_KEY is default — CHANGE IN PRODUCTION")
+    if not os.environ.get("MAIL_ENABLED") or os.environ.get("MAIL_ENABLED", "").lower() != "true":
+        _env_warnings.append("MAIL_ENABLED not set — emails disabled (set MAIL_ENABLED=true + MAIL_USERNAME/MAIL_PASSWORD)")
+    if not os.environ.get("DATABASE_URL") and os.environ.get("FLASK_ENV") == "production":
+        _env_warnings.append("DATABASE_URL not set — using SQLite (set PostgreSQL URL for production)")
+
     print("="*60)
     print("MYSTES Server")
     print("="*60)
     print(f"URL: http://localhost:{SERVER_PORT}/")
+    if _env_warnings:
+        print("-"*60)
+        for w in _env_warnings:
+            print(f"  WARNING: {w}")
     print("="*60)
 
     get_xrp_price()
@@ -17450,4 +20426,4 @@ if __name__ == "__main__":
     ledger_monitor.flask_app = app
     ledger_monitor.start()
 
-    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=True)
+    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=os.environ.get("FLASK_ENV") != "production")

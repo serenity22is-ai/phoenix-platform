@@ -20,7 +20,20 @@ BASE_TEMPLATE = '''
     <meta charset="UTF-8">
     <title>{{ title }} | MYSTES</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="MYSTES - AI-powered travel intelligence. Compare flights, hotels, and more across 102 markets. Wholesale prices, real savings.">
+    <meta name="description" content="{{ meta_description|default('MYSTES - AI-powered travel intelligence. Compare flights, hotels, and more across 102 markets. Wholesale prices, real savings.') }}">
+    <!-- OpenGraph / Social Sharing -->
+    <meta property="og:title" content="{{ title }} | MYSTES">
+    <meta property="og:description" content="{{ meta_description|default('AI-powered travel intelligence. Wholesale flights, hotels, cars, and activities across 102 markets.') }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:image" content="{{ request.url_root }}static/icons/icon-512x512.png">
+    <meta property="og:site_name" content="MYSTES">
+    <meta property="og:locale" content="en_US">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ title }} | MYSTES">
+    <meta name="twitter:description" content="{{ meta_description|default('AI-powered travel intelligence. Wholesale flights, hotels, cars, and activities across 102 markets.') }}">
+    <meta name="twitter:image" content="{{ request.url_root }}static/icons/icon-512x512.png">
     <!-- PWA Meta -->
     <meta name="theme-color" content="#7c3aed">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1542,8 +1555,10 @@ BASE_TEMPLATE = '''
                 <div class="nav-more-wrapper">
                     <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
                     <div class="nav-more-menu" id="navMoreMenu">
+                        <a href="/bookings" class="nav-more-link">My Bookings</a>
                         {% if feature_rentals %}<a href="/cars" class="nav-more-link">Cars</a>{% endif %}
                         {% if feature_activities %}<a href="/activities" class="nav-more-link">Activities</a>{% endif %}
+                        <a href="/insurance" class="nav-more-link">Insurance</a>
                         <a href="/deals" class="nav-more-link">Deals</a>
                         <a href="/ai" class="nav-more-link">AI Search</a>
                         {% if feature_trip_planner %}<a href="/trips" class="nav-more-link">My Trips</a>{% endif %}
@@ -1551,6 +1566,7 @@ BASE_TEMPLATE = '''
                         {% if feature_friends %}<a href="/friends" class="nav-more-link">Friends</a>{% endif %}
                         <a href="/travelers" class="nav-more-link">Travelers</a>
                         <a href="/business" class="nav-more-link" style="color: var(--mystes-silver);">Business</a>
+                        <a href="/apai" class="nav-more-link" style="color: #a78bfa;">APAi</a>
                         {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--mystes-glow);">Admin</a>{% endif %}
                     </div>
                 </div>
@@ -1606,9 +1622,12 @@ BASE_TEMPLATE = '''
                     <span class="footer-wordmark">MYSTES</span>
                 </div>
                 <div class="footer-links">
+                    <a href="/pricing" class="footer-link">Pricing</a>
+                    <a href="/faq" class="footer-link">FAQ</a>
+                    <a href="/contact" class="footer-link">Contact</a>
+                    <a href="/about" class="footer-link">About</a>
                     <a href="/terms" class="footer-link">Terms</a>
                     <a href="/privacy" class="footer-link">Privacy</a>
-                    <a href="/about" class="footer-link">About</a>
                 </div>
             </div>
             <div class="footer-copy">
@@ -1823,6 +1842,164 @@ BASE_TEMPLATE = '''
         });
     });
     </script>
+
+    <!-- MYSTES Concierge Chat Bubble (Build #181) — Zero AI cost -->
+    <div id="concierge-bubble" onclick="toggleConcierge()" style="
+        position:fixed; bottom:24px; right:24px; width:56px; height:56px;
+        background:var(--gold, #C9A96E); border-radius:50%; cursor:pointer;
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:0 4px 20px rgba(201,169,110,0.4); z-index:9999;
+        transition:transform 0.3s ease, box-shadow 0.3s ease;
+    " onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 28px rgba(201,169,110,0.6)'"
+       onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 20px rgba(201,169,110,0.4)'">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+    </div>
+
+    <div id="concierge-panel" style="
+        display:none; position:fixed; bottom:90px; right:24px; width:340px; max-height:480px;
+        background:#16213e; border:1px solid rgba(201,169,110,0.3); border-radius:16px;
+        box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:9999; overflow:hidden;
+        font-family:'Outfit',sans-serif;
+    ">
+        <div style="
+            background:linear-gradient(135deg,#1a1a2e,#16213e); padding:16px 20px;
+            border-bottom:1px solid rgba(201,169,110,0.2); display:flex;
+            align-items:center; justify-content:space-between;
+        ">
+            <span style="font-family:'Cinzel',serif; font-size:14px; color:var(--gold,#C9A96E); letter-spacing:1px;">MYSTES CONCIERGE</span>
+            <span onclick="toggleConcierge()" style="cursor:pointer; color:#888; font-size:18px;">&times;</span>
+        </div>
+        <div id="concierge-body" style="padding:20px; max-height:340px; overflow-y:auto;">
+            <p id="concierge-msg" style="color:#e0e0e0; font-size:14px; line-height:1.6; margin:0 0 16px 0;"></p>
+            <div id="concierge-options" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="concierge-cross-sell" style="display:none; margin-top:16px; padding:12px; background:rgba(128,90,213,0.15); border:1px solid rgba(128,90,213,0.3); border-radius:8px;">
+                <p id="cross-sell-msg" style="color:#b8a0d8; font-size:12px; margin:0; cursor:pointer;"></p>
+            </div>
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid rgba(201,169,110,0.15);">
+            <div style="display:flex; gap:8px;">
+                <input id="concierge-input" type="text" placeholder="Type a question..."
+                    onkeydown="if(event.key==='Enter')sendConciergeText()"
+                    style="flex:1; background:#0f1729; border:1px solid rgba(201,169,110,0.2); border-radius:8px; padding:8px 12px; color:#e0e0e0; font-size:13px; outline:none; font-family:'Outfit',sans-serif;">
+                <button onclick="sendConciergeText()" style="background:var(--gold,#C9A96E); border:none; border-radius:8px; padding:8px 14px; cursor:pointer; color:#1a1a2e; font-weight:600; font-size:13px;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Page context detection (Build #183) — zero cost, pure URL parsing
+    const _pageContext = (function() {
+        const path = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
+        let vertical = '';
+        let pageType = 'browse';
+        if (path.startsWith('/flights')) vertical = 'flight';
+        else if (path.startsWith('/hotels')) vertical = 'hotel';
+        else if (path.startsWith('/cars')) vertical = 'car';
+        else if (path.startsWith('/activities')) vertical = 'activity';
+        else if (path.startsWith('/book/')) { vertical = 'booking'; pageType = 'checkout'; }
+        else if (path.startsWith('/booking-confirmation/')) { pageType = 'confirmation'; }
+        else if (path.startsWith('/trips')) { vertical = 'trip'; pageType = 'planning'; }
+        return {
+            vertical: vertical,
+            page_type: pageType,
+            destination: params.get('destination') || params.get('city') || '',
+            date: params.get('departure_date') || params.get('check_in') || params.get('pickup_date') || '',
+            return_date: params.get('return_date') || params.get('check_out') || params.get('dropoff_date') || '',
+            path: path,
+        };
+    })();
+    function trackCrossSell(eventType, recommendedVertical) {
+        fetch('/api/analytics/cross-sell', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({event_type: eventType, source_vertical: _pageContext.vertical, recommended_vertical: recommendedVertical, page_url: window.location.pathname})
+        }).catch(() => {});
+    }
+    let _conciergeFlow = 'welcome';
+    function toggleConcierge() {
+        const p = document.getElementById('concierge-panel');
+        if (p.style.display === 'none') {
+            p.style.display = 'block';
+            const flowMap = {flight:'flight_search', hotel:'hotel_search', car:'car_search', activity:'activity_search'};
+            const autoFlow = flowMap[_pageContext.vertical] || 'welcome';
+            fetchConcierge(autoFlow);
+        } else { p.style.display = 'none'; }
+    }
+    function fetchConcierge(flowId, option, freetext) {
+        _conciergeFlow = flowId;
+        fetch('/api/concierge/message', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({flow_id: flowId, selected_option: option, freetext: freetext, page_context: _pageContext})
+        }).then(r => r.json()).then(renderConcierge).catch(() => {
+            document.getElementById('concierge-msg').textContent = 'Something went wrong. Please try again.';
+        });
+    }
+    function renderConcierge(data) {
+        if (data.type === 'redirect' && data.redirect_url) {
+            if (data.redirect_url === '/ai') {
+                fetch('/api/concierge/escalate', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({concierge_context: {flow_id: _conciergeFlow, vertical: _pageContext.vertical, destination: _pageContext.destination, date: _pageContext.date}})
+                }).then(r => r.json()).then(d => {
+                    if (d.allowed) window.location.href = d.redirect;
+                    else { document.getElementById('concierge-msg').textContent = d.message || 'Upgrade to Travel+ for AI chat'; }
+                });
+                return;
+            }
+            window.location.href = data.redirect_url; return;
+        }
+        document.getElementById('concierge-msg').textContent = data.message || '';
+        const opts = document.getElementById('concierge-options');
+        opts.innerHTML = '';
+        (data.options || []).forEach(o => {
+            const btn = document.createElement('button');
+            btn.textContent = o.label;
+            btn.style.cssText = 'background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); border-radius:8px; padding:10px 16px; color:#C9A96E; cursor:pointer; font-size:13px; text-align:left; transition:background 0.2s; font-family:Outfit,sans-serif;';
+            btn.onmouseover = () => btn.style.background = 'rgba(201,169,110,0.25)';
+            btn.onmouseout = () => btn.style.background = 'rgba(201,169,110,0.15)';
+            btn.onclick = () => {
+                if (o.redirect_url) {
+                    if (o.redirect_url === '/ai') {
+                        fetch('/api/concierge/escalate', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({concierge_context: {flow_id: _conciergeFlow, vertical: _pageContext.vertical, destination: _pageContext.destination, date: _pageContext.date}})
+                        }).then(r => r.json()).then(d => {
+                            if (d.allowed) window.location.href = d.redirect;
+                            else { document.getElementById('concierge-msg').textContent = d.message || 'Upgrade to Travel+ for AI chat'; }
+                        });
+                        return;
+                    }
+                    window.location.href = o.redirect_url; return;
+                }
+                if (o.next_flow) { fetchConcierge(o.next_flow); return; }
+                fetchConcierge(data.flow_id || _conciergeFlow, o.id);
+            };
+            opts.appendChild(btn);
+        });
+        const cs = document.getElementById('concierge-cross-sell');
+        if (data.cross_sell) {
+            cs.style.display = 'block';
+            const csMsg = document.getElementById('cross-sell-msg');
+            csMsg.textContent = data.cross_sell.message;
+            trackCrossSell('impression', data.cross_sell.vertical || '');
+            if (data.cross_sell.link) {
+                csMsg.onclick = () => { trackCrossSell('click', data.cross_sell.vertical || ''); window.location.href = data.cross_sell.link; };
+            } else {
+                csMsg.onclick = () => fetchConcierge(data.cross_sell.flow_id || 'welcome');
+            }
+        } else { cs.style.display = 'none'; }
+    }
+    function sendConciergeText() {
+        const inp = document.getElementById('concierge-input');
+        const text = inp.value.trim();
+        if (!text) return;
+        inp.value = '';
+        fetchConcierge(_conciergeFlow, null, text);
+    }
+    </script>
+    <script src="/static/js/mystes-native.js"></script>
 </body>
 </html>
 '''

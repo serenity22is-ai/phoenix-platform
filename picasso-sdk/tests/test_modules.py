@@ -251,15 +251,21 @@ class TestModuleRegistry:
         for mod in build_all_modules():
             registry.register(mod)
         all_mods = registry.list_modules()
-        assert len(all_mods) == 8  # 7 flights + 1 hotel
+        assert len(all_mods) == 11  # 7 flights + 1 hotel + 1 car + 1 activity + 1 insurance
 
     def test_list_modules_by_vertical(self, registry):
         for mod in build_all_modules():
             registry.register(mod)
         flights = registry.list_modules(vertical="flights")
         hotels = registry.list_modules(vertical="hotels")
+        cars = registry.list_modules(vertical="car_rental")
+        activities = registry.list_modules(vertical="activities")
+        insurance = registry.list_modules(vertical="insurance")
         assert len(flights) == 7
         assert len(hotels) == 1
+        assert len(cars) == 1
+        assert len(activities) == 1
+        assert len(insurance) == 1
 
     def test_list_modules_by_source_type(self, registry):
         for mod in build_all_modules():
@@ -269,7 +275,7 @@ class TestModuleRegistry:
         aggregator = registry.list_modules(source_type="aggregator")
         assert len(gds) == 2   # Picasso + Mystifly
         assert len(ndc) == 2   # Duffel + AirGateway
-        assert len(aggregator) == 2  # Kiwi + TripStack
+        assert len(aggregator) == 4  # Kiwi + TripStack + Discover Cars + Viator
 
     def test_list_sorted_by_priority(self, registry):
         for mod in build_all_modules():
@@ -311,7 +317,7 @@ class TestModuleRegistry:
         for mod in build_all_modules():
             registry.register(mod)
         results = registry.refresh_credentials()
-        assert len(results) == 8
+        assert len(results) == 11
         # Without env vars, all should be unconfigured (except those with empty credential lists)
         for mid, configured in results.items():
             # All real modules require credentials
@@ -477,7 +483,7 @@ class TestFlightModules:
 
     def test_all_modules_count(self):
         modules = build_all_modules()
-        assert len(modules) == 8
+        assert len(modules) == 11
 
     def test_picasso_card_details(self):
         card = build_picasso_card()

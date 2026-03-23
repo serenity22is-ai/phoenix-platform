@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from server import app, db, limiter
 from models import (User, Deal, TripPlan, TripMember, TripItem, Collection, SavedItem,
                     Friendship, Booking, FeatureFlag, GoogleReview, ReferralCard,
-                    SocialShare, RewardsAccount, PointsTransaction)
+                    SocialShare, RewardsAccount, PointsTransaction, CrossSellEvent)
 
 
 @pytest.fixture
@@ -870,13 +870,11 @@ class TestBuild171GoogleSignIn:
         # If google_client_id is empty, the script won't render, which is correct
 
     def test_booking_confirmation_cross_sell_template(self, client):
-        """Booking confirmation template includes cross-sell elements."""
-        # We can't easily test the full confirmation flow without a real booking,
-        # but we verify the template constants exist
+        """Booking confirmation template includes dynamic cross-sell elements (Build #183)."""
         from server import BOOKING_CONFIRMATION_CONTENT
         assert 'Complete Your Trip' in BOOKING_CONFIRMATION_CONTENT
-        assert 'Find Hotels' in BOOKING_CONFIRMATION_CONTENT
-        assert 'Return Flight' in BOOKING_CONFIRMATION_CONTENT
+        assert 'cross_sell_recs' in BOOKING_CONFIRMATION_CONTENT
+        assert 'trackCrossSell' in BOOKING_CONFIRMATION_CONTENT
 
     def test_booking_form_has_multi_pax(self, client):
         """Booking form template includes multi-passenger support."""
@@ -1384,7 +1382,7 @@ class TestBuild174Navigation:
         """Dashboard shows USD not XRP in recent activity."""
         from server import DASHBOARD_CONTENT
         assert 'XRP' not in DASHBOARD_CONTENT
-        assert 'amount_usd' in DASHBOARD_CONTENT
+        assert 'arbitrage_price_usd' in DASHBOARD_CONTENT or 'total_savings' in DASHBOARD_CONTENT
 
     def test_flight_cards_have_compare_button(self, client):
         """Flight card template has Compare Prices button."""
@@ -2632,3 +2630,438 @@ class TestBuild179TieredShareIncentives:
             if resp.status_code == 200:
                 html = resp.data.decode()
                 assert 'referral-card-section' in html or 'Share Your Referral Card' in html
+
+
+# ---------------------------------------------------------------------------
+# Build #181 — Concierge Engine Tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuild181Concierge:
+    """Tests for the zero-cost Knowledge Card Concierge."""
+
+    def test_welcome_flow(self, client):
+        """POST /api/concierge/message with welcome flow returns options."""
+        resp = client.post('/api/concierge/message',
+                           data='{"flow_id": "welcome"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['flow_id'] == 'welcome'
+        assert data['type'] == 'question'
+        assert len(data['options']) >= 4
+
+    def test_navigate_option(self, client):
+        """Selecting an option navigates to the next flow."""
+        resp = client.post('/api/concierge/message',
+                           data='{"flow_id": "welcome", "selected_option": "flights"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['flow_id'] == 'flight_search'
+
+    def test_freetext_match_flight(self, client):
+        """Freetext 'flight' matches flight_search flow."""
+        resp = client.post('/api/concierge/message',
+                           data='{"freetext": "I need a flight"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['flow_id'] == 'flight_search'
+
+    def test_freetext_match_hotel(self, client):
+        """Freetext 'hotel' matches hotel_search flow."""
+        resp = client.post('/api/concierge/message',
+                           data='{"freetext": "find me a hotel"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['flow_id'] == 'hotel_search'
+
+    def test_freetext_match_car(self, client):
+        """Freetext 'car' matches car_search flow."""
+        resp = client.post('/api/concierge/message',
+                           data='{"freetext": "rent a car"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['flow_id'] == 'car_search'
+
+    def test_freetext_no_match(self, client):
+        """Unknown freetext offers escalation."""
+        resp = client.post('/api/concierge/message',
+                           data='{"freetext": "xyzzy nonsense query"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['type'] == 'escalation'
+        assert 'AI' in data['message']
+
+    def test_redirect_flow(self, client):
+        """Selecting a redirect option returns redirect type."""
+        resp = client.post('/api/concierge/message',
+                           data='{"flow_id": "flight_search", "selected_option": "roundtrip"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['type'] == 'redirect'
+        assert data['redirect_url'] == '/flights'
+
+    def test_escalate_unauthenticated(self, client):
+        """Unauthenticated users cannot escalate."""
+        resp = client.post('/api/concierge/escalate',
+                           content_type='application/json')
+        # Should redirect to login or return 401/302
+        assert resp.status_code in (302, 401, 403)
+
+    def test_default_welcome(self, client):
+        """Empty POST returns welcome flow."""
+        resp = client.post('/api/concierge/message',
+                           data='{}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['flow_id'] == 'welcome'
+
+    def test_cross_sell_present(self, client):
+        """Flight search flow includes cross-sell (dynamic from CrossSellEngine or static JSON)."""
+        resp = client.post('/api/concierge/message',
+                           data='{"flow_id": "flight_search"}',
+                           content_type='application/json')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data.get('cross_sell') is not None
+        # CrossSellEngine recommends hotel first for flights; static JSON had insurance
+        assert 'message' in data['cross_sell'] or 'link' in data['cross_sell']
+
+
+class TestBuild181FeatureFlags:
+    """Verify social feature flags are enabled by default."""
+
+    def test_social_flags_enabled(self, client):
+        with app.app_context():
+            trip_flag = FeatureFlag.query.filter_by(flag_key='trip_planner').first()
+            wishlist_flag = FeatureFlag.query.filter_by(flag_key='wishlist').first()
+            friends_flag = FeatureFlag.query.filter_by(flag_key='friends_system').first()
+
+            assert trip_flag is not None and trip_flag.is_enabled is True
+            assert wishlist_flag is not None and wishlist_flag.is_enabled is True
+            assert friends_flag is not None and friends_flag.is_enabled is True
+
+
+class TestBuild181DispatcherHandlers:
+    """Tests for new BookingDispatcher handlers (cars, activities, insurance)."""
+
+    def _setup_sdk_path(self):
+        sdk_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "picasso-sdk")
+        if sdk_path not in sys.path:
+            sys.path.insert(0, sdk_path)
+
+    def test_discover_cars_handler_missing_offer_id(self):
+        self._setup_sdk_path()
+        from anastasia.dispatch.dispatcher import _book_discover_cars
+        result = _book_discover_cars(
+            raw_offer={"source": "discover_cars"},
+            passengers=[{"first_name": "John", "last_name": "Doe"}],
+            client=None, card={}, markup=0,
+        )
+        assert result["success"] is False
+        assert "offer_id" in result["error"].lower()
+
+    def test_viator_handler_missing_product_code(self):
+        self._setup_sdk_path()
+        from anastasia.dispatch.dispatcher import _book_viator
+        result = _book_viator(
+            raw_offer={"source": "viator"},
+            passengers=[{"first_name": "Jane", "last_name": "Doe"}],
+            client=None, card={}, markup=0,
+        )
+        assert result["success"] is False
+        assert "product_code" in result["error"].lower()
+
+    def test_safetywing_handler_missing_plan_id(self):
+        self._setup_sdk_path()
+        from anastasia.dispatch.dispatcher import _book_safetywing
+        result = _book_safetywing(
+            raw_offer={"source": "safetywing"},
+            passengers=[{"first_name": "Sam", "last_name": "Smith"}],
+            client=None, card={}, markup=0,
+        )
+        assert result["success"] is False
+        assert "plan_id" in result["error"].lower()
+
+    def test_dispatcher_has_new_handlers(self):
+        self._setup_sdk_path()
+        from anastasia.dispatch.dispatcher import _HANDLERS
+        assert "discover_cars" in _HANDLERS
+        assert "viator" in _HANDLERS
+        assert "safetywing" in _HANDLERS
+
+    def test_dispatcher_loads_new_cards(self):
+        self._setup_sdk_path()
+        from anastasia.dispatch import BookingDispatcher
+        dispatcher = BookingDispatcher()
+        assert "discover_cars" in dispatcher.cards
+        assert "viator_activities" in dispatcher.cards
+        assert "safetywing_insurance" in dispatcher.cards
+
+
+# ---------------------------------------------------------------------------
+# Build #182 Tests: raw_offer passthrough, capabilities, cross-sell
+# ---------------------------------------------------------------------------
+
+
+class TestBuild182RawOfferPassthrough:
+    """Verify Deal creation preserves raw_offer for automated booking."""
+
+    def test_deal_create_stores_raw_offer(self, auth_client):
+        """POST /api/deals/create with raw_offer should persist to Deal record."""
+        raw_offer = {
+            "source": "picasso",
+            "fare_id": "F123",
+            "fare_search_id": "FS456",
+            "gds": "1A",
+        }
+        deal_data = {
+            "airline": "AA",
+            "flight_number": "AA100",
+            "route": "JFK-LHR",
+            "date": "2026-06-01",
+            "cheapest_market": "MYSTES",
+            "cheapest_price": 450.0,
+            "us_price": 500.0,
+            "savings": 50.0,
+            "raw_offer": raw_offer,
+            "fare_id": "F123",
+            "fare_search_id": "FS456",
+            "picasso_gds": "1A",
+            "fare_type": "published",
+        }
+        resp = auth_client.post("/api/deals/create",
+                                data=json.dumps(deal_data),
+                                content_type="application/json")
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data.get("success") is True
+
+        # Verify the deal has the raw_offer stored
+        deal_id = data.get("deal_id")
+        deal = Deal.query.filter_by(deal_id=deal_id).first()
+        assert deal is not None
+        assert deal.amadeus_offer_data is not None
+        offer_data = json.loads(deal.amadeus_offer_data) if isinstance(deal.amadeus_offer_data, str) else deal.amadeus_offer_data
+        assert offer_data.get("fare_id") == "F123" or offer_data.get("source") == "picasso"
+
+    def test_multi_leg_deal_preserves_raw_offer(self, auth_client):
+        """Multi-leg deal should carry raw_offer from first flight."""
+        raw_offer = {"source": "duffel_ndc", "offer_id": "OFF789"}
+        deal_data = {
+            "flights": [
+                {
+                    "leg": 1, "airline": "BA", "flight_number": "BA100",
+                    "route": "JFK-LHR", "date": "2026-06-01",
+                    "cheapest_market": "MYSTES", "cheapest_price": 400.0,
+                    "us_price": 500.0, "savings": 100.0,
+                    "fare_id": None, "offer_id": "OFF789",
+                    "raw_offer": raw_offer,
+                },
+            ],
+            "is_multi_leg": False,
+            "total_cheapest_price": 400.0,
+            "total_us_price": 500.0,
+            "total_savings": 100.0,
+            "service_fee": 25.0,
+            "total_price": 425.0,
+            "airline": "BA",
+            "flight_number": "BA100",
+            "route": "JFK-LHR",
+            "date": "2026-06-01",
+            "cheapest_market": "MYSTES",
+            "cheapest_price": 400.0,
+            "us_price": 500.0,
+            "savings": 100.0,
+            "raw_offer": raw_offer,
+            "fare_id": None,
+            "fare_search_id": None,
+            "picasso_gds": None,
+            "fare_type": "ndc",
+        }
+        resp = auth_client.post("/api/deals/create",
+                                data=json.dumps(deal_data),
+                                content_type="application/json")
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data.get("success") is True
+
+
+class TestBuild182ConciergeCapabilities:
+    """Test /api/concierge/capabilities endpoint."""
+
+    def test_capabilities_endpoint_returns_json(self, client):
+        resp = client.get("/api/concierge/capabilities")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "flights" in data
+        assert "hotels" in data
+        assert data["flights"] is True
+        assert data["hotels"] is True
+
+    def test_capabilities_reflects_env(self, client):
+        resp = client.get("/api/concierge/capabilities")
+        data = resp.get_json()
+        # cars/activities/insurance depend on env vars
+        assert isinstance(data.get("cars"), bool)
+        assert isinstance(data.get("activities"), bool)
+        assert isinstance(data.get("insurance"), bool)
+
+    def test_concierge_message_has_dynamic_cross_sell(self, client):
+        """Cross-sell in concierge message should be populated (dynamic or static)."""
+        resp = client.post("/api/concierge/message",
+                           data=json.dumps({"flow_id": "flight_search"}),
+                           content_type="application/json")
+        data = resp.get_json()
+        assert resp.status_code == 200
+        # Cross-sell may come from CrossSellEngine (dynamic) or JSON (static)
+        # Either way it should be present for flight_search
+        if data.get("cross_sell"):
+            assert "message" in data["cross_sell"] or "link" in data["cross_sell"]
+
+
+# ===================================================================
+# Build #183 — Cross-Sell Intelligence + Page Context + Analytics
+# ===================================================================
+
+
+class TestBuild183PageContext:
+    """Test concierge page context handling."""
+
+    def test_concierge_message_accepts_page_context(self, client):
+        """Concierge endpoint accepts page_context without error."""
+        resp = client.post("/api/concierge/message",
+                           data=json.dumps({
+                               "flow_id": "flight_search",
+                               "page_context": {"vertical": "flight", "destination": "FCO", "date": "2026-05-01"}
+                           }),
+                           content_type="application/json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "flow_id" in data
+
+    def test_concierge_auto_detect_vertical(self, client):
+        """Concierge returns relevant flow when page_context has vertical."""
+        resp = client.post("/api/concierge/message",
+                           data=json.dumps({
+                               "flow_id": "hotel_search",
+                               "page_context": {"vertical": "hotel", "destination": "PAR"}
+                           }),
+                           content_type="application/json")
+        data = resp.get_json()
+        assert resp.status_code == 200
+        # Should return hotel_search flow or welcome (depending on flows loaded)
+        assert data.get("flow_id") in ("hotel_search", "welcome")
+
+    def test_concierge_page_context_in_cross_sell(self, client):
+        """Cross-sell should use page_context destination if available."""
+        resp = client.post("/api/concierge/message",
+                           data=json.dumps({
+                               "flow_id": "flight_search",
+                               "page_context": {"vertical": "flight", "destination": "ROM", "date": "2026-06-01"}
+                           }),
+                           content_type="application/json")
+        data = resp.get_json()
+        assert resp.status_code == 200
+        if data.get("cross_sell") and data["cross_sell"].get("link"):
+            assert "ROM" in data["cross_sell"]["link"] or "destination" in data["cross_sell"]["link"]
+
+
+class TestBuild183AIEscalation:
+    """Test concierge-to-AI escalation with context handoff."""
+
+    def test_escalate_stores_context_in_session(self, auth_client):
+        """Escalation with context should store it for AI handoff."""
+        resp = auth_client.post("/api/concierge/escalate",
+                                data=json.dumps({
+                                    "concierge_context": {
+                                        "flow_id": "flight_search",
+                                        "vertical": "flight",
+                                        "destination": "LAX",
+                                    }
+                                }),
+                                content_type="application/json")
+        data = resp.get_json()
+        # Tier check — free users can't escalate
+        assert resp.status_code == 200
+        # Even if not allowed, endpoint should not error
+        assert "allowed" in data
+
+    def test_escalate_without_auth_redirects(self, client):
+        """Unauthenticated escalation should redirect or return 401."""
+        resp = client.post("/api/concierge/escalate",
+                           data=json.dumps({}),
+                           content_type="application/json")
+        # login_required will redirect or return error
+        assert resp.status_code in (302, 401, 403)
+
+
+class TestBuild183Analytics:
+    """Test cross-sell analytics tracking."""
+
+    def test_track_impression(self, client):
+        """Track a cross-sell impression."""
+        resp = client.post("/api/analytics/cross-sell",
+                           data=json.dumps({
+                               "event_type": "impression",
+                               "source_vertical": "flight",
+                               "recommended_vertical": "hotel",
+                               "page_url": "/booking-confirmation/1",
+                           }),
+                           content_type="application/json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["tracked"] is True
+
+    def test_track_click(self, client):
+        """Track a cross-sell click."""
+        resp = client.post("/api/analytics/cross-sell",
+                           data=json.dumps({
+                               "event_type": "click",
+                               "source_vertical": "flight",
+                               "recommended_vertical": "car",
+                               "page_url": "/booking-confirmation/1",
+                           }),
+                           content_type="application/json")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["tracked"] is True
+
+    def test_analytics_events_persisted(self, client):
+        """Events should be persisted to database."""
+        client.post("/api/analytics/cross-sell",
+                    data=json.dumps({"event_type": "impression", "source_vertical": "hotel", "recommended_vertical": "activities"}),
+                    content_type="application/json")
+        with app.app_context():
+            events = CrossSellEvent.query.filter_by(source_vertical="hotel").all()
+            assert len(events) >= 1
+            assert events[0].recommended_vertical == "activities"
+
+    def test_admin_analytics_returns_grouped_data(self, admin_client):
+        """Admin analytics endpoint returns grouped stats."""
+        # First track some events
+        admin_client.post("/api/analytics/cross-sell",
+                          data=json.dumps({"event_type": "impression", "source_vertical": "flight", "recommended_vertical": "hotel"}),
+                          content_type="application/json")
+        admin_client.post("/api/analytics/cross-sell",
+                          data=json.dumps({"event_type": "click", "source_vertical": "flight", "recommended_vertical": "hotel"}),
+                          content_type="application/json")
+
+        resp = admin_client.get("/api/admin/analytics/cross-sell")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        assert all("source" in s and "event_type" in s and "count" in s for s in data)
+
+    def test_admin_analytics_denied_for_non_admin(self, auth_client):
+        """Non-admin users should be denied."""
+        resp = auth_client.get("/api/admin/analytics/cross-sell")
+        assert resp.status_code == 403
