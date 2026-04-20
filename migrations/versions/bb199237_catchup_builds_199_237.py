@@ -35,7 +35,7 @@ New User columns (added by create_all if not present):
   - no_fx_fee_card, nickname (Build #220)
 
 Revision ID: bb199237
-Revises: aa184186b2b1
+Revises: f3g4h5i6j7k8, aa184186b2b1
 Create Date: 2026-04-19
 """
 
@@ -43,7 +43,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'bb199237'
-down_revision = 'aa184186b2b1'
+down_revision = ('f3g4h5i6j7k8', 'aa184186b2b1')
 branch_labels = None
 depends_on = None
 
