@@ -2323,7 +2323,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
 
     @app.route("/api/v1/daemon/status", methods=["GET"])
     @require_master_key
-    def daemon_status():
+    def daemon_neuron_status():
         """Get daemon neuron health and capabilities."""
         mod = platform.get_module("daemon")
         if not mod:
