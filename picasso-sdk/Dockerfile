@@ -11,12 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install the SDK with all dependencies (agent + billing)
+# Install the SDK with all production dependencies
 COPY pyproject.toml README.md ./
 COPY picasso/ picasso/
 COPY anastasia/ anastasia/
 COPY clients/ clients/
-RUN pip install --no-cache-dir ".[agent,billing]"
+RUN pip install --no-cache-dir ".[agent,billing,db]"
 
 # Gunicorn (not in pyproject.toml deps — production-only)
 RUN pip install --no-cache-dir gunicorn
