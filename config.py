@@ -153,9 +153,8 @@ class ProductionConfig(Config):
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
 
-    # PostgreSQL
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql://mystes:mystes_secret@localhost:5432/mystes_db'
+    # PostgreSQL (falls back to SQLite if DATABASE_URL not set — e.g. expired Render DB)
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///mystes.db'
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
