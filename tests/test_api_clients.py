@@ -163,7 +163,7 @@ class TestLiteAPIClient:
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
     def test_savings_calculation(self, mock_get, mock_post):
-        """MYSTES price = our_cost + 35% of savings. Subscriber saves 65%."""
+        """Hotels use flat 8% markup on base cost, not tiered savings."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -195,22 +195,22 @@ class TestLiteAPIClient:
         result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # Google price: $200, our cost: $100, savings_raw = $100
-        # Free member fee: 45% of $100 = $45 (Build #170)
-        # MYSTES price: $100 + $45 = $145
-        # User savings: $200 - $145 = $55
-        # Savings pct: 55/200 = 27.5%
+        # Google price: $200, our cost: $100
+        # Flat 8% hotel markup: $100 * 0.08 = $8.00
+        # MYSTES price: $100 + $8 = $108
+        # User savings: $200 - $108 = $92
+        # Savings pct: 92/200 = 46.0%
         assert hotel["google_price"] == 200.00
         assert hotel["our_cost"] == 100.00
-        assert hotel["platform_fee"] == 45.0
-        assert hotel["price_total"] == 145.00
-        assert hotel["user_savings"] == 55.00
-        assert hotel["savings_pct"] == 27.5
+        assert hotel["platform_fee"] == 8.0
+        assert hotel["price_total"] == 108.00
+        assert hotel["user_savings"] == 92.00
+        assert hotel["savings_pct"] == 46.0
 
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
     def test_platform_fee_small_savings(self, mock_get, mock_post):
-        """Platform fee is 45% for free members on small savings (Build #170)."""
+        """Hotels use flat 8% markup on base cost, even with small savings."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -242,14 +242,14 @@ class TestLiteAPIClient:
         result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # savings_raw = $5, free member 45% = $2.25 (Build #170)
-        assert hotel["platform_fee"] == 2.25
-        assert hotel["price_total"] == 97.25  # $95 + $2.25
+        # Base cost $95, flat 8% = $7.60, total = $102.60
+        assert hotel["platform_fee"] == 7.60
+        assert hotel["price_total"] == 102.60  # $95 + $7.60
 
     @patch("liteapi_client.requests.post")
     @patch("liteapi_client.requests.get")
     def test_platform_fee_large_savings(self, mock_get, mock_post):
-        """Platform fee is 45% for free members on large savings, no cap (Build #170)."""
+        """Hotels use flat 8% markup on base cost, even with large savings."""
         mock_post.return_value = MagicMock(
             status_code=200,
             json=lambda: {"data": [
@@ -281,9 +281,9 @@ class TestLiteAPIClient:
         result = client.search_hotels("PAR", check_in="2026-03-15", check_out="2026-03-16", user=_mock_member())
         hotel = result["hotels"][0]
 
-        # savings_raw = $500, free member 45% = $225 (Build #170, no cap)
-        assert hotel["platform_fee"] == 225.0
-        assert hotel["price_total"] == 725.00  # $500 + $225
+        # Base cost $500, flat 8% = $40, total = $540
+        assert hotel["platform_fee"] == 40.0
+        assert hotel["price_total"] == 540.00  # $500 + $40
 
     @patch("liteapi_client.requests.post")
     def test_validate_offer_returns_prebook_id(self, mock_post):
@@ -584,6 +584,7 @@ class TestNewRoutes:
         with app.app_context():
             db.create_all()
             yield app.test_client()
+            db.session.remove()
             db.drop_all()
 
     @pytest.fixture

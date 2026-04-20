@@ -1,0 +1,217 @@
+{
+  "id": "2e4640db-3537-559c-8270-cee2069deb7b",
+  "name": "Redbox",
+  "vendor": "AERTiCKET/Picasso Travel",
+  "version": "1.0",
+  "vertical": "flights",
+  "protocol": "rest",
+  "base_url": "aerpackit.flightconex.de/redbox/",
+  "auth_method": "session_cookie",
+  "auth_details": {
+    "token_endpoint": "Keycloak SSO via Cockpit redirect",
+    "refresh_flow": "Playwright headless + TOTP (pyotp)",
+    "scopes": [],
+    "notes": "Token persisted to .picasso_token.json with 24h TTL. Keycloak 2FA uses TOTP authenticator."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/availableFare/search",
+        "method": "POST",
+        "required_fields": [
+          "origin",
+          "destination",
+          "departureDate",
+          "passengers",
+          "cabinClass"
+        ],
+        "notes": "Use GDS pax codes (ADT/CHD/INF). Fare types: PUB/NET/NEG. Cabin: ECONOMY/PREMIUM_ECONOMY/BUSINESS/FIRST."
+      },
+      {
+        "order": 2,
+        "name": "select_fare",
+        "endpoint": "/availableFare/details",
+        "method": "POST",
+        "required_fields": [
+          "fareId"
+        ],
+        "notes": "Returns full price breakdown per passenger type."
+      },
+      {
+        "order": 3,
+        "name": "add_to_cart",
+        "endpoint": "/shoppingCart/add",
+        "method": "POST",
+        "required_fields": [
+          "fareId",
+          "passengers"
+        ],
+        "notes": "Cart is session-scoped; clearing session clears cart."
+      },
+      {
+        "order": 4,
+        "name": "checkout",
+        "endpoint": "/shoppingCart/get",
+        "method": "GET",
+        "required_fields": [],
+        "notes": "Validate cart contents before creating super-PNR."
+      },
+      {
+        "order": 5,
+        "name": "create_booking",
+        "endpoint": "/superPNR/create",
+        "method": "POST",
+        "required_fields": [
+          "cartId",
+          "passengerDetails",
+          "contactInfo"
+        ],
+        "notes": "Creates PNR in GDS. Returns confirmation number."
+      }
+    ],
+    "total_steps": 5,
+    "estimated_time_seconds": 12.0,
+    "requires_auth": true,
+    "supports_guest": false
+  },
+  "endpoints": [
+    {
+      "path": "/availableFare/search",
+      "method": "POST",
+      "purpose": "Search available fares across POS markets",
+      "notes": "Passenger types must be GDS codes: ADT/CHD/INF"
+    },
+    {
+      "path": "/availableFare/details",
+      "method": "POST",
+      "purpose": "Get detailed fare breakdown for a specific offer"
+    },
+    {
+      "path": "/shoppingCart/add",
+      "method": "POST",
+      "purpose": "Add selected fare to shopping cart"
+    },
+    {
+      "path": "/shoppingCart/get",
+      "method": "GET",
+      "purpose": "Retrieve current shopping cart contents"
+    },
+    {
+      "path": "/shoppingCart/remove",
+      "method": "DELETE",
+      "purpose": "Remove item from shopping cart"
+    },
+    {
+      "path": "/superPNR/create",
+      "method": "POST",
+      "purpose": "Create super-PNR from cart (finalize booking)"
+    },
+    {
+      "path": "/superPNR/get",
+      "method": "GET",
+      "purpose": "Retrieve super-PNR details"
+    },
+    {
+      "path": "/seatmap/get",
+      "method": "POST",
+      "purpose": "Retrieve seat map for a flight segment"
+    },
+    {
+      "path": "/document/list",
+      "method": "GET",
+      "purpose": "List booking documents (e-tickets, invoices)"
+    },
+    {
+      "path": "/document/download",
+      "method": "GET",
+      "purpose": "Download a specific document by ID"
+    },
+    {
+      "path": "/profile/get",
+      "method": "GET",
+      "purpose": "Retrieve agency/branch profile configuration"
+    },
+    {
+      "path": "/configuration/get",
+      "method": "GET",
+      "purpose": "Retrieve system configuration and feature flags"
+    }
+  ],
+  "data_schemas": {
+    "passenger": {
+      "type_codes": [
+        "ADT",
+        "CHD",
+        "INF"
+      ],
+      "required_fields": [
+        "firstName",
+        "lastName",
+        "dateOfBirth",
+        "gender"
+      ]
+    },
+    "fare": {
+      "fare_types": [
+        "PUB",
+        "NET",
+        "NEG"
+      ],
+      "cabin_classes": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS",
+        "FIRST"
+      ]
+    }
+  },
+  "quirks": [
+    {
+      "id": "d610f20e",
+      "description": "Session tokens expire after 24 hours. Auto-login via Playwright + TOTP is required for unattended operation.",
+      "category": "auth",
+      "severity": "warning",
+      "workaround": "Use picasso_auth.py token manager with 24h TTL refresh.",
+      "discovered_at": 1776564133.562253,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "69b611d2",
+      "description": "Passenger types MUST be GDS codes (ADT, CHD, INF). Sending 'ADULT', 'CHILD', or 'INFANT' returns cryptic 400 errors with no useful message.",
+      "category": "encoding",
+      "severity": "critical",
+      "workaround": "Map human-readable types to GDS codes before API call.",
+      "discovered_at": 1776564133.562259,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "51271606",
+      "description": "Fare types are PUB (published), NET (net), NEG (negotiated). Using any other string silently returns only PUB fares without error.",
+      "category": "encoding",
+      "severity": "warning",
+      "workaround": "Validate fare type against [PUB, NET, NEG] enum.",
+      "discovered_at": 1776564133.562263,
+      "discovered_by": "mystes_internal"
+    }
+  ],
+  "adapters": [],
+  "readiness": "production",
+  "confidence": 0.95,
+  "installations": 1,
+  "first_learned": 1776564133.562285,
+  "last_updated": 1776564133.562285,
+  "learned_from": [
+    "mystes_internal"
+  ],
+  "tags": [
+    "flights",
+    "gds",
+    "consolidator",
+    "102-country-pos",
+    "amadeus-backend",
+    "session-auth",
+    "totp"
+  ]
+}

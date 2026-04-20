@@ -667,6 +667,59 @@ Always use consumer_price when showing prices to the user."""
                         new_slices=tool_input["new_slices"],
                     )
 
+            elif tool_name == "duffel_get_cancellation_quote":
+                if not self.duffel:
+                    result = {"success": False, "error": "Duffel NDC not configured"}
+                else:
+                    result = self.duffel.get_cancellation_quote(
+                        order_id=tool_input["order_id"],
+                    )
+
+            elif tool_name == "duffel_confirm_cancellation":
+                if not self.duffel:
+                    result = {"success": False, "error": "Duffel NDC not configured"}
+                else:
+                    result = self.duffel.confirm_cancellation(
+                        cancellation_id=tool_input["cancellation_id"],
+                    )
+                    if result.get("success"):
+                        self._publish_event("BOOKING_CANCELLED", {
+                            "booking_id": tool_input["cancellation_id"],
+                            "source": "duffel_ndc",
+                            "refund_amount": result.get("refund_amount", ""),
+                        })
+
+            elif tool_name == "duffel_get_change_offers":
+                if not self.duffel:
+                    result = {"success": False, "error": "Duffel NDC not configured"}
+                else:
+                    result = self.duffel.get_order_change_offers(
+                        change_request_id=tool_input["change_request_id"],
+                    )
+
+            elif tool_name == "duffel_confirm_change":
+                if not self.duffel:
+                    result = {"success": False, "error": "Duffel NDC not configured"}
+                else:
+                    result = self.duffel.confirm_order_change(
+                        change_offer_id=tool_input["change_offer_id"],
+                        payment=tool_input.get("payment"),
+                    )
+                    if result.get("success"):
+                        self._publish_event("BOOKING_CHANGED", {
+                            "change_offer_id": tool_input["change_offer_id"],
+                            "source": "duffel_ndc",
+                        })
+
+            elif tool_name == "duffel_add_services":
+                if not self.duffel:
+                    result = {"success": False, "error": "Duffel NDC not configured"}
+                else:
+                    result = self.duffel.add_services_to_order(
+                        order_id=tool_input["order_id"],
+                        services=tool_input["services"],
+                    )
+
             # KIWI TEQUILA TOOLS (kiwi_* prefix)
             # Aggregator search across 750+ carriers with virtual interlining
 

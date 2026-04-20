@@ -66,11 +66,11 @@ class TestInsurancePage:
         assert resp.status_code == 200
 
     def test_insurance_page_has_brand_header(self, auth_client):
-        """Insurance page contains MYSTES brand and Cinzel typography."""
+        """Insurance page contains MYSTES brand and Space Grotesk typography."""
         resp = auth_client.get('/insurance')
         html = resp.data.decode()
         assert 'Travel Insurance' in html
-        assert 'Cinzel' in html
+        assert 'Space Grotesk' in html
 
     def test_insurance_page_has_datalist(self, auth_client):
         """Insurance page contains country datalist for autocomplete."""
@@ -162,11 +162,11 @@ class TestDashboardPolish:
         assert '/activities' in html
         assert '/insurance' in html
 
-    def test_dashboard_has_cinzel_heading(self, auth_client):
-        """Dashboard uses Cinzel font for welcome heading."""
+    def test_dashboard_has_space_grotesk_heading(self, auth_client):
+        """Dashboard uses Space Grotesk font for welcome heading."""
         resp = auth_client.get('/dashboard')
         html = resp.data.decode()
-        assert 'Cinzel' in html
+        assert 'Space Grotesk' in html
         assert 'Welcome back' in html
 
     def test_dashboard_has_points_balance(self, auth_client):

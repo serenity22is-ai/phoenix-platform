@@ -21,42 +21,7 @@ logger = logging.getLogger(__name__)
 
 FLIGHTS_SEARCH_CONTENT = '''
 <style>
-    .search-page { min-height: calc(100vh - 80px); padding: 40px 20px 60px; }
-    .search-header { text-align: center; margin-bottom: 32px; opacity:0; animation: fadeInUp 0.6s var(--ease-out) 0.1s forwards; }
-    .search-header h1 { font-family: var(--font-display); font-size: clamp(36px, 8vw, 72px); font-weight: 600; letter-spacing: 8px; text-transform: uppercase; color: var(--text-bright); margin: 0 0 8px; text-shadow: 0 4px 40px rgba(0,0,0,0.5); }
-    .search-header p { font-size: 16px; color: var(--text-secondary); margin: 0; }
-
-    .search-form-card {
-        max-width: 900px; margin: 0 auto 32px; padding: 28px 32px;
-        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-        opacity:0; animation: fadeInUp 0.6s var(--ease-out) 0.2s forwards;
-    }
-
-    .sf-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
-    .sf-field { flex: 1; min-width: 140px; }
-    .sf-field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.5); margin-bottom: 6px; font-family: var(--font-sans); }
-    .sf-field input, .sf-field select {
-        width: 100%; padding: 12px 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 10px; color: var(--text-bright); font-size: 15px; font-family: var(--font-sans); outline: none;
-        transition: border-color 0.2s;
-    }
-    .sf-field input:focus, .sf-field select:focus { border-color: rgba(124,58,237,0.5); }
-    .sf-field input::placeholder { color: rgba(255,255,255,0.3); }
-    .sf-field select option { background: #1a1a2e; color: #fff; }
-
-    .sf-pax { display: flex; gap: 12px; flex-wrap: wrap; }
-    .sf-pax .sf-field { min-width: 100px; flex: 0 1 auto; }
-
-    .sf-submit-row { display: flex; justify-content: center; margin-top: 20px; }
-    .sf-submit {
-        padding: 14px 48px; border: none; border-radius: 12px; cursor: pointer;
-        font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
-        background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-deep)); color: white;
-        transition: opacity 0.2s, transform 0.2s;
-    }
-    .sf-submit:hover { opacity: 0.9; transform: translateY(-1px); }
-    .sf-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .search-page { max-width: 960px; margin: 0 auto; padding: 40px 16px 60px; }
 
     /* Trip type toggle */
     .sf-trip-toggle { display: flex; gap: 0; margin-bottom: 18px; justify-content: center; }
@@ -69,51 +34,52 @@ FLIGHTS_SEARCH_CONTENT = '''
     .sf-trip-btn:last-child { border-radius: 0 8px 8px 0; }
     .sf-trip-btn.active { background: rgba(124,58,237,0.25); border-color: rgba(124,58,237,0.5); color: #fff; }
 
+    .sf-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .sf-field { flex: 1; min-width: 140px; }
+    .sf-pax { display: flex; gap: 12px; flex-wrap: wrap; }
+    .sf-pax .sf-field { min-width: 100px; flex: 0 1 auto; }
+
     /* Results */
     .search-results { max-width: 900px; margin: 0 auto; }
     .sr-loading { text-align: center; padding: 60px 20px; display: none; }
-    .sr-loading .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--mystes-purple); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    .sr-loading p { color: var(--text-secondary); font-size: 14px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
+    .sr-loading p { color: var(--text-muted); font-size: 14px; margin-top: 16px; }
     .sr-error { text-align: center; padding: 40px 20px; color: #f87171; display: none; }
-    .sr-summary { text-align: center; padding: 16px 0 24px; color: var(--text-secondary); font-size: 14px; display: none; }
+    .sr-summary { text-align: center; padding: 16px 0 24px; color: var(--text-muted); font-size: 14px; display: none; }
 
+    /* Toolbar */
+    .sr-toolbar {
+        display: none; padding: 12px 16px; margin-bottom: 14px; gap: 14px; flex-wrap: wrap; align-items: center;
+        background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+    }
+    .sr-toolbar label { font-size: 12px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+    .sr-toolbar select { padding: 6px 10px; font-size: 13px; }
+
+    /* Flight cards */
     .flight-card {
-        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 14px; padding: 20px 24px; margin-bottom: 14px;
+        background: var(--glass-bg-light); border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg); padding: 20px 24px; margin-bottom: 14px;
         display: grid; grid-template-columns: 140px 1fr 160px; align-items: center; gap: 20px;
         transition: border-color 0.2s, background 0.2s; cursor: pointer;
     }
-    .flight-card:hover { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.06); }
+    .flight-card:hover { border-color: var(--glass-border-hover); background: rgba(124,58,237,0.06); }
     .fc-airline { min-width: 120px; }
     .fc-airline-name { font-weight: 700; color: var(--text-bright); font-size: 15px; }
-    .fc-flight-num { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .fc-flight-num { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
     .fc-route { display: flex; align-items: center; gap: 16px; justify-content: center; }
     .fc-endpoint { text-align: center; }
     .fc-time { font-size: 20px; font-weight: 700; color: var(--text-bright); letter-spacing: 0.5px; }
-    .fc-code { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-top: 2px; letter-spacing: 1px; }
-    .fc-arrow { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; position: relative; }
+    .fc-code { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; letter-spacing: 1px; }
+    .fc-arrow { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; }
     .fc-line { width: 100%; height: 1px; background: rgba(255,255,255,0.15); }
-    .fc-duration { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+    .fc-duration { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
     .fc-stops { font-size: 10px; color: rgba(124,58,237,0.8); font-weight: 600; }
     .fc-price-section { text-align: right; min-width: 140px; }
     .fc-price { font-size: 24px; font-weight: 800; color: var(--text-bright); }
     .fc-savings { font-size: 12px; color: #34d399; font-weight: 600; margin-top: 2px; }
-    .fc-google-price { font-size: 12px; color: var(--text-secondary); text-decoration: line-through; }
-    .fc-book-btn {
-        padding: 10px 24px; border: none; border-radius: 10px; cursor: pointer;
-        background: linear-gradient(135deg, var(--mystes-purple), var(--mystes-deep)); color: white;
-        font-weight: 700; font-size: 13px; font-family: var(--font-sans); transition: opacity 0.2s;
-    }
-    .fc-book-btn:hover { opacity: 0.85; }
-
-    .no-results { text-align: center; padding: 60px 20px; color: var(--text-secondary); display: none; }
-
-    @keyframes fadeInUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+    .fc-google-price { font-size: 12px; color: var(--text-muted); text-decoration: line-through; }
+    .no-results { text-align: center; padding: 60px 20px; color: var(--text-muted); display: none; }
 
     @media (max-width: 768px) {
-        .search-form-card { padding: 20px 16px; }
         .sf-row { flex-direction: column; gap: 10px; }
         .sf-field { min-width: 100%; }
         .sf-pax { flex-direction: row; }
@@ -123,41 +89,53 @@ FLIGHTS_SEARCH_CONTENT = '''
     }
 </style>
 
+<script>
+var tripType = "oneway";
+function setTripType(btn, type) {
+    tripType = type;
+    var btns = document.getElementsByClassName("sf-trip-btn");
+    for (var i = 0; i < btns.length; i++) { btns[i].className = "sf-trip-btn"; }
+    btn.className = "sf-trip-btn active";
+    var wrap = document.getElementById("sfReturnWrap");
+    if (wrap) wrap.style.display = (type === "roundtrip") ? "" : "none";
+}
+</script>
+
 <section class="search-page">
-    <div class="search-header">
-        <h1>FLIGHTS</h1>
+    <div class="mystes-page-header">
+        <h1>Flights</h1>
         <p>Search 102 markets for the cheapest flights</p>
     </div>
 
-    <div class="search-form-card">
-        <div class="sf-trip-toggle">
-            <button type="button" class="sf-trip-btn active" onclick="setTripType(this,&apos;oneway&apos;)">One Way</button>
-            <button type="button" class="sf-trip-btn" onclick="setTripType(this,&apos;roundtrip&apos;)">Round Trip</button>
+    <div class="mystes-card" style="max-width:900px;margin:0 auto 32px;">
+        <div class="sf-trip-toggle" id="sfTripToggle">
+            <button type="button" class="sf-trip-btn active" data-trip="oneway" onclick="setTripType(this,'oneway')">One Way</button>
+            <button type="button" class="sf-trip-btn" data-trip="roundtrip" onclick="setTripType(this,'roundtrip')">Round Trip</button>
         </div>
 
         <div class="sf-row">
             <div class="sf-field">
-                <label>From</label>
-                <input type="text" id="sfOrigin" placeholder="JFK, LAX, ORD..." maxlength="3" style="text-transform:uppercase;">
+                <label class="mystes-label">From</label>
+                <input type="text" id="sfOrigin" class="mystes-input" placeholder="JFK, LAX, ORD..." maxlength="3" style="text-transform:uppercase;">
             </div>
             <div class="sf-field">
-                <label>To</label>
-                <input type="text" id="sfDest" placeholder="LHR, NRT, CDG..." maxlength="3" style="text-transform:uppercase;">
+                <label class="mystes-label">To</label>
+                <input type="text" id="sfDest" class="mystes-input" placeholder="LHR, NRT, CDG..." maxlength="3" style="text-transform:uppercase;">
             </div>
             <div class="sf-field">
-                <label>Departure</label>
-                <input type="date" id="sfDate">
+                <label class="mystes-label">Departure</label>
+                <input type="date" id="sfDate" class="mystes-input">
             </div>
             <div class="sf-field" id="sfReturnWrap" style="display:none;">
-                <label>Return</label>
-                <input type="date" id="sfReturn">
+                <label class="mystes-label">Return</label>
+                <input type="date" id="sfReturn" class="mystes-input">
             </div>
         </div>
 
         <div class="sf-row sf-pax">
             <div class="sf-field">
-                <label>Adults</label>
-                <select id="sfAdults">
+                <label class="mystes-label">Adults</label>
+                <select id="sfAdults" class="mystes-select">
                     <option value="1" selected>1</option>
                     <option value="2">2</option>
                     <option value="3">3</option>
@@ -167,8 +145,8 @@ FLIGHTS_SEARCH_CONTENT = '''
                 </select>
             </div>
             <div class="sf-field">
-                <label>Children</label>
-                <select id="sfChildren">
+                <label class="mystes-label">Children</label>
+                <select id="sfChildren" class="mystes-select">
                     <option value="0" selected>0</option>
                     <option value="1">1</option>
                     <option value="2">2</option>
@@ -177,16 +155,16 @@ FLIGHTS_SEARCH_CONTENT = '''
                 </select>
             </div>
             <div class="sf-field">
-                <label>Infants</label>
-                <select id="sfInfants">
+                <label class="mystes-label">Infants</label>
+                <select id="sfInfants" class="mystes-select">
                     <option value="0" selected>0</option>
                     <option value="1">1</option>
                     <option value="2">2</option>
                 </select>
             </div>
             <div class="sf-field">
-                <label>Cabin</label>
-                <select id="sfCabin">
+                <label class="mystes-label">Cabin</label>
+                <select id="sfCabin" class="mystes-select">
                     <option value="economy" selected>Economy</option>
                     <option value="premium_economy">Premium Economy</option>
                     <option value="business">Business</option>
@@ -195,44 +173,43 @@ FLIGHTS_SEARCH_CONTENT = '''
             </div>
         </div>
 
-        <div class="sf-submit-row">
-            <button class="sf-submit" id="sfSearchBtn" onclick="searchFlights()">Search Flights</button>
+        <div style="display:flex;justify-content:center;margin-top:20px;">
+            <button class="mystes-btn mystes-btn-primary mystes-btn-lg" id="sfSearchBtn" onclick="searchFlights()" style="letter-spacing:3px;text-transform:uppercase;">Search Flights</button>
         </div>
     </div>
 
     <div class="search-results">
         <div class="sr-loading" id="srLoading">
-            <div class="spinner"></div>
+            <div class="mystes-spinner" style="margin:0 auto;"></div>
             <p>Searching 102 markets for the best price...</p>
         </div>
         <div class="sr-error" id="srError"></div>
         <div class="sr-summary" id="srSummary"></div>
-        <!-- Sort & Filter Toolbar (Build #172) -->
-        <div id="srToolbar" style="display:none;background:white;border:1px solid #e5e7eb;border-radius:10px;padding:12px 16px;margin-bottom:12px;gap:12px;flex-wrap:wrap;align-items:center;">
-            <div style="display:flex;align-items:center;gap:8px;">
-                <label style="font-size:13px;color:#333;font-weight:600;">Sort:</label>
-                <select id="sortSelect" onchange="sortAndFilter()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+        <div id="srToolbar" class="sr-toolbar">
+            <div class="flex-center gap-sm">
+                <label>Sort:</label>
+                <select id="sortSelect" onchange="sortAndFilter()" class="mystes-select" style="width:auto;padding:6px 10px;">
                     <option value="price_asc">Price (low to high)</option>
                     <option value="price_desc">Price (high to low)</option>
                     <option value="duration">Duration (shortest)</option>
                     <option value="departure">Departure (earliest)</option>
                 </select>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-                <label style="font-size:13px;color:#333;font-weight:600;">Stops:</label>
-                <select id="stopsFilter" onchange="sortAndFilter()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            <div class="flex-center gap-sm">
+                <label>Stops:</label>
+                <select id="stopsFilter" onchange="sortAndFilter()" class="mystes-select" style="width:auto;padding:6px 10px;">
                     <option value="any">Any</option>
                     <option value="0">Nonstop only</option>
                     <option value="1">1 stop max</option>
                 </select>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-                <label style="font-size:13px;color:#333;font-weight:600;">Airline:</label>
-                <select id="airlineFilter" onchange="sortAndFilter()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            <div class="flex-center gap-sm">
+                <label>Airline:</label>
+                <select id="airlineFilter" onchange="sortAndFilter()" class="mystes-select" style="width:auto;padding:6px 10px;">
                     <option value="all">All Airlines</option>
                 </select>
             </div>
-            <div id="srFilterCount" style="font-size:12px;color:#999;margin-left:auto;"></div>
+            <div id="srFilterCount" style="font-size:12px;color:var(--text-muted);margin-left:auto;"></div>
         </div>
         <div id="srCards"></div>
         <div class="no-results" id="srNoResults">No flights found. Try different dates or airports.</div>
@@ -240,15 +217,20 @@ FLIGHTS_SEARCH_CONTENT = '''
 </section>
 
 <script>
-var tripType = "oneway";
 window._feePercent = {{ fee_pct }};
 
-function setTripType(btn, type) {
-    tripType = type;
-    document.querySelectorAll(".sf-trip-btn").forEach(function(b) { b.classList.remove("active"); });
-    btn.classList.add("active");
-    document.getElementById("sfReturnWrap").style.display = type === "roundtrip" ? "" : "none";
-}
+// Event delegation backup — catches clicks even if onclick attrs fail
+(function() {
+    var toggle = document.getElementById("sfTripToggle");
+    if (toggle) {
+        toggle.addEventListener("click", function(e) {
+            var btn = e.target;
+            if (btn && btn.getAttribute && btn.getAttribute("data-trip")) {
+                setTripType(btn, btn.getAttribute("data-trip"));
+            }
+        });
+    }
+})();
 
 // Set default departure date to 7 days out
 (function() {
@@ -358,6 +340,7 @@ async function searchFlights() {
 
         // Show toolbar
         document.getElementById("srToolbar").style.display = "flex";
+        document.getElementById("srToolbar").classList.add("visible");
 
         // Render with sort/filter
         renderFlightCards(flights);
@@ -632,7 +615,7 @@ function showFareRules(fareSearchId, fareId) {
             if (ai === -1) ai = 99; if (bi === -1) bi = 99;
             return ai - bi;
         });
-        var html = '<h3 style="font-family:Cinzel,serif;font-size:18px;color:#f5f5f5;margin:0 0 20px;letter-spacing:2px;">FARE RULES</h3>';
+        var html = '<h3 style="font-family:'Space Grotesk',sans-serif;font-size:18px;color:#f5f5f5;margin:0 0 20px;letter-spacing:2px;">FARE RULES</h3>';
         keys.forEach(function(cat){
             var rule = rules[cat];
             var label = categoryLabels[cat] || rule.title || cat;
@@ -687,7 +670,7 @@ def register_flight_routes(app, csrf, limiter):
         )
         return render_template_string(
             BASE_TEMPLATE,
-            title="Flights - MYSTES",
+            title="Flights",
             content=rendered,
             current_user=current_user
         )

@@ -29,102 +29,86 @@ logger = logging.getLogger(__name__)
 
 ACTIVITIES_SEARCH_CONTENT = """
 <style>
-    .activity-search-form { max-width: 900px; margin: 0 auto 30px; }
-    .activity-search-form label { font-weight: bold; color: #f5f5f5; display: block; margin-bottom: 5px; }
-    .activity-search-form input, .activity-search-form select {
-        width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 8px; font-size: 16px; color: #fff;
-        background: rgba(15, 10, 25, 0.6); backdrop-filter: blur(10px);
-    }
-    .activity-search-form input::placeholder { color: #999; }
-    .activity-search-form input:focus, .activity-search-form select:focus {
-        border-color: #7c3aed; outline: none; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
-    }
     .activity-card { transition: all 0.3s ease; }
-    .activity-card:hover { transform: translateX(4px); border-color: rgba(124, 58, 237, 0.5); }
-    .activity-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-right: 5px; margin-bottom: 5px; }
-    .activity-badge-green { background: #065f46; color: #6ee7b7; }
-    .activity-badge-blue { background: #1e3a5f; color: #93c5fd; }
-    .activity-badge-orange { background: #78350f; color: #fbbf24; }
-    .activity-badge-purple { background: #6d28d9; color: white; }
-    .activity-img { width: 120px; height: 90px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+    .activity-card:hover { transform: translateX(4px); border-color: var(--glass-border-hover); }
+    .activity-img { width: 120px; height: 90px; border-radius: var(--radius-md); object-fit: cover; flex-shrink: 0; }
     .activity-stars { color: #fbbf24; font-size: 14px; }
     .filter-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-    .filter-group label { display: flex; align-items: center; cursor: pointer; font-weight: normal; color: #ccc; font-size: 14px; }
-    .filter-group input { width: auto; margin-right: 6px; }
-    .spinner-activity { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #7c3aed; border-radius: 50%; animation: activityspin 1s linear infinite; margin: 0 auto 20px; }
-    @keyframes activityspin { to { transform: rotate(360deg); } }
+    .filter-group label { display: flex; align-items: center; cursor: pointer; font-weight: normal; color: var(--text-muted); font-size: 14px; }
+    .filter-group input[type="checkbox"] { width: auto; margin-right: 6px; }
     @media (max-width: 600px) {
         .activity-img { width: 80px; height: 60px; }
     }
 </style>
 
-<div class="card activity-search-form">
-    <h1 style="text-align: center; margin-bottom: 25px; color: #f5f5f5;">Search Activities & Tours</h1>
-    <div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label>Destination</label>
-                <input type="text" id="activity-dest" placeholder="Paris, New York, Tokyo, Barcelona..." list="dest-suggestions">
-                <datalist id="dest-suggestions">
-                    <option value="Paris"><option value="London"><option value="New York">
-                    <option value="Rome"><option value="Barcelona"><option value="Tokyo">
-                    <option value="Bangkok"><option value="Dubai"><option value="Singapore">
-                    <option value="Amsterdam"><option value="Berlin"><option value="Istanbul">
-                    <option value="Bali"><option value="Sydney"><option value="Los Angeles">
-                    <option value="Miami"><option value="Cancun"><option value="Phuket">
-                    <option value="Lisbon"><option value="Prague"><option value="Athens">
-                    <option value="San Francisco"><option value="Marrakech"><option value="Cairo">
-                    <option value="Dublin"><option value="Vienna"><option value="Florence">
-                    <option value="Santorini"><option value="Reykjavik"><option value="Honolulu">
-                </datalist>
-            </div>
-            <div class="form-group">
-                <label>From Date</label>
-                <input type="date" id="activity-date-from">
-            </div>
-            <div class="form-group">
-                <label>To Date</label>
-                <input type="date" id="activity-date-to">
-            </div>
-            <div class="form-group">
-                <label>Travelers</label>
-                <select id="activity-travelers">
-                    <option value="1">1 Adult</option>
-                    <option value="2" selected>2 Adults</option>
-                    <option value="3">3 Adults</option>
-                    <option value="4">4 Adults</option>
-                    <option value="5">5 Adults</option>
-                    <option value="6">6+ Adults</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Sort By</label>
-                <select id="activity-sort">
-                    <option value="DEFAULT">Recommended</option>
-                    <option value="PRICE">Price (Low to High)</option>
-                    <option value="TRAVELER_RATING">Rating</option>
-                </select>
-            </div>
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label>Filters</label>
-                <div class="filter-group">
-                    <label><input type="checkbox" name="activity-filter" value="FREE_CANCELLATION"> Free Cancellation</label>
-                    <label><input type="checkbox" name="activity-filter" value="SKIP_THE_LINE"> Skip the Line</label>
-                    <label><input type="checkbox" name="activity-filter" value="PRIVATE_TOUR"> Private Tour</label>
-                    <label><input type="checkbox" name="activity-filter" value="LIKELY_TO_SELL_OUT"> Likely to Sell Out</label>
-                </div>
+<div class="mystes-card" style="max-width: 900px; margin: 0 auto 30px;">
+    <div class="mystes-page-header" style="padding-top: 0;">
+        <h1>Search Activities & Tours</h1>
+    </div>
+    <div class="mystes-form-grid">
+        <div class="full-width">
+            <label class="mystes-label">Destination</label>
+            <input type="text" id="activity-dest" class="mystes-input" placeholder="Paris, New York, Tokyo, Barcelona..." list="dest-suggestions">
+            <datalist id="dest-suggestions">
+                <option value="Paris"><option value="London"><option value="New York">
+                <option value="Rome"><option value="Barcelona"><option value="Tokyo">
+                <option value="Bangkok"><option value="Dubai"><option value="Singapore">
+                <option value="Amsterdam"><option value="Berlin"><option value="Istanbul">
+                <option value="Bali"><option value="Sydney"><option value="Los Angeles">
+                <option value="Miami"><option value="Cancun"><option value="Phuket">
+                <option value="Lisbon"><option value="Prague"><option value="Athens">
+                <option value="San Francisco"><option value="Marrakech"><option value="Cairo">
+                <option value="Dublin"><option value="Vienna"><option value="Florence">
+                <option value="Santorini"><option value="Reykjavik"><option value="Honolulu">
+            </datalist>
+        </div>
+        <div>
+            <label class="mystes-label">From Date</label>
+            <input type="date" id="activity-date-from" class="mystes-input">
+        </div>
+        <div>
+            <label class="mystes-label">To Date</label>
+            <input type="date" id="activity-date-to" class="mystes-input">
+        </div>
+        <div>
+            <label class="mystes-label">Travelers</label>
+            <select id="activity-travelers" class="mystes-select">
+                <option value="1">1 Adult</option>
+                <option value="2" selected>2 Adults</option>
+                <option value="3">3 Adults</option>
+                <option value="4">4 Adults</option>
+                <option value="5">5 Adults</option>
+                <option value="6">6+ Adults</option>
+            </select>
+        </div>
+        <div>
+            <label class="mystes-label">Sort By</label>
+            <select id="activity-sort" class="mystes-select">
+                <option value="DEFAULT">Recommended</option>
+                <option value="PRICE">Price (Low to High)</option>
+                <option value="TRAVELER_RATING">Rating</option>
+            </select>
+        </div>
+        <div class="full-width">
+            <label class="mystes-label">Filters</label>
+            <div class="filter-group">
+                <label><input type="checkbox" name="activity-filter" value="FREE_CANCELLATION"> Free Cancellation</label>
+                <label><input type="checkbox" name="activity-filter" value="SKIP_THE_LINE"> Skip the Line</label>
+                <label><input type="checkbox" name="activity-filter" value="PRIVATE_TOUR"> Private Tour</label>
+                <label><input type="checkbox" name="activity-filter" value="LIKELY_TO_SELL_OUT"> Likely to Sell Out</label>
             </div>
         </div>
-        <button class="btn" onclick="searchActivities()" style="width: 100%; margin-top: 15px; padding: 15px; font-size: 16px;">
-            Search Activities
-        </button>
     </div>
+    <button class="mystes-btn mystes-btn-primary mystes-btn-lg mystes-btn-full mt-md" onclick="searchActivities()">
+        Search Activities
+    </button>
 </div>
 
-<div id="activity-loading" style="display: none; text-align: center; padding: 40px;">
-    <div class="spinner-activity"></div>
-    <p style="color: #ccc;">Searching activities via Viator...</p>
+<div id="activity-loading" style="display: none;" class="text-center" style="padding: 40px;">
+    <div style="padding: 40px;">
+        <div class="mystes-spinner" style="margin: 0 auto 20px;"></div>
+        <p style="color: var(--text-muted);">Searching activities via Viator...</p>
+    </div>
 </div>
 
 <div id="activity-results" style="display: none; max-width: 900px; margin: 0 auto;">
@@ -186,7 +170,7 @@ function renderStars(rating) {
     let stars = '';
     for (let i = 0; i < full; i++) stars += '&#9733;';
     if (half) stars += '&#189;';
-    return '<span class="activity-stars">' + stars + '</span> <span style="color: #ccc; font-size: 13px;">' + rating.toFixed(1) + '</span>';
+    return '<span class="activity-stars">' + stars + '</span> <span style="color: var(--text-muted); font-size: 13px;">' + rating.toFixed(1) + '</span>';
 }
 
 function renderActivityResults(data, dest, dateFrom, dateTo) {
@@ -197,49 +181,50 @@ function renderActivityResults(data, dest, dateFrom, dateTo) {
     const list = document.getElementById('activity-results-list');
 
     if (!data.success || !data.activities || data.activities.length === 0) {
-        header.innerHTML = '<div class="card" style="text-align: center; padding: 40px;"><h3 style="color: #f5f5f5;">No activities found</h3><p style="color: #ccc;">' + (data.error || 'Try a different destination or dates') + '</p></div>';
+        header.innerHTML = '<div class="mystes-empty"><div class="mystes-empty-icon">&#127915;</div><p style="font-size: 16px; font-weight: 600;">No activities found</p><p>' + (data.error || 'Try a different destination or dates') + '</p></div>';
         list.innerHTML = '';
         return;
     }
 
-    header.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;"><h2 style="color: #f5f5f5; margin: 0;">' + data.activities.length + ' Activities in ' + dest + '</h2><span style="color: #ccc;">' + dateFrom + ' to ' + dateTo + '</span></div>';
+    header.innerHTML = '<div class="flex-between mb-lg" style="flex-wrap: wrap; gap: 10px;"><h2 style="margin: 0;">' + data.activities.length + ' Activities in ' + dest + '</h2><span style="color: var(--text-muted);">' + dateFrom + ' to ' + dateTo + '</span></div>';
 
     list.innerHTML = data.activities.map(a => {
         let badges = '';
-        if (a.free_cancellation) badges += '<span class="activity-badge activity-badge-green">Free Cancellation</span>';
-        if (a.skip_the_line) badges += '<span class="activity-badge activity-badge-blue">Skip the Line</span>';
-        if (a.likely_to_sell_out) badges += '<span class="activity-badge activity-badge-orange">Likely to Sell Out</span>';
-        if (a.private_tour) badges += '<span class="activity-badge activity-badge-purple">Private Tour</span>';
+        if (a.free_cancellation) badges += '<span class="mystes-badge mystes-badge-green">Free Cancellation</span> ';
+        if (a.skip_the_line) badges += '<span class="mystes-badge mystes-badge-teal">Skip the Line</span> ';
+        if (a.likely_to_sell_out) badges += '<span class="mystes-badge mystes-badge-amber">Likely to Sell Out</span> ';
+        if (a.private_tour) badges += '<span class="mystes-badge mystes-badge-purple">Private Tour</span> ';
 
         const discount = a.price_before_discount > a.price ?
-            '<span style="text-decoration: line-through; color: #888; font-size: 14px; margin-right: 8px;">$' + a.price_before_discount.toFixed(0) + '</span>' : '';
+            '<span style="text-decoration: line-through; color: rgba(255,255,255,0.35); font-size: 14px; margin-right: 8px;">$' + a.price_before_discount.toFixed(0) + '</span>' : '';
 
         const imgTag = a.thumbnail ?
             '<img src="' + a.thumbnail + '" class="activity-img" alt="" onerror="this.style.display=\'none\'">' : '';
 
-        return '<div class="card activity-card" style="border-left: 4px solid #7c3aed;">' +
+        return '<div class="mystes-card activity-card" style="border-left: 3px solid var(--accent-purple);">' +
             '<div style="display: flex; gap: 15px; align-items: start; flex-wrap: wrap;">' +
                 imgTag +
                 '<div style="flex: 1; min-width: 200px;">' +
-                    '<div>' + badges + '</div>' +
-                    '<h3 style="margin: 5px 0; color: #f5f5f5; font-size: 16px;">' + a.title + '</h3>' +
-                    '<div style="font-size: 13px; color: #ccc; margin-bottom: 5px;">' +
+                    '<div style="margin-bottom: 6px;">' + badges + '</div>' +
+                    '<h3 style="margin: 0 0 6px; font-size: 16px;">' + a.title + '</h3>' +
+                    '<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px;">' +
                         (a.duration ? '<span style="margin-right: 12px;">&#9201; ' + a.duration + '</span>' : '') +
-                        (a.rating ? renderStars(a.rating) + ' <span style="color: #888;">(' + (a.review_count || 0) + ')</span>' : '') +
+                        (a.rating ? renderStars(a.rating) + ' <span style="opacity: 0.5;">(' + (a.review_count || 0) + ')</span>' : '') +
                     '</div>' +
-                    (a.description ? '<div style="font-size: 13px; color: #aaa; margin-top: 5px; line-height: 1.4;">' + a.description.substring(0, 150) + (a.description.length > 150 ? '...' : '') + '</div>' : '') +
+                    (a.description ? '<div style="font-size: 13px; color: var(--text-muted); margin-top: 5px; line-height: 1.5;">' + a.description.substring(0, 150) + (a.description.length > 150 ? '...' : '') + '</div>' : '') +
                 '</div>' +
                 '<div style="text-align: right; min-width: 120px; flex-shrink: 0;">' +
-                    '<div style="font-size: 12px; color: #ccc; margin-bottom: 4px;">From</div>' +
+                    '<div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">From</div>' +
                     '<div>' + discount +
-                        '<span style="font-size: 24px; font-weight: bold; color: #7c3aed;">$' + a.price.toFixed(0) + '</span>' +
+                        '<span style="font-size: 24px; font-weight: bold; color: var(--accent-purple);">$' + a.price.toFixed(0) + '</span>' +
                     '</div>' +
-                    '<div style="font-size: 12px; color: #ccc;">per person</div>' +
+                    '<div style="font-size: 12px; color: var(--text-muted);">per person</div>' +
                 '</div>' +
             '</div>' +
-            '<div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">' +
-                '<span style="color: #666; font-size: 12px;">Viator</span>' +
-                '<button class="btn" onclick="selectActivity(\'' + a.product_code + '\', this)" style="padding: 8px 20px;">' +
+            '<hr class="mystes-divider">' +
+            '<div class="flex-between">' +
+                '<span style="color: rgba(255,255,255,0.3); font-size: 12px;">Viator</span>' +
+                '<button class="mystes-btn mystes-btn-primary mystes-btn-sm" onclick="selectActivity(\'' + a.product_code + '\', this)">' +
                     'View & Book' +
                 '</button>' +
             '</div>' +
@@ -282,41 +267,55 @@ async function selectActivity(productCode, btn) {
 
 ACTIVITY_BOOK_CONTENT = """
 <style>
-    .payment-method-card { border: 2px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: white; }
-    .payment-method-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
-    .payment-method-card.selected { border-color: #7c3aed; background: #f5f3ff; }
+    .payment-method-card {
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        margin-bottom: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: var(--glass-bg);
+    }
+    .payment-method-card:hover { border-color: var(--glass-border-hover); }
+    .payment-method-card.selected { border-color: var(--accent-purple); background: rgba(124, 58, 237, 0.08); }
     .payment-method-card .method-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
     .payment-method-card .method-icon { font-size: 32px; width: 50px; text-align: center; }
-    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: #16213e; }
-    .payment-method-card .method-subtitle { color: #666; font-size: 14px; }
-    .payment-details-panel { display: none; background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 15px; }
+    .payment-method-card .method-title { font-weight: bold; font-size: 18px; }
+    .payment-method-card .method-subtitle { color: var(--text-muted); font-size: 14px; }
+    .payment-details-panel { display: none; border-radius: var(--radius-md); padding: 20px; margin-top: 15px; background: var(--glass-bg-light); }
     .payment-details-panel.active { display: block; }
-    .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
-    .order-summary h3 { margin: 0 0 20px 0; color: #14b8a6; }
-    .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .order-summary {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-xl);
+        padding: 25px;
+        margin-bottom: 25px;
+    }
+    .order-summary h3 { margin: 0 0 20px 0; color: var(--accent-teal); }
+    .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--glass-border); }
     .order-row:last-child { border-bottom: none; }
-    .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.3); }
-    .flight-leg-item { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; }
+    .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.15); }
+    .flight-leg-item { background: var(--glass-bg-light); border-radius: var(--radius-md); padding: 12px 15px; margin-bottom: 10px; }
     .processing-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
     .processing-overlay.active { display: flex; }
-    .processing-box { background: white; border-radius: 16px; padding: 40px; text-align: center; max-width: 400px; }
-    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .processing-box { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); padding: 40px; text-align: center; max-width: 400px; }
 </style>
 
-<div class="card card-light" style="max-width: 800px; margin: 40px auto;">
-    <h2 style="text-align: center; margin-bottom: 25px; color: #1a1a2e;">Complete Your Activity Booking</h2>
+<div class="mystes-card" style="max-width: 800px; margin: 40px auto;">
+    <div class="mystes-page-header" style="padding-top: 0;">
+        <h1 style="font-size: clamp(20px, 4vw, 28px);">Complete Your Activity Booking</h1>
+    </div>
 
     <!-- Order Summary -->
     <div class="order-summary">
         <h3>Activity Reservation</h3>
         <div class="flight-leg-item">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="flex-between" style="flex-wrap: wrap; gap: 10px;">
                 <div>
                     <strong>{{ deal.hotel_name }}</strong><br>
-                    <span style="color: #14b8a6;">{{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }}</span><br>
-                    <small>{{ deal.check_in_date }} &middot; {{ deal.adults or deal.rooms or 1 }} traveler{{ 's' if (deal.adults or deal.rooms or 1) != 1 else '' }}</small>
-                    {% if deal.room_type %}<br><small style="color: #999;">{{ deal.room_type }}</small>{% endif %}
+                    <span style="color: var(--accent-teal);">{{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }}</span><br>
+                    <small style="color: var(--text-muted);">{{ deal.check_in_date }} &middot; {{ deal.adults or deal.rooms or 1 }} traveler{{ 's' if (deal.adults or deal.rooms or 1) != 1 else '' }}</small>
+                    {% if deal.room_type %}<br><small style="color: var(--text-muted);">{{ deal.room_type }}</small>{% endif %}
                 </div>
                 <div style="text-align: right;">
                     <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.price_total_usd or 0) }}</span>
@@ -337,7 +336,7 @@ ACTIVITY_BOOK_CONTENT = """
             <span>${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}</span>
         </div>
         {% if deal.cancellation_policy %}
-        <div style="margin-top: 10px; font-size: 13px; color: #4caf50;">
+        <div style="margin-top: 10px; font-size: 13px; color: var(--success-green);">
             {{ deal.cancellation_policy }}
         </div>
         {% endif %}
@@ -345,46 +344,46 @@ ACTIVITY_BOOK_CONTENT = """
 
     {% if payment_verified %}
         <!-- Payment Complete - Collect Traveler Details -->
-        <div class="alert alert-success" style="text-align: center; padding: 25px;">
+        <div class="mystes-card text-center" style="padding: 25px; border-color: rgba(34, 197, 94, 0.3);">
             <span style="font-size: 48px;">&#9989;</span>
-            <h3 style="margin: 15px 0;">Payment Verified!</h3>
-            <p>Your payment has been confirmed. Please provide traveler details to complete your booking.</p>
+            <h3 class="mt-sm mb-sm">Payment Verified!</h3>
+            <p style="color: var(--text-muted);">Your payment has been confirmed. Please provide traveler details to complete your booking.</p>
         </div>
 
-        <form id="guest-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" style="margin-top: 20px;">
+        <form id="guest-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" class="mt-lg">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px;">
-                <h4 style="margin: 0 0 20px 0; color: #1a1a2e;">Lead Traveler Information</h4>
-                <p style="color: #666; margin-bottom: 20px;">Enter details for the lead traveler (as they appear on ID).</p>
+            <div class="mystes-card">
+                <h4 class="mb-sm">Lead Traveler Information</h4>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">Enter details for the lead traveler (as they appear on ID).</p>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">First Name *</label>
-                        <input type="text" name="first_name" required placeholder="John" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                <div class="mystes-form-grid">
+                    <div>
+                        <label class="mystes-label">First Name *</label>
+                        <input type="text" name="first_name" required placeholder="John" class="mystes-input">
                     </div>
-                    <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Last Name *</label>
-                        <input type="text" name="last_name" required placeholder="Doe" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    <div>
+                        <label class="mystes-label">Last Name *</label>
+                        <input type="text" name="last_name" required placeholder="Doe" class="mystes-input">
                     </div>
-                    <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Email *</label>
-                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    <div>
+                        <label class="mystes-label">Email *</label>
+                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" class="mystes-input">
                     </div>
-                    <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Phone *</label>
-                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    <div>
+                        <label class="mystes-label">Phone *</label>
+                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" class="mystes-input">
                     </div>
                 </div>
 
-                <div style="margin-top: 25px; padding: 20px; background: #f5f3ff; border-radius: 8px;">
-                    <h5 style="margin: 0 0 10px 0;">Booking Method</h5>
+                <div class="mystes-card compact mt-lg" style="border-color: rgba(124, 58, 237, 0.2);">
+                    <h5 class="mb-sm">Booking Method</h5>
                     <label style="display: flex; align-items: center; cursor: pointer;">
                         <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
                         <span><strong>Automated Booking</strong> - We book for you (recommended)</span>
                     </label>
                 </div>
 
-                <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 25px; padding: 15px; font-size: 18px;">
+                <button type="submit" class="mystes-btn mystes-btn-success mystes-btn-lg mystes-btn-full mt-lg">
                     Complete Activity Booking
                 </button>
             </div>
@@ -393,25 +392,25 @@ ACTIVITY_BOOK_CONTENT = """
     {% else %}
         <!-- Guest Email Collection -->
         {% if not current_user.is_authenticated %}
-        <div style="background: #f5f3ff; border: 2px solid #7c3aed; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
-            <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
-            <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label for="guest_email" style="font-weight: bold; color: #16213e;">Email Address *</label>
+        <div class="mystes-card mb-lg" style="border-color: rgba(124, 58, 237, 0.3);">
+            <h4 class="mb-sm">Guest Checkout</h4>
+            <p style="color: var(--text-muted); margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
+            <div>
+                <label class="mystes-label" for="guest_email">Email Address *</label>
                 <input type="email" id="guest_email" name="guest_email" required
                        value="{{ session.get('guest_email', '') }}"
                        placeholder="your@email.com"
-                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       class="mystes-input"
                        onchange="saveGuestEmail(this.value)">
             </div>
-            <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                <a href="/register?deal={{ deal.deal_id }}" style="color: #7c3aed;">Create an account</a> to track your bookings.
+            <p style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
+                <a href="/register?deal={{ deal.deal_id }}" style="color: var(--accent-purple);">Create an account</a> to track your bookings.
             </p>
         </div>
         {% endif %}
 
         <!-- Payment Selection -->
-        <h3 style="margin-bottom: 20px;">Choose Payment Method</h3>
+        <h3 class="mb-lg">Choose Payment Method</h3>
 
         <div class="payment-method-card" onclick="selectPayment('card')" id="method-card">
             <div class="method-header">
@@ -420,19 +419,19 @@ ACTIVITY_BOOK_CONTENT = """
                     <div class="method-title">Credit or Debit Card</div>
                     <div class="method-subtitle">Visa, Mastercard, American Express</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
+                <div style="margin-left: auto; font-weight: bold; color: var(--accent-purple);">
                     ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
             <div class="payment-details-panel" id="details-card">
-                <p>Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
-                <button class="btn" onclick="payWithCard(event)" style="width: 100%; margin-top: 10px;">
+                <p style="color: var(--text-muted);">Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
+                <button class="mystes-btn mystes-btn-primary mystes-btn-full mt-sm" onclick="payWithCard(event)">
                     Pay ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} with Card
                 </button>
             </div>
         </div>
 
-        <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
+        <p class="text-center mt-lg" style="color: var(--text-muted); font-size: 14px;">
             All payments are secure and encrypted<br>
             <small>By proceeding, you agree to our Terms of Service</small>
         </p>
@@ -442,9 +441,9 @@ ACTIVITY_BOOK_CONTENT = """
 <!-- Processing Overlay -->
 <div class="processing-overlay" id="processing-overlay">
     <div class="processing-box">
-        <div class="spinner"></div>
+        <div class="mystes-spinner" style="margin: 0 auto 20px;"></div>
         <h3 id="processing-title">Processing Payment...</h3>
-        <p id="processing-message">Please wait while we verify your payment.</p>
+        <p id="processing-message" style="color: var(--text-muted);">Please wait while we verify your payment.</p>
     </div>
 </div>
 

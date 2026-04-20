@@ -51,7 +51,7 @@ The company operates two distinct products under a unified vision:
 - **ANASTASiA** (ἀνάστασις) — "resurrection" — bringing the industry back to life for consumers
 
 **Stack**: Python/Flask, SQLAlchemy, Anthropic Claude Opus 4.6, Stripe, XRPL, Capacitor
-**Design**: Cinzel (brand headings — Roman inscription weight) + Outfit (body — modern accessibility)
+**Design**: Space Grotesk (brand headings — geometric sans) + Outfit (body — modern accessibility)
 
 ---
 

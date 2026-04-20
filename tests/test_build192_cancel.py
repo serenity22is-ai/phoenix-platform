@@ -123,7 +123,7 @@ class TestMyBookingsPage:
         assert resp.status_code == 200
         html = resp.data.decode()
         assert 'My Bookings' in html
-        assert 'Cinzel' in html
+        assert 'Space Grotesk' in html
 
     def test_my_bookings_shows_bookings(self, auth_client, booked_flight):
         """My Bookings page shows user's booking data."""

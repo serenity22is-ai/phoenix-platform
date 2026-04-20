@@ -118,20 +118,23 @@ class TestLoadAllCards:
             assert card.vertical == "flights"
 
     def test_load_all_hotel_cards(self):
-        """Load all hotel vertical cards — should be 1."""
+        """Load all hotel vertical cards — should be 2 (liteAPI + Duffel Stays)."""
         cards = load_all_json_cards(vertical="hotels")
-        assert len(cards) == 1, (
-            f"Expected 1 hotel card, got {len(cards)}: "
+        assert len(cards) == 2, (
+            f"Expected 2 hotel cards, got {len(cards)}: "
             f"{[c.module_id for c in cards]}"
         )
-        assert cards[0].module_id == "liteapi_hotels"
-        assert cards[0].vertical == "hotels"
+        module_ids = {c.module_id for c in cards}
+        assert "liteapi_hotels" in module_ids
+        assert "duffel_stays" in module_ids
+        for card in cards:
+            assert card.vertical == "hotels"
 
     def test_load_all_cards(self):
-        """Load all cards across verticals — should be 11 (7 flight + 1 hotel + 1 car + 1 activity + 1 insurance)."""
+        """Load all cards across verticals — should be 12 (7 flight + 2 hotel + 1 car + 1 activity + 1 insurance)."""
         cards = load_all_json_cards(vertical=None)
-        assert len(cards) == 11, (
-            f"Expected 11 total cards, got {len(cards)}: "
+        assert len(cards) == 12, (
+            f"Expected 12 total cards, got {len(cards)}: "
             f"{[c.module_id for c in cards]}"
         )
 
@@ -401,22 +404,25 @@ class TestBuildModulesFromJson:
             assert mod.knowledge_card.vertical == "flights"
 
     def test_build_all_hotel_modules_from_json(self):
-        """Hotel modules from JSON."""
+        """Hotel modules from JSON — 2 cards (liteAPI + Duffel Stays)."""
         modules = build_all_hotel_modules(from_json=True)
-        assert len(modules) == 1
-        assert modules[0].knowledge_card.vertical == "hotels"
-        assert modules[0].knowledge_card.module_id == "liteapi_hotels"
+        assert len(modules) == 2
+        module_ids = {m.knowledge_card.module_id for m in modules}
+        assert "liteapi_hotels" in module_ids
+        assert "duffel_stays" in module_ids
+        for m in modules:
+            assert m.knowledge_card.vertical == "hotels"
 
     def test_build_all_hotel_modules_from_python(self):
-        """Hotel modules from Python builder."""
+        """Hotel modules from Python builder — 2 cards."""
         modules = build_all_hotel_modules(from_json=False)
-        assert len(modules) == 1
+        assert len(modules) == 2
         assert modules[0].knowledge_card.module_id == "liteapi_hotels"
 
     def test_build_all_modules_count(self):
-        """Total modules = 11 (7 flights + 1 hotel + 1 car + 1 activity + 1 insurance)."""
+        """Total modules = 12 (7 flights + 2 hotels + 1 car + 1 activity + 1 insurance)."""
         modules = build_all_modules(from_json=True)
-        assert len(modules) == 11
+        assert len(modules) == 12
 
         # Verify the breakdown
         flight_ids = [m.knowledge_card.module_id for m in modules
@@ -430,7 +436,7 @@ class TestBuildModulesFromJson:
         insurance_ids = [m.knowledge_card.module_id for m in modules
                          if m.knowledge_card.vertical == "insurance"]
         assert len(flight_ids) == 7
-        assert len(hotel_ids) == 1
+        assert len(hotel_ids) == 2
         assert len(car_ids) == 1
         assert len(activity_ids) == 1
         assert len(insurance_ids) == 1

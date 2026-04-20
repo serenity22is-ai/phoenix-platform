@@ -10,12 +10,13 @@ Register in server.py:
 import json
 import logging
 import secrets
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 from flask import request, jsonify, render_template_string, redirect, url_for, session
 from flask_login import current_user, login_required
 
-from models import db, TripPlan, TripMember, TripItem, TripCart
+import os
+from models import db, User, TripPlan, TripMember, TripItem, TripCart, TripCartAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -54,115 +55,11 @@ def _get_member_role(trip_id, user_id):
 TRIPS_LIST_CONTENT = """
 <style>
 /* ============================================
-   TRIPS PAGE — MYSTES Dark OTA Design
+   TRIPS PAGE — Page-specific styles only
+   (glass cards, forms, badges, buttons from component library)
    ============================================ */
 
 .trips-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
-
-.trips-page-header {
-    text-align: center;
-    padding: 40px 0 10px;
-}
-.trips-page-header h1 {
-    font-family: var(--font-brand, 'Cinzel', serif);
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: var(--text-bright, #f5f5f5);
-    margin: 0 0 8px;
-}
-.trips-page-header p {
-    color: var(--text-secondary, #aaa);
-    font-size: 15px;
-    margin: 0;
-}
-
-/* Create trip button */
-.trip-create-btn {
-    display: inline-block;
-    margin: 20px 0;
-    padding: 12px 28px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.3s;
-    letter-spacing: 0.5px;
-}
-.trip-create-btn:hover {
-    background: #ddb957;
-    box-shadow: 0 8px 30px rgba(201, 164, 74, 0.35);
-    transform: translateY(-1px);
-}
-
-/* Inline create form */
-.trip-create-form {
-    display: none;
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
-.trip-create-form.visible { display: block; }
-
-.trip-create-form label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: var(--text-secondary, #aaa);
-    margin-bottom: 6px;
-}
-.trip-create-form input,
-.trip-create-form textarea {
-    width: 100%;
-    padding: 12px 14px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    color: #f5f5f5;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    font-size: 15px;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
-}
-.trip-create-form input:focus,
-.trip-create-form textarea:focus {
-    outline: none;
-    background: rgba(255,255,255,0.10);
-    border-color: #14b8a6;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
-}
-.trip-create-form input::placeholder,
-.trip-create-form textarea::placeholder { color: #666; }
-.trip-create-form textarea { resize: vertical; min-height: 60px; }
-.trip-form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-.trip-form-grid .full-width { grid-column: 1 / -1; }
-.trip-form-actions { display: flex; gap: 12px; margin-top: 16px; }
-.trip-form-cancel {
-    padding: 12px 24px;
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 10px;
-    color: #aaa;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-.trip-form-cancel:hover { border-color: rgba(255,255,255,0.3); color: #f5f5f5; }
 
 /* Trip cards grid */
 .trips-grid {
@@ -172,23 +69,11 @@ TRIPS_LIST_CONTENT = """
     margin-top: 20px;
 }
 .trip-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 24px;
-    transition: all 0.3s ease;
     cursor: pointer;
     position: relative;
 }
-.trip-card:hover {
-    border-color: rgba(20, 184, 166, 0.4);
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
-}
 .trip-card-name {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 18px;
     font-weight: 600;
     color: #f5f5f5;
@@ -205,42 +90,6 @@ TRIPS_LIST_CONTENT = """
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-}
-.trip-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
-}
-.trip-badge-members {
-    background: rgba(20, 184, 166, 0.15);
-    color: #14b8a6;
-    border: 1px solid rgba(20, 184, 166, 0.25);
-}
-.trip-badge-status-draft {
-    background: rgba(255,255,255,0.08);
-    color: #aaa;
-    border: 1px solid rgba(255,255,255,0.12);
-}
-.trip-badge-status-finalized {
-    background: rgba(201, 164, 74, 0.15);
-    color: #c9a44a;
-    border: 1px solid rgba(201, 164, 74, 0.25);
-}
-.trip-badge-status-booked {
-    background: rgba(20, 184, 166, 0.15);
-    color: #14b8a6;
-    border: 1px solid rgba(20, 184, 166, 0.25);
-}
-.trip-badge-status-completed {
-    background: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.25);
 }
 .trip-card-destinations {
     display: flex;
@@ -272,20 +121,14 @@ TRIPS_LIST_CONTENT = """
 }
 .trip-card-delete:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
 
-/* Empty state */
-.trips-empty {
-    text-align: center;
-    padding: 60px 20px;
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    margin-top: 20px;
-}
-.trips-empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+/* Create form visibility toggle */
+.trip-create-form { display: none; margin-bottom: 24px; }
+.trip-create-form.visible { display: block; }
+.trip-form-actions { display: flex; gap: 12px; margin-top: 16px; }
+
+/* Empty state overrides */
 .trips-empty h3 {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 20px;
     color: #f5f5f5;
     margin: 0 0 8px;
@@ -293,51 +136,50 @@ TRIPS_LIST_CONTENT = """
 .trips-empty p { color: #aaa; font-size: 14px; margin: 0 0 24px; }
 
 @media (max-width: 600px) {
-    .trip-form-grid { grid-template-columns: 1fr; }
     .trips-grid { grid-template-columns: 1fr; }
 }
 </style>
 
 <div class="trips-page">
-    <div class="trips-page-header">
+    <div class="mystes-page-header">
         <h1>MY TRIPS</h1>
         <p>Plan, collaborate, and book your group adventures</p>
     </div>
 
     <div style="text-align: center;">
-        <button class="trip-create-btn" onclick="toggleCreateForm()">+ Create Trip</button>
+        <button class="mystes-btn mystes-btn-gold" onclick="toggleCreateForm()">+ Create Trip</button>
     </div>
 
     <!-- Inline Create Form -->
-    <div class="trip-create-form" id="createForm">
-        <div class="trip-form-grid">
+    <div class="trip-create-form mystes-card" id="createForm">
+        <div class="mystes-form-grid">
             <div class="full-width">
-                <label>Trip Name</label>
-                <input type="text" id="tripName" placeholder="Summer in Greece, Tokyo Adventure..." />
+                <label class="mystes-label">Trip Name</label>
+                <input type="text" class="mystes-input" id="tripName" placeholder="Summer in Greece, Tokyo Adventure..." />
             </div>
             <div>
-                <label>Start Date</label>
-                <input type="date" id="tripStartDate" />
+                <label class="mystes-label">Start Date</label>
+                <input type="date" class="mystes-input" id="tripStartDate" />
             </div>
             <div>
-                <label>End Date</label>
-                <input type="date" id="tripEndDate" />
+                <label class="mystes-label">End Date</label>
+                <input type="date" class="mystes-input" id="tripEndDate" />
             </div>
             <div class="full-width">
-                <label>Destinations</label>
-                <textarea id="tripDestinations" placeholder="Athens, Santorini, Mykonos"></textarea>
+                <label class="mystes-label">Destinations</label>
+                <textarea class="mystes-textarea" id="tripDestinations" placeholder="Athens, Santorini, Mykonos"></textarea>
             </div>
         </div>
         <div class="trip-form-actions">
-            <button class="trip-create-btn" onclick="createTrip()">Create Trip</button>
-            <button class="trip-form-cancel" onclick="toggleCreateForm()">Cancel</button>
+            <button class="mystes-btn mystes-btn-gold" onclick="createTrip()">Create Trip</button>
+            <button class="mystes-btn mystes-btn-ghost" onclick="toggleCreateForm()">Cancel</button>
         </div>
     </div>
 
     {% if trips %}
     <div class="trips-grid">
         {% for trip in trips %}
-        <div class="trip-card" onclick="window.location='/trips/{{ trip.id }}'">
+        <div class="mystes-card interactive trip-card" onclick="window.location='/trips/{{ trip.id }}'">
             <button class="trip-card-delete" onclick="event.stopPropagation(); deleteTrip({{ trip.id }})" title="Delete trip">&times;</button>
             <div class="trip-card-name">{{ trip.name }}</div>
             <div class="trip-card-dates">
@@ -350,8 +192,18 @@ TRIPS_LIST_CONTENT = """
                 {% endif %}
             </div>
             <div class="trip-card-meta">
-                <span class="trip-badge trip-badge-members">{{ trip.members.count() }} member{{ 's' if trip.members.count() != 1 else '' }}</span>
-                <span class="trip-badge trip-badge-status-{{ trip.status }}">{{ trip.status }}</span>
+                <span class="mystes-badge mystes-badge-teal">{{ trip.members.count() }} member{{ 's' if trip.members.count() != 1 else '' }}</span>
+                {% if trip.status == 'draft' %}
+                <span class="mystes-badge mystes-badge-neutral">{{ trip.status }}</span>
+                {% elif trip.status == 'finalized' %}
+                <span class="mystes-badge mystes-badge-gold">{{ trip.status }}</span>
+                {% elif trip.status == 'booked' %}
+                <span class="mystes-badge mystes-badge-teal">{{ trip.status }}</span>
+                {% elif trip.status == 'completed' %}
+                <span class="mystes-badge mystes-badge-green">{{ trip.status }}</span>
+                {% else %}
+                <span class="mystes-badge mystes-badge-neutral">{{ trip.status }}</span>
+                {% endif %}
             </div>
             {% if trip.destinations_json %}
             <div class="trip-card-destinations">
@@ -364,11 +216,11 @@ TRIPS_LIST_CONTENT = """
         {% endfor %}
     </div>
     {% else %}
-    <div class="trips-empty">
-        <div class="trips-empty-icon">&#9992;</div>
+    <div class="mystes-card mystes-empty trips-empty">
+        <div class="mystes-empty-icon">&#9992;</div>
         <h3>Plan your next adventure</h3>
         <p>Create a trip to start adding flights, hotels, and activities with friends.</p>
-        <button class="trip-create-btn" onclick="toggleCreateForm()">Create Your First Trip</button>
+        <button class="mystes-btn mystes-btn-gold" onclick="toggleCreateForm()">Create Your First Trip</button>
     </div>
     {% endif %}
 </div>
@@ -437,21 +289,14 @@ function deleteTrip(tripId) {
 TRIP_DETAIL_CONTENT = """
 <style>
 /* ============================================
-   TRIP DETAIL — MYSTES Dark OTA Design
+   TRIP DETAIL — Page-specific styles only
+   (glass cards, forms, badges, buttons from component library)
    ============================================ */
 
 .trip-detail { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
 /* Trip header */
-.trip-header {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 28px;
-    margin: 24px 0;
-}
+.trip-header { margin: 24px 0; }
 .trip-header-top {
     display: flex;
     align-items: flex-start;
@@ -460,7 +305,7 @@ TRIP_DETAIL_CONTENT = """
     flex-wrap: wrap;
 }
 .trip-title-editable {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 28px;
     font-weight: 700;
     letter-spacing: 2px;
@@ -489,37 +334,6 @@ TRIP_DETAIL_CONTENT = """
     align-items: center;
     gap: 12px;
     margin-top: 12px;
-}
-.trip-header-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-.trip-header-status.draft {
-    background: rgba(255,255,255,0.08);
-    color: #aaa;
-    border: 1px solid rgba(255,255,255,0.12);
-}
-.trip-header-status.finalized {
-    background: rgba(201, 164, 74, 0.15);
-    color: #c9a44a;
-    border: 1px solid rgba(201, 164, 74, 0.25);
-}
-.trip-header-status.booked {
-    background: rgba(20, 184, 166, 0.15);
-    color: #14b8a6;
-    border: 1px solid rgba(20, 184, 166, 0.25);
-}
-.trip-header-status.completed {
-    background: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.25);
 }
 .trip-member-avatars {
     display: flex;
@@ -555,14 +369,6 @@ TRIP_DETAIL_CONTENT = """
 
 /* Day columns */
 .trip-itinerary { display: flex; flex-direction: column; gap: 20px; }
-.trip-day-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px;
-}
 .trip-day-header {
     display: flex;
     align-items: center;
@@ -572,7 +378,7 @@ TRIP_DETAIL_CONTENT = """
     border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .trip-day-label {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 16px;
     font-weight: 600;
     color: #f5f5f5;
@@ -695,16 +501,8 @@ TRIP_DETAIL_CONTENT = """
     flex-direction: column;
     gap: 20px;
 }
-.trip-sidebar-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px;
-}
 .trip-sidebar-title {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 14px;
     font-weight: 600;
     letter-spacing: 1px;
@@ -742,47 +540,8 @@ TRIP_DETAIL_CONTENT = """
     display: flex;
     gap: 8px;
 }
-.trip-invite-input {
-    flex: 1;
-    padding: 10px 12px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    color: #f5f5f5;
-    font-size: 13px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-}
-.trip-invite-input:focus {
-    outline: none;
-    border-color: #14b8a6;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
-}
-.trip-invite-input::placeholder { color: #555; }
-.trip-invite-btn {
-    padding: 10px 16px;
-    background: #14b8a6;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-.trip-invite-btn:hover { background: #0d9488; }
 
 /* Cart summary */
-.trip-cart-summary {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 24px;
-    margin-top: 24px;
-    margin-bottom: 40px;
-}
 .trip-cart-row {
     display: flex;
     justify-content: space-between;
@@ -801,26 +560,6 @@ TRIP_DETAIL_CONTENT = """
 }
 .trip-cart-value { color: #c9a44a; font-weight: 600; }
 .trip-cart-value.total { font-size: 20px; }
-.trip-checkout-btn {
-    width: 100%;
-    margin-top: 16px;
-    padding: 14px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.3s;
-    letter-spacing: 0.5px;
-}
-.trip-checkout-btn:hover {
-    background: #ddb957;
-    box-shadow: 0 8px 30px rgba(201, 164, 74, 0.35);
-}
-.trip-checkout-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Add item dropdown */
 .trip-add-dropdown {
@@ -852,7 +591,7 @@ TRIP_DETAIL_CONTENT = """
 
 <div class="trip-detail">
     <!-- Header -->
-    <div class="trip-header">
+    <div class="mystes-card trip-header">
         <div class="trip-header-top">
             <div>
                 <input class="trip-title-editable" id="tripTitle"
@@ -870,7 +609,17 @@ TRIP_DETAIL_CONTENT = """
                     {% endif %}
                 </div>
             </div>
-            <span class="trip-header-status {{ trip.status }}">{{ trip.status }}</span>
+            {% if trip.status == 'draft' %}
+            <span class="mystes-badge mystes-badge-neutral">{{ trip.status }}</span>
+            {% elif trip.status == 'finalized' %}
+            <span class="mystes-badge mystes-badge-gold">{{ trip.status }}</span>
+            {% elif trip.status == 'booked' %}
+            <span class="mystes-badge mystes-badge-teal">{{ trip.status }}</span>
+            {% elif trip.status == 'completed' %}
+            <span class="mystes-badge mystes-badge-green">{{ trip.status }}</span>
+            {% else %}
+            <span class="mystes-badge mystes-badge-neutral">{{ trip.status }}</span>
+            {% endif %}
         </div>
         <div class="trip-member-avatars">
             {% for m in members %}
@@ -897,7 +646,7 @@ TRIP_DETAIL_CONTENT = """
             {% else %}
                 {% set day_num = 1 %}
             {% endif %}
-            <div class="trip-day-card">
+            <div class="mystes-card">
                 <div class="trip-day-header">
                     <div>
                         <span class="trip-day-label">Day {{ day_num }}</span>
@@ -973,7 +722,7 @@ TRIP_DETAIL_CONTENT = """
         <!-- Sidebar -->
         <div class="trip-sidebar">
             <!-- Members -->
-            <div class="trip-sidebar-card">
+            <div class="mystes-card">
                 <div class="trip-sidebar-title">Members</div>
                 {% for m in members %}
                 <div class="trip-member-row">
@@ -987,16 +736,16 @@ TRIP_DETAIL_CONTENT = """
 
                 <div class="trip-invite-section">
                     <div class="trip-invite-row">
-                        <input class="trip-invite-input" id="inviteEmail"
+                        <input class="mystes-input" id="inviteEmail"
                                placeholder="friend@email.com"
                                onkeydown="if(event.key==='Enter') inviteFriend({{ trip.id }});" />
-                        <button class="trip-invite-btn" onclick="inviteFriend({{ trip.id }})">Invite</button>
+                        <button class="mystes-btn mystes-btn-success mystes-btn-sm" onclick="inviteFriend({{ trip.id }})">Invite</button>
                     </div>
                 </div>
             </div>
 
             <!-- Cart summary -->
-            <div class="trip-sidebar-card">
+            <div class="mystes-card">
                 <div class="trip-sidebar-title">Trip Summary</div>
                 <div class="trip-cart-row">
                     <span>Items</span>
@@ -1016,15 +765,15 @@ TRIP_DETAIL_CONTENT = """
                     <span>Total</span>
                     <span class="trip-cart-value total">${{ '%.2f' | format(cart_data.total_cost) }}</span>
                 </div>
-                <button class="trip-checkout-btn" disabled title="Coming soon">Checkout All</button>
+                <button class="mystes-btn mystes-btn-gold mystes-btn-full" onclick="tripCheckout()" title="One person pays, split later" style="margin-top:16px;">Checkout All</button>
             </div>
         </div>
     </div>
 
-    <!-- Bottom cart (full width) -->
-    <div class="trip-cart-summary" style="margin-top:30px;">
-        <div style="text-align:center;color:rgba(255,255,255,0.3);font-size:13px;">
-            Full checkout and split payment coming soon.
+    <!-- Bottom cart — Balances (Build #209) -->
+    <div class="mystes-card" id="balances-section" style="margin-top:30px;margin-bottom:40px;">
+        <div id="balances-content" style="text-align:center;color:rgba(255,255,255,0.3);font-size:13px;">
+            Checkout to see split balances.
         </div>
     </div>
 </div>
@@ -1105,6 +854,46 @@ function inviteFriend(tripId) {
         }
     });
 }
+
+/* Trip Checkout + Settle Up (Build #209) */
+function tripCheckout() {
+    if (!confirm('Checkout this trip? You will pay the full service fee and can request reimbursement from group members.')) return;
+    fetch('/api/trips/' + TRIP_ID + '/checkout', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert('Trip booked! Service fee: $' + data.total_service_fee.toFixed(2) + ' ($' + data.per_person.toFixed(2) + '/person)');
+            loadBalances();
+            window.location.reload();
+        } else {
+            alert(data.error || 'Checkout failed.');
+        }
+    });
+}
+
+function loadBalances() {
+    fetch('/api/trips/' + TRIP_ID + '/balances')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.checked_out) return;
+        var el = document.getElementById('balances-content');
+        var html = '<div style="text-align:left;padding:10px;">';
+        html += '<div style="color:#a855f7;font-weight:600;margin-bottom:8px;">Balances — $' + data.total_service_fee.toFixed(2) + ' total</div>';
+        data.balances.forEach(function(b) {
+            var color = b.status === 'paid' ? '#22c55e' : (b.status === 'requested' ? '#f59e0b' : '#999');
+            html += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
+            html += '<span style="color:#ddd;">' + b.name + (b.is_payer ? ' (payer)' : '') + '</span>';
+            html += '<span style="color:' + color + ';">$' + b.amount_owed.toFixed(2) + ' — ' + b.status + '</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+    });
+}
+loadBalances();
 </script>
 """
 
@@ -1810,4 +1599,303 @@ def register_trip_routes(app, csrf, limiter):
 
         return jsonify({"success": True, "item_id": item.id, "status": new_status})
 
-    logger.info("Trip planner routes registered")
+    # ------------------------------------------------------------------
+    # 15. POST /api/trips/<trip_id>/checkout — One person pays all (Build #209)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/checkout", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_trip_checkout(trip_id):
+        """Trip checkout: one person pays, splits tracked for reimbursement (Build #209).
+
+        Proxy booking = single cardholder on airline end.
+        Splitting operates ONLY on the MYSTES service fee layer.
+        """
+        from payments import get_fee_percent
+
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        if trip.status not in ('draft', 'finalized'):
+            return jsonify({"success": False, "error": f"Trip already in status: {trip.status}"}), 400
+
+        items = TripItem.query.filter_by(trip_plan_id=trip_id).all()
+        if not items:
+            return jsonify({"success": False, "error": "No items in trip."}), 400
+
+        members = TripMember.query.filter_by(trip_plan_id=trip_id).all()
+        member_count = max(len(members), 1)
+
+        # Calculate total cost
+        total_cost = 0.0
+        for item in items:
+            try:
+                idata = json.loads(item.item_data_json) if item.item_data_json else {}
+                price = float(idata.get("price", 0))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                price = 0.0
+            total_cost += price
+
+        # Calculate service fee
+        user = current_user
+        fee_pct = get_fee_percent(user)
+
+        # Service fee on total savings, $3 min, NO max cap
+        total_savings = 0.0
+        for item in items:
+            try:
+                idata = json.loads(item.item_data_json) if item.item_data_json else {}
+                savings = float(idata.get("savings", 0))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                savings = 0.0
+            total_savings += savings
+
+        if total_savings > 0:
+            service_fee = max(total_savings * fee_pct, 3.0)
+        else:
+            service_fee = max(total_cost * fee_pct, 3.0)
+        service_fee = round(service_fee, 2)
+
+        per_person_fee = round(service_fee / member_count, 2)
+
+        # Create TripCart
+        cart = TripCart(
+            trip_plan_id=trip_id,
+            status='checkout',
+            total_amount=service_fee,
+        )
+        db.session.add(cart)
+        db.session.flush()
+
+        # Create TripCartAssignment for each member
+        for member in members:
+            is_payer = (member.user_id == current_user.id)
+            assignment = TripCartAssignment(
+                trip_cart_id=cart.id,
+                trip_item_id=items[0].id,
+                user_id=member.user_id,
+                payer_id=current_user.id,
+                split_method='even',
+                amount_owed=per_person_fee,
+                percentage=round(100.0 / member_count, 2),
+                payment_status='paid' if is_payer else 'pending',
+            )
+            db.session.add(assignment)
+
+        # If only member is the payer, handle solo trips
+        if member_count == 1 or (member_count == len([m for m in members if m.user_id == current_user.id])):
+            cart.status = 'paid'
+
+        # Stripe PaymentIntent for full service fee
+        data = request.get_json(silent=True) or {}
+        payment_method_id = data.get("payment_method_id")
+
+        stripe_pi_id = None
+        if payment_method_id and service_fee > 0:
+            try:
+                import stripe
+                stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+                pi = stripe.PaymentIntent.create(
+                    amount=int(service_fee * 100),
+                    currency="usd",
+                    payment_method=payment_method_id,
+                    confirm=True,
+                    description=f"MYSTES trip — {trip.name}",
+                    metadata={"trip_id": str(trip_id), "type": "trip_checkout"},
+                    automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+                )
+                stripe_pi_id = pi.id
+                cart.status = 'paid'
+            except Exception as stripe_err:
+                logger.error("[TripCheckout] Stripe: %s", stripe_err)
+                cart.status = 'checkout'
+                db.session.commit()
+                return jsonify({"success": False, "error": "Payment failed"}), 402
+
+        trip.status = 'booked'
+        cart.finalized_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        # Build balance sheet
+        balances = []
+        for member in members:
+            assignment = TripCartAssignment.query.filter_by(
+                trip_cart_id=cart.id, user_id=member.user_id
+            ).first()
+            user_obj = User.query.get(member.user_id)
+            balances.append({
+                "user_id": member.user_id,
+                "name": user_obj.name if user_obj else "Unknown",
+                "amount_owed": assignment.amount_owed if assignment else 0,
+                "status": assignment.payment_status if assignment else "pending",
+            })
+
+        return jsonify({
+            "success": True,
+            "trip_id": trip_id,
+            "cart_id": cart.id,
+            "total_service_fee": service_fee,
+            "per_person": per_person_fee,
+            "member_count": member_count,
+            "stripe_pi_id": stripe_pi_id,
+            "balances": balances,
+        })
+
+    # ------------------------------------------------------------------
+    # 16. POST /api/trips/<trip_id>/settle-up/request — Send payment requests (Build #209)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/settle-up/request", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_trip_settle_request(trip_id):
+        """Send settle-up payment requests to trip members (Build #209)."""
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        cart = TripCart.query.filter_by(trip_plan_id=trip_id).order_by(TripCart.id.desc()).first()
+        if not cart:
+            return jsonify({"success": False, "error": "No checkout found for this trip."}), 404
+
+        # Find unpaid assignments where current user is the payer
+        assignments = TripCartAssignment.query.filter_by(
+            trip_cart_id=cart.id, payer_id=current_user.id
+        ).filter(
+            TripCartAssignment.payment_status.in_(['pending']),
+            TripCartAssignment.user_id != current_user.id,
+        ).all()
+
+        requested_count = 0
+        for assignment in assignments:
+            assignment.payment_status = 'requested'
+            requested_count += 1
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "requested_count": requested_count,
+        })
+
+    # ------------------------------------------------------------------
+    # 17. POST /api/trips/<trip_id>/settle-up/pay — Member pays their share (Build #209)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/settle-up/pay", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_trip_settle_pay(trip_id):
+        """Member pays their share of the trip service fee (Build #209).
+
+        Money goes to MYSTES. Payer reimbursement = future Stripe Connect feature.
+        """
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        cart = TripCart.query.filter_by(trip_plan_id=trip_id).order_by(TripCart.id.desc()).first()
+        if not cart:
+            return jsonify({"success": False, "error": "No checkout found."}), 404
+
+        # Find this user's unpaid assignments
+        assignments = TripCartAssignment.query.filter_by(
+            trip_cart_id=cart.id, user_id=current_user.id,
+        ).filter(
+            TripCartAssignment.payment_status.in_(['pending', 'requested']),
+        ).all()
+
+        if not assignments:
+            return jsonify({"success": False, "error": "No pending balance found."}), 400
+
+        total_owed = sum(a.amount_owed for a in assignments)
+        total_owed = round(total_owed, 2)
+
+        data = request.get_json(silent=True) or {}
+        payment_method_id = data.get("payment_method_id")
+
+        if not payment_method_id:
+            return jsonify({"success": False, "error": "payment_method_id required"}), 400
+
+        # Charge via Stripe
+        try:
+            import stripe
+            stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            pi = stripe.PaymentIntent.create(
+                amount=int(total_owed * 100),
+                currency="usd",
+                payment_method=payment_method_id,
+                confirm=True,
+                description=f"MYSTES trip settle-up — {trip.name}",
+                metadata={"trip_id": str(trip_id), "user_id": str(current_user.id), "type": "settle_up"},
+                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+            )
+
+            for assignment in assignments:
+                assignment.payment_status = 'paid'
+                assignment.stripe_payment_intent_id = pi.id
+
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "amount_paid": total_owed,
+                "stripe_pi_id": pi.id,
+            })
+        except Exception as stripe_err:
+            logger.error("[TripSettleUp] Stripe: %s", stripe_err)
+            return jsonify({"success": False, "error": "Payment failed"}), 402
+
+    # ------------------------------------------------------------------
+    # 18. GET /api/trips/<trip_id>/balances — Who owes what (Build #209)
+    # ------------------------------------------------------------------
+    @app.route("/api/trips/<int:trip_id>/balances")
+    @csrf.exempt
+    @login_required
+    def api_trip_balances(trip_id):
+        """Get balance sheet for trip — who owes what (Build #209)."""
+        trip = _can_access_trip(trip_id)
+        if not trip:
+            return jsonify({"success": False, "error": "Trip not found or access denied."}), 404
+
+        cart = TripCart.query.filter_by(trip_plan_id=trip_id).order_by(TripCart.id.desc()).first()
+        if not cart:
+            return jsonify({
+                "success": True,
+                "trip_id": trip_id,
+                "checked_out": False,
+                "total_service_fee": 0,
+                "balances": [],
+            })
+
+        assignments = TripCartAssignment.query.filter_by(trip_cart_id=cart.id).all()
+        members = TripMember.query.filter_by(trip_plan_id=trip_id).all()
+        member_count = max(len(members), 1)
+        per_person = round(cart.total_amount / member_count, 2) if cart.total_amount else 0
+
+        balances = []
+        for assignment in assignments:
+            user_obj = User.query.get(assignment.user_id)
+            balances.append({
+                "user_id": assignment.user_id,
+                "name": user_obj.name if user_obj else "Unknown",
+                "amount_owed": round(assignment.amount_owed, 2),
+                "status": assignment.payment_status,
+                "is_payer": assignment.payer_id == assignment.user_id,
+            })
+
+        payer = User.query.get(assignments[0].payer_id) if assignments else None
+
+        return jsonify({
+            "success": True,
+            "trip_id": trip_id,
+            "checked_out": True,
+            "total_service_fee": round(cart.total_amount, 2),
+            "per_person": per_person,
+            "payer": {
+                "user_id": payer.id if payer else None,
+                "name": payer.name if payer else "Unknown",
+            },
+            "balances": balances,
+        })
+
+    logger.info("Trip planner routes registered (incl. Build #209 splitting)")

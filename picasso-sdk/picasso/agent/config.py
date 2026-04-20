@@ -99,7 +99,7 @@ class AgencyConfig:
             "favicon_url": "",
             "primary_color": "#1a1a2e",         # Dark navy (MYSTES default)
             "accent_color": "#6366f1",          # Indigo
-            "heading_font": "Cinzel",           # Serif for headings
+            "heading_font": "Space Grotesk",    # Geometric sans for headings
             "body_font": "Outfit",              # Sans-serif for body
             "footer_text": "",
             "support_email": "",

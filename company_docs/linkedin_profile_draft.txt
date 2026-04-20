@@ -1,0 +1,86 @@
+============================================================
+LINKEDIN PROFILE DRAFT — John Snyder
+============================================================
+
+------------------------------------------------------------
+HEADLINE (appears under your name everywhere)
+------------------------------------------------------------
+
+Founder & Software Engineer | AI-Powered Consumer Platforms & SDKs | MYSTES KYRIOS LLC
+
+------------------------------------------------------------
+LOCATION
+------------------------------------------------------------
+
+Tennessee, United States
+
+------------------------------------------------------------
+ABOUT / SUMMARY
+------------------------------------------------------------
+
+I build consumer-facing products and SDKs that eliminate friction between businesses and the people they serve.
+
+My focus is on full-stack platform engineering — designing systems where complex B2B infrastructure becomes invisible to the end user. I specialize in API integration, multi-source data orchestration, and AI-powered engines that make intelligent decisions at scale without human intervention.
+
+I've built several SDKs and software products from the ground up, including AI-powered intelligence platforms, API orchestration layers, and consumer-facing applications that turn fragmented industry infrastructure into seamless user experiences.
+
+Currently leading MYSTES KYRIOS LLC — building travel technology products that aggregate wholesale content from multiple API sources, apply real-time pricing intelligence, and deliver frictionless consumer experiences across flights, hotels, and ground transportation.
+
+Core technical areas:
+- SDK development and API platform architecture
+- Full-stack product engineering (Python/Flask, JavaScript, SQL)
+- Multi-source API orchestration and data pipelines
+- AI-powered decision engines and automation
+- Consumer UX design for complex backend systems
+- Mobile and web deployment (Capacitor, responsive design)
+- Payment integration (Stripe)
+
+I believe the best technology is the kind people never have to think about. If the consumer notices the infrastructure, you built it wrong.
+
+------------------------------------------------------------
+EXPERIENCE
+------------------------------------------------------------
+
+MYSTES KYRIOS LLC
+Founder & Lead Engineer
+Tennessee, United States
+2025 - Present
+
+Building travel technology products and SDKs that connect consumers directly to wholesale pricing through intelligent API orchestration.
+
+- Architected a multi-source search engine integrating GDS, NDC, and consolidator APIs into a unified consumer experience across flights, hotels, cars, and activities
+- Built a proprietary AI intelligence SDK (16-module architecture) that handles credential routing, pricing optimization, and booking dispatch across multiple API providers
+- Developed a complete booking pipeline from search through payment processing and ticket issuance
+- Designed a subscription-based platform model serving direct consumers, B2B partners, and white-label deployments
+- Built 5+ API client integrations from scratch by reverse-engineering provider documentation
+- Engineered the full product stack solo: backend (Python/Flask), frontend, database architecture (SQLAlchemy/PostgreSQL), API orchestration, payment systems (Stripe), and mobile deployment (Capacitor)
+
+------------------------------------------------------------
+SKILLS (add these individually on LinkedIn)
+------------------------------------------------------------
+
+Python
+Flask
+JavaScript
+SQL / SQLAlchemy / PostgreSQL
+API Integration
+REST API Design
+Full-Stack Development
+Software Architecture
+AI / Machine Learning Integration
+Stripe Payments
+Consumer Product Design
+Mobile Development (Capacitor)
+Data Orchestration
+Travel Technology
+
+------------------------------------------------------------
+NOTES FOR FILLING OUT
+------------------------------------------------------------
+
+- Profile photo: Use a clean headshot. Professional but not corporate.
+- Banner image: Can leave default or use something travel/tech related.
+- DO NOT list education section — LinkedIn doesn't require it and plenty of founders skip it. Nobody will notice it's missing. If LinkedIn forces a field, you can put "Self-Taught Software Engineer" but leaving it blank is better.
+- Turn ON "Open to work" → "Open to connecting with partners and vendors" or just leave it off.
+- Custom URL: Try to claim linkedin.com/in/johnsnyder-mystes or similar.
+- Featured section: Skip for now. Add the MYSTES site once it's live.

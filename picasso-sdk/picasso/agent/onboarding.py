@@ -423,7 +423,7 @@ SIGNUP_FORM_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ANASTASiA — Get Started</title>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -438,7 +438,7 @@ body {
     padding: 40px 24px;
 }
 h1 {
-    font-family: 'Cinzel', serif;
+    font-family: 'Space Grotesk', sans-serif;
     font-size: 28px;
     text-align: center;
     margin-bottom: 8px;
@@ -474,7 +474,7 @@ h1 {
     margin-bottom: 24px;
 }
 .form-card h2 {
-    font-family: 'Cinzel', serif;
+    font-family: 'Space Grotesk', sans-serif;
     font-size: 20px;
     margin-bottom: 8px;
 }
@@ -537,7 +537,7 @@ h1 {
 .plan-card:hover { border-color: #6366f1; transform: translateY(-2px); }
 .plan-card.selected { border-color: #6366f1; background: rgba(99,102,241,0.1); }
 .plan-card h3 {
-    font-family: 'Cinzel', serif;
+    font-family: 'Space Grotesk', sans-serif;
     font-size: 18px;
     margin-bottom: 4px;
 }

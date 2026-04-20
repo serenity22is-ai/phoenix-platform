@@ -1,0 +1,206 @@
+============================================================
+AIRGATEWAY OUTREACH PACKAGE — Multi-Channel
+============================================================
+Target: Get onboarded to AirGateway API immediately.
+Strategy: Hit every channel simultaneously. Each message
+is distinct in tone/angle so nothing looks copy-pasted.
+
+Send ALL of these on the same day.
+============================================================
+
+
+------------------------------------------------------------
+1. EMAIL: sales@airgateway.com
+------------------------------------------------------------
+Purpose: Official business inquiry through their sales pipeline.
+Tone: Professional, concise, ready-to-buy.
+
+Subject: API integration ready — US OTA requesting onboarding
+
+Hi AirGateway team,
+
+I'm John Snyder, founder of MYSTES KYRIOS LLC — a US-based OTA building multi-source flight search and booking across GDS, NDC, and consolidator content.
+
+We've already built our full client integration against your API specification. Search, OfferPrice, OrderCreate with hold support, OrderRetrieve, cancellation, ticketing, seats, services, reshop — all 11 NDC operations are implemented and tested. We're not evaluating — we're ready to connect.
+
+What makes us a serious partner:
+
+- Full API client built and tested (not a "we're exploring NDC" inquiry)
+- We need per-request POS switching via metadata.country — the core reason we're here
+- No IATA number — we route through consolidator content (AERTiCKET), which is the entire point of your platform
+- Tennessee LLC, EIN on file, ready to sign and fund today
+
+We're currently onboarding through Picasso Travel for Cockpit/Redbox GDS content but their branch-level POS lock doesn't work for what we're building. Your per-request POS is the capability we need.
+
+Questions before we finalize:
+
+1. NET fare depth through AirGateway vs direct Cockpit access — is the consolidator pricing equivalent?
+2. Confirmation that per-request POS works across all 102 AERTiCKET markets in production
+3. Full booking lifecycle for GDS-sourced content (ticketing via AERTiCKET IATA plate) — same API flow as NDC-direct, or separate process?
+4. Onboarding timeline — we're implementation-complete on our end
+
+Happy to do a technical walkthrough of our integration or jump on a call this week.
+
+Best,
+
+John Snyder
+Founder, MYSTES KYRIOS LLC
+Tennessee, US
+
+
+------------------------------------------------------------
+2. EMAIL: Jorge Diaz (CEO) directly
+------------------------------------------------------------
+Purpose: Founder-to-founder. Decision maker.
+Find his email via LinkedIn or use jorge@ / jorge.diaz@ pattern.
+Also send as LinkedIn message (see #3).
+
+Subject: US-based OTA evaluating AirGateway — NET fare depth question
+
+Hi Jorge,
+
+I'm John Snyder, founder of MYSTES KYRIOS LLC — we're building a global OTA and flight API network based in the US.
+
+We're currently onboarding through Picasso Travel for AERTiCKET/Cockpit content, but we're facing sales friction and evaluating our options. Your multi-POS capability via metadata.country is exactly what we need — branch-level POS lock is a dealbreaker for what we're building.
+
+What I need to understand before we commit:
+
+1. How does your NET fare depth compare to what agencies get through Picasso/Cockpit directly? We've seen strong consolidator pricing through Picasso and need to know we're getting equivalent or better depth through AirGateway.
+2. Confirmation that per-request POS works across all AERTiCKET markets in production — not just a subset.
+3. For AERTiCKET/GDS content specifically — does your API handle the full booking lifecycle including ticket issuance and post-booking servicing, or is there a separate process for GDS-sourced fares vs NDC-direct?
+4. Standard onboarding timeline and requirements. We've already built our client integration against your API spec, so implementation is done on our end.
+
+We're a Tennessee LLC (MYSTES KYRIOS LLC, EIN 41-4228758), ready to sign and fund immediately. No IATA — routing through consolidator content is the whole point.
+
+Happy to jump on a call this week.
+
+Best,
+
+John Snyder
+Founder, MYSTES KYRIOS LLC
+
+
+------------------------------------------------------------
+3. LINKEDIN MESSAGE: Jorge Diaz
+------------------------------------------------------------
+Purpose: Short, personal, gets attention fast.
+Send as connection request note (300 char limit) + follow-up message.
+
+CONNECTION REQUEST NOTE (under 300 chars):
+---
+Hi Jorge — I'm building a US-based OTA with a full client integration already built against your API (all 11 NDC operations). Looking to onboard through AirGateway for per-request POS arbitrage. Would love to connect and discuss.
+---
+
+FOLLOW-UP MESSAGE (after connection accepted):
+---
+Hi Jorge,
+
+Thanks for connecting. I'll keep this brief — I'm the founder of MYSTES KYRIOS LLC, a US OTA. We've built our full AirGateway integration (search through ticketing, all 11 operations) and we're ready to go live.
+
+The per-request POS switching is what brought us here. We're currently working with Picasso Travel for Cockpit/Redbox content but their branch-level POS lock doesn't fit our architecture. Your metadata.country approach is exactly right.
+
+I sent a more detailed email to your sales team with specific technical questions. Just wanted to make sure it doesn't get lost — we're ready to sign and fund immediately.
+
+Happy to jump on a quick call whenever works for you.
+
+John Snyder
+MYSTES KYRIOS LLC
+---
+
+
+------------------------------------------------------------
+4. LINKEDIN MESSAGE: Carlos Mezquita Garcia (Customer Support Mgr)
+------------------------------------------------------------
+Purpose: Warm the support/onboarding pipeline from the inside.
+
+CONNECTION REQUEST NOTE:
+---
+Hi Carlos — I'm onboarding to AirGateway's API from the US (MYSTES KYRIOS LLC). Already have our full integration built. Would love to connect as we go through the process.
+---
+
+FOLLOW-UP MESSAGE:
+---
+Hi Carlos,
+
+I'm John Snyder — we're a US-based OTA going through the AirGateway onboarding process. I've already submitted through your sales channel and connected with Jorge, but wanted to introduce myself on the support side too since you'll likely be the one helping us through the transition.
+
+Quick context: we've already built our full client integration against the AirGateway API spec — all 11 NDC operations, session management, error handling, retry logic, the works. So implementation won't be a bottleneck on our side.
+
+We're particularly interested in the AERTiCKET consolidator content with per-request POS switching. No IATA on our end — routing through consolidator plates is the model.
+
+Looking forward to working with you.
+
+John Snyder
+MYSTES KYRIOS LLC
+---
+
+
+------------------------------------------------------------
+5. WEBSITE CONTACT FORM: airgateway.com/contact-us/
+------------------------------------------------------------
+Purpose: Ensures you're in their CRM/ticketing system.
+
+First name: John
+Last name: Snyder
+E-mail: [your email]
+Company: MYSTES KYRIOS LLC
+Message:
+---
+US-based OTA requesting API onboarding. We've already built our complete client integration against your API specification (all 11 NDC operations — AirShopping through AirDocIssue). Ready to sign and fund immediately.
+
+Key need: per-request POS switching via metadata.country for AERTiCKET consolidator content. No IATA — routing through consolidator plates.
+
+Tennessee LLC, EIN on file. Also emailed sales@airgateway.com with detailed technical questions. Happy to schedule a call this week.
+
+John Snyder, Founder — MYSTES KYRIOS LLC
+---
+
+
+------------------------------------------------------------
+6. WEBSITE API SIGNUP FORM: airgateway.com/products/airgateway-api/
+------------------------------------------------------------
+Purpose: Gets you into their API-specific onboarding pipeline.
+
+First name: John
+Last name: Snyder
+Company: MYSTES KYRIOS LLC
+Contact Email: [your email]
+IATA Number: [leave blank or enter "N/A — routing through AERTiCKET consolidator"]
+Country: United States
+
+
+============================================================
+SEND ORDER (same day):
+============================================================
+
+1. API signup form (gets you in the automated pipeline)
+2. Contact form (gets you in CRM)
+3. sales@airgateway.com email (hits the team inbox)
+4. Jorge Diaz LinkedIn connection request
+5. Carlos Mezquita LinkedIn connection request
+6. Jorge Diaz direct email (if you find his address)
+
+After Jorge accepts your LinkedIn connection, send the follow-up.
+After Carlos accepts, send his follow-up.
+
+If no response in 3 business days, follow up on sales@ with:
+"Following up on my onboarding request from [date]. We're
+implementation-complete and ready to connect — happy to do
+a technical walkthrough of our integration."
+
+============================================================
+WHAT NOT TO SAY:
+============================================================
+
+- Don't mention "AI" or "SDK" — they don't need to know
+  about ANASTASiA. You're just an OTA buying API access.
+- Don't mention B2B plans or credential network — that's
+  internal strategy, not relevant to an API vendor.
+- Don't mention Duffel, Kiwi, or other sources — creates
+  the impression you're shopping around rather than committed.
+- Don't expose the full tech stack — "we built our integration"
+  is enough. No need to say Python, Flask, etc.
+- Don't mention the word "arbitrage" — say "multi-market
+  pricing" or "POS-based pricing optimization" instead.
+  Airlines and consolidators are sensitive to that word.
+============================================================

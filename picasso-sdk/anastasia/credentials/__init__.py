@@ -13,7 +13,7 @@ Components:
 - **CredentialNetwork**: Federated membership, discovery, and booking routing.
   Connects competing consolidators as partners through the daemon bridge.
 - **RevenueCalculator**: Split calculations and settlement tracking.
-  Default: 85% credential host, 10% platform, 5% routing agency.
+  Default: Flat $2.50 platform fee + 70% router / 30% host (Build #201).
 
 MYSTES KYRIOS LLC — Confidential.
 """

@@ -441,6 +441,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
             /admin/dashboard?key=ana_abc123&base=https://your-server.com
         """
         from flask import Response
+        from .network_ui import inject_network_ui
         api_key_param = request.args.get("key", "")
         base_url = request.args.get("base", "")
         # Inject config into the HTML
@@ -451,6 +452,8 @@ def create_app(config: Optional[dict] = None) -> Flask:
             "window.ADMIN_API_KEY || ''",
             f"'{api_key_param}'"
         )
+        # Inject Network, Terminal, and Modules tabs
+        html = inject_network_ui(html)
         return Response(html, mimetype="text/html")
 
     @app.route("/app")
@@ -2577,6 +2580,14 @@ def create_app(config: Optional[dict] = None) -> Flask:
     # --- Search & Bundle Routes ---
     from .search_routes import register_search_routes
     register_search_routes(app, require_api_key)
+
+    # --- Credential Network Routes ---
+    from .network_routes import register_network_routes
+    register_network_routes(app, require_api_key)
+
+    # --- Marketing Website ---
+    from .website import register_website_routes
+    register_website_routes(app, onboarding, billing_manager)
 
     # --- Shutdown hook ---
     @app.teardown_appcontext

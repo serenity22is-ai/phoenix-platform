@@ -30,4 +30,4 @@ RUN groupadd -r mystes && useradd -r -g mystes -d /app -s /sbin/nologin mystes \
 
 USER mystes
 
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "server:app"]
+CMD ["sh", "-c", "flask db upgrade && python -c 'from server import app, db; app.app_context().__enter__(); db.create_all(); print(\"Tables synced\")' && gunicorn --config gunicorn.conf.py server:app"]

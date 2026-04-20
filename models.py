@@ -80,6 +80,9 @@ class User(UserMixin, db.Model):
     referred_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     total_referrals = db.Column(db.Integer, default=0)
 
+    # FX preference (FX-aware pricing — user sets once, applies everywhere)
+    no_fx_fee_card = db.Column(db.Boolean, default=False)  # True = no FX fee card (Chase Sapphire, Capital One, etc.)
+
     # Stripe Customer (for saved payment methods — Phase 1)
     stripe_customer_id = db.Column(db.String(100), unique=True, nullable=True, index=True)
 
@@ -245,6 +248,9 @@ class Deal(db.Model):
     amenities = db.Column(db.Text, nullable=True)  # JSON
     cancellation_policy = db.Column(db.Text, nullable=True)
     room_description = db.Column(db.Text, nullable=True)
+
+    # Credential network routing (Build #201)
+    booking_source = db.Column(db.String(50), nullable=True)  # Which API source won dedup
 
     # Picasso / Redbox API references (critical for booking flow)
     fare_id = db.Column(db.String(100), nullable=True)  # Redbox fareId from search
@@ -501,6 +507,29 @@ class Booking(db.Model):
     cancelled_at = db.Column(db.DateTime, nullable=True)
     refund_amount_usd = db.Column(db.Float, nullable=True)
     cancellation_reason = db.Column(db.String(200), nullable=True)
+
+    # Proxy booking (Build #207)
+    booking_channel = db.Column(db.String(20), default='api')          # 'api' or 'proxy'
+    proxy_market = db.Column(db.String(5), nullable=True)              # POS market code "DK"
+    service_fee_stripe_pi = db.Column(db.String(255), nullable=True)   # Stripe PaymentIntent ID
+
+    # Credential network routing (Build #201)
+    booking_source = db.Column(db.String(50), nullable=True)        # picasso, duffel_ndc, kiwi_tequila
+    credential_id = db.Column(db.String(100), nullable=True)        # vault credential used
+    owner_tenant_id = db.Column(db.String(100), nullable=True)      # credential host tenant
+    router_tenant_id = db.Column(db.String(100), nullable=True)     # customer-acquiring tenant
+    routing_result_id = db.Column(db.String(100), nullable=True)    # CredentialNetwork result ID
+    routing_tier = db.Column(db.Integer, nullable=True)             # 1=own, 2=premium, 3=broad
+    routing_fee_usd = db.Column(db.Float, nullable=True)            # platform fee for routed booking
+
+    # Booking lifecycle (Build #238)
+    airline_confirmation = db.Column(db.String(20), nullable=True)  # PNR from proxy booking
+    booking_lifecycle_status = db.Column(db.String(20), default='active')
+    # active / schedule_changed / cancelled / completed
+    check_in_opens = db.Column(db.DateTime, nullable=True)  # 24h before departure
+    last_status_check = db.Column(db.DateTime, nullable=True)
+    status_check_count = db.Column(db.Integer, default=0)
+    rebooking_credit_usd = db.Column(db.Float, nullable=True)  # $5 goodwill credit
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=_utcnow)
@@ -2063,6 +2092,9 @@ class BundleItem(db.Model):
     amadeus_order_id = db.Column(db.String(100), nullable=True)
     confirmation_code = db.Column(db.String(100), nullable=True)
 
+    # Booking channel (Build #208)
+    booking_channel = db.Column(db.String(20), default='api')  # 'api', 'proxy', 'duffel_stays'
+
     # Status: selected, validating, booking, booked, failed
     status = db.Column(db.String(20), default='selected')
 
@@ -2079,6 +2111,7 @@ class BundleItem(db.Model):
             'price_usd': round(self.price_usd, 2),
             'currency': self.currency,
             'price_local': round(self.price_local, 2),
+            'booking_channel': self.booking_channel,
             'amadeus_order_id': self.amadeus_order_id,
             'confirmation_code': self.confirmation_code,
             'status': self.status,
@@ -2166,6 +2199,21 @@ class FeatureFlag(db.Model):
             ('vertical_products', 'Products Vertical', 'Price comparison for physical products', 2, False),
             ('vertical_rentals', 'Rentals Vertical', 'Car and vacation rentals', 2, True),
             ('vertical_cruises', 'Cruises Vertical', 'Cruise booking and comparison', 2, False),
+
+            # Layer 3 - Phase C (gated behind 500 active trip planners)
+            ('managed_mode', 'Managed Trip Mode', 'Lock itinerary, roster dashboard, announcements (#225)', 3, False),
+            ('event_system', 'Event System', 'Event hosting, ticket tiers, Stripe Connect payouts (#226)', 3, False),
+            ('guest_info_collection', 'Guest Info Collection', 'Collect dietary, passport, emergency info (#227)', 3, False),
+            ('qr_checkin', 'QR Check-In', 'Organizer scans guest QR at event (#227)', 3, False),
+            ('narrative_pitch', 'Narrative Pitch', 'Per-guest personalized trip narrative (#228)', 3, False),
+            ('shared_cart', 'Shared Cart', 'Pay-for-someone cart with guest Stripe payment (#229)', 3, False),
+            ('trip_posts', 'Trip Posts', 'Shareable trip stories with photos and tips (#230)', 3, False),
+            ('social_profiles', 'Social Profiles', 'Public profiles, travel map, follows (#231)', 3, False),
+            ('verified_reviews', 'Verified Reviews', 'Booking-verified user and B2B reviews (#232)', 3, False),
+            ('referral_attribution', 'Referral Attribution', '2-level referral chain + conversion tracking (#233)', 3, False),
+            ('corporate_workspaces', 'Corporate Workspaces', 'Workspace model + admin + roles + invite (#235)', 3, False),
+            ('travel_policies', 'Travel Policies', 'Policies + approval workflows + expense tags (#236)', 3, False),
+            ('corporate_dashboard', 'Corporate Dashboard', 'Dashboard + book-on-behalf + reporting + export (#237)', 3, False),
         ]
 
         for flag_key, name, desc, layer, enabled in default_flags:
@@ -2409,6 +2457,24 @@ class TripPlan(db.Model):
     end_date = db.Column(db.Date, nullable=True)
     is_template = db.Column(db.Boolean, default=False)
     template_copies_count = db.Column(db.Integer, default=0)
+
+    # Managed mode + capacity (Build #225)
+    mode = db.Column(db.String(15), default='collaborative')  # collaborative / managed
+    capacity = db.Column(db.Integer, nullable=True)  # null = unlimited
+    waitlist_enabled = db.Column(db.Boolean, default=False)
+    registration_deadline = db.Column(db.DateTime, nullable=True)
+    payment_deadline = db.Column(db.DateTime, nullable=True)
+
+    # Event fields (Build #226)
+    trip_type = db.Column(db.String(10), default='trip')  # trip / event
+    event_name = db.Column(db.String(200), nullable=True)
+    venue_name = db.Column(db.String(200), nullable=True)
+    venue_address = db.Column(db.String(500), nullable=True)
+    venue_url = db.Column(db.String(500), nullable=True)
+    event_description = db.Column(db.Text, nullable=True)
+    registration_type = db.Column(db.String(15), default='invite_only')  # invite_only / public
+    organizer_stripe_connect_id = db.Column(db.String(100), nullable=True)
+
     created_at = db.Column(db.DateTime, default=_utcnow)
     updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
@@ -2417,15 +2483,24 @@ class TripPlan(db.Model):
     items = db.relationship('TripItem', backref='trip_plan', lazy='dynamic', cascade='all, delete-orphan')
 
     def to_dict(self):
-        return {
+        d = {
             'id': self.id,
             'name': self.name,
             'status': self.status,
+            'mode': self.mode,
+            'trip_type': self.trip_type,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'end_date': self.end_date.isoformat() if self.end_date else None,
+            'capacity': self.capacity,
+            'waitlist_enabled': self.waitlist_enabled,
             'member_count': self.members.count(),
             'item_count': self.items.count(),
         }
+        if self.trip_type == 'event':
+            d['event_name'] = self.event_name
+            d['venue_name'] = self.venue_name
+            d['registration_type'] = self.registration_type
+        return d
 
 
 class TripMember(db.Model):
@@ -2505,6 +2580,964 @@ class TripCartAssignment(db.Model):
     trip_item = db.relationship('TripItem', backref=db.backref('assignments', lazy='dynamic'))
 
 
+# ================================================================
+# Build #221: TripParty + TripGuest (Sub-Party Model)
+# ================================================================
+
+class TripParty(db.Model):
+    """Sub-group within a trip — families, couples, payment units.
+
+    Example: Cancun Trip has "The Smiths" (payer: Dad), "Jeff & Lisa" (payer: Jeff),
+    and "Solo Marco" (payer: himself). Each party has its own payer who covers
+    costs for items scoped to that party.
+    """
+    __tablename__ = 'trip_parties'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)  # "The Smiths"
+    party_type = db.Column(db.String(20), default='attendee')  # attendee / sponsor
+    payer_guest_id = db.Column(db.Integer, nullable=True)  # FK set after TripGuest created
+    budget_usd = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('parties', lazy='dynamic'))
+    guests = db.relationship('TripGuest', backref='party', lazy='dynamic',
+                             foreign_keys='TripGuest.party_id')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'trip_id': self.trip_id,
+            'name': self.name,
+            'party_type': self.party_type,
+            'payer_guest_id': self.payer_guest_id,
+            'budget_usd': self.budget_usd,
+            'guest_count': self.guests.count() if self.guests else 0,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class TripGuest(db.Model):
+    """Individual member in a trip — may or may not be a MYSTES user.
+
+    Each guest has independent dates (arrival/departure), role, RSVP status,
+    and payment status. Guests can belong to a party (sub-group) for billing.
+    """
+    __tablename__ = 'trip_guests'
+
+    ROLES = ('owner', 'admin', 'editor', 'viewer', 'payer')
+    RSVP_STATUSES = ('invited', 'viewed', 'attending', 'declined', 'maybe', 'waitlisted', 'expired')
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    party_id = db.Column(db.Integer, db.ForeignKey('trip_parties.id'), nullable=True, index=True)
+
+    # Identity — user_id nullable for non-MYSTES guests
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    display_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(255), nullable=True)
+    phone = db.Column(db.String(30), nullable=True)
+
+    # Role + access
+    role = db.Column(db.String(10), default='viewer')  # owner/admin/editor/viewer/payer
+
+    # Flexible dates per guest
+    arrival_date = db.Column(db.Date, nullable=True)
+    departure_date = db.Column(db.Date, nullable=True)
+
+    # RSVP
+    rsvp_status = db.Column(db.String(15), default='invited')
+    payment_status = db.Column(db.String(15), default='unpaid')  # unpaid/partial/paid/comped
+    payment_deadline_override = db.Column(db.DateTime, nullable=True)
+
+    # Linking
+    invite_token = db.Column(db.String(12), nullable=True, index=True)  # for /i/<token>
+
+    # Events-only fields
+    ticket_tier_id = db.Column(db.Integer, nullable=True)
+    plus_one_of_guest_id = db.Column(db.Integer, db.ForeignKey('trip_guests.id'), nullable=True)
+    checked_in_at = db.Column(db.DateTime, nullable=True)
+
+    # Extra data
+    nationality = db.Column(db.String(3), nullable=True)  # ISO for visa warnings
+    custom_fields_json = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('guests', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('trip_guest_profiles', lazy='dynamic'))
+
+    __table_args__ = (
+        db.Index('ix_trip_guest_trip_user', 'trip_id', 'user_id'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'trip_id': self.trip_id,
+            'party_id': self.party_id,
+            'user_id': self.user_id,
+            'display_name': self.display_name,
+            'email': self.email,
+            'role': self.role,
+            'arrival_date': self.arrival_date.isoformat() if self.arrival_date else None,
+            'departure_date': self.departure_date.isoformat() if self.departure_date else None,
+            'rsvp_status': self.rsvp_status,
+            'payment_status': self.payment_status,
+            'invite_token': self.invite_token,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ================================================================
+# Build #222: ItineraryItem (Live Search Params)
+# ================================================================
+
+class ItineraryItem(db.Model):
+    """Itinerary item storing SEARCH PARAMETERS, not static results.
+
+    Click "Refresh Prices" to re-execute against live inventory.
+    External bookings (Airbnb, other hotels) also stored here.
+    Scoping determines who the item applies to (trip/party/individual/custom).
+    """
+    __tablename__ = 'itinerary_items'
+
+    ITEM_TYPES = ('flight', 'hotel', 'activity', 'car', 'restaurant', 'custom')
+    SCOPES = ('trip', 'party', 'individual', 'custom')
+    STATUSES = ('suggested', 'approved', 'locked', 'booked', 'cancelled')
+    BOOKING_SOURCES = ('mystes', 'external', 'imported')
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+
+    # Type + ordering
+    item_type = db.Column(db.String(20), nullable=False)  # flight/hotel/activity/car/restaurant/custom
+    position = db.Column(db.Integer, default=0)
+
+    # Scheduling
+    date = db.Column(db.Date, nullable=True)
+    start_time = db.Column(db.String(5), nullable=True)  # "14:30"
+    end_time = db.Column(db.String(5), nullable=True)
+
+    # Scoping (Build #223)
+    scope = db.Column(db.String(15), default='trip')  # trip/party/individual/custom
+    scope_party_id = db.Column(db.Integer, db.ForeignKey('trip_parties.id'), nullable=True)
+    scope_guest_ids_json = db.Column(db.Text, nullable=True)  # JSON array for custom scope
+
+    # THE KEY FIELD — saved search parameters
+    search_params_json = db.Column(db.Text, nullable=True)
+    # Example: {"origin":"LAX","destination":"NRT","date":"2027-06-05",
+    #           "return_date":"2027-06-12","passengers":2,"cabin":"economy"}
+
+    # Cached result from last search
+    cached_deal_id = db.Column(db.Integer, db.ForeignKey('deals.id'), nullable=True)
+    cached_price_usd = db.Column(db.Float, nullable=True)
+    cached_at = db.Column(db.DateTime, nullable=True)
+
+    # Status + booking
+    status = db.Column(db.String(15), default='suggested')
+    booking_source = db.Column(db.String(10), default='mystes')  # mystes/external/imported
+    booking_mode = db.Column(db.String(15), nullable=True)  # group/party/individual
+    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=True)
+
+    # External booking details (Airbnb, etc.)
+    external_name = db.Column(db.String(200), nullable=True)
+    external_url = db.Column(db.String(500), nullable=True)
+    external_confirmation = db.Column(db.String(100), nullable=True)
+    external_cost_usd = db.Column(db.Float, nullable=True)
+
+    # Attribution
+    suggested_by_guest_id = db.Column(db.Integer, db.ForeignKey('trip_guests.id'), nullable=True)
+    assigned_to_guest_id = db.Column(db.Integer, db.ForeignKey('trip_guests.id'), nullable=True)
+
+    # Notes + visibility
+    notes = db.Column(db.Text, nullable=True)
+    is_private = db.Column(db.Boolean, default=False)
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('itinerary_items', lazy='dynamic'))
+
+    def to_dict(self):
+        import json as _json
+        return {
+            'id': self.id,
+            'trip_id': self.trip_id,
+            'item_type': self.item_type,
+            'position': self.position,
+            'date': self.date.isoformat() if self.date else None,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'scope': self.scope,
+            'scope_party_id': self.scope_party_id,
+            'scope_guest_ids': _json.loads(self.scope_guest_ids_json) if self.scope_guest_ids_json else [],
+            'search_params': _json.loads(self.search_params_json) if self.search_params_json else None,
+            'cached_price_usd': self.cached_price_usd,
+            'cached_at': self.cached_at.isoformat() if self.cached_at else None,
+            'status': self.status,
+            'booking_source': self.booking_source,
+            'booking_id': self.booking_id,
+            'external_name': self.external_name,
+            'external_url': self.external_url,
+            'external_cost_usd': self.external_cost_usd,
+            'notes': self.notes,
+            'is_private': self.is_private,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ================================================================
+# Build #224 prep: ItineraryVote + ItemComment (models only)
+# ================================================================
+
+class ItineraryVote(db.Model):
+    """Vote on an itinerary item — up/down/neutral per guest."""
+    __tablename__ = 'itinerary_votes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('itinerary_items.id'), nullable=False, index=True)
+    guest_id = db.Column(db.Integer, db.ForeignKey('trip_guests.id'), nullable=False, index=True)
+    vote = db.Column(db.String(10), nullable=False)  # up/down/neutral
+    comment = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    item = db.relationship('ItineraryItem', backref=db.backref('votes', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('item_id', 'guest_id', name='uq_itinerary_vote'),
+    )
+
+
+class ItemComment(db.Model):
+    """Threaded comment on an itinerary item."""
+    __tablename__ = 'item_comments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('itinerary_items.id'), nullable=False, index=True)
+    guest_id = db.Column(db.Integer, db.ForeignKey('trip_guests.id'), nullable=False, index=True)
+    body = db.Column(db.Text, nullable=False)
+    parent_comment_id = db.Column(db.Integer, db.ForeignKey('item_comments.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    item = db.relationship('ItineraryItem', backref=db.backref('comments', lazy='dynamic'))
+    replies = db.relationship('ItemComment', backref=db.backref('parent', remote_side='ItemComment.id'),
+                              lazy='dynamic')
+
+
+# ================================================================
+# Build #225: TripAnnouncement (Managed Mode)
+# ================================================================
+
+class TripAnnouncement(db.Model):
+    """One-to-many announcement from admin to trip guests (managed mode)."""
+    __tablename__ = 'trip_announcements'
+
+    AUDIENCES = ('all', 'confirmed_only', 'pending_only', 'waitlisted_only')
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    sender_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    audience = db.Column(db.String(20), default='all')
+    sent_at = db.Column(db.DateTime, default=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('announcements', lazy='dynamic'))
+    sender = db.relationship('User')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'trip_id': self.trip_id,
+            'sender_user_id': self.sender_user_id,
+            'sender_name': self.sender.name if self.sender else None,
+            'body': self.body,
+            'audience': self.audience,
+            'sent_at': self.sent_at.isoformat() if self.sent_at else None,
+        }
+
+
+# ================================================================
+# Build #226: TicketTier (Event Mode)
+# ================================================================
+
+class TicketTier(db.Model):
+    """Ticket tier for event-type trips — defines pricing + capacity per level."""
+    __tablename__ = 'ticket_tiers'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)  # "Full Weekend Package"
+    description = db.Column(db.Text, nullable=True)
+    price_usd = db.Column(db.Float, nullable=False, default=0.0)
+    capacity = db.Column(db.Integer, nullable=True)  # null = unlimited
+    includes_travel = db.Column(db.Boolean, default=False)
+    includes_accommodation = db.Column(db.Boolean, default=False)
+    included_items_json = db.Column(db.Text, nullable=True)  # JSON array of item IDs
+    position = db.Column(db.Integer, default=0)
+    sold_count = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('ticket_tiers', lazy='dynamic'))
+
+    @property
+    def spots_remaining(self):
+        if self.capacity is None:
+            return None  # unlimited
+        return max(0, self.capacity - self.sold_count)
+
+    @property
+    def is_sold_out(self):
+        if self.capacity is None:
+            return False
+        return self.sold_count >= self.capacity
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'trip_id': self.trip_id,
+            'name': self.name,
+            'description': self.description,
+            'price_usd': self.price_usd,
+            'capacity': self.capacity,
+            'spots_remaining': self.spots_remaining,
+            'is_sold_out': self.is_sold_out,
+            'sold_count': self.sold_count,
+            'includes_travel': self.includes_travel,
+            'includes_accommodation': self.includes_accommodation,
+            'position': self.position,
+            'is_active': self.is_active,
+        }
+
+
+# ================================================================
+# Build #227: TripGuestInfo (Guest Info Collection)
+# ================================================================
+
+class TripGuestInfo(db.Model):
+    """Key-value info collected from guests (dietary, passport, emergency contact, etc.)."""
+    __tablename__ = 'trip_guest_info'
+
+    id = db.Column(db.Integer, primary_key=True)
+    guest_id = db.Column(db.Integer, db.ForeignKey('trip_guests.id'), nullable=False, index=True)
+    field_key = db.Column(db.String(50), nullable=False)  # emergency_contact, dietary, passport_no, tshirt_size
+    field_value = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, default=_utcnow)
+
+    guest = db.relationship('TripGuest', backref=db.backref('info_fields', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('guest_id', 'field_key', name='uq_guest_info_field'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'guest_id': self.guest_id,
+            'field_key': self.field_key,
+            'field_value': self.field_value,
+            'submitted_at': self.submitted_at.isoformat() if self.submitted_at else None,
+        }
+
+
+# ================================================================
+# Build #229: SharedCart (Pay-For-Someone)
+# ================================================================
+
+class SharedCart(db.Model):
+    """Cart shared with a payer (e.g. "Mom, can you pay for this?").
+
+    Builder creates cart from itinerary items → shares link → guest pays via Stripe
+    without needing a MYSTES account. Booking executes under builder's account.
+    Status flow: draft → shared → repriced → paid → expired.
+    """
+    __tablename__ = 'shared_carts'
+
+    STATUSES = ('draft', 'shared', 'repriced', 'paid', 'expired')
+
+    id = db.Column(db.Integer, primary_key=True)
+    cart_token = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    builder_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    title = db.Column(db.String(200), nullable=False)  # "Summer Trip to Japan"
+    message = db.Column(db.Text, nullable=True)  # "Mom, can you pay for this?"
+    items_json = db.Column(db.Text, nullable=True)  # JSON: snapshot or item ID refs
+    reprice_at_checkout = db.Column(db.Boolean, default=True)
+    total_estimated_usd = db.Column(db.Float, default=0.0)
+
+    payment_status = db.Column(db.String(15), default='draft')  # draft/shared/repriced/paid/expired
+    payer_email = db.Column(db.String(255), nullable=True)
+    payer_name = db.Column(db.String(100), nullable=True)
+    stripe_session_id = db.Column(db.String(255), nullable=True)
+    paid_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('shared_carts', lazy='dynamic'))
+    builder = db.relationship('User', backref=db.backref('shared_carts_built', lazy='dynamic'))
+
+    def to_dict(self, include_message=False):
+        d = {
+            'id': self.id,
+            'cart_token': self.cart_token,
+            'trip_id': self.trip_id,
+            'builder_user_id': self.builder_user_id,
+            'title': self.title,
+            'items': json.loads(self.items_json) if self.items_json else [],
+            'reprice_at_checkout': self.reprice_at_checkout,
+            'total_estimated_usd': round(self.total_estimated_usd, 2),
+            'payment_status': self.payment_status,
+            'payer_email': self.payer_email,
+            'payer_name': self.payer_name,
+            'paid_at': self.paid_at.isoformat() if self.paid_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_message:
+            d['message'] = self.message
+        return d
+
+
+# ================================================================
+# Build #230: TripPost + TripPhoto (Shareable Trip Stories)
+# ================================================================
+
+class TripPost(db.Model):
+    """Shareable trip story — photos, tips, highlights.
+
+    Every post embeds the user's referral code. Public posts appear on the
+    user's profile and in the discovery feed for followers.
+    """
+    __tablename__ = 'trip_posts'
+
+    VISIBILITIES = ('public', 'companions_only', 'private')
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    title = db.Column(db.String(200), nullable=False)
+    cover_photo_url = db.Column(db.String(500), nullable=True)
+    summary_text = db.Column(db.Text, nullable=True)
+    highlight_items_json = db.Column(db.Text, nullable=True)  # JSON: array of item IDs
+    tips_json = db.Column(db.Text, nullable=True)  # JSON: array of tip strings
+
+    visibility = db.Column(db.String(20), default='public')
+    show_prices = db.Column(db.Boolean, default=True)
+    referral_code = db.Column(db.String(20), nullable=True)  # Auto-embedded
+
+    # Engagement counters
+    views_count = db.Column(db.Integer, default=0)
+    clones_count = db.Column(db.Integer, default=0)
+    bookings_count = db.Column(db.Integer, default=0)
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    trip = db.relationship('TripPlan', backref=db.backref('posts', lazy='dynamic'))
+    author = db.relationship('User', backref=db.backref('trip_posts', lazy='dynamic'))
+    photos = db.relationship('TripPhoto', backref='post', lazy='dynamic', cascade='all, delete-orphan')
+
+    def to_dict(self):
+        import json as _json
+        return {
+            'id': self.id,
+            'trip_id': self.trip_id,
+            'user_id': self.user_id,
+            'author_name': self.author.name if self.author else None,
+            'title': self.title,
+            'cover_photo_url': self.cover_photo_url,
+            'summary_text': self.summary_text,
+            'highlights': _json.loads(self.highlight_items_json) if self.highlight_items_json else [],
+            'tips': _json.loads(self.tips_json) if self.tips_json else [],
+            'visibility': self.visibility,
+            'show_prices': self.show_prices,
+            'referral_code': self.referral_code,
+            'views_count': self.views_count,
+            'clones_count': self.clones_count,
+            'bookings_count': self.bookings_count,
+            'photo_count': self.photos.count(),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class TripPhoto(db.Model):
+    """Photo in a trip post — linked to itinerary item if applicable."""
+    __tablename__ = 'trip_photos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trip_post_id = db.Column(db.Integer, db.ForeignKey('trip_posts.id'), nullable=False, index=True)
+    itinerary_item_id = db.Column(db.Integer, db.ForeignKey('itinerary_items.id'), nullable=True)
+    photo_url = db.Column(db.String(500), nullable=False)
+    thumbnail_url = db.Column(db.String(500), nullable=True)
+    caption = db.Column(db.String(300), nullable=True)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    position = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'trip_post_id': self.trip_post_id,
+            'itinerary_item_id': self.itinerary_item_id,
+            'photo_url': self.photo_url,
+            'thumbnail_url': self.thumbnail_url,
+            'caption': self.caption,
+            'position': self.position,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ================================================================
+# Build #231: UserFollow (Unidirectional Follow for Feed)
+# ================================================================
+
+class UserFollow(db.Model):
+    """Unidirectional follow for discovery feed."""
+    __tablename__ = 'user_follows'
+
+    id = db.Column(db.Integer, primary_key=True)
+    follower_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    followed_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    follower = db.relationship('User', foreign_keys=[follower_user_id],
+                                backref=db.backref('following', lazy='dynamic'))
+    followed = db.relationship('User', foreign_keys=[followed_user_id],
+                                backref=db.backref('followers', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('follower_user_id', 'followed_user_id', name='uq_user_follow'),
+    )
+
+
+# ================================================================
+# Build #232: ProfileReview (Verified Reviews)
+# ================================================================
+
+class ProfileReview(db.Model):
+    """Verified review tied to a real booking — trust signal for profiles.
+
+    Reviews can target either a user (B2C) or a B2B account.
+    Verification: booking_id must link to a completed MYSTES booking.
+    """
+    __tablename__ = 'profile_reviews'
+
+    id = db.Column(db.Integer, primary_key=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    reviewed_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    reviewed_account_id = db.Column(db.Integer, db.ForeignKey('commercial_accounts.id'), nullable=True)
+
+    trip_post_id = db.Column(db.Integer, db.ForeignKey('trip_posts.id'), nullable=True)
+    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=True)
+
+    rating = db.Column(db.Integer, nullable=False)  # 1-5
+    body = db.Column(db.Text, nullable=True)
+    is_verified_booking = db.Column(db.Boolean, default=False)
+    is_public = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    reviewer = db.relationship('User', foreign_keys=[reviewer_user_id],
+                                backref=db.backref('reviews_given', lazy='dynamic'))
+    reviewed_user = db.relationship('User', foreign_keys=[reviewed_user_id],
+                                     backref=db.backref('reviews_received', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('reviewer_user_id', 'booking_id', name='uq_review_per_booking'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'reviewer_user_id': self.reviewer_user_id,
+            'reviewer_name': self.reviewer.name if self.reviewer else None,
+            'reviewed_user_id': self.reviewed_user_id,
+            'reviewed_account_id': self.reviewed_account_id,
+            'trip_post_id': self.trip_post_id,
+            'booking_id': self.booking_id,
+            'rating': self.rating,
+            'body': self.body,
+            'is_verified_booking': self.is_verified_booking,
+            'is_public': self.is_public,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ReferralClick(db.Model):
+    """Granular click tracking for referral attribution chain (Build #233).
+
+    Every visit to a link carrying ?ref= or ?src= creates a record.
+    Used to build the conversion funnel: click → signup → search → booking → subscription.
+    """
+    __tablename__ = 'referral_clicks'
+    __table_args__ = (
+        db.Index('ix_refclick_code_created', 'referral_code', 'created_at'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    referral_code = db.Column(db.String(20), nullable=False, index=True)  # ref= param
+    upstream_b2b_code = db.Column(db.String(20), nullable=True, index=True)  # src= param
+
+    # Source that generated this click
+    source_type = db.Column(db.String(30), nullable=True)  # invite_link, trip_post, share_card, direct_url
+    source_id = db.Column(db.Integer, nullable=True)  # InviteLink.id, TripPost.id, etc.
+    landing_url = db.Column(db.String(500), nullable=True)
+
+    # Visitor fingerprint (hashed, for dedup within 24h window)
+    visitor_hash = db.Column(db.String(64), nullable=True, index=True)
+    ip_country = db.Column(db.String(2), nullable=True)  # ISO country from IP
+
+    # Conversion outcome (updated later when visitor converts)
+    converted_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    converted_user = db.relationship('User', backref=db.backref('referral_clicks_incoming', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'referral_code': self.referral_code,
+            'upstream_b2b_code': self.upstream_b2b_code,
+            'source_type': self.source_type,
+            'source_id': self.source_id,
+            'landing_url': self.landing_url,
+            'ip_country': self.ip_country,
+            'converted_user_id': self.converted_user_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ConversionEvent(db.Model):
+    """Tracks each step in the referral conversion funnel (Build #233).
+
+    One row per (referral_code, user_id, event_type) — deduped.
+    Funnel: click → signup → first_search → first_booking → subscription.
+    Points/commission awarded on each milestone.
+    """
+    __tablename__ = 'conversion_events'
+    __table_args__ = (
+        db.UniqueConstraint('referral_code', 'user_id', 'event_type',
+                            name='uq_conversion_code_user_event'),
+        db.Index('ix_conversion_code_type', 'referral_code', 'event_type'),
+    )
+
+    EVENT_TYPES = ('signup', 'first_search', 'first_booking', 'subscription')
+
+    id = db.Column(db.Integer, primary_key=True)
+    referral_code = db.Column(db.String(20), nullable=False, index=True)
+    upstream_b2b_code = db.Column(db.String(20), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    event_type = db.Column(db.String(20), nullable=False)  # signup, first_search, first_booking, subscription
+
+    # Attribution detail
+    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=True)
+    click_id = db.Column(db.Integer, db.ForeignKey('referral_clicks.id'), nullable=True)
+
+    # Rewards
+    points_awarded = db.Column(db.Integer, default=0)
+    commission_usd = db.Column(db.Float, default=0.0)  # B2B commission (if upstream_b2b_code)
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    user = db.relationship('User', backref=db.backref('conversion_events', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'referral_code': self.referral_code,
+            'upstream_b2b_code': self.upstream_b2b_code,
+            'user_id': self.user_id,
+            'event_type': self.event_type,
+            'booking_id': self.booking_id,
+            'click_id': self.click_id,
+            'points_awarded': self.points_awarded,
+            'commission_usd': self.commission_usd,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ========== Corporate Workspaces (Builds #235-237) ==========
+
+class Workspace(db.Model):
+    """Corporate workspace — "Slack for Travel" (Build #235).
+
+    A company creates a workspace with admin controls, travel policies,
+    and per-seat billing. Members get workspace fee tier on ALL bookings
+    (business + personal). Personal flights at workspace rate = the adoption perk.
+
+    Tiers:
+      starter: $9.99/mo + $4.99/seat/mo, up to 25 seats, 35% fee
+      pro:     $9.99/mo + $3.99/seat/mo, up to 100 seats, 30% fee
+      enterprise: $9.99/mo + $2.99/seat/mo, unlimited seats, 25% fee
+    """
+    __tablename__ = 'workspaces'
+
+    TIERS = ('starter', 'pro', 'enterprise')
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    # Company info
+    company_domain = db.Column(db.String(255), nullable=True)  # Auto-verify members by email domain
+    company_logo_url = db.Column(db.String(500), nullable=True)
+    industry = db.Column(db.String(100), nullable=True)
+
+    # Billing
+    tier = db.Column(db.String(20), nullable=False, default='starter')
+    max_seats = db.Column(db.Integer, default=25)  # starter=25, pro=100, enterprise=unlimited
+    stripe_subscription_id = db.Column(db.String(100), nullable=True)
+
+    # Invite
+    invite_code = db.Column(db.String(20), unique=True, nullable=True, index=True)
+    domain_auto_join = db.Column(db.Boolean, default=False)  # Auto-approve matching email domain
+
+    # Status
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    owner = db.relationship('User', backref=db.backref('owned_workspaces', lazy='dynamic'))
+    members = db.relationship('WorkspaceMember', backref='workspace', lazy='dynamic',
+                              cascade='all, delete-orphan')
+    policies = db.relationship('TravelPolicy', backref='workspace', lazy='dynamic',
+                               cascade='all, delete-orphan')
+
+    def seat_count(self):
+        return WorkspaceMember.query.filter_by(
+            workspace_id=self.id, is_active=True
+        ).count()
+
+    def fee_percent(self):
+        return {'starter': 35.0, 'pro': 30.0, 'enterprise': 25.0}.get(self.tier, 35.0)
+
+    def per_seat_price(self):
+        return {'starter': 4.99, 'pro': 3.99, 'enterprise': 2.99}.get(self.tier, 4.99)
+
+    def to_dict(self, include_stats=False):
+        d = {
+            'id': self.id,
+            'name': self.name,
+            'slug': self.slug,
+            'owner_user_id': self.owner_user_id,
+            'company_domain': self.company_domain,
+            'company_logo_url': self.company_logo_url,
+            'industry': self.industry,
+            'tier': self.tier,
+            'max_seats': self.max_seats,
+            'invite_code': self.invite_code,
+            'domain_auto_join': self.domain_auto_join,
+            'fee_percent': self.fee_percent(),
+            'per_seat_price': self.per_seat_price(),
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_stats:
+            d['seat_count'] = self.seat_count()
+        return d
+
+
+class WorkspaceMember(db.Model):
+    """Workspace membership — role-based access (Build #235).
+
+    Roles:
+      admin:          Full control — manage members, policies, billing, book-on-behalf
+      travel_manager: Book-on-behalf, approve bookings, view all team bookings
+      member:         Book for self, view own bookings, flag business/personal
+
+    Member types:
+      employee:   Full access, company pays for business bookings
+      contractor: Time-limited access, books at workspace rate
+      affiliate:  External partner, reduced discount (one tier below employees)
+    """
+    __tablename__ = 'workspace_members'
+    __table_args__ = (
+        db.UniqueConstraint('workspace_id', 'user_id', name='uq_workspace_member'),
+        db.Index('ix_wm_workspace_active', 'workspace_id', 'is_active'),
+    )
+
+    ROLES = ('admin', 'travel_manager', 'member')
+    MEMBER_TYPES = ('employee', 'contractor', 'affiliate')
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    role = db.Column(db.String(20), nullable=False, default='member')
+    member_type = db.Column(db.String(20), nullable=False, default='employee')
+    department = db.Column(db.String(100), nullable=True)
+
+    # Access
+    is_active = db.Column(db.Boolean, default=True)
+    access_expires_at = db.Column(db.DateTime, nullable=True)  # For contractors
+
+    # Timestamps
+    joined_at = db.Column(db.DateTime, default=_utcnow)
+    invited_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    user = db.relationship('User', foreign_keys=[user_id],
+                           backref=db.backref('workspace_memberships', lazy='dynamic'))
+    invited_by = db.relationship('User', foreign_keys=[invited_by_user_id])
+
+    def is_admin_or_manager(self):
+        return self.role in ('admin', 'travel_manager')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'workspace_id': self.workspace_id,
+            'user_id': self.user_id,
+            'user_name': self.user.name if self.user else None,
+            'user_email': self.user.email if self.user else None,
+            'role': self.role,
+            'member_type': self.member_type,
+            'department': self.department,
+            'is_active': self.is_active,
+            'access_expires_at': self.access_expires_at.isoformat() if self.access_expires_at else None,
+            'joined_at': self.joined_at.isoformat() if self.joined_at else None,
+        }
+
+
+class TravelPolicy(db.Model):
+    """Corporate travel policy with approval thresholds (Build #236).
+
+    Policies are workspace-scoped rules that control booking behavior:
+    - max_flight_usd:      Block bookings above this amount
+    - max_hotel_per_night:  Per-night hotel cap
+    - preferred_airlines:   Comma-separated IATA codes (e.g., "AA,UA,DL")
+    - preferred_cabin:      economy, premium_economy, business, first
+    - blackout_dates_json:  Date ranges when booking is restricted
+    - approval_threshold:   Bookings above this $ require manager approval
+    - advance_booking_days: Minimum days before departure
+
+    Multiple policies per workspace allowed (e.g., per department).
+    """
+    __tablename__ = 'travel_policies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+
+    # Spending limits
+    max_flight_usd = db.Column(db.Float, nullable=True)
+    max_hotel_per_night_usd = db.Column(db.Float, nullable=True)
+    max_total_trip_usd = db.Column(db.Float, nullable=True)
+
+    # Preferences
+    preferred_airlines = db.Column(db.String(200), nullable=True)  # "AA,UA,DL"
+    preferred_cabin = db.Column(db.String(30), nullable=True)  # economy, business, etc.
+    blackout_dates_json = db.Column(db.Text, nullable=True)  # [{"start":"2027-12-20","end":"2027-01-05"}]
+
+    # Approval workflow
+    approval_threshold_usd = db.Column(db.Float, nullable=True)  # Above this → needs approval
+    advance_booking_days = db.Column(db.Integer, nullable=True)  # Min days before departure
+
+    # Scope — which department or member types this applies to
+    applies_to_department = db.Column(db.String(100), nullable=True)  # NULL = all departments
+    applies_to_member_type = db.Column(db.String(20), nullable=True)  # NULL = all types
+
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    created_by = db.relationship('User')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'workspace_id': self.workspace_id,
+            'name': self.name,
+            'description': self.description,
+            'max_flight_usd': self.max_flight_usd,
+            'max_hotel_per_night_usd': self.max_hotel_per_night_usd,
+            'max_total_trip_usd': self.max_total_trip_usd,
+            'preferred_airlines': self.preferred_airlines,
+            'preferred_cabin': self.preferred_cabin,
+            'blackout_dates_json': self.blackout_dates_json,
+            'approval_threshold_usd': self.approval_threshold_usd,
+            'advance_booking_days': self.advance_booking_days,
+            'applies_to_department': self.applies_to_department,
+            'applies_to_member_type': self.applies_to_member_type,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class BookingApproval(db.Model):
+    """Approval workflow for bookings exceeding policy thresholds (Build #236).
+
+    When a member books above the approval_threshold_usd, this record is created.
+    A travel_manager or admin must approve/deny before the booking proceeds.
+    """
+    __tablename__ = 'booking_approvals'
+    __table_args__ = (
+        db.Index('ix_approval_workspace_status', 'workspace_id', 'status'),
+    )
+
+    STATUSES = ('pending', 'approved', 'denied')
+
+    id = db.Column(db.Integer, primary_key=True)
+    workspace_id = db.Column(db.Integer, db.ForeignKey('workspaces.id'), nullable=False, index=True)
+    requester_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    # What they want to book
+    booking_type = db.Column(db.String(20), nullable=False)  # flight, hotel, activity, etc.
+    description = db.Column(db.Text, nullable=True)
+    estimated_cost_usd = db.Column(db.Float, nullable=False)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=True)
+    itinerary_item_id = db.Column(db.Integer, nullable=True)
+
+    # Policy that triggered this
+    policy_id = db.Column(db.Integer, db.ForeignKey('travel_policies.id'), nullable=True)
+    policy_reason = db.Column(db.String(200), nullable=True)  # "Exceeds max flight cost ($500)"
+
+    # Expense metadata
+    expense_tag = db.Column(db.String(100), nullable=True)  # "Q4 Sales Trip", "Client Meeting"
+    department = db.Column(db.String(100), nullable=True)
+    is_business = db.Column(db.Boolean, default=True)  # True = business, False = personal
+
+    # Status
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    approver_note = db.Column(db.Text, nullable=True)
+    decided_at = db.Column(db.DateTime, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    requester = db.relationship('User', foreign_keys=[requester_user_id],
+                                backref=db.backref('booking_approval_requests', lazy='dynamic'))
+    approver = db.relationship('User', foreign_keys=[approver_user_id])
+    policy = db.relationship('TravelPolicy')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'workspace_id': self.workspace_id,
+            'requester_user_id': self.requester_user_id,
+            'requester_name': self.requester.name if self.requester else None,
+            'approver_user_id': self.approver_user_id,
+            'approver_name': self.approver.name if self.approver else None,
+            'booking_type': self.booking_type,
+            'description': self.description,
+            'estimated_cost_usd': self.estimated_cost_usd,
+            'trip_id': self.trip_id,
+            'itinerary_item_id': self.itinerary_item_id,
+            'policy_id': self.policy_id,
+            'policy_reason': self.policy_reason,
+            'expense_tag': self.expense_tag,
+            'department': self.department,
+            'is_business': self.is_business,
+            'status': self.status,
+            'approver_note': self.approver_note,
+            'decided_at': self.decided_at.isoformat() if self.decided_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class TripReceipt(db.Model):
     """Structured receipt per person — PDF export, expense categories."""
     __tablename__ = 'trip_receipts'
@@ -2528,7 +3561,10 @@ class TripReceipt(db.Model):
 
 
 class Friendship(db.Model):
-    """Friends system — social graph for trip planning and referrals."""
+    """Friends / Travel Companion system — social graph for trip planning and referrals.
+
+    Build #220 enhancements: nickname, trip tracking, companion features.
+    """
     __tablename__ = 'friendships'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -2537,6 +3573,11 @@ class Friendship(db.Model):
     status = db.Column(db.String(10), default='pending')  # pending/accepted/blocked
     created_at = db.Column(db.DateTime, default=_utcnow)
     accepted_at = db.Column(db.DateTime, nullable=True)
+
+    # Build #220: Travel Companion fields
+    nickname = db.Column(db.String(50), nullable=True)  # "Mom", "College Crew - Marcus"
+    trips_together_count = db.Column(db.Integer, default=0)
+    first_trip_together_at = db.Column(db.DateTime, nullable=True)
 
     requester = db.relationship('User', foreign_keys=[requester_id], backref=db.backref('friend_requests_sent', lazy='dynamic'))
     addressee = db.relationship('User', foreign_keys=[addressee_id], backref=db.backref('friend_requests_received', lazy='dynamic'))
@@ -3014,6 +4055,399 @@ class APAiInstanceKey(db.Model):
     deployment = db.relationship('TemplateDeployment', backref=db.backref('api_keys', lazy='dynamic'))
 
 
+# ═══════════════════════════════════════════════════
+# BookingFailure — Tracks failed bookings after payment (Build #211)
+# ═══════════════════════════════════════════════════
+
+class BookingFailure(db.Model):
+    """Tracks booking failures that occur AFTER payment verification.
+
+    Critical safety net: if Stripe payment succeeds but Duffel/proxy/API booking
+    fails, this record triggers auto-refund and ops alerting. Prevents orphaned
+    payments where customer pays but never gets a booking.
+    """
+    __tablename__ = 'booking_failures'
+
+    id = db.Column(db.Integer, primary_key=True)
+    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=True, index=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey('payments.id'), nullable=True, index=True)
+    deal_id = db.Column(db.Integer, db.ForeignKey('deals.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+
+    # Failure details
+    failure_type = db.Column(db.String(50), nullable=False)  # 'booking_api', 'proxy', 'hotel', 'timeout', 'exception'
+    failure_reason = db.Column(db.Text, nullable=True)
+    booking_channel = db.Column(db.String(20), nullable=True)  # 'duffel', 'proxy', 'picasso', 'liteapi'
+
+    # Stripe refund tracking
+    stripe_payment_intent = db.Column(db.String(255), nullable=True)
+    refund_status = db.Column(db.String(30), default='pending')  # pending, refunded, manual_review, failed
+    refund_id = db.Column(db.String(255), nullable=True)
+    refund_amount_cents = db.Column(db.Integer, nullable=True)
+    refunded_at = db.Column(db.DateTime, nullable=True)
+
+    # Resolution
+    resolved = db.Column(db.Boolean, default=False)
+    resolved_by = db.Column(db.String(50), nullable=True)  # 'auto_refund', 'admin', 'retry_success'
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    admin_notes = db.Column(db.Text, nullable=True)
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'booking_id': self.booking_id,
+            'payment_id': self.payment_id,
+            'user_id': self.user_id,
+            'failure_type': self.failure_type,
+            'failure_reason': self.failure_reason,
+            'booking_channel': self.booking_channel,
+            'refund_status': self.refund_status,
+            'refund_id': self.refund_id,
+            'resolved': self.resolved,
+            'resolved_by': self.resolved_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'resolved_at': self.resolved_at.isoformat() if self.resolved_at else None,
+        }
+
+
+# ═══════════════════════════════════════════════════
+# SystemMetric — Production health metrics (Build #218)
+# ═══════════════════════════════════════════════════
+
+class SystemMetric(db.Model):
+    """Rolling metrics for production health monitoring.
+
+    Tracks booking success rates, payment failures, email delivery,
+    and API response times. Used by /api/admin/system-status.
+    """
+    __tablename__ = 'system_metrics'
+
+    id = db.Column(db.Integer, primary_key=True)
+    metric_key = db.Column(db.String(100), nullable=False, index=True)  # e.g. 'booking_success', 'payment_failure'
+    metric_value = db.Column(db.Float, default=0.0)
+    metadata_json = db.Column(db.Text, nullable=True)  # Extra context as JSON
+    recorded_at = db.Column(db.DateTime, default=_utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            'metric_key': self.metric_key,
+            'metric_value': self.metric_value,
+            'metadata': self.metadata_json,
+            'recorded_at': self.recorded_at.isoformat() if self.recorded_at else None,
+        }
+
+
+# ============================================================
+# Build #234: Arbitrate My Trip
+# ============================================================
+
+class ExternalBookingImport(db.Model):
+    """User-imported external booking for arbitrage analysis.
+
+    Users build trips on Google Flights / Expedia / anywhere, then import
+    specific flights here for MYSTES to check across POS markets.
+    """
+    __tablename__ = 'external_booking_imports'
+    __table_args__ = (
+        db.Index('ix_ebi_user_trip', 'user_id', 'trip_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    import_id = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trip_plans.id'), nullable=True)  # Optional trip link
+
+    # Flight details (what the user found externally)
+    airline = db.Column(db.String(100), nullable=False)
+    airline_code = db.Column(db.String(5), nullable=True)  # IATA e.g. "NH"
+    flight_number = db.Column(db.String(20), nullable=True)
+    origin = db.Column(db.String(10), nullable=False)
+    destination = db.Column(db.String(10), nullable=False)
+    departure_date = db.Column(db.Date, nullable=False)
+    return_date = db.Column(db.Date, nullable=True)
+    cabin_class = db.Column(db.String(20), default='economy')
+    passengers = db.Column(db.Integer, default=1)
+
+    # External pricing
+    external_price_usd = db.Column(db.Float, nullable=False)  # What they found elsewhere
+    external_source = db.Column(db.String(50), default='manual')  # google_flights, expedia, kayak, manual
+    external_url = db.Column(db.Text, nullable=True)  # Original URL (optional)
+
+    # Status
+    status = db.Column(db.String(20), default='imported', index=True)  # imported, checking, checked, booked, expired
+    arbitrage_check_id = db.Column(db.Integer, db.ForeignKey('arbitrage_checks.id'), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    # Relationships
+    user = db.relationship('User', backref=db.backref('imported_bookings', lazy='dynamic'))
+    arbitrage_check = db.relationship('ArbitrageCheck', backref='import_record', foreign_keys=[arbitrage_check_id])
+
+    def to_dict(self):
+        return {
+            'import_id': self.import_id,
+            'airline': self.airline,
+            'airline_code': self.airline_code,
+            'flight_number': self.flight_number,
+            'origin': self.origin,
+            'destination': self.destination,
+            'departure_date': self.departure_date.isoformat() if self.departure_date else None,
+            'return_date': self.return_date.isoformat() if self.return_date else None,
+            'cabin_class': self.cabin_class,
+            'passengers': self.passengers,
+            'external_price_usd': self.external_price_usd,
+            'external_source': self.external_source,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'arbitrage': self.arbitrage_check.to_dict() if self.arbitrage_check else None,
+        }
+
+
+class ArbitrageCheck(db.Model):
+    """Result of an arbitrage analysis on an imported or searched flight.
+
+    Stores the comparison: what the user pays externally vs what MYSTES can offer
+    through POS arbitrage. NO POS market codes exposed in to_dict() — airline compliance.
+    """
+    __tablename__ = 'arbitrage_checks'
+    __table_args__ = (
+        db.Index('ix_arb_route_date', 'origin', 'destination', 'departure_date'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    check_id = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    # Route
+    airline = db.Column(db.String(100), nullable=True)
+    origin = db.Column(db.String(10), nullable=False)
+    destination = db.Column(db.String(10), nullable=False)
+    departure_date = db.Column(db.Date, nullable=False)
+    return_date = db.Column(db.Date, nullable=True)
+    cabin_class = db.Column(db.String(20), default='economy')
+
+    # Pricing comparison
+    us_baseline_price = db.Column(db.Float, nullable=True)       # SerpAPI US price
+    external_price_usd = db.Column(db.Float, nullable=True)      # What user found (if imported)
+    best_pos_price = db.Column(db.Float, nullable=True)           # Cheapest POS price found
+    best_pos_market = db.Column(db.String(5), nullable=True)      # INTERNAL ONLY — never in to_dict()
+    markets_checked = db.Column(db.Integer, default=0)
+
+    # Result
+    spread_usd = db.Column(db.Float, default=0.0)                # US baseline - POS price
+    fee_percent = db.Column(db.Float, default=0.0)                # User's tier fee %
+    service_fee_usd = db.Column(db.Float, default=0.0)            # Platform fee
+    customer_price_usd = db.Column(db.Float, nullable=True)       # What user pays through MYSTES
+    customer_savings_usd = db.Column(db.Float, default=0.0)       # Savings vs US retail
+    savings_vs_external_usd = db.Column(db.Float, default=0.0)    # Savings vs their external price
+    savings_percent = db.Column(db.Float, default=0.0)
+
+    # Classification
+    has_arbitrage = db.Column(db.Boolean, default=False)
+    confidence_score = db.Column(db.Float, default=0.0)           # 0-1, from airline profile
+    arbitrage_quality = db.Column(db.String(20), default='none')  # none, marginal, good, excellent
+
+    checked_at = db.Column(db.DateTime, default=_utcnow)
+
+    def to_dict(self):
+        """Display-safe dict — NO POS market codes (airline compliance)."""
+        return {
+            'check_id': self.check_id,
+            'origin': self.origin,
+            'destination': self.destination,
+            'departure_date': self.departure_date.isoformat() if self.departure_date else None,
+            'return_date': self.return_date.isoformat() if self.return_date else None,
+            'cabin_class': self.cabin_class,
+            'us_baseline_price': self.us_baseline_price,
+            'external_price_usd': self.external_price_usd,
+            'customer_price_usd': self.customer_price_usd,
+            'customer_savings_usd': self.customer_savings_usd,
+            'savings_vs_external_usd': self.savings_vs_external_usd,
+            'savings_percent': self.savings_percent,
+            'service_fee_usd': self.service_fee_usd,
+            'has_arbitrage': self.has_arbitrage,
+            'confidence_score': self.confidence_score,
+            'arbitrage_quality': self.arbitrage_quality,
+            'markets_checked': self.markets_checked,
+            'checked_at': self.checked_at.isoformat() if self.checked_at else None,
+        }
+
+    def to_internal(self):
+        """Full data including POS market — admin/ops only."""
+        d = self.to_dict()
+        d['best_pos_market'] = self.best_pos_market
+        d['best_pos_price'] = self.best_pos_price
+        d['spread_usd'] = self.spread_usd
+        d['fee_percent'] = self.fee_percent
+        return d
+
+
+class HotRoute(db.Model):
+    """Cached hot route with known arbitrage — feeds the homepage ticker.
+
+    Updated by data seeding sprints and previous user checks.
+    Shown as: 'ATL → LAX: Save $47 (12% off) — 3 seats at this price'
+    """
+    __tablename__ = 'hot_routes'
+    __table_args__ = (
+        db.Index('ix_hot_route_active', 'is_active', 'savings_percent'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    origin = db.Column(db.String(10), nullable=False)
+    destination = db.Column(db.String(10), nullable=False)
+    airline = db.Column(db.String(100), nullable=True)
+
+    # Pricing (display-safe — no POS codes)
+    us_retail_price = db.Column(db.Float, nullable=False)
+    mystes_price = db.Column(db.Float, nullable=False)
+    savings_usd = db.Column(db.Float, nullable=False)
+    savings_percent = db.Column(db.Float, nullable=False)
+
+    # Metadata
+    departure_window = db.Column(db.String(50), nullable=True)  # "Jun 15-22" or "Weekends in July"
+    cabin_class = db.Column(db.String(20), default='economy')
+    data_points = db.Column(db.Integer, default=1)                # How many checks back this
+    confidence = db.Column(db.Float, default=0.5)                 # 0-1
+
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    last_verified = db.Column(db.DateTime, default=_utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            'origin': self.origin,
+            'destination': self.destination,
+            'airline': self.airline,
+            'us_retail_price': self.us_retail_price,
+            'mystes_price': self.mystes_price,
+            'savings_usd': self.savings_usd,
+            'savings_percent': self.savings_percent,
+            'departure_window': self.departure_window,
+            'cabin_class': self.cabin_class,
+            'data_points': self.data_points,
+            'confidence': self.confidence,
+            'last_verified': self.last_verified.isoformat() if self.last_verified else None,
+        }
+
+
+# ============================================================
+# Build #219: Universal Share System — InviteLink
+# ============================================================
+
+class InviteLink(db.Model):
+    """Universal shareable link — one /i/<token> pattern for all content types.
+
+    Every shareable surface in MYSTES uses this model. Each link carries
+    up to 2-level referral attribution (NOT MLM — exactly 2 levels max).
+    OG meta tags generated dynamically for social previews.
+    """
+    __tablename__ = 'invite_links'
+    __table_args__ = (
+        db.Index('ix_invite_sender_type', 'sender_user_id', 'link_type'),
+    )
+
+    LINK_TYPES = (
+        'flight', 'hotel', 'itinerary', 'trip_invite', 'cart_checkout',
+        'collection', 'referral', 'price_alert', 'wishlist',
+        'booking_confirm', 'activity', 'car', 'settle_up',
+        'trip_view', 'event_registration',
+    )
+
+    PERMISSIONS = ('view_only', 'can_pay', 'can_join', 'can_adopt')
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(12), unique=True, nullable=False, index=True)
+
+    # Content reference
+    link_type = db.Column(db.String(30), nullable=False, index=True)
+    object_id = db.Column(db.Integer, nullable=False)  # Polymorphic — deal_id, trip_id, cart_id, etc.
+    sender_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    # Targeting
+    recipient_email = db.Column(db.String(255), nullable=True)  # For targeted invites
+    permissions = db.Column(db.String(20), default='view_only')
+    show_prices = db.Column(db.Boolean, default=True)
+    message = db.Column(db.Text, nullable=True)  # Personal note
+
+    # Referral attribution (2-level max, NOT MLM)
+    referral_code = db.Column(db.String(20), nullable=True)  # Sharer's own code (auto-embedded)
+    upstream_b2b_code = db.Column(db.String(20), nullable=True)  # B2B that originally seeded the customer
+
+    # Analytics
+    click_count = db.Column(db.Integer, default=0)
+    unique_visitors = db.Column(db.Integer, default=0)
+    conversions = db.Column(db.Integer, default=0)  # Signups or bookings from this link
+
+    # OG meta override (optional — auto-generated if not set)
+    og_title = db.Column(db.String(200), nullable=True)
+    og_description = db.Column(db.Text, nullable=True)
+    og_image_url = db.Column(db.String(500), nullable=True)
+
+    # Lifecycle
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+    # Relationships
+    sender = db.relationship('User', backref=db.backref('invite_links', lazy='dynamic'))
+
+    def is_expired(self):
+        if not self.expires_at:
+            return False
+        now = _utcnow()
+        exp = self.expires_at
+        # SQLite strips tzinfo on round-trip — normalize both to naive for comparison
+        if now.tzinfo and not exp.tzinfo:
+            now = now.replace(tzinfo=None)
+        elif exp.tzinfo and not now.tzinfo:
+            exp = exp.replace(tzinfo=None)
+        return now > exp
+
+    def is_valid(self):
+        return self.is_active and not self.is_expired()
+
+    def record_click(self):
+        self.click_count = (self.click_count or 0) + 1
+
+    def record_conversion(self):
+        self.conversions = (self.conversions or 0) + 1
+
+    def to_dict(self):
+        return {
+            'token': self.token,
+            'link_type': self.link_type,
+            'object_id': self.object_id,
+            'permissions': self.permissions,
+            'show_prices': self.show_prices,
+            'message': self.message,
+            'referral_code': self.referral_code,
+            'click_count': self.click_count,
+            'unique_visitors': self.unique_visitors,
+            'conversions': self.conversions,
+            'is_active': self.is_active,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'url': f'/i/{self.token}',
+        }
+
+    def og_meta(self):
+        """Generate OG meta tags for social previews."""
+        return {
+            'og:title': self.og_title or f'MYSTES — {self.link_type.replace("_", " ").title()}',
+            'og:description': self.og_description or 'AI-powered travel intelligence. Find cheaper flights through MYSTES.',
+            'og:image': self.og_image_url or '/static/icons/icon-512x512.png',
+            'og:url': f'/i/{self.token}',
+            'og:type': 'website',
+            'og:site_name': 'MYSTES',
+        }
+
+
 def generate_referral_code(user_name=None):
     """Generate a unique consumer referral code like MYS-ABCD1234."""
     import secrets
@@ -3036,18 +4470,21 @@ def generate_referral_code(user_name=None):
 def init_db(app):
     """Initialize database with Flask app.
 
-    Resilient — catches DB failures so app can start in degraded mode.
+    Production: Alembic migrations run via ``flask db upgrade`` in Dockerfile CMD.
+    Development/Test: db.create_all() creates any missing tables as a fallback.
+    Both paths are idempotent — safe to run together.
     """
+    _logger = logging.getLogger(__name__)
     db.init_app(app)
     with app.app_context():
         try:
             db.create_all()
         except Exception as e:
-            logging.getLogger(__name__).error("db.create_all() failed: %s", e)
+            _logger.error("db.create_all() failed: %s", e)
             return  # App starts without tables — will recover when DB comes back
         try:
             FeatureFlag.init_default_flags()
             SystemSetting.init_defaults()
         except Exception as e:
-            logging.getLogger(__name__).warning("Feature flag/setting init failed (DB may be read-only): %s", e)
-        print("Database initialized successfully!")
+            _logger.warning("Feature flag/setting init failed (DB may be read-only): %s", e)
+        _logger.info("Database initialized successfully")

@@ -1,0 +1,23 @@
+{
+  "id": "master-mystes-kyrios",
+  "name": "MYSTES KYRIOS LLC",
+  "tier": "master",
+  "parent_id": null,
+  "children_ids": [],
+  "api_key_hash": null,
+  "config": {
+    "plan": "master",
+    "limits": {},
+    "features": [
+      "all"
+    ],
+    "branding": {
+      "company": "MYSTES KYRIOS LLC"
+    }
+  },
+  "status": "active",
+  "created_at": 1776564133.566883,
+  "metadata": {
+    "auto_created": true
+  }
+}

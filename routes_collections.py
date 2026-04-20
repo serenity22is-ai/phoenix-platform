@@ -40,10 +40,7 @@ logger = logging.getLogger(__name__)
 
 COLLECTIONS_LIST_CONTENT = """
 <style>
-/* ============================================
-   COLLECTIONS PAGE — MYSTES dark OTA design
-   ============================================ */
-
+/* Page-specific: collections layout */
 .collections-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
 .collections-page-header {
@@ -55,7 +52,7 @@ COLLECTIONS_LIST_CONTENT = """
     gap: 16px;
 }
 .collections-page-header h1 {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 32px;
     font-weight: 700;
     letter-spacing: 4px;
@@ -63,34 +60,9 @@ COLLECTIONS_LIST_CONTENT = """
     margin: 0;
 }
 
-.collections-new-btn {
-    padding: 10px 22px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 14px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 0.3px;
-}
-.collections-new-btn:hover {
-    background: #d4b35c;
-    box-shadow: 0 4px 16px rgba(201, 164, 74, 0.3);
-    transform: translateY(-1px);
-}
-
-/* Inline create form */
+/* Create form — slide-down panel */
 .collections-create-form {
     display: none;
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px 24px;
     margin-bottom: 20px;
 }
 .collections-create-form.visible { display: block; }
@@ -99,102 +71,33 @@ COLLECTIONS_LIST_CONTENT = """
     gap: 12px;
     align-items: end;
 }
-.collections-create-form label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: #aaa;
-    margin-bottom: 6px;
-}
-.collections-create-form input {
-    flex: 1;
-    padding: 12px 14px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    color: #f5f5f5;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    font-size: 15px;
-    transition: all 0.2s;
-}
-.collections-create-form input:focus {
-    outline: none;
-    background: rgba(255,255,255,0.10);
-    border-color: #c9a44a;
-    box-shadow: 0 0 0 3px rgba(201, 164, 74, 0.15);
-}
-.collections-create-form input::placeholder { color: rgba(255,255,255,0.3); }
-.collections-create-form button {
-    padding: 12px 24px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 14px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s;
-}
-.collections-create-form button:hover { background: #d4b35c; }
 
-/* Collection cards grid */
-.collections-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin-bottom: 40px;
-}
-
-.collection-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 24px;
-    position: relative;
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-.collection-card:hover {
-    border-color: rgba(201, 164, 74, 0.3);
-    transform: translateY(-3px);
-    box-shadow: 0 12px 36px rgba(0,0,0,0.3);
-}
-
-.collection-card-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 16px;
-}
+/* Collection card icon */
 .collection-card-icon {
     width: 48px; height: 48px;
-    background: rgba(201, 164, 74, 0.1);
-    border: 1px solid rgba(201, 164, 74, 0.2);
-    border-radius: 12px;
+    background: rgba(201, 169, 110, 0.1);
+    border: 1px solid rgba(201, 169, 110, 0.2);
+    border-radius: var(--radius-lg, 12px);
     display: flex; align-items: center; justify-content: center;
     font-size: 22px;
 }
+
+/* Hover-reveal delete button */
 .collection-card-actions {
     display: flex;
     gap: 4px;
     opacity: 0;
     transition: opacity 0.2s;
 }
-.collection-card:hover .collection-card-actions { opacity: 1; }
+.mystes-card.interactive:hover .collection-card-actions { opacity: 1; }
 .collection-card-delete {
     width: 32px; height: 32px;
     background: rgba(239, 68, 68, 0.08);
     border: 1px solid rgba(239, 68, 68, 0.15);
-    border-radius: 8px;
+    border-radius: var(--radius-md, 8px);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    color: #ef4444;
+    color: var(--danger-red, #ef4444);
     font-size: 14px;
     transition: all 0.2s;
 }
@@ -203,11 +106,12 @@ COLLECTIONS_LIST_CONTENT = """
     border-color: rgba(239, 68, 68, 0.4);
 }
 
+/* Card content */
 .collection-card-name {
     font-family: var(--font-body, 'Outfit', sans-serif);
     font-size: 18px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright, #f5f5f5);
     margin: 0 0 6px;
 }
 .collection-card-meta {
@@ -217,48 +121,16 @@ COLLECTIONS_LIST_CONTENT = """
     font-size: 13px;
     color: rgba(255,255,255,0.6);
 }
-.collection-card-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    background: rgba(201, 164, 74, 0.1);
-    border: 1px solid rgba(201, 164, 74, 0.2);
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #c9a44a;
-    letter-spacing: 0.3px;
-}
 
-/* Empty state */
-.collections-empty {
-    text-align: center;
-    padding: 80px 20px;
-}
+/* Empty state icon override */
 .collections-empty-icon {
     font-size: 56px;
     opacity: 0.25;
     margin-bottom: 20px;
 }
-.collections-empty h2 {
-    font-family: var(--font-brand, 'Cinzel', serif);
-    font-size: 22px;
-    color: #f5f5f5;
-    margin: 0 0 10px;
-}
-.collections-empty p {
-    color: rgba(255,255,255,0.6);
-    font-size: 15px;
-    margin: 0 0 24px;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-}
 
 @media (max-width: 600px) {
     .collections-page-header { flex-direction: column; align-items: flex-start; }
-    .collections-grid { grid-template-columns: 1fr; }
     .collections-create-form-inner { flex-direction: column; }
 }
 </style>
@@ -266,28 +138,28 @@ COLLECTIONS_LIST_CONTENT = """
 <div class="collections-page">
     <div class="collections-page-header">
         <h1>MY COLLECTIONS</h1>
-        <button class="collections-new-btn" onclick="toggleCreateForm()">+ New Collection</button>
+        <button class="mystes-btn mystes-btn-gold" onclick="toggleCreateForm()">+ New Collection</button>
     </div>
 
     <!-- Inline create form -->
-    <div class="collections-create-form" id="create-form">
+    <div class="collections-create-form mystes-card" id="create-form">
         <div class="collections-create-form-inner">
             <div style="flex:1;">
-                <label>Collection Name</label>
-                <input type="text" id="new-collection-name" placeholder="e.g. Summer Trip, Weekend Getaway..."
+                <label class="mystes-label">Collection Name</label>
+                <input type="text" class="mystes-input" id="new-collection-name" placeholder="e.g. Summer Trip, Weekend Getaway..."
                        onkeydown="if(event.key==='Enter') createCollection()">
             </div>
-            <button onclick="createCollection()">Create</button>
+            <button class="mystes-btn mystes-btn-gold" onclick="createCollection()">Create</button>
         </div>
     </div>
 
     <!-- Collections grid -->
     <div id="collections-container">
         {% if collections %}
-        <div class="collections-grid">
+        <div class="mystes-grid" style="margin-bottom:40px;">
             {% for c in collections %}
-            <div class="collection-card" onclick="window.location.href='/collections/{{ c.id }}'">
-                <div class="collection-card-top">
+            <div class="mystes-card interactive" style="cursor:pointer;" onclick="window.location.href='/collections/{{ c.id }}'">
+                <div class="flex-between" style="margin-bottom:16px;">
                     <div class="collection-card-icon">&#9829;</div>
                     <div class="collection-card-actions">
                         <div class="collection-card-delete" onclick="event.stopPropagation(); deleteCollection({{ c.id }}, '{{ c.name }}')" title="Delete">&#10005;</div>
@@ -297,18 +169,18 @@ COLLECTIONS_LIST_CONTENT = """
                 <div class="collection-card-meta">
                     <span>{{ c.items.count() }} item{{ 's' if c.items.count() != 1 else '' }}</span>
                     {% if c.is_shared %}
-                    <span class="collection-card-badge">&#128279; Shared</span>
+                    <span class="mystes-badge-gold">&#128279; Shared</span>
                     {% endif %}
                 </div>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <div class="collections-empty">
+        <div class="mystes-empty" style="padding:80px 20px;">
             <div class="collections-empty-icon">&#9829;</div>
-            <h2>No Collections Yet</h2>
-            <p>Save flights, hotels, and more to collections. Organize your travel finds and share them with others.</p>
-            <button class="collections-new-btn" onclick="toggleCreateForm()">Create Your First Collection</button>
+            <h2 style="font-family:var(--font-brand,'Space Grotesk',sans-serif);font-size:22px;color:var(--text-bright,#f5f5f5);margin:0 0 10px;">No Collections Yet</h2>
+            <p style="max-width:400px;margin:0 auto 24px;">Save flights, hotels, and more to collections. Organize your travel finds and share them with others.</p>
+            <button class="mystes-btn mystes-btn-gold" onclick="toggleCreateForm()">Create Your First Collection</button>
         </div>
         {% endif %}
     </div>
@@ -370,10 +242,7 @@ async function deleteCollection(id, name) {
 
 COLLECTION_DETAIL_CONTENT = """
 <style>
-/* ============================================
-   COLLECTION DETAIL — MYSTES dark OTA design
-   ============================================ */
-
+/* Page-specific: detail layout */
 .collection-detail { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
 .collection-detail-header {
@@ -389,7 +258,7 @@ COLLECTION_DETAIL_CONTENT = """
     margin-bottom: 16px;
     transition: color 0.2s;
 }
-.collection-detail-back:hover { color: #f5f5f5; }
+.collection-detail-back:hover { color: var(--text-bright, #f5f5f5); }
 
 .collection-detail-title-row {
     display: flex;
@@ -399,11 +268,11 @@ COLLECTION_DETAIL_CONTENT = """
     flex-wrap: wrap;
 }
 .collection-detail-title-row h1 {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 28px;
     font-weight: 700;
     letter-spacing: 2px;
-    color: #f5f5f5;
+    color: var(--text-bright, #f5f5f5);
     margin: 0 0 6px;
 }
 .collection-detail-meta {
@@ -411,21 +280,7 @@ COLLECTION_DETAIL_CONTENT = """
     font-size: 14px;
 }
 
-/* Share toggle */
-.collection-share-panel {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-}
+/* Share toggle — page-specific widget */
 .share-toggle-row {
     display: flex;
     align-items: center;
@@ -434,7 +289,7 @@ COLLECTION_DETAIL_CONTENT = """
 .share-toggle-label {
     font-size: 14px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright, #f5f5f5);
 }
 .share-toggle {
     position: relative;
@@ -446,11 +301,11 @@ COLLECTION_DETAIL_CONTENT = """
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(255,255,255,0.12);
-    border-radius: 12px;
+    border-radius: var(--radius-full, 12px);
     transition: background 0.3s;
 }
 .share-toggle input:checked + .share-toggle-track {
-    background: #c9a44a;
+    background: var(--accent, #c9a44a);
 }
 .share-toggle-knob {
     position: absolute;
@@ -473,49 +328,14 @@ COLLECTION_DETAIL_CONTENT = """
     padding: 8px 12px;
     background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    color: #f5f5f5;
+    border-radius: var(--radius-md, 10px);
+    color: var(--text-bright, #f5f5f5);
     font-size: 13px;
     font-family: var(--font-body, 'Outfit', sans-serif);
     min-width: 240px;
 }
-.share-url-copy {
-    padding: 8px 14px;
-    background: rgba(201, 164, 74, 0.15);
-    border: 1px solid rgba(201, 164, 74, 0.3);
-    border-radius: 10px;
-    color: #c9a44a;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-.share-url-copy:hover { background: rgba(201, 164, 74, 0.25); }
 
-/* Saved items grid */
-.saved-items-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin-bottom: 40px;
-}
-
-.saved-item-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px;
-    position: relative;
-    transition: all 0.25s ease;
-}
-.saved-item-card:hover {
-    border-color: rgba(201, 164, 74, 0.2);
-    box-shadow: 0 8px 28px rgba(0,0,0,0.25);
-}
-
+/* Saved item card internals */
 .saved-item-top {
     display: flex;
     justify-content: space-between;
@@ -524,9 +344,9 @@ COLLECTION_DETAIL_CONTENT = """
 }
 .saved-item-vertical-icon {
     width: 40px; height: 40px;
-    background: rgba(201, 164, 74, 0.08);
-    border: 1px solid rgba(201, 164, 74, 0.15);
-    border-radius: 10px;
+    background: rgba(201, 169, 110, 0.08);
+    border: 1px solid rgba(201, 169, 110, 0.15);
+    border-radius: var(--radius-md, 10px);
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
 }
@@ -534,15 +354,15 @@ COLLECTION_DETAIL_CONTENT = """
     width: 28px; height: 28px;
     background: rgba(239, 68, 68, 0.06);
     border: 1px solid rgba(239, 68, 68, 0.12);
-    border-radius: 8px;
+    border-radius: var(--radius-md, 8px);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    color: #ef4444;
+    color: var(--danger-red, #ef4444);
     font-size: 12px;
     opacity: 0;
     transition: all 0.2s;
 }
-.saved-item-card:hover .saved-item-remove { opacity: 1; }
+.mystes-card:hover .saved-item-remove { opacity: 1; }
 .saved-item-remove:hover {
     background: rgba(239, 68, 68, 0.15);
     border-color: rgba(239, 68, 68, 0.3);
@@ -551,12 +371,12 @@ COLLECTION_DETAIL_CONTENT = """
 .saved-item-vertical-tag {
     display: inline-block;
     padding: 2px 8px;
-    background: rgba(201, 164, 74, 0.08);
-    border: 1px solid rgba(201, 164, 74, 0.15);
-    border-radius: 6px;
+    background: rgba(201, 169, 110, 0.08);
+    border: 1px solid rgba(201, 169, 110, 0.15);
+    border-radius: var(--radius-sm, 6px);
     font-size: 11px;
     font-weight: 600;
-    color: #c9a44a;
+    color: var(--accent, #c9a44a);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 8px;
@@ -565,28 +385,29 @@ COLLECTION_DETAIL_CONTENT = """
 .saved-item-title {
     font-size: 16px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright, #f5f5f5);
     margin: 0 0 8px;
     line-height: 1.3;
 }
 .saved-item-subtitle {
     font-size: 13px;
-    color: #aaa;
+    color: var(--text-muted, #aaa);
     margin-bottom: 12px;
 }
 
+/* Price row */
 .saved-item-price-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding-top: 12px;
-    border-top: 1px solid rgba(255,255,255,0.06);
+    border-top: 1px solid var(--glass-border, rgba(255,255,255,0.06));
     margin-bottom: 12px;
 }
 .saved-item-price {
     font-size: 20px;
     font-weight: 700;
-    color: #c9a44a;
+    color: var(--accent, #c9a44a);
 }
 .saved-item-price-label {
     font-size: 11px;
@@ -598,7 +419,7 @@ COLLECTION_DETAIL_CONTENT = """
     font-size: 12px;
     font-weight: 600;
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm, 6px);
 }
 .saved-item-price-down {
     background: rgba(74, 222, 128, 0.1);
@@ -606,73 +427,22 @@ COLLECTION_DETAIL_CONTENT = """
 }
 .saved-item-price-up {
     background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    color: var(--danger-red, #ef4444);
 }
 .saved-item-price-same {
     background: rgba(255,255,255,0.06);
     color: rgba(255,255,255,0.5);
 }
 
-.saved-item-view-btn {
-    display: block;
-    width: 100%;
-    padding: 10px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 13px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    text-align: center;
-    text-decoration: none;
-    transition: all 0.2s;
-}
-.saved-item-view-btn:hover {
-    background: #d4b35c;
-    box-shadow: 0 4px 12px rgba(201, 164, 74, 0.25);
-}
-
-/* Empty state */
-.collection-empty {
-    text-align: center;
-    padding: 80px 20px;
-}
+/* Empty state icon override */
 .collection-empty-icon {
     font-size: 48px;
     opacity: 0.25;
     margin-bottom: 16px;
 }
-.collection-empty h3 {
-    color: #f5f5f5;
-    font-size: 18px;
-    margin: 0 0 8px;
-}
-.collection-empty p {
-    color: rgba(255,255,255,0.6);
-    font-size: 14px;
-    margin: 0 0 20px;
-    max-width: 380px;
-    margin-left: auto;
-    margin-right: auto;
-}
-.collection-empty-link {
-    display: inline-block;
-    padding: 10px 22px;
-    background: #c9a44a;
-    color: #000;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 14px;
-    text-decoration: none;
-    transition: all 0.2s;
-}
-.collection-empty-link:hover { background: #d4b35c; }
 
 @media (max-width: 600px) {
     .collection-detail-title-row { flex-direction: column; }
-    .saved-items-grid { grid-template-columns: 1fr; }
     .collection-share-panel { flex-direction: column; align-items: flex-start; }
     .share-url-box { width: 100%; }
     .share-url-box input { flex: 1; min-width: 0; }
@@ -695,7 +465,7 @@ COLLECTION_DETAIL_CONTENT = """
 
     {% if not read_only %}
     <!-- Share panel -->
-    <div class="collection-share-panel">
+    <div class="mystes-card collection-share-panel flex-between" style="margin-bottom:20px;flex-wrap:wrap;gap:16px;">
         <div class="share-toggle-row">
             <label class="share-toggle">
                 <input type="checkbox" id="share-toggle" {{ 'checked' if collection.is_shared else '' }}
@@ -709,14 +479,14 @@ COLLECTION_DETAIL_CONTENT = """
             <input type="text" id="share-url" readonly
                    value="{{ share_url }}"
                    onclick="this.select()">
-            <button class="share-url-copy" onclick="copyShareLink()">Copy</button>
+            <button class="mystes-btn mystes-btn-gold mystes-btn-sm" onclick="copyShareLink()">Copy</button>
         </div>
     </div>
     {% endif %}
 
     <!-- Items grid -->
     {% if items %}
-    <div class="saved-items-grid">
+    <div class="mystes-grid" style="margin-bottom:40px;">
         {% for item in items %}
         {% set data = item.item_data_json | default('{}', true) %}
         {% if data is string %}
@@ -724,7 +494,7 @@ COLLECTION_DETAIL_CONTENT = """
         {% else %}
             {% set parsed = data %}
         {% endif %}
-        <div class="saved-item-card">
+        <div class="mystes-card">
             <div class="saved-item-top">
                 <div class="saved-item-vertical-icon">
                     {% if item.vertical == 'flight' %}&#9992;{% elif item.vertical == 'hotel' %}&#127960;{% elif item.vertical == 'car' %}&#128663;{% elif item.vertical == 'activity' %}&#127915;{% else %}&#9829;{% endif %}
@@ -753,7 +523,7 @@ COLLECTION_DETAIL_CONTENT = """
                 {% endif %}
             </div>
 
-            <a href="/ai" class="saved-item-view-btn">View Deal</a>
+            <a href="/ai" class="mystes-btn mystes-btn-gold mystes-btn-full">View Deal</a>
         </div>
 
         <script>
@@ -791,11 +561,11 @@ COLLECTION_DETAIL_CONTENT = """
         {% endfor %}
     </div>
     {% else %}
-    <div class="collection-empty">
+    <div class="mystes-empty" style="padding:80px 20px;">
         <div class="collection-empty-icon">&#128203;</div>
-        <h3>No Items Saved Yet</h3>
-        <p>Search for flights, hotels, or activities to save them here.</p>
-        <a href="/ai" class="collection-empty-link">Search MYSTES</a>
+        <h3 style="color:var(--text-bright,#f5f5f5);font-size:18px;margin:0 0 8px;">No Items Saved Yet</h3>
+        <p style="max-width:380px;margin:0 auto 20px;">Search for flights, hotels, or activities to save them here.</p>
+        <a href="/ai" class="mystes-btn mystes-btn-gold">Search MYSTES</a>
     </div>
     {% endif %}
 </div>
@@ -847,7 +617,7 @@ function copyShareLink() {
     const input = document.getElementById('share-url');
     input.select();
     navigator.clipboard.writeText(input.value).then(function() {
-        const btn = document.querySelector('.share-url-copy');
+        const btn = document.querySelector('.mystes-btn-gold.mystes-btn-sm');
         btn.textContent = 'Copied!';
         setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
     });

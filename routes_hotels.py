@@ -9,6 +9,7 @@ Register in server.py:
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 from flask import request, jsonify, render_template_string, redirect, url_for, session
@@ -26,78 +27,17 @@ logger = logging.getLogger(__name__)
 HOTELS_SEARCH_CONTENT = """
 <style>
 /* ============================================
-   HOTELS PAGE — Matches flights aesthetic
+   HOTELS PAGE — Page-specific styles only
+   (glass card, form elements, buttons, spinners,
+    skeletons provided by mystes-* component library)
    ============================================ */
 
 .hotels-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
-.hotels-page-header {
-    text-align: center;
-    padding: 40px 0 10px;
-}
-.hotels-page-header h1 {
-    font-family: var(--font-brand, 'Cinzel', serif);
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: var(--text-bright, #f5f5f5);
-    margin: 0 0 8px;
-}
-.hotels-page-header p {
-    color: var(--text-secondary, #aaa);
-    font-size: 15px;
-    margin: 0;
-}
+/* Extra padding on search card */
+.hotel-search-card { padding: 28px; margin-bottom: 24px; }
 
-/* Search form card */
-.hotel-search-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
-.hotel-search-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-.hotel-search-grid .full-width { grid-column: 1 / -1; }
-
-.hotel-search-card label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: var(--text-secondary, #aaa);
-    margin-bottom: 6px;
-}
-.hotel-search-card input,
-.hotel-search-card select {
-    width: 100%;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    color: var(--text-bright, #f5f5f5);
-    font-family: var(--font-sans, 'Outfit', sans-serif);
-    font-size: 15px;
-    transition: all 0.3s ease;
-}
-.hotel-search-card input:focus,
-.hotel-search-card select:focus {
-    outline: none;
-    background: rgba(255, 255, 255, 0.12);
-    border-color: #7c3aed;
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
-}
-.hotel-search-card input::placeholder { color: #666; }
-.hotel-search-card select option { background: #1a1a2e; color: #f5f5f5; }
-
-/* Star rating chips */
+/* Star rating chips (page-specific) */
 .star-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .star-chip {
     display: flex; align-items: center; gap: 6px;
@@ -116,38 +56,10 @@ HOTELS_SEARCH_CONTENT = """
 }
 .star-chip-star { color: #f59e0b; }
 
-/* Search button */
-.hotel-search-btn {
-    width: 100%;
-    margin-top: 18px;
-    padding: 14px;
-    background: linear-gradient(135deg, #7c3aed, #6d28d9);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: var(--font-sans, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.3s;
-    letter-spacing: 0.5px;
-}
-.hotel-search-btn:hover {
-    background: linear-gradient(135deg, #6d28d9, #5b21b6);
-    box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);
-    transform: translateY(-1px);
-}
-.hotel-search-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-.hotel-search-spinner {
-    display: inline-block; width: 16px; height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff; border-radius: 50%;
-    animation: hspin 0.6s linear infinite;
-    vertical-align: middle; margin-right: 8px;
-}
-@keyframes hspin { to { transform: rotate(360deg); } }
+/* Search button top margin */
+.hotel-search-btn { margin-top: 18px; }
 
-/* Loading skeleton */
+/* Loading skeleton container (page-specific layout) */
 .hotel-loading-state {
     margin-top: 20px; padding: 30px;
     background: rgba(15, 10, 25, 0.6);
@@ -157,31 +69,20 @@ HOTELS_SEARCH_CONTENT = """
 .hotel-loading-header {
     display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
 }
-.hotel-loading-spinner {
-    width: 40px; height: 40px;
-    border: 3px solid rgba(124, 58, 237, 0.2);
-    border-top-color: #7c3aed; border-radius: 50%;
-    animation: hspin 0.8s linear infinite; flex-shrink: 0;
-}
 .hotel-skeleton-cards { display: flex; flex-direction: column; gap: 12px; }
 .hotel-skeleton-card {
     background: rgba(255,255,255,0.05); border-radius: 12px;
     padding: 20px; display: flex; gap: 16px;
 }
 .hotel-skeleton-img {
-    width: 120px; height: 90px; border-radius: 8px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
-    background-size: 200% 100%; animation: hshimmer 1.5s infinite; flex-shrink: 0;
+    width: 120px; height: 90px; border-radius: 8px; flex-shrink: 0;
 }
 .hotel-skeleton-line {
-    height: 14px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
-    background-size: 200% 100%; animation: hshimmer 1.5s infinite; border-radius: 6px;
+    height: 14px; border-radius: 6px;
 }
 .hotel-skeleton-line.w40 { width: 40%; }
 .hotel-skeleton-line.w60 { width: 60%; }
 .hotel-skeleton-line.w30 { width: 30%; }
-@keyframes hshimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* Results header + controls */
 .hotel-results-bar {
@@ -195,12 +96,6 @@ HOTELS_SEARCH_CONTENT = """
 .hotel-controls {
     display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
-.hotel-sort-select {
-    padding: 8px 12px; background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
-    color: #f5f5f5; font-size: 13px; font-family: inherit; cursor: pointer;
-}
-.hotel-sort-select option { background: #1a1a2e; }
 .hotel-filter-chip {
     display: flex; align-items: center; gap: 6px;
     padding: 7px 12px; border-radius: 20px;
@@ -214,7 +109,7 @@ HOTELS_SEARCH_CONTENT = """
 .hotel-filter-chip input { display: none; }
 
 /* ============================================
-   HOTEL RESULT CARDS
+   HOTEL RESULT CARDS (page-specific)
    ============================================ */
 
 .hotel-cards-grid { display: flex; flex-direction: column; gap: 14px; }
@@ -321,12 +216,30 @@ HOTELS_SEARCH_CONTENT = """
     box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
 }
 
+/* Typeahead dropdown (page-specific) */
+.hotel-typeahead-wrap { position: relative; }
+.hotel-typeahead-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+    background: rgba(20, 15, 35, 0.98); border: 1px solid rgba(124, 58, 237, 0.4);
+    border-top: none; border-radius: 0 0 8px 8px; max-height: 280px;
+    overflow-y: auto; display: none;
+}
+.hotel-typeahead-dropdown.open { display: block; }
+.hotel-typeahead-item {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.15s;
+}
+.hotel-typeahead-item:hover, .hotel-typeahead-item.active {
+    background: rgba(124, 58, 237, 0.15);
+}
+.hotel-typeahead-item-name { color: #f5f5f5; font-size: 14px; font-weight: 500; }
+.hotel-typeahead-item-sub { color: #888; font-size: 12px; margin-top: 2px; }
+.hotel-typeahead-loading { padding: 12px 14px; color: #888; font-size: 13px; text-align: center; }
+
 /* Responsive */
 @media (max-width: 700px) {
     .hotel-card-inner { flex-direction: column; }
     .hotel-card-image { width: 100%; min-height: 140px; max-height: 180px; }
-    .hotel-search-grid { grid-template-columns: 1fr; }
-    .hotel-search-grid .full-width { grid-column: 1; }
     .hotel-results-bar { flex-direction: column; align-items: flex-start; }
     .hotel-card-name { white-space: normal; }
     .hotel-card-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -335,41 +248,35 @@ HOTELS_SEARCH_CONTENT = """
 </style>
 
 <div class="hotels-page">
-    <div class="hotels-page-header">
+    <div class="mystes-page-header">
         <h1>HOTELS</h1>
         <p>Wholesale rates. Real savings. Powered by MYSTES.</p>
     </div>
 
     <!-- Search Form -->
-    <div class="hotel-search-card">
-        <div class="hotel-search-grid">
+    <div class="mystes-card hotel-search-card">
+        <div class="mystes-form-grid">
             <div class="form-group full-width">
-                <label>Destination</label>
-                <input type="text" id="hotel-city" placeholder="Where are you going? (e.g. Paris, NYC, Tokyo)" list="city-suggestions" autocomplete="off">
-                <datalist id="city-suggestions">
-                    <option value="Paris (PAR)"><option value="New York (NYC)"><option value="London (LON)">
-                    <option value="Tokyo (TYO)"><option value="Rome (ROM)"><option value="Barcelona (BCN)">
-                    <option value="Bangkok (BKK)"><option value="Dubai (DXB)"><option value="Singapore (SIN)">
-                    <option value="Los Angeles (LAX)"><option value="San Francisco (SFO)"><option value="Miami (MIA)">
-                    <option value="Chicago (CHI)"><option value="Sydney (SYD)"><option value="Hong Kong (HKG)">
-                    <option value="Seoul (SEL)"><option value="Amsterdam (AMS)"><option value="Berlin (BER)">
-                    <option value="Madrid (MAD)"><option value="Lisbon (LIS)"><option value="Istanbul (IST)">
-                    <option value="Mexico City (MEX)"><option value="Toronto (YTO)"><option value="Osaka (OSA)">
-                    <option value="Munich (MUC)"><option value="Vienna (VIE)"><option value="Prague (PRG)">
-                    <option value="Dublin (DUB)"><option value="Athens (ATH)"><option value="Honolulu (HNL)">
-                </datalist>
+                <label class="mystes-label">Destination</label>
+                <div class="hotel-typeahead-wrap">
+                    <input type="text" id="hotel-city" class="mystes-input" placeholder="Search hotels, cities, or neighborhoods..." autocomplete="off">
+                    <input type="hidden" id="hotel-lat">
+                    <input type="hidden" id="hotel-lng">
+                    <input type="hidden" id="hotel-city-code">
+                    <div class="hotel-typeahead-dropdown" id="hotel-suggest-dropdown"></div>
+                </div>
             </div>
             <div class="form-group">
-                <label>Check-in</label>
-                <input type="date" id="hotel-checkin">
+                <label class="mystes-label">Check-in</label>
+                <input type="date" id="hotel-checkin" class="mystes-input">
             </div>
             <div class="form-group">
-                <label>Check-out</label>
-                <input type="date" id="hotel-checkout">
+                <label class="mystes-label">Check-out</label>
+                <input type="date" id="hotel-checkout" class="mystes-input">
             </div>
             <div class="form-group">
-                <label>Guests</label>
-                <select id="hotel-adults">
+                <label class="mystes-label">Guests</label>
+                <select id="hotel-adults" class="mystes-select">
                     <option value="1">1 Guest</option>
                     <option value="2" selected>2 Guests</option>
                     <option value="3">3 Guests</option>
@@ -377,15 +284,15 @@ HOTELS_SEARCH_CONTENT = """
                 </select>
             </div>
             <div class="form-group">
-                <label>Rooms</label>
-                <select id="hotel-rooms">
+                <label class="mystes-label">Rooms</label>
+                <select id="hotel-rooms" class="mystes-select">
                     <option value="1" selected>1 Room</option>
                     <option value="2">2 Rooms</option>
                     <option value="3">3 Rooms</option>
                 </select>
             </div>
             <div class="form-group full-width">
-                <label>Star Rating</label>
+                <label class="mystes-label">Star Rating</label>
                 <div class="star-chips">
                     <label class="star-chip" onclick="this.classList.toggle('active')">
                         <input type="checkbox" name="rating" value="3">
@@ -402,7 +309,7 @@ HOTELS_SEARCH_CONTENT = """
                 </div>
             </div>
         </div>
-        <button class="hotel-search-btn" id="hotel-search-btn" onclick="searchHotels()">
+        <button class="mystes-btn mystes-btn-primary mystes-btn-full hotel-search-btn" id="hotel-search-btn" onclick="searchHotels()">
             Search Hotels
         </button>
     </div>
@@ -411,7 +318,7 @@ HOTELS_SEARCH_CONTENT = """
     <div id="hotel-loading" style="display: none;">
         <div class="hotel-loading-state">
             <div class="hotel-loading-header">
-                <div class="hotel-loading-spinner"></div>
+                <div class="mystes-spinner"></div>
                 <div>
                     <div style="color: #f5f5f5; font-size: 16px; font-weight: 600;">Searching wholesale rates...</div>
                     <div style="color: #999; font-size: 13px; margin-top: 4px;">Comparing prices across suppliers</div>
@@ -419,27 +326,27 @@ HOTELS_SEARCH_CONTENT = """
             </div>
             <div class="hotel-skeleton-cards">
                 <div class="hotel-skeleton-card">
-                    <div class="hotel-skeleton-img"></div>
+                    <div class="hotel-skeleton-img mystes-skeleton"></div>
                     <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
-                        <div class="hotel-skeleton-line w60"></div>
-                        <div class="hotel-skeleton-line w40"></div>
-                        <div class="hotel-skeleton-line w30"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w60"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w40"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w30"></div>
                     </div>
                 </div>
                 <div class="hotel-skeleton-card">
-                    <div class="hotel-skeleton-img"></div>
+                    <div class="hotel-skeleton-img mystes-skeleton"></div>
                     <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
-                        <div class="hotel-skeleton-line w60"></div>
-                        <div class="hotel-skeleton-line w40"></div>
-                        <div class="hotel-skeleton-line w30"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w60"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w40"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w30"></div>
                     </div>
                 </div>
                 <div class="hotel-skeleton-card">
-                    <div class="hotel-skeleton-img"></div>
+                    <div class="hotel-skeleton-img mystes-skeleton"></div>
                     <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
-                        <div class="hotel-skeleton-line w60"></div>
-                        <div class="hotel-skeleton-line w40"></div>
-                        <div class="hotel-skeleton-line w30"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w60"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w40"></div>
+                        <div class="hotel-skeleton-line mystes-skeleton w30"></div>
                     </div>
                 </div>
             </div>
@@ -454,36 +361,76 @@ HOTELS_SEARCH_CONTENT = """
 </div>
 
 <script>
-const cityMap = {
-    'paris': 'PAR', 'new york': 'NYC', 'london': 'LON', 'tokyo': 'TYO',
-    'rome': 'ROM', 'barcelona': 'BCN', 'bangkok': 'BKK', 'dubai': 'DXB',
-    'singapore': 'SIN', 'los angeles': 'LAX', 'san francisco': 'SFO', 'miami': 'MIA',
-    'chicago': 'CHI', 'sydney': 'SYD', 'hong kong': 'HKG', 'seoul': 'SEL',
-    'amsterdam': 'AMS', 'berlin': 'BER', 'madrid': 'MAD', 'lisbon': 'LIS',
-    'istanbul': 'IST', 'mexico city': 'MEX', 'toronto': 'YTO', 'osaka': 'OSA',
-    'munich': 'MUC', 'vienna': 'VIE', 'prague': 'PRG', 'dublin': 'DUB',
-    'athens': 'ATH', 'honolulu': 'HNL'
-};
-const cityNames = {
-    'PAR': 'Paris', 'NYC': 'New York', 'LON': 'London', 'TYO': 'Tokyo',
-    'ROM': 'Rome', 'BCN': 'Barcelona', 'BKK': 'Bangkok', 'DXB': 'Dubai',
-    'SIN': 'Singapore', 'LAX': 'Los Angeles', 'SFO': 'San Francisco', 'MIA': 'Miami',
-    'CHI': 'Chicago', 'SYD': 'Sydney', 'HKG': 'Hong Kong', 'SEL': 'Seoul',
-    'AMS': 'Amsterdam', 'BER': 'Berlin', 'MAD': 'Madrid', 'LIS': 'Lisbon',
-    'IST': 'Istanbul', 'MEX': 'Mexico City', 'YTO': 'Toronto', 'OSA': 'Osaka',
-    'MUC': 'Munich', 'VIE': 'Vienna', 'PRG': 'Prague', 'DUB': 'Dublin',
-    'ATH': 'Athens', 'HNL': 'Honolulu'
-};
-
 let allHotels = [];
+let suggestTimer = null;
+let selectedDestination = null;
 
-function extractCityCode(input) {
-    const match = input.match(/\\(([A-Z]{3})\\)/);
-    if (match) return match[1];
-    const lower = input.toLowerCase().trim();
-    if (cityMap[lower]) return cityMap[lower];
-    if (/^[A-Z]{3}$/.test(input.trim())) return input.trim();
-    return null;
+// Typeahead: debounced suggestions from Duffel Stays API
+(function setupTypeahead() {
+    const input = document.getElementById('hotel-city');
+    const dropdown = document.getElementById('hotel-suggest-dropdown');
+    if (!input || !dropdown) return;
+
+    input.addEventListener('input', function() {
+        const q = this.value.trim();
+        // Clear selection when user types
+        document.getElementById('hotel-lat').value = '';
+        document.getElementById('hotel-lng').value = '';
+        selectedDestination = null;
+
+        if (q.length < 3) { dropdown.classList.remove('open'); return; }
+        clearTimeout(suggestTimer);
+        suggestTimer = setTimeout(() => fetchSuggestions(q), 300);
+    });
+
+    input.addEventListener('blur', function() {
+        setTimeout(() => dropdown.classList.remove('open'), 200);
+    });
+    input.addEventListener('focus', function() {
+        if (dropdown.children.length > 0 && this.value.length >= 3) dropdown.classList.add('open');
+    });
+})();
+
+async function fetchSuggestions(query) {
+    const dropdown = document.getElementById('hotel-suggest-dropdown');
+    dropdown.innerHTML = '<div class="hotel-typeahead-loading">Searching...</div>';
+    dropdown.classList.add('open');
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch('/api/hotels/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ query: query })
+        });
+        const data = await resp.json();
+        if (!data.success || !data.suggestions || !data.suggestions.length) {
+            dropdown.innerHTML = '<div class="hotel-typeahead-loading">No results found</div>';
+            return;
+        }
+        dropdown.innerHTML = data.suggestions.map((s, i) => {
+            const loc = s.location || {};
+            const geo = loc.geographic_coordinates || loc;
+            const lat = geo.latitude || '';
+            const lng = geo.longitude || '';
+            const sub = s.type === 'accommodation' ? 'Hotel' : (s.type || 'Location');
+            return '<div class="hotel-typeahead-item" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + (s.name || '').replace(/"/g, '&quot;') + '" data-id="' + (s.id || '') + '" onclick="selectSuggestion(this)">' +
+                '<div class="hotel-typeahead-item-name">' + (s.name || 'Unknown') + '</div>' +
+                '<div class="hotel-typeahead-item-sub">' + sub + '</div></div>';
+        }).join('');
+    } catch (err) {
+        dropdown.innerHTML = '<div class="hotel-typeahead-loading">Search failed</div>';
+    }
+}
+
+function selectSuggestion(el) {
+    const name = el.dataset.name;
+    const lat = el.dataset.lat;
+    const lng = el.dataset.lng;
+    document.getElementById('hotel-city').value = name;
+    document.getElementById('hotel-lat').value = lat;
+    document.getElementById('hotel-lng').value = lng;
+    selectedDestination = { name: name, lat: parseFloat(lat), lng: parseFloat(lng) };
+    document.getElementById('hotel-suggest-dropdown').classList.remove('open');
 }
 
 (function() {
@@ -507,9 +454,10 @@ function extractCityCode(input) {
 })();
 
 async function searchHotels() {
-    const cityInput = document.getElementById('hotel-city').value;
-    const cityCode = extractCityCode(cityInput);
-    if (!cityCode) { alert('Please enter a valid city (e.g. Paris, NYC, Tokyo)'); return; }
+    const cityInput = document.getElementById('hotel-city').value.trim();
+    if (!cityInput) { alert('Please enter a destination'); return; }
+    const lat = document.getElementById('hotel-lat').value;
+    const lng = document.getElementById('hotel-lng').value;
     const checkIn = document.getElementById('hotel-checkin').value;
     const checkOut = document.getElementById('hotel-checkout').value;
     if (!checkIn || !checkOut) { alert('Please select check-in and check-out dates'); return; }
@@ -520,24 +468,27 @@ async function searchHotels() {
 
     const btn = document.getElementById('hotel-search-btn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="hotel-search-spinner"></span>Searching...';
+    btn.innerHTML = '<span class="mystes-spinner-sm mystes-spinner-white" style="display:inline-block;vertical-align:middle;margin-right:8px;"></span>Searching...';
     document.getElementById('hotel-loading').style.display = 'block';
     document.getElementById('hotel-results').style.display = 'none';
 
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const body = {
+            check_in: checkIn, check_out: checkOut,
+            adults: parseInt(adults), rooms: parseInt(rooms),
+            ratings: ratings.length > 0 ? ratings : null,
+            destination_name: cityInput,
+        };
+        if (lat && lng) { body.latitude = parseFloat(lat); body.longitude = parseFloat(lng); }
         const resp = await fetch('/api/hotels/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({
-                city_code: cityCode, check_in: checkIn, check_out: checkOut,
-                adults: parseInt(adults), rooms: parseInt(rooms),
-                ratings: ratings.length > 0 ? ratings : null
-            })
+            body: JSON.stringify(body)
         });
         const data = await resp.json();
         allHotels = data.hotels || [];
-        renderHotelResults(data, cityCode, checkIn, checkOut);
+        renderHotelResults(data, cityInput, checkIn, checkOut);
     } catch (err) {
         document.getElementById('hotel-loading').style.display = 'none';
         alert('Search failed: ' + err.message);
@@ -547,16 +498,16 @@ async function searchHotels() {
     }
 }
 
-function renderHotelResults(data, cityCode, checkIn, checkOut) {
+function renderHotelResults(data, destination, checkIn, checkOut) {
     document.getElementById('hotel-loading').style.display = 'none';
     document.getElementById('hotel-results').style.display = 'block';
     const header = document.getElementById('hotel-results-header');
     const list = document.getElementById('hotel-results-list');
-    const displayCity = cityNames[cityCode] || cityCode;
+    const displayCity = destination;
 
     if (!data.success || !allHotels.length) {
         header.innerHTML = '';
-        list.innerHTML = '<div style="text-align:center; padding:60px 20px;"><div style="font-size:48px; margin-bottom:16px; opacity:0.3;">&#127960;</div><h3 style="color:#f5f5f5; margin:0 0 8px;">No hotels found</h3><p style="color:#999;">' + (data.error || 'Try different dates or destination') + '</p></div>';
+        list.innerHTML = '<div class="mystes-empty"><div class="mystes-empty-icon">&#127960;</div><h3 style="color:#f5f5f5; margin:0 0 8px;">No hotels found</h3><p>' + (data.error || 'Try different dates or destination') + '</p></div>';
         return;
     }
 
@@ -568,7 +519,7 @@ function renderHotelResults(data, cityCode, checkIn, checkOut) {
                 <div class="hotel-results-dates">${checkIn} to ${checkOut}${dealsCount ? ' &middot; <span style="color:#4ade80;">' + dealsCount + ' with savings</span>' : ''}</div>
             </div>
             <div class="hotel-controls">
-                <select class="hotel-sort-select" id="hotel-sort" onchange="sortAndRender()">
+                <select class="mystes-select" id="hotel-sort" onchange="sortAndRender()" style="padding:8px 12px;font-size:13px;width:auto;">
                     <option value="price-asc">Price: Low to High</option>
                     <option value="price-desc">Price: High to Low</option>
                     <option value="savings">Best Savings</option>
@@ -597,7 +548,7 @@ function sortAndRender() {
 function renderCards(hotels) {
     const list = document.getElementById('hotel-results-list');
     if (!hotels.length) {
-        list.innerHTML = '<div style="text-align:center; padding:40px; color:#999;">No hotels match your filters</div>';
+        list.innerHTML = '<div class="mystes-empty"><p>No hotels match your filters</p></div>';
         return;
     }
     list.innerHTML = hotels.map(h => {
@@ -645,23 +596,23 @@ function renderCards(hotels) {
                     </div>
                 </div>
             </div>
-            <button class="hotel-card-cta${hasDeal ? ' hotel-card-cta-deal' : ''}" onclick="selectHotel('${h.offer_id}', '${h.hotel_id}', this)">
+            <button class="hotel-card-cta${hasDeal ? ' hotel-card-cta-deal' : ''}" onclick="selectHotel('${h.offer_id}', '${h.hotel_id}', '${h.source || 'liteapi'}', this)">
                 ${hasDeal ? 'Book &amp; Save $' + h.user_savings.toFixed(0) : 'Book This Hotel'}
             </button>
         </div>`;
     }).join('');
 }
 
-async function selectHotel(offerId, hotelId, btn) {
+async function selectHotel(offerId, hotelId, source, btn) {
     btn.disabled = true;
     const orig = btn.innerHTML;
-    btn.innerHTML = '<span class="hotel-search-spinner"></span>Creating deal...';
+    btn.innerHTML = '<span class="mystes-spinner-sm mystes-spinner-white" style="display:inline-block;vertical-align:middle;margin-right:8px;"></span>Creating deal...';
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const resp = await fetch('/api/hotels/select', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ offer_id: offerId, hotel_id: hotelId })
+            body: JSON.stringify({ offer_id: offerId, hotel_id: hotelId, source: source })
         });
         const data = await resp.json();
         if (data.success && data.deal_id) {
@@ -687,33 +638,86 @@ async function selectHotel(offerId, hotelId, btn) {
 
 HOTEL_BOOK_CONTENT = """
 <style>
-    .payment-method-card { border: 2px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: white; }
-    .payment-method-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
-    .payment-method-card.selected { border-color: #7c3aed; background: #f5f3ff; }
+    /* Payment method cards — dark theme */
+    .payment-method-card {
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+        border-radius: var(--radius-lg, 12px);
+        padding: 20px; margin-bottom: 15px; cursor: pointer;
+        transition: all 0.2s ease;
+        background: var(--glass-bg, rgba(10,6,18,0.85));
+        color: var(--text-bright, #f5f5f5);
+    }
+    .payment-method-card:hover {
+        border-color: var(--accent-purple, #7c3aed);
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+    }
+    .payment-method-card.selected {
+        border-color: var(--accent-purple, #7c3aed);
+        background: rgba(124, 58, 237, 0.08);
+    }
     .payment-method-card .method-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
     .payment-method-card .method-icon { font-size: 32px; width: 50px; text-align: center; }
-    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: #16213e; }
-    .payment-method-card .method-subtitle { color: #666; font-size: 14px; }
-    .payment-details-panel { display: none; background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 15px; }
+    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: var(--text-bright, #f5f5f5); }
+    .payment-method-card .method-subtitle { color: var(--text-muted, #ccc); font-size: 14px; }
+    .payment-details-panel {
+        display: none;
+        background: rgba(255,255,255,0.04);
+        border-radius: var(--radius-md, 8px);
+        padding: 20px; margin-top: 15px;
+        color: var(--text-bright, #f5f5f5);
+    }
     .payment-details-panel.active { display: block; }
-    .crypto-address-box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 14px; word-break: break-all; margin: 10px 0; }
-    .copy-btn { background: #7c3aed; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 10px; }
-    .copy-btn:hover { background: #6d28d9; }
-    .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
+    .crypto-address-box {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+        border-radius: var(--radius-md, 8px);
+        padding: 15px; font-family: monospace; font-size: 14px;
+        word-break: break-all; margin: 10px 0;
+        color: var(--text-bright, #f5f5f5);
+    }
+    /* Order summary — dark theme */
+    .order-summary {
+        background: rgba(15, 10, 25, 0.85);
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+        color: var(--text-bright, #f5f5f5);
+        border-radius: var(--radius-lg, 12px);
+        padding: 25px; margin-bottom: 25px;
+    }
     .order-summary h3 { margin: 0 0 20px 0; color: #14b8a6; }
     .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .order-row:last-child { border-bottom: none; }
     .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.3); }
-    .flight-leg-item { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; }
-    .processing-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
-    .processing-overlay.active { display: flex; }
-    .processing-box { background: white; border-radius: 16px; padding: 40px; text-align: center; max-width: 400px; }
-    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .flight-leg-item { background: rgba(255,255,255,0.06); border-radius: var(--radius-md, 8px); padding: 12px 15px; margin-bottom: 10px; }
+    /* Guest info form — dark theme */
+    .hotel-guest-form-panel {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+        border-radius: var(--radius-lg, 12px);
+        padding: 25px;
+    }
+    .hotel-guest-form-panel h4 { margin: 0 0 20px 0; color: var(--text-bright, #f5f5f5); }
+    .hotel-guest-form-panel p { color: var(--text-muted, #ccc); }
+    /* Booking method panel */
+    .booking-method-panel {
+        margin-top: 25px; padding: 20px;
+        background: rgba(124, 58, 237, 0.06);
+        border: 1px solid rgba(124, 58, 237, 0.15);
+        border-radius: var(--radius-md, 8px);
+    }
+    .booking-method-panel h5 { margin: 0 0 10px 0; color: var(--text-bright, #f5f5f5); }
+    /* Guest checkout panel */
+    .guest-checkout-panel {
+        background: rgba(124, 58, 237, 0.06);
+        border: 1px solid rgba(124, 58, 237, 0.2);
+        border-radius: var(--radius-lg, 12px);
+        padding: 20px; margin-bottom: 25px;
+    }
+    .guest-checkout-panel h4 { margin: 0 0 15px 0; color: var(--text-bright, #f5f5f5); }
+    .guest-checkout-panel p { color: var(--text-muted, #ccc); }
 </style>
 
-<div class="card card-light" style="max-width: 800px; margin: 40px auto;">
-    <h2 style="text-align: center; margin-bottom: 25px; color: #1a1a2e;">Complete Your Hotel Booking</h2>
+<div class="mystes-card" style="max-width: 800px; margin: 40px auto;">
+    <h2 style="text-align: center; margin-bottom: 25px; color: var(--text-bright, #f5f5f5);">Complete Your Hotel Booking</h2>
 
     <!-- Order Summary -->
     <div class="order-summary">
@@ -723,7 +727,7 @@ HOTEL_BOOK_CONTENT = """
                 <div>
                     <strong>{{ deal.hotel_name }}</strong><br>
                     <span style="color: #14b8a6;">{{ deal.city_code }}{{ ' - ' + deal.city_name if deal.city_name else '' }} / {{ deal.room_type or 'Standard Room' }}{{ ' / ' + deal.bed_type if deal.bed_type else '' }}</span><br>
-                    <small>{{ deal.check_in_date }} to {{ deal.check_out_date }} ({{ deal.nights }} night{{ 's' if deal.nights != 1 else '' }})</small>
+                    <small style="color: var(--text-muted, #ccc);">{{ deal.check_in_date }} to {{ deal.check_out_date }} ({{ deal.nights }} night{{ 's' if deal.nights != 1 else '' }})</small>
                 </div>
                 <div style="text-align: right;">
                     <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.price_total_usd or 0) }}</span>
@@ -751,22 +755,22 @@ HOTEL_BOOK_CONTENT = """
 
     {% if payment_verified %}
         <!-- Payment Complete - Collect Guest Details -->
-        <div class="alert alert-success" style="text-align: center; padding: 25px;">
+        <div style="text-align: center; padding: 25px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: var(--radius-lg, 12px); margin-bottom: 20px;">
             <span style="font-size: 48px;">&#9989;</span>
-            <h3 style="margin: 15px 0;">Payment Verified!</h3>
-            <p>Your payment has been confirmed. Please provide guest details to complete your booking.</p>
+            <h3 style="margin: 15px 0; color: var(--text-bright, #f5f5f5);">Payment Verified!</h3>
+            <p style="color: var(--text-muted, #ccc);">Your payment has been confirmed. Please provide guest details to complete your booking.</p>
         </div>
 
         <form id="guest-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" style="margin-top: 20px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px;">
-                <h4 style="margin: 0 0 20px 0; color: #1a1a2e;">Guest Information</h4>
-                <p style="color: #666; margin-bottom: 20px;">Enter guest details as they will appear on the reservation.</p>
+            <div class="hotel-guest-form-panel">
+                <h4>Guest Information</h4>
+                <p style="margin-bottom: 20px;">Enter guest details as they will appear on the reservation.</p>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="mystes-form-grid">
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Title *</label>
-                        <select name="title" required style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Title *</label>
+                        <select name="title" required class="mystes-select">
                             <option value="MR">Mr</option>
                             <option value="MS">Ms</option>
                             <option value="MRS">Mrs</option>
@@ -774,36 +778,36 @@ HOTEL_BOOK_CONTENT = """
                     </div>
                     <div></div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">First Name *</label>
-                        <input type="text" name="first_name" required placeholder="John" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">First Name *</label>
+                        <input type="text" name="first_name" required placeholder="John" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Last Name *</label>
-                        <input type="text" name="last_name" required placeholder="Doe" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Last Name *</label>
+                        <input type="text" name="last_name" required placeholder="Doe" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Email *</label>
-                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Email *</label>
+                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Phone *</label>
-                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Phone *</label>
+                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" class="mystes-input">
                     </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Special Requests (optional)</label>
-                        <textarea name="special_requests" rows="3" placeholder="Late check-in, extra pillows, high floor..." style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e; resize: vertical;"></textarea>
+                    <div class="form-group full-width">
+                        <label class="mystes-label">Special Requests (optional)</label>
+                        <textarea name="special_requests" rows="3" placeholder="Late check-in, extra pillows, high floor..." class="mystes-textarea"></textarea>
                     </div>
                 </div>
 
-                <div style="margin-top: 25px; padding: 20px; background: #f5f3ff; border-radius: 8px;">
-                    <h5 style="margin: 0 0 10px 0;">Booking Method</h5>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
+                <div class="booking-method-panel">
+                    <h5>Booking Method</h5>
+                    <label style="display: flex; align-items: center; cursor: pointer; color: var(--text-bright, #f5f5f5);">
                         <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
                         <span><strong>Automated Booking</strong> - We book for you (recommended)</span>
                     </label>
                 </div>
 
-                <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 25px; padding: 15px; font-size: 18px;">
+                <button type="submit" class="mystes-btn mystes-btn-success mystes-btn-full mystes-btn-lg" style="margin-top: 25px;">
                     Complete Hotel Booking
                 </button>
             </div>
@@ -812,25 +816,25 @@ HOTEL_BOOK_CONTENT = """
     {% else %}
         <!-- Guest Email Collection (for non-authenticated users) -->
         {% if not current_user.is_authenticated %}
-        <div style="background: #f5f3ff; border: 2px solid #7c3aed; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
-            <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
-            <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
+        <div class="guest-checkout-panel">
+            <h4>Guest Checkout</h4>
+            <p style="margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
             <div class="form-group" style="margin-bottom: 0;">
-                <label for="guest_email" style="font-weight: bold; color: #16213e;">Email Address *</label>
+                <label class="mystes-label" for="guest_email">Email Address *</label>
                 <input type="email" id="guest_email" name="guest_email" required
                        value="{{ session.get('guest_email', '') }}"
                        placeholder="your@email.com"
-                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       class="mystes-input"
                        onchange="saveGuestEmail(this.value)">
             </div>
-            <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                <a href="/register?deal={{ deal.deal_id }}" style="color: #7c3aed;">Create an account</a> to track your bookings.
+            <p style="margin-top: 10px; font-size: 12px; color: var(--text-muted, #ccc);">
+                <a href="/register?deal={{ deal.deal_id }}" style="color: var(--accent-purple, #7c3aed);">Create an account</a> to track your bookings.
             </p>
         </div>
         {% endif %}
 
         <!-- Payment Selection -->
-        <h3 style="margin-bottom: 20px;">Choose Payment Method</h3>
+        <h3 style="margin-bottom: 20px; color: var(--text-bright, #f5f5f5);">Choose Payment Method</h3>
 
         <!-- Credit Card -->
         <div class="payment-method-card" onclick="selectPayment('card')" id="method-card">
@@ -840,13 +844,13 @@ HOTEL_BOOK_CONTENT = """
                     <div class="method-title">Credit or Debit Card</div>
                     <div class="method-subtitle">Visa, Mastercard, American Express</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
+                <div style="margin-left: auto; font-weight: bold; color: var(--accent-purple, #7c3aed);">
                     ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
             <div class="payment-details-panel" id="details-card">
                 <p>Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
-                <button class="btn" onclick="payWithCard(event)" style="width: 100%; margin-top: 10px;">
+                <button class="mystes-btn mystes-btn-primary mystes-btn-full" onclick="payWithCard(event)" style="margin-top: 10px;">
                     Pay ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} with Card
                 </button>
             </div>
@@ -854,7 +858,7 @@ HOTEL_BOOK_CONTENT = """
 
         <!-- XRP/RLUSD payment options removed (Build #173 — Stripe + MoonPay only) -->
 
-        <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
+        <p style="text-align: center; color: var(--text-muted, #ccc); margin-top: 20px; font-size: 14px;">
             All payments are secure and encrypted<br>
             <small>By proceeding, you agree to our Terms of Service</small>
         </p>
@@ -862,11 +866,11 @@ HOTEL_BOOK_CONTENT = """
 </div>
 
 <!-- Processing Overlay -->
-<div class="processing-overlay" id="processing-overlay">
-    <div class="processing-box">
-        <div class="spinner"></div>
-        <h3 id="processing-title">Processing Payment...</h3>
-        <p id="processing-message">Please wait while we verify your payment.</p>
+<div class="mystes-modal-overlay" id="processing-overlay">
+    <div class="mystes-modal" style="text-align: center; max-width: 400px;">
+        <div class="mystes-spinner" style="margin: 0 auto 20px;"></div>
+        <h3 id="processing-title" style="color: var(--text-bright, #f5f5f5);">Processing Payment...</h3>
+        <p id="processing-message" style="color: var(--text-muted, #ccc);">Please wait while we verify your payment.</p>
     </div>
 </div>
 
@@ -897,7 +901,7 @@ function copyToClipboard(elementId, event) {
 async function payWithCard(event) {
     event.stopPropagation();
     const overlay = document.getElementById('processing-overlay');
-    overlay.classList.add('active');
+    overlay.classList.add('open');
     document.getElementById('processing-title').textContent = 'Redirecting to Stripe...';
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -908,8 +912,8 @@ async function payWithCard(event) {
         });
         const data = await resp.json();
         if (data.checkout_url) { window.location.href = data.checkout_url; }
-        else { overlay.classList.remove('active'); alert('Error: ' + (data.error || 'Failed to create payment session')); }
-    } catch (err) { overlay.classList.remove('active'); alert('Payment error: ' + err.message); }
+        else { overlay.classList.remove('open'); alert('Error: ' + (data.error || 'Failed to create payment session')); }
+    } catch (err) { overlay.classList.remove('open'); alert('Payment error: ' + err.message); }
 }
 </script>
 """
@@ -931,96 +935,294 @@ def register_hotel_routes(app, csrf, limiter):
             current_user=current_user
         )
 
+    @app.route("/api/hotels/suggest", methods=["POST"])
+    @csrf.exempt
+    def api_hotel_suggest():
+        """Autocomplete hotel destinations via Duffel Stays."""
+        data = request.get_json()
+        query = (data or {}).get("query", "").strip()
+        if len(query) < 3:
+            return jsonify({"success": False, "error": "Query must be at least 3 characters"})
+
+        try:
+            from picasso_sdk_clients import get_duffel_stays_client
+            client = get_duffel_stays_client()
+            if not client:
+                return jsonify({"success": False, "error": "Hotel suggestions unavailable", "suggestions": []})
+
+            result = client.suggest_accommodation(query)
+            if not result.get("success"):
+                return jsonify({"success": False, "error": result.get("error", "No suggestions"), "suggestions": []})
+
+            return jsonify({
+                "success": True,
+                "suggestions": result.get("suggestions", []),
+                "count": result.get("count", 0),
+            })
+        except ImportError:
+            # Fallback: try direct import from SDK
+            try:
+                import sys, os
+                sdk_path = os.path.join(os.path.dirname(__file__), "picasso-sdk")
+                if sdk_path not in sys.path:
+                    sys.path.insert(0, sdk_path)
+                from clients.duffel_stays import DuffelStaysClient
+                client = DuffelStaysClient()
+                if not client.is_configured():
+                    return jsonify({"success": False, "error": "Duffel not configured", "suggestions": []})
+                result = client.suggest_accommodation(query)
+                return jsonify({
+                    "success": result.get("success", False),
+                    "suggestions": result.get("suggestions", []),
+                    "count": result.get("count", 0),
+                })
+            except Exception as e:
+                logger.error("Hotel suggest error: %s", e)
+                return jsonify({"success": False, "error": "Suggestions unavailable", "suggestions": []})
+
     @app.route("/api/hotels/search", methods=["POST"])
     @csrf.exempt
     def api_hotel_search():
-        """Search hotels via liteAPI."""
+        """Search hotels — dual-source: liteAPI + Duffel Stays in parallel."""
         if not is_feature_enabled("vertical_hotels"):
             return jsonify({"success": False, "error": "Hotel search is not available yet"}), 410
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "No data provided"}), 400
 
-        city_code = data.get("city_code", "").upper()
         check_in = data.get("check_in")
         check_out = data.get("check_out")
         adults = data.get("adults", 1)
         rooms = data.get("rooms", 1)
         ratings = data.get("ratings")
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
+        city_code = data.get("city_code", "").upper() if data.get("city_code") else ""
+        destination_name = data.get("destination_name", "")
 
-        if not city_code or len(city_code) != 3:
-            return jsonify({"success": False, "error": "Valid 3-letter city code required"}), 400
         if not check_in or not check_out:
             return jsonify({"success": False, "error": "Check-in and check-out dates required"}), 400
 
         try:
-            from liteapi_client import LiteAPIHotelClient
-            client = LiteAPIHotelClient()
-
-            result = client.search_hotels(
-                city_code=city_code,
-                check_in=check_in,
-                check_out=check_out,
-                adults=adults,
-                rooms=rooms,
-                currency="USD",
-                ratings=ratings,
-                max_hotels=20,
-                user=current_user,
+            return _execute_hotel_search(
+                check_in, check_out, adults, rooms, ratings,
+                latitude, longitude, city_code, destination_name,
             )
-
-            try:
-                from monitoring import track_search
-                track_search(origin=city_code, destination=city_code, market="hotel")
-            except Exception:
-                pass
-
-            if not result.get("success"):
-                return jsonify({"success": False, "error": result.get("error", "No hotels found"), "hotels": []})
-
-            hotels = []
-            for h in result.get("hotels", []):
-                hotels.append({
-                    "hotel_id": h.get("hotel_id"),
-                    "hotel_name": h.get("hotel_name", "Unknown Hotel"),
-                    "offer_id": h.get("offer_id"),
-                    "city_code": h.get("city_code"),
-                    "check_in": h.get("check_in"),
-                    "check_out": h.get("check_out"),
-                    "nights": h.get("nights", 1),
-                    "price_total": h.get("price_total", 0),
-                    "price_per_night": h.get("price_per_night", 0),
-                    "currency": h.get("currency", "USD"),
-                    "room_type": h.get("room_type"),
-                    "bed_type": h.get("bed_type"),
-                    "room_description": h.get("room_description", ""),
-                    "cancellation_deadline": h.get("cancellation_deadline"),
-                    "cancellation_description": h.get("cancellation_description"),
-                    "adults": h.get("adults"),
-                    "rooms": h.get("rooms"),
-                    # Savings data for premium cards
-                    "google_price": h.get("google_price"),
-                    "user_savings": h.get("user_savings", 0),
-                    "savings_pct": h.get("savings_pct", 0),
-                })
-
-            # Cache full results in session for hotel selection
-            session['hotel_search_results'] = {h.get("offer_id"): h for h in result.get("hotels", []) if h.get("offer_id")}
-
-            hotels.sort(key=lambda x: x["price_per_night"])
-
-            return jsonify({
-                "success": True,
-                "hotels": hotels,
-                "count": len(hotels),
-                "city_code": city_code,
-                "check_in": check_in,
-                "check_out": check_out,
-            })
-
         except Exception as e:
             logger.error("Hotel search error: %s", e, exc_info=True)
             return jsonify({"success": False, "error": "Hotel search failed. Please try again."}), 500
+
+    def _execute_hotel_search(
+        check_in, check_out, adults, rooms, ratings,
+        latitude, longitude, city_code, destination_name,
+    ):
+        """Internal: run dual-source hotel search."""
+        try:
+            from payments import get_hotel_fee_percent
+        except ImportError:
+            get_hotel_fee_percent = None
+
+        all_hotels = []
+        sources_searched = []
+
+        def _search_liteapi():
+            """Search liteAPI (city_code based)."""
+            if not city_code or len(city_code) != 3:
+                return []
+            try:
+                from liteapi_client import LiteAPIHotelClient
+                client = LiteAPIHotelClient()
+                result = client.search_hotels(
+                    city_code=city_code,
+                    check_in=check_in,
+                    check_out=check_out,
+                    adults=adults,
+                    rooms=rooms,
+                    currency="USD",
+                    ratings=ratings,
+                    max_hotels=20,
+                    user=current_user,
+                )
+                if result.get("success"):
+                    hotels = result.get("hotels", [])
+                    for h in hotels:
+                        h["source"] = "liteapi"
+                    return hotels
+            except Exception as e:
+                logger.warning("liteAPI hotel search failed: %s", e)
+            return []
+
+        def _search_duffel_stays():
+            """Search Duffel Stays (coordinate based)."""
+            if latitude is None or longitude is None:
+                return []
+            try:
+                import sys, os
+                sdk_path = os.path.join(os.path.dirname(__file__), "picasso-sdk")
+                if sdk_path not in sys.path:
+                    sys.path.insert(0, sdk_path)
+                from clients.duffel_stays import DuffelStaysClient
+                client = DuffelStaysClient()
+                if not client.is_configured():
+                    return []
+
+                result = client.search_stays(
+                    check_in_date=check_in,
+                    check_out_date=check_out,
+                    adults=adults,
+                    rooms=rooms,
+                    latitude=float(latitude),
+                    longitude=float(longitude),
+                )
+                if not result.get("success"):
+                    return []
+
+                # Calculate nights
+                from datetime import datetime as _dt
+                ci = _dt.strptime(check_in, "%Y-%m-%d")
+                co = _dt.strptime(check_out, "%Y-%m-%d")
+                nights = max((co - ci).days, 1)
+
+                # Flat 8% hotel markup — all tiers, not tiered like flights
+                fee_pct = 0.08
+                if get_hotel_fee_percent:
+                    try:
+                        fee_pct = get_hotel_fee_percent(current_user)
+                    except Exception:
+                        pass
+
+                hotels = []
+                for r in result.get("results", []):
+                    raw_total = float(r.get("cheapest_rate_total", 0))
+                    if raw_total <= 0:
+                        continue
+
+                    # Apply MYSTES fee: $3 minimum, NO maximum
+                    platform_fee = max(3.0, raw_total * fee_pct)
+                    price_total = raw_total + platform_fee
+                    price_per_night = price_total / nights
+
+                    # Build a unique offer_id for caching
+                    rate_id = r.get("cheapest_rate_id", "")
+                    offer_key = f"duffel_stays_{r.get('property_id', '')}_{rate_id}"
+
+                    hotels.append({
+                        "hotel_id": r.get("property_id", ""),
+                        "hotel_name": r.get("property_name", "Unknown Hotel"),
+                        "offer_id": offer_key,
+                        "city_code": city_code or "",
+                        "check_in": check_in,
+                        "check_out": check_out,
+                        "nights": nights,
+                        "price_total": round(price_total, 2),
+                        "price_per_night": round(price_per_night, 2),
+                        "our_cost": round(raw_total, 2),
+                        "price_base": round(raw_total, 2),
+                        "platform_fee": round(platform_fee, 2),
+                        "currency": r.get("cheapest_rate_currency", "USD"),
+                        "room_type": None,
+                        "bed_type": None,
+                        "room_description": "",
+                        "cancellation_deadline": None,
+                        "cancellation_description": None,
+                        "adults": adults,
+                        "rooms": rooms,
+                        "google_price": None,
+                        "user_savings": 0,
+                        "savings_pct": 0,
+                        "source": "duffel_stays",
+                        "rate_id": rate_id,
+                        "accommodation_id": r.get("property_id", ""),
+                        "star_rating": r.get("star_rating"),
+                        "raw_offer": {
+                            "source": "duffel_stays",
+                            "rate_id": rate_id,
+                            "accommodation_id": r.get("property_id", ""),
+                            "search_result_id": result.get("search_result_id", ""),
+                        },
+                    })
+                return hotels
+            except Exception as e:
+                logger.warning("Duffel Stays hotel search failed: %s", e)
+            return []
+
+        # Run both sources in parallel
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = {
+                    executor.submit(_search_liteapi): "liteapi",
+                    executor.submit(_search_duffel_stays): "duffel_stays",
+                }
+                for future in as_completed(futures, timeout=60):
+                    source_name = futures[future]
+                    try:
+                        results = future.result()
+                        if results:
+                            all_hotels.extend(results)
+                            sources_searched.append(source_name)
+                    except Exception as e:
+                        logger.warning("Hotel source %s failed: %s", source_name, e)
+        except Exception as e:
+            logger.error("Hotel parallel search error: %s", e, exc_info=True)
+
+        try:
+            from monitoring import track_search
+            track_search(origin=city_code or "geo", destination=city_code or destination_name, market="hotel")
+        except Exception:
+            pass
+
+        if not all_hotels:
+            return jsonify({"success": False, "error": "No hotels found", "hotels": []})
+
+        # Dedup by property name (case-insensitive, keep cheapest)
+        seen = {}
+        for h in all_hotels:
+            key = (h.get("hotel_name", "")).strip().lower()
+            if key not in seen or h.get("price_total", float("inf")) < seen[key].get("price_total", float("inf")):
+                seen[key] = h
+        deduped = list(seen.values())
+        deduped.sort(key=lambda x: x.get("price_per_night", float("inf")))
+
+        # Build frontend-safe list
+        hotels_out = []
+        for h in deduped:
+            hotels_out.append({
+                "hotel_id": h.get("hotel_id"),
+                "hotel_name": h.get("hotel_name", "Unknown Hotel"),
+                "offer_id": h.get("offer_id"),
+                "city_code": h.get("city_code"),
+                "check_in": h.get("check_in"),
+                "check_out": h.get("check_out"),
+                "nights": h.get("nights", 1),
+                "price_total": h.get("price_total", 0),
+                "price_per_night": h.get("price_per_night", 0),
+                "currency": h.get("currency", "USD"),
+                "room_type": h.get("room_type"),
+                "bed_type": h.get("bed_type"),
+                "room_description": h.get("room_description", ""),
+                "cancellation_deadline": h.get("cancellation_deadline"),
+                "cancellation_description": h.get("cancellation_description"),
+                "adults": h.get("adults"),
+                "rooms": h.get("rooms"),
+                "google_price": h.get("google_price"),
+                "user_savings": h.get("user_savings", 0),
+                "savings_pct": h.get("savings_pct", 0),
+                "source": h.get("source", "liteapi"),
+            })
+
+        # Cache full results for hotel selection (includes raw_offer, source, rate_id)
+        session['hotel_search_results'] = {
+            h.get("offer_id"): h for h in deduped if h.get("offer_id")
+        }
+
+        return jsonify({
+            "success": True,
+            "hotels": hotels_out,
+            "count": len(hotels_out),
+            "sources": sources_searched,
+            "check_in": check_in,
+            "check_out": check_out,
+        })
 
     @app.route("/api/hotels/select", methods=["POST"])
     @csrf.exempt
@@ -1047,7 +1249,8 @@ def register_hotel_routes(app, csrf, limiter):
             deal_id = _secrets.token_hex(8)
             destination_tag = abs(hash(deal_id)) % 2147483647
 
-            # Use real pricing from search results (calculated in liteapi_client.py)
+            # Use real pricing from search results
+            source = hotel_data.get("source", "liteapi")
             nights = hotel_data.get("nights", 1)
             our_cost = float(hotel_data.get("our_cost", hotel_data.get("price_base", 0)))
             platform_fee = float(hotel_data.get("platform_fee", 0))
@@ -1060,6 +1263,14 @@ def register_hotel_routes(app, csrf, limiter):
             if platform_fee <= 0 and our_cost <= 0:
                 our_cost = mystes_price
                 platform_fee = 3.00
+
+            # Build raw_offer for booking dispatch
+            raw_offer = hotel_data.get("raw_offer")
+            if not raw_offer:
+                raw_offer = {"source": source, "offer_id": offer_id}
+            # Ensure source is always set
+            if isinstance(raw_offer, dict):
+                raw_offer["source"] = source
 
             deal = Deal(
                 deal_id=deal_id,
@@ -1086,7 +1297,7 @@ def register_hotel_routes(app, csrf, limiter):
                 gross_savings_usd=round((google_price - our_cost), 2) if google_price else 0,
                 savings_percent=savings_pct,
                 destination_tag=destination_tag,
-                amadeus_offer_data=json.dumps(hotel_data.get("raw_offer")) if hotel_data.get("raw_offer") else None,
+                amadeus_offer_data=json.dumps(raw_offer) if raw_offer else None,
                 is_active=True,
                 expires_at=datetime.utcnow() + timedelta(hours=1),
                 created_at=datetime.utcnow(),

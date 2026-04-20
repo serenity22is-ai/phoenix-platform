@@ -44,16 +44,10 @@ class Config:
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'MYSTES <noreply@mystes.app>')
 
-    # XRPL
-    XRPL_NETWORK = os.environ.get('XRPL_NETWORK', 'testnet')
-    XRPL_WALLET_ADDRESS = os.environ.get('XRPL_WALLET_ADDRESS')
-    XRPL_WALLET_SEED = os.environ.get('XRPL_WALLET_SEED')
-
     # Stripe
     STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
     STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
     STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
-    STRIPE_ISSUING_ENABLED = os.environ.get('STRIPE_ISSUING_ENABLED', 'false').lower() == 'true'
 
     # Payment Ramps (Build #86, cleaned Build #196)
     # Stripe + MoonPay ONLY. Coinbase PERMANENTLY RETIRED. Transak RETIRED.

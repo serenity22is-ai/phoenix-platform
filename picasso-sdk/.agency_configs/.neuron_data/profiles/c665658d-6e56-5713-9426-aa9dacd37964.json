@@ -1,0 +1,128 @@
+{
+  "id": "c665658d-6e56-5713-9426-aa9dacd37964",
+  "name": "liteAPI",
+  "vendor": "liteAPI",
+  "version": "3.0",
+  "vertical": "hotels",
+  "protocol": "rest",
+  "base_url": "api.liteapi.travel/v3.0",
+  "auth_method": "api_key",
+  "auth_details": {
+    "header": "X-API-Key",
+    "notes": "Sandbox key prefix: sand_. Production: self-serve upgrade. No per-API-call fees — commission baked into net rate."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/hotels/rates",
+        "method": "GET"
+      },
+      {
+        "order": 2,
+        "name": "prebook",
+        "endpoint": "/rates/prebook",
+        "method": "POST"
+      },
+      {
+        "order": 3,
+        "name": "book",
+        "endpoint": "/rates/book",
+        "method": "POST"
+      }
+    ],
+    "total_steps": 3,
+    "estimated_time_seconds": 6.0,
+    "requires_auth": true,
+    "supports_guest": true
+  },
+  "endpoints": [
+    {
+      "path": "/hotels/rates",
+      "method": "GET",
+      "purpose": "Hotel rate search by city"
+    },
+    {
+      "path": "/rates/prebook",
+      "method": "POST",
+      "purpose": "Validate rate before booking"
+    },
+    {
+      "path": "/rates/book",
+      "method": "POST",
+      "purpose": "Confirm booking (needs prebookId)"
+    },
+    {
+      "path": "/data/hotel",
+      "method": "GET",
+      "purpose": "Hotel details (name not in rates)"
+    },
+    {
+      "path": "/bookings",
+      "method": "GET",
+      "purpose": "List bookings"
+    }
+  ],
+  "data_schemas": {
+    "search": {
+      "required": [
+        "cityName",
+        "countryCode",
+        "checkin",
+        "checkout",
+        "adults"
+      ],
+      "notes": "Uses cityName+countryCode (resolved from IATA via airports.py). Hotel names must be fetched separately from /data/hotel endpoint."
+    },
+    "booking": {
+      "no_passport": true,
+      "flat_fee": 15.0,
+      "notes": "No proxy needed (unlike flights)."
+    }
+  },
+  "quirks": [
+    {
+      "id": "9dc7b591",
+      "description": "Hotel names are NOT included in rate responses. Must call /data/hotel with hotelId to get the name.",
+      "category": "api_design",
+      "severity": "warning",
+      "workaround": "Batch-fetch hotel names after rate search results.",
+      "discovered_at": 1776564133.5623229,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "fd153de7",
+      "description": "Prebook step is mandatory — booking without prebook fails. prebookId from prebook response is required for book call.",
+      "category": "flow",
+      "severity": "critical",
+      "workaround": "Always call prebook before book. Store prebookId.",
+      "discovered_at": 1776564133.5623271,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "283382e7",
+      "description": "Some hotels have inverted margins (offerRetailRate > suggestedSellingPrice). Need filtering logic to avoid negative-margin bookings.",
+      "category": "pricing",
+      "severity": "warning",
+      "workaround": "Filter: only display hotels where offerRetailRate < suggestedSellingPrice.",
+      "discovered_at": 1776564133.56233,
+      "discovered_by": "mystes_internal"
+    }
+  ],
+  "adapters": [],
+  "readiness": "tested",
+  "confidence": 0.85,
+  "installations": 1,
+  "first_learned": 1776564133.562331,
+  "last_updated": 1776564133.562331,
+  "learned_from": [
+    "mystes_internal"
+  ],
+  "tags": [
+    "hotels",
+    "api_key_auth",
+    "no_passport",
+    "flat_fee"
+  ]
+}

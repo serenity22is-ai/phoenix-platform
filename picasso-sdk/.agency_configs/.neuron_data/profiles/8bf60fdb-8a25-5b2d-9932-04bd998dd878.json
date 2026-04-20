@@ -1,0 +1,191 @@
+{
+  "id": "8bf60fdb-8a25-5b2d-9932-04bd998dd878",
+  "name": "Kiwi Tequila",
+  "vendor": "Kiwi.com",
+  "version": "2.0",
+  "vertical": "flights",
+  "protocol": "rest",
+  "base_url": "tequila-api.kiwi.com",
+  "auth_method": "api_key_header",
+  "auth_details": {
+    "header": "apikey: {key}",
+    "key_env_var": "KIWI_API_KEY",
+    "notes": "API key in 'apikey' header. Partnership-based access (invitation-only since mid-2024). No OAuth, no refresh."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/v2/search",
+        "method": "GET",
+        "required_fields": [
+          "fly_from",
+          "fly_to",
+          "date_from",
+          "date_to"
+        ],
+        "notes": "Returns booking_token per itinerary. Date format DD/MM/YYYY."
+      },
+      {
+        "order": 2,
+        "name": "validate",
+        "endpoint": "/v2/booking/check_flights",
+        "method": "GET",
+        "required_fields": [
+          "booking_token"
+        ],
+        "notes": "Validates availability, returns session_id. Must call within 30 min of search."
+      },
+      {
+        "order": 3,
+        "name": "book",
+        "endpoint": "/v2/booking/save_booking",
+        "method": "POST",
+        "required_fields": [
+          "booking_token",
+          "session_id",
+          "passengers"
+        ],
+        "notes": "Passenger birthday format DD/MM/YYYY. Returns booking_id + transaction_id."
+      }
+    ],
+    "total_steps": 3,
+    "estimated_time_seconds": 10.0,
+    "requires_auth": true,
+    "supports_guest": false
+  },
+  "endpoints": [
+    {
+      "path": "/v2/search",
+      "method": "GET",
+      "purpose": "Search flights across 750+ carriers",
+      "notes": "Date format DD/MM/YYYY. vehicle_type=aircraft for flights only."
+    },
+    {
+      "path": "/locations/query",
+      "method": "GET",
+      "purpose": "Autocomplete airports/cities (query param: term)"
+    },
+    {
+      "path": "/v2/booking/check_flights",
+      "method": "GET",
+      "purpose": "Validate flight availability and current price",
+      "notes": "Must call within 30 min of search. Returns session_id for booking."
+    },
+    {
+      "path": "/v2/booking/save_booking",
+      "method": "POST",
+      "purpose": "Create booking with passenger details",
+      "notes": "Requires booking_token + session_id from check_flights."
+    },
+    {
+      "path": "/v2/booking/confirm_payment",
+      "method": "POST",
+      "purpose": "Confirm payment for booking",
+      "notes": "Must call within 30 min of save_booking."
+    },
+    {
+      "path": "/v2/flights_multi",
+      "method": "POST",
+      "purpose": "Multi-city/segment search (max 9 segments)"
+    }
+  ],
+  "data_schemas": {
+    "passenger": {
+      "required_fields": [
+        "name",
+        "surname",
+        "birthday",
+        "nationality",
+        "category",
+        "email",
+        "phone"
+      ],
+      "birthday_format": "DD/MM/YYYY",
+      "category_values": [
+        "adult",
+        "child",
+        "infant"
+      ],
+      "passport_fields": [
+        "cardno",
+        "expiration"
+      ],
+      "notes": "Name fields are 'name'+'surname' (not given_name/family_name). Birthday and passport expiry in DD/MM/YYYY format."
+    },
+    "itinerary": {
+      "pricing_fields": [
+        "price"
+      ],
+      "currency_field": "curr",
+      "notes": "Price is total including taxes. Currency set in search params. Virtual interlining indicated by virtual_interlining field."
+    }
+  },
+  "quirks": [
+    {
+      "id": "0f0ea717",
+      "description": "Date format is DD/MM/YYYY for ALL input parameters (not ISO 8601). Responses use ISO 8601.",
+      "category": "encoding",
+      "severity": "critical",
+      "workaround": "Convert YYYY-MM-DD to DD/MM/YYYY before sending.",
+      "discovered_at": 1776564133.5623648,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "509c36d6",
+      "description": "booking_token expires in ~30 minutes. Must call check_flights within this window.",
+      "category": "flow",
+      "severity": "warning",
+      "workaround": "Search again if token expired.",
+      "discovered_at": 1776564133.562367,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "636b4583",
+      "description": "No POS parameter — same price globally. No geographic arbitrage possible through Kiwi API.",
+      "category": "pricing",
+      "severity": "info",
+      "workaround": "Use for coverage and virtual interlining, not arbitrage. Combine with Picasso for best pricing.",
+      "discovered_at": 1776564133.562369,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "821d5272",
+      "description": "Virtual interlining may require bag rechecks between carriers. bags_recheck_required field indicates this.",
+      "category": "flow",
+      "severity": "warning",
+      "workaround": "Always inform passengers about bag recheck requirements.",
+      "discovered_at": 1776564133.562371,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "79bbf5c9",
+      "description": "Kiwi is merchant of record — passengers get Kiwi booking_id, not airline PNR. Post-booking support via Kiwi.",
+      "category": "flow",
+      "severity": "info",
+      "workaround": "Store Kiwi booking_id for reference.",
+      "discovered_at": 1776564133.5623732,
+      "discovered_by": "mystes_internal"
+    }
+  ],
+  "adapters": [],
+  "readiness": "tested",
+  "confidence": 0.85,
+  "installations": 1,
+  "first_learned": 1776564133.562377,
+  "last_updated": 1776564133.562378,
+  "learned_from": [
+    "mystes_internal",
+    "kiwi_tequila_docs"
+  ],
+  "tags": [
+    "flights",
+    "aggregator",
+    "virtual_interlining",
+    "api_key",
+    "750_carriers",
+    "ground_transport",
+    "no_arbitrage"
+  ]
+}

@@ -27,5 +27,9 @@ from .dispatcher import BookingDispatcher
 from .transformer import PassengerTransformer
 from .search_orchestrator import SearchOrchestrator
 from .coordinator import VerticalSearchCoordinator
+from .credential_router import CredentialRouter
 
-__all__ = ["BookingDispatcher", "PassengerTransformer", "SearchOrchestrator", "VerticalSearchCoordinator"]
+__all__ = [
+    "BookingDispatcher", "PassengerTransformer", "SearchOrchestrator",
+    "VerticalSearchCoordinator", "CredentialRouter",
+]

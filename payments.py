@@ -84,6 +84,18 @@ def get_fee_percent(user=None):
     return 0.50  # Guest (anonymous) = 50%
 
 
+def get_hotel_fee_percent(user=None):
+    """Get platform fee percentage for hotel bookings.
+
+    Hotels use a flat 8% markup on base cost, regardless of tier.
+    Flights have arbitrage spreads that justify tiered fees — hotels don't.
+    Hotels are a convenience/retention play, not a revenue center.
+
+    $3 minimum fee still applies (enforced at calculation site, not here).
+    """
+    return 0.08
+
+
 def get_fee_tier_name(user=None):
     """Return human-readable tier name for display in checkout UI."""
     resolved = user

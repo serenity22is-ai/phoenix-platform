@@ -462,7 +462,7 @@ ANALYTICS_DASHBOARD_HTML = """
     margin-bottom: 16px;
 }
 .analytics-section h3 {
-    font-family: 'Cinzel', serif;
+    font-family: 'Space Grotesk', sans-serif;
     font-size: 15px;
     margin-bottom: 16px;
     color: #ccc;

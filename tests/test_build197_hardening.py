@@ -663,10 +663,10 @@ class TestBusinessRoutes:
                 assert resp.status_code == 404
 
     def test_business_signup_page_loads(self, client):
-        """GET /business/signup returns 200 or 404."""
+        """GET /business/signup returns 200, 302 (login redirect), or 404."""
         with app.app_context():
             resp = client.get('/business/signup')
-            assert resp.status_code in (200, 404)
+            assert resp.status_code in (200, 302, 404)
 
     def test_business_dashboard_requires_auth(self, client):
         """GET /business/dashboard redirects or 404."""

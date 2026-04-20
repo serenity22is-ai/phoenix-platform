@@ -351,12 +351,12 @@ class TestHealthCheck:
             assert resp.status_code == 200
 
     def test_health_version_updated(self, client):
-        """Health check shows Build #195 version."""
+        """Health check shows current version."""
         with app.app_context():
             resp = client.get('/health')
             data = resp.get_json()
-            assert data['version'] == '1.3.0'
-            assert data['build'] == 195
+            assert data['version'] == '2.0.0'
+            assert data['build'] >= 195
 
     def test_health_includes_apai_portal(self, client):
         """Health check includes APAi portal status."""

@@ -1,0 +1,246 @@
+{
+  "id": "16256337-5207-5803-ae10-be0183ab7789",
+  "name": "Duffel",
+  "vendor": "Duffel",
+  "version": "2.0",
+  "vertical": "flights",
+  "protocol": "rest",
+  "base_url": "api.duffel.com",
+  "auth_method": "bearer_token",
+  "auth_details": {
+    "header": "Authorization: Bearer {token}",
+    "version_header": "Duffel-Version: v2",
+    "token_env_var": "DUFFEL_ACCESS_TOKEN",
+    "test_prefix": "duffel_test_",
+    "live_prefix": "duffel_live_",
+    "notes": "Static Bearer token — no OAuth, no refresh, no expiry. Test tokens return synthetic Duffel Airways data. Live tokens connect to real airline inventory."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/air/offer_requests",
+        "method": "POST",
+        "required_fields": [
+          "slices",
+          "passengers",
+          "cabin_class"
+        ],
+        "notes": "Passenger types: adult, child (with age), infant_without_seat. Cabin: economy, premium_economy, business, first. Returns offers inline with return_offers=true."
+      },
+      {
+        "order": 2,
+        "name": "refresh_offer",
+        "endpoint": "/air/offers/{offer_id}",
+        "method": "GET",
+        "required_fields": [
+          "offer_id"
+        ],
+        "notes": "Refresh to get current price. Offers expire 15-30 minutes after search."
+      },
+      {
+        "order": 3,
+        "name": "create_order",
+        "endpoint": "/air/orders",
+        "method": "POST",
+        "required_fields": [
+          "selected_offers",
+          "passengers",
+          "payments"
+        ],
+        "notes": "Single-step booking. Payment types: balance (Duffel balance) or arc_bsp_cash (IATA). Returns booking_reference (PNR) and documents."
+      }
+    ],
+    "total_steps": 3,
+    "estimated_time_seconds": 8.0,
+    "requires_auth": true,
+    "supports_guest": false
+  },
+  "endpoints": [
+    {
+      "path": "/air/offer_requests",
+      "method": "POST",
+      "purpose": "Search flights (create offer request, returns offers inline)",
+      "notes": "Query params: return_offers=true, supplier_timeout=30000"
+    },
+    {
+      "path": "/air/offers/{id}",
+      "method": "GET",
+      "purpose": "Get/refresh single offer (price may change)"
+    },
+    {
+      "path": "/air/offers/{id}/available_services",
+      "method": "GET",
+      "purpose": "Get available ancillary services (baggage, seats, meals)"
+    },
+    {
+      "path": "/air/seat_maps",
+      "method": "GET",
+      "purpose": "Get seat map for offer (query: offer_id)"
+    },
+    {
+      "path": "/air/orders",
+      "method": "POST",
+      "purpose": "Create booking (purchase offer → confirmed order)"
+    },
+    {
+      "path": "/air/orders/{id}",
+      "method": "GET",
+      "purpose": "Get order details (booking status, tickets, segments)"
+    },
+    {
+      "path": "/air/order_cancellations",
+      "method": "POST",
+      "purpose": "Request order cancellation (two-step: request → confirm)"
+    },
+    {
+      "path": "/air/order_cancellations/{id}/actions/confirm",
+      "method": "POST",
+      "purpose": "Confirm cancellation (finalizes refund)"
+    },
+    {
+      "path": "/air/order_change_requests",
+      "method": "POST",
+      "purpose": "Request order change (date/route)"
+    },
+    {
+      "path": "/air/order_changes",
+      "method": "POST",
+      "purpose": "Confirm order change with selected change offer"
+    },
+    {
+      "path": "/places/suggestions",
+      "method": "GET",
+      "purpose": "Autocomplete airports/cities (query param: query)"
+    },
+    {
+      "path": "/air/airlines",
+      "method": "GET",
+      "purpose": "List airlines available through Duffel"
+    },
+    {
+      "path": "/air/webhooks",
+      "method": "POST",
+      "purpose": "Register webhook for order events"
+    }
+  ],
+  "data_schemas": {
+    "passenger": {
+      "type_codes": [
+        "adult",
+        "child",
+        "infant_without_seat"
+      ],
+      "required_fields": [
+        "given_name",
+        "family_name",
+        "born_on",
+        "gender",
+        "title",
+        "email",
+        "phone_number"
+      ],
+      "gender_values": [
+        "m",
+        "f"
+      ],
+      "title_values": [
+        "mr",
+        "mrs",
+        "ms",
+        "miss",
+        "dr"
+      ],
+      "notes": "Children specify age (2-17). Infants are lap only. Passport required for international (identity_documents array)."
+    },
+    "offer": {
+      "pricing_fields": [
+        "total_amount",
+        "total_currency",
+        "base_amount",
+        "base_currency",
+        "tax_amount",
+        "tax_currency"
+      ],
+      "condition_fields": [
+        "change_before_departure",
+        "refund_before_departure"
+      ],
+      "notes": "Offers expire 15-30 min. expires_at field indicates deadline."
+    },
+    "payment": {
+      "types": [
+        "balance",
+        "arc_bsp_cash"
+      ],
+      "notes": "balance = Duffel account balance (test + live). arc_bsp_cash = IATA agent settlement."
+    }
+  },
+  "quirks": [
+    {
+      "id": "4afffe12",
+      "description": "Bearer token is permanent — no expiry, no refresh. Rotation is manual via Duffel dashboard.",
+      "category": "auth",
+      "severity": "info",
+      "workaround": "No action needed — token lasts until manually rotated.",
+      "discovered_at": 1776564133.562345,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "4fb0235b",
+      "description": "Offers expire 15-30 minutes after search. Booking an expired offer returns 404/409. Always refresh before booking.",
+      "category": "flow",
+      "severity": "warning",
+      "workaround": "Call GET /air/offers/{id} before POST /air/orders to confirm current price and availability.",
+      "discovered_at": 1776564133.562347,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "3b174e83",
+      "description": "Gender format is 'm'/'f' (NOT 'Male'/'Female' like Redbox). Title is lowercase ('mr'/'mrs'/'ms', NOT 'MR'/'MRS'). Using wrong format returns 422 validation error.",
+      "category": "encoding",
+      "severity": "critical",
+      "workaround": "Map Redbox format to Duffel: Male→m, Female→f, MR→mr.",
+      "discovered_at": 1776564133.562349,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "00a91ace",
+      "description": "Cancellation is two-step: POST /order_cancellations (request) → POST /order_cancellations/{id}/actions/confirm. First step returns refund amount, second step finalizes.",
+      "category": "flow",
+      "severity": "warning",
+      "workaround": "Always show refund amount to user before confirming.",
+      "discovered_at": 1776564133.5623522,
+      "discovered_by": "mystes_internal"
+    },
+    {
+      "id": "4a09321e",
+      "description": "Single POS — no geographic price arbitrage. Duffel returns the same price regardless of requester location.",
+      "category": "pricing",
+      "severity": "info",
+      "workaround": "Use for NDC-exclusive fares, not for arbitrage. Combine with Picasso for best-of-both pricing.",
+      "discovered_at": 1776564133.5623538,
+      "discovered_by": "mystes_internal"
+    }
+  ],
+  "adapters": [],
+  "readiness": "tested",
+  "confidence": 0.9,
+  "installations": 1,
+  "first_learned": 1776564133.56236,
+  "last_updated": 1776564133.56236,
+  "learned_from": [
+    "mystes_internal",
+    "duffel_docs"
+  ],
+  "tags": [
+    "flights",
+    "ndc",
+    "bearer_token",
+    "300_airlines",
+    "direct_connect",
+    "no_arbitrage",
+    "ancillaries"
+  ]
+}

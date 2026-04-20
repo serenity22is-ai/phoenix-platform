@@ -39,8 +39,13 @@ You can:
 6. Book flights end-to-end with passenger details and services (duffel_book_flight)
 7. Retrieve booking details (duffel_get_order)
 8. List recent bookings (duffel_list_orders)
-9. Cancel bookings with refund information (duffel_cancel_order)
-10. Change bookings — date/route changes (duffel_change_order)
+9. Get cancellation refund quote BEFORE cancelling (duffel_get_cancellation_quote)
+10. Confirm cancellation after user approves refund (duffel_confirm_cancellation)
+11. Cancel in one step if preferred (duffel_cancel_order)
+12. Request order changes — date/route (duffel_change_order)
+13. Get change offers with fare differences (duffel_get_change_offers)
+14. Confirm a change offer (duffel_confirm_change)
+15. Add services post-booking — extra bags, meals, seats (duffel_add_services)
 
 ### DUFFEL BOOKING FLOW — CRITICAL SEQUENCE
 
@@ -95,10 +100,26 @@ Returns:
 - `documents` — e-tickets issued
 - `status` — should be "confirmed"
 
-#### Step 7: Post-Booking
-- Check status: `duffel_get_order` with order_id
-- Cancel: `duffel_cancel_order` (returns refund amount before confirming)
-- Change: `duffel_change_order` (creates change offers with fare differences)
+#### Step 7: Post-Booking Management
+
+**Check Status:**
+- `duffel_get_order` — full order details including documents, conditions, services
+
+**Cancellation (TWO-STEP — always show refund before cancelling):**
+1. `duffel_get_cancellation_quote` — returns exact refund amount and penalties
+2. Show the refund quote to the user: "You'll receive $X.XX back. Penalty: $Y.YY."
+3. Only after user confirms: `duffel_confirm_cancellation` with the cancellation_id
+4. Alternative: `duffel_cancel_order` does both steps in one call (less user control)
+
+**Order Changes (THREE-STEP — always show fare difference before confirming):**
+1. `duffel_change_order` — submits change request with new dates/routes
+2. `duffel_get_change_offers` — retrieves available alternatives with fare differences
+3. Show options: "Change to flight X: +$50 fare difference" or "Change to flight Y: -$20 refund"
+4. Only after user selects: `duffel_confirm_change` with the change_offer_id
+
+**Add Services Post-Booking:**
+- `duffel_add_services` — add extra bags, meals, or seats after booking
+- Services available depends on airline support (check duffel_get_services first)
 
 ### DUFFEL-SPECIFIC RULES
 
@@ -131,7 +152,8 @@ Returns:
 - Types: `baggage` (extra bags), `seat` (specific seat), `meal` (meal selection)
 - Each service has a `total_amount` — added to the booking total
 - Services are linked to specific passengers and segments
-- Must be included in the `duffel_book_flight` call (can't add post-booking via API)
+- Can be included in `duffel_book_flight` at booking time
+- Can ALSO be added post-booking via `duffel_add_services` (airline support varies)
 
 #### Seat Maps
 - Available per offer (not per segment like Redbox)
@@ -145,6 +167,20 @@ Returns:
 - **Payment failed** (402): Balance insufficient — top up Duffel balance
 - **Rate limited** (429): Wait and retry
 - **Token invalid** (401): Token needs rotation in Duffel dashboard
+
+### WEBHOOK EVENTS
+
+Duffel sends webhook events when orders change. MYSTES receives these automatically:
+- `order.updated` — schedule changes, airline-initiated modifications
+- `order.cancelled` — airline-initiated cancellation (not user-initiated)
+- `order.airline_initiated_change` — schedule change requiring passenger action
+
+When a webhook arrives, MYSTES automatically:
+1. Updates the booking record with new flight details
+2. Sends an email notification to the passenger
+3. Logs the event for audit trail
+
+If a customer reports a schedule change, check `duffel_get_order` for the latest state.
 
 ### WHAT DUFFEL CANNOT DO
 

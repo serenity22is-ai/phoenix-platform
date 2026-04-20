@@ -21,7 +21,7 @@ CONSUMER_UI_HTML = r"""<!DOCTYPE html>
 <title id="page-title">Flight Search</title>
 <link rel="icon" id="favicon" href="">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
         --bg: #0a0612;
@@ -37,7 +37,7 @@ CONSUMER_UI_HTML = r"""<!DOCTYPE html>
         --warning: #f59e0b;
         --danger: #ef4444;
         --input-bg: #0e0b1d;
-        --heading-font: 'Cinzel', serif;
+        --heading-font: 'Space Grotesk', sans-serif;
         --body-font: 'Outfit', sans-serif;
     }
     body {

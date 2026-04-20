@@ -1,0 +1,77 @@
+{
+  "module_id": "duffel_stays",
+  "name": "Duffel Stays",
+  "vendor": "Duffel",
+  "version": "1.0",
+  "vertical": "hotels",
+  "source_type": "direct",
+  "auth_type": "bearer_token",
+  "credential_env_vars": ["DUFFEL_ACCESS_TOKEN"],
+  "auth_notes": "Same Bearer token as Duffel Flights. Static, no refresh. Test: duffel_test_*, Live: duffel_live_*.",
+  "capabilities": {
+    "search": true,
+    "book": true,
+    "cancel": true,
+    "change": true,
+    "quote_lock": true,
+    "accommodation_suggestions": true,
+    "property_details": true,
+    "loyalty_programme": true
+  },
+  "carrier_count": 1000000,
+  "coverage_notes": "1M+ hotel properties worldwide. Marriott, Hilton, Shangri-La, IHG, Westin, JW Marriott. Commission-share model.",
+  "geographic_focus": "global",
+  "date_format": "YYYY-MM-DD",
+  "currency_param": "total_currency",
+  "passenger_format": {
+    "name_fields": ["given_name", "family_name"],
+    "gender_values": null,
+    "requires_phone": true,
+    "phone_format": "E.164",
+    "requires_email": true,
+    "requires_passport": false
+  },
+  "pricing_model": "commission",
+  "pricing_notes": "Commission-share model. You earn from bookings, not pay per booking. Price shown is the hotel rate. Free search.",
+  "priority": 75,
+  "strengths": [
+    "1m_properties",
+    "major_chains",
+    "commission_share",
+    "same_token_as_flights",
+    "quote_lock",
+    "cancel_support",
+    "change_support",
+    "loyalty_programme",
+    "330_day_advance"
+  ],
+  "weaknesses": [
+    "requires_coordinates",
+    "no_city_code_search",
+    "max_99_night_stays",
+    "no_net_rate_arbitrage"
+  ],
+  "best_for": [
+    "hotel_booking",
+    "major_chain_hotels",
+    "loyalty_bookings",
+    "flexible_cancellation"
+  ],
+  "quirks": [
+    {"issue": "Search requires latitude/longitude coordinates, not city codes", "workaround": "Use duffel_stays_suggest or duffel_stays_list_accommodation to resolve names to coordinates"},
+    {"issue": "Quotes have expires_at timestamp and can expire", "workaround": "Check expires_at before booking. If expired, re-search and create a new quote"},
+    {"issue": "Phone number must be E.164 format (+1234567890)", "workaround": "Validate and prepend country code before sending"},
+    {"issue": "Maximum 330 days advance booking window", "workaround": "Inform user if check-in date is more than 330 days out"},
+    {"issue": "Maximum 99 nights per stay", "workaround": "Split into multiple bookings for longer stays"},
+    {"issue": "Accommodation suggestions require minimum 3 characters", "workaround": "Ensure query string is at least 3 characters before calling suggest"}
+  ],
+  "booking_steps": ["search", "fetch_rates", "create_quote", "book"],
+  "booking_notes": "4-step flow: Search -> Fetch Rates -> Quote (locks price) -> Book. No passport needed. Guest needs given_name, family_name, email, phone (E.164). Can pass loyalty_programme_account_number and accommodation_special_requests.",
+  "readiness": "tested",
+  "confidence": 0.85,
+  "learned_from": ["duffel_docs", "mystes_internal"],
+  "last_updated": "2026-03-23",
+  "changelog_url": "https://duffel.com/docs/changelog",
+  "docs_url": "https://duffel.com/docs/api/v2/stays",
+  "sandbox_probe_endpoints": ["suggest_accommodation", "search_stays"]
+}

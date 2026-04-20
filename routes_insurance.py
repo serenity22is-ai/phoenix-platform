@@ -31,48 +31,34 @@ logger = logging.getLogger(__name__)
 
 INSURANCE_SEARCH_CONTENT = """
 <style>
-.ins-page{max-width:900px;margin:0 auto;padding:40px 20px;opacity:0;animation:insFadeIn .6s ease-out forwards}
-.ins-brand{text-align:center;font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
-.ins-title{text-align:center;font-family:'Cinzel',serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
-.ins-subtitle{text-align:center;color:rgba(255,255,255,0.5);font-size:15px;margin-bottom:32px}
-.ins-form-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;margin-bottom:24px;opacity:0;animation:insFadeIn .6s ease-out .15s forwards}
-.ins-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.ins-label{display:block;color:rgba(255,255,255,0.6);font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
-.ins-input,.ins-select{width:100%;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;font-size:15px;font-family:'Outfit',sans-serif;transition:border-color .2s,box-shadow .2s;box-sizing:border-box}
-.ins-input:focus,.ins-select:focus{outline:none;border-color:rgba(124,58,237,0.5);box-shadow:0 0 0 3px rgba(124,58,237,0.15)}
-.ins-input::placeholder{color:rgba(255,255,255,0.3)}
-.ins-search-btn{width:100%;margin-top:20px;padding:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:opacity .2s,transform .2s}
-.ins-search-btn:hover{opacity:0.9;transform:translateY(-1px)}
-.ins-search-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
-.ins-results-header{font-family:'Cinzel',serif;font-size:1.3rem;color:#e2e8f0;margin-bottom:16px;letter-spacing:2px}
-.ins-quote-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-left:4px solid #7c3aed;border-radius:12px;padding:22px;margin-bottom:14px;transition:border-color .2s,transform .2s;opacity:0;animation:insFadeIn .5s ease-out forwards}
-.ins-quote-card:hover{border-color:rgba(124,58,237,0.4);transform:translateY(-2px)}
-.ins-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:6px;margin-bottom:4px}
-.ins-badge-coverage{background:rgba(124,58,237,0.15);color:#a78bfa;border:1px solid rgba(124,58,237,0.3)}
-.ins-badge-deductible{background:rgba(251,146,60,0.12);color:#fb923c;border:1px solid rgba(251,146,60,0.3)}
-.ins-badge-daily{background:rgba(6,182,212,0.12);color:#06b6d4;border:1px solid rgba(6,182,212,0.3)}
-.ins-select-btn{padding:10px 28px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .2s}
-.ins-select-btn:hover{opacity:0.85}
-.ins-skeleton{background:rgba(10,6,18,0.85);border:1px solid rgba(124,58,237,0.15);border-radius:12px;padding:22px;margin-bottom:14px}
-.ins-skeleton-line{height:14px;background:linear-gradient(90deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 100%);background-size:200% 100%;border-radius:6px;animation:insShimmer 1.5s ease-in-out infinite;margin-bottom:10px}
-.ins-empty{text-align:center;padding:40px 20px;color:rgba(255,255,255,0.5)}
-.ins-empty-icon{font-size:48px;margin-bottom:12px;opacity:0.3}
-@keyframes insFadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-@keyframes insShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-@keyframes insSpin{to{transform:rotate(360deg)}}
-@media(max-width:700px){.ins-form-grid{grid-template-columns:1fr}.ins-title{font-size:1.5rem}.ins-quote-inner{flex-direction:column;gap:12px}}
+.ins-page { max-width: 900px; margin: 0 auto; padding: 0 20px 40px; animation: fadeInUp 0.6s ease-out both; }
+.ins-form-card { margin-bottom: 24px; animation: fadeInUp 0.6s ease-out 0.15s both; }
+.ins-results-header { font-family: var(--font-brand, 'Space Grotesk', sans-serif); font-size: 1.3rem; color: var(--text-bright, #e2e8f0); margin-bottom: 16px; letter-spacing: 2px; }
+.ins-quote-card { border-left: 4px solid var(--accent-purple); margin-bottom: 14px; animation: fadeInUp 0.5s ease-out both; }
+.ins-quote-inner { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.ins-quote-detail { flex: 1; min-width: 200px; }
+.ins-quote-detail h3 { color: var(--text-bright, #f5f5f5); font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+.ins-quote-detail p { color: var(--text-muted, rgba(255,255,255,0.5)); font-size: 13px; margin: 0 0 10px; }
+.ins-quote-price { text-align: right; flex-shrink: 0; }
+.ins-quote-price .price-amount { font-size: 28px; font-weight: 800; color: #4ade80; }
+.ins-quote-price .price-currency { font-size: 12px; color: var(--text-muted, rgba(255,255,255,0.4)); margin-bottom: 10px; }
+.ins-skel-card { background: var(--glass-bg); border: 1px solid rgba(124, 58, 237, 0.15); border-radius: var(--radius-lg); padding: 22px; margin-bottom: 14px; }
+.ins-skel-line { height: 14px; border-radius: var(--radius-sm); margin-bottom: 10px; }
+.ins-loading-text { text-align: center; color: var(--text-muted, rgba(255,255,255,0.4)); margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+@media (max-width: 700px) { .ins-quote-inner { flex-direction: column; gap: 12px; } }
 </style>
 
 <div class="ins-page">
-    <div class="ins-brand">MYSTES</div>
-    <h1 class="ins-title">Travel Insurance</h1>
-    <p class="ins-subtitle">Coverage for nomads & travelers worldwide &mdash; powered by SafetyWing</p>
+    <div class="mystes-page-header">
+        <h1>Travel Insurance</h1>
+        <p>Coverage for nomads & travelers worldwide &mdash; powered by SafetyWing</p>
+    </div>
 
-    <div class="ins-form-card">
-        <div class="ins-form-grid">
+    <div class="mystes-card ins-form-card">
+        <div class="mystes-form-grid">
             <div>
-                <label class="ins-label">Destination Country</label>
-                <input type="text" id="insuranceDestination" class="ins-input"
+                <label class="mystes-label">Destination Country</label>
+                <input type="text" id="insuranceDestination" class="mystes-input"
                        placeholder="e.g. France, Thailand, Japan" list="ins-countries" />
                 <datalist id="ins-countries">
                     <option value="United States"><option value="United Kingdom"><option value="France">
@@ -85,8 +71,8 @@ INSURANCE_SEARCH_CONTENT = """
                 </datalist>
             </div>
             <div>
-                <label class="ins-label">Travelers</label>
-                <select id="insuranceTravelers" class="ins-select">
+                <label class="mystes-label">Travelers</label>
+                <select id="insuranceTravelers" class="mystes-select">
                     <option value="1">1 Traveler</option>
                     <option value="2" selected>2 Travelers</option>
                     <option value="3">3 Travelers</option>
@@ -95,23 +81,26 @@ INSURANCE_SEARCH_CONTENT = """
                 </select>
             </div>
             <div>
-                <label class="ins-label">Start Date</label>
-                <input type="date" id="insuranceStartDate" class="ins-input" />
+                <label class="mystes-label">Start Date</label>
+                <input type="date" id="insuranceStartDate" class="mystes-input" />
             </div>
             <div>
-                <label class="ins-label">End Date</label>
-                <input type="date" id="insuranceEndDate" class="ins-input" />
+                <label class="mystes-label">End Date</label>
+                <input type="date" id="insuranceEndDate" class="mystes-input" />
             </div>
         </div>
-        <button onclick="searchInsurance()" id="insuranceSearchBtn" class="ins-search-btn">Get Quotes</button>
+        <button onclick="searchInsurance()" id="insuranceSearchBtn"
+                class="mystes-btn mystes-btn-primary mystes-btn-lg mystes-btn-full" style="margin-top:20px;letter-spacing:2px;text-transform:uppercase;">
+            Get Quotes
+        </button>
     </div>
 
     <div id="insuranceLoading" style="display:none;">
-        <div class="ins-skeleton"><div class="ins-skeleton-line" style="width:60%"></div><div class="ins-skeleton-line" style="width:40%"></div><div class="ins-skeleton-line" style="width:80%"></div></div>
-        <div class="ins-skeleton"><div class="ins-skeleton-line" style="width:50%"></div><div class="ins-skeleton-line" style="width:70%"></div><div class="ins-skeleton-line" style="width:45%"></div></div>
-        <div class="ins-skeleton"><div class="ins-skeleton-line" style="width:65%"></div><div class="ins-skeleton-line" style="width:35%"></div><div class="ins-skeleton-line" style="width:55%"></div></div>
-        <p style="text-align:center;color:rgba(255,255,255,0.4);margin-top:16px;">
-            <span style="display:inline-block;width:20px;height:20px;border:2px solid rgba(124,58,237,0.3);border-top-color:#7c3aed;border-radius:50%;animation:insSpin .8s linear infinite;vertical-align:middle;margin-right:8px;"></span>
+        <div class="ins-skel-card"><div class="ins-skel-line mystes-skeleton" style="width:60%"></div><div class="ins-skel-line mystes-skeleton" style="width:40%"></div><div class="ins-skel-line mystes-skeleton" style="width:80%"></div></div>
+        <div class="ins-skel-card"><div class="ins-skel-line mystes-skeleton" style="width:50%"></div><div class="ins-skel-line mystes-skeleton" style="width:70%"></div><div class="ins-skel-line mystes-skeleton" style="width:45%"></div></div>
+        <div class="ins-skel-card"><div class="ins-skel-line mystes-skeleton" style="width:65%"></div><div class="ins-skel-line mystes-skeleton" style="width:35%"></div><div class="ins-skel-line mystes-skeleton" style="width:55%"></div></div>
+        <p class="ins-loading-text">
+            <span class="mystes-spinner mystes-spinner-sm"></span>
             Getting quotes from SafetyWing...
         </p>
     </div>
@@ -168,7 +157,7 @@ function searchInsurance() {
         } else {
             document.getElementById('insuranceResults').style.display = 'block';
             document.getElementById('insuranceQuotesList').innerHTML =
-                '<div class="ins-empty"><div class="ins-empty-icon">&#128722;</div><p>No quotes available for this destination.<br>Try different dates or destination.</p></div>';
+                '<div class="mystes-empty"><div class="mystes-empty-icon">&#128722;</div><p>No quotes available for this destination.<br>Try different dates or destination.</p></div>';
         }
     })
     .catch(function(err) {
@@ -184,21 +173,20 @@ function renderQuotes(quotes) {
     var html = '';
     quotes.forEach(function(q, i) {
         var delay = (i * 0.08).toFixed(2);
-        html += '<div class="ins-quote-card" style="animation-delay:' + delay + 's">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px" class="ins-quote-inner">';
-        html += '<div style="flex:1;min-width:200px">';
-        html += '<h3 style="color:#f5f5f5;font-size:17px;font-weight:600;margin:0 0 6px">' + (q.plan_name || 'SafetyWing Plan') + '</h3>';
-        html += '<p style="color:rgba(255,255,255,0.5);font-size:13px;margin:0 0 10px">';
-        html += q.start_date + ' to ' + q.end_date + ' &bull; ' + q.travelers + ' traveler(s)</p>';
+        html += '<div class="mystes-card interactive ins-quote-card" style="animation-delay:' + delay + 's">';
+        html += '<div class="ins-quote-inner">';
+        html += '<div class="ins-quote-detail">';
+        html += '<h3>' + (q.plan_name || 'SafetyWing Plan') + '</h3>';
+        html += '<p>' + q.start_date + ' to ' + q.end_date + ' &bull; ' + q.travelers + ' traveler(s)</p>';
         html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
-        if (q.coverage_amount) html += '<span class="ins-badge ins-badge-coverage">Coverage: $' + Number(q.coverage_amount).toLocaleString() + '</span>';
-        if (q.deductible !== undefined && q.deductible !== null) html += '<span class="ins-badge ins-badge-deductible">Deductible: $' + q.deductible + '</span>';
-        if (q.price_per_day > 0) html += '<span class="ins-badge ins-badge-daily">$' + q.price_per_day.toFixed(2) + '/day</span>';
+        if (q.coverage_amount) html += '<span class="mystes-badge mystes-badge-purple">Coverage: $' + Number(q.coverage_amount).toLocaleString() + '</span>';
+        if (q.deductible !== undefined && q.deductible !== null) html += '<span class="mystes-badge mystes-badge-amber">Deductible: $' + q.deductible + '</span>';
+        if (q.price_per_day > 0) html += '<span class="mystes-badge mystes-badge-teal">$' + q.price_per_day.toFixed(2) + '/day</span>';
         html += '</div></div>';
-        html += '<div style="text-align:right;flex-shrink:0">';
-        html += '<div style="font-size:28px;font-weight:800;color:#4ade80">$' + (q.total_price || 0).toFixed(2) + '</div>';
-        html += '<div style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:10px">' + (q.currency || 'USD') + ' total</div>';
-        html += '<button onclick="selectInsurance(' + i + ')" class="ins-select-btn">Select Plan</button>';
+        html += '<div class="ins-quote-price">';
+        html += '<div class="price-amount">$' + (q.total_price || 0).toFixed(2) + '</div>';
+        html += '<div class="price-currency">' + (q.currency || 'USD') + ' total</div>';
+        html += '<button onclick="selectInsurance(' + i + ')" class="mystes-btn mystes-btn-primary mystes-btn-sm">Select Plan</button>';
         html += '</div></div></div>';
     });
     container.innerHTML = html;
@@ -208,7 +196,7 @@ function renderQuotes(quotes) {
 function selectInsurance(index) {
     var quote = window._insuranceQuotes[index];
     if (!quote) return;
-    var btns = document.querySelectorAll('.ins-select-btn');
+    var btns = document.querySelectorAll('.ins-quote-card .mystes-btn');
     btns.forEach(function(b){ b.disabled = true; b.textContent = 'Loading...'; });
     var csrfToken = document.querySelector('meta[name="csrf-token"]');
     var headers = {'Content-Type': 'application/json'};

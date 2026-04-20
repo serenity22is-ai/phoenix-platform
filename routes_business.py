@@ -21,6 +21,7 @@ Routes:
 MYSTES KYRIOS LLC — Confidential.
 """
 
+import io
 import json
 import logging
 import os
@@ -29,7 +30,7 @@ from datetime import datetime, timezone
 from functools import wraps
 
 from flask import (
-    flash, g, jsonify, redirect, render_template_string,
+    Response, flash, g, jsonify, redirect, render_template_string,
     request, url_for,
 )
 from flask_login import current_user, login_required
@@ -68,36 +69,212 @@ def b2b_required(f):
 
 
 # ---------------------------------------------------------------------------
+# Page-specific styles (no base equivalent)
+# ---------------------------------------------------------------------------
+
+BUSINESS_PAGE_STYLES = """
+<style>
+    /* Business page layout */
+    .biz-page { max-width: 800px; margin: 40px auto; padding: 0 20px; }
+    .biz-page-narrow { max-width: 500px; margin: 40px auto; padding: 0 20px; }
+    .biz-page-mid { max-width: 700px; margin: 30px auto; padding: 0 20px; }
+    .biz-page-wide { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+
+    /* Landing comparison cards — accent border variant */
+    .biz-card-accent {
+        background: rgba(67, 97, 238, 0.08);
+        border-color: rgba(67, 97, 238, 0.3);
+    }
+
+    /* Stat value styling */
+    .biz-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #4361ee;
+    }
+    .biz-stat-value-lg {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--text-bright);
+        margin-top: 4px;
+    }
+    .biz-stat-sublabel {
+        color: #8a8278;
+        font-size: 0.9rem;
+    }
+    .biz-stat-tier {
+        color: #4361ee;
+        font-size: 0.85rem;
+        margin-top: 4px;
+    }
+
+    /* Feature list inside cards */
+    .biz-feature-list {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-top: 15px;
+        padding-left: 18px;
+    }
+    .biz-feature-list li { margin-bottom: 4px; }
+
+    /* Stat card with accent background */
+    .biz-stat-card-accent {
+        background: rgba(67, 97, 238, 0.06);
+        border-color: rgba(67, 97, 238, 0.15);
+    }
+
+    /* Purple upsell card */
+    .biz-upsell-purple {
+        background: rgba(124, 58, 237, 0.05);
+        border-color: rgba(124, 58, 237, 0.15);
+    }
+
+    /* Blue upsell card */
+    .biz-upsell-blue {
+        background: rgba(67, 97, 238, 0.05);
+        border-color: rgba(67, 97, 238, 0.15);
+    }
+
+    /* Revenue example card (green accent) */
+    .biz-revenue-example {
+        background: rgba(34, 197, 94, 0.06);
+        border-color: rgba(34, 197, 94, 0.15);
+    }
+
+    /* New key alert card */
+    .biz-new-key-alert {
+        background: rgba(34, 197, 94, 0.08);
+        border-color: rgba(34, 197, 94, 0.3);
+    }
+
+    /* Referral code display */
+    .biz-ref-code {
+        color: #4361ee;
+        font-size: 1.1rem;
+        background: rgba(67, 97, 238, 0.08);
+        padding: 6px 14px;
+        border-radius: var(--radius-sm);
+    }
+
+    /* QR image styling */
+    .biz-qr-img {
+        border-radius: var(--radius-md);
+        border: 2px solid rgba(67, 97, 238, 0.2);
+    }
+
+    /* Referral URL display */
+    .biz-ref-url-box {
+        margin-top: 12px;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: var(--radius-sm);
+    }
+    .biz-ref-url-box code {
+        color: #4361ee;
+        font-size: 0.9rem;
+    }
+
+    /* Tier label coloring */
+    .biz-tier-value {
+        color: #4361ee;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 4px;
+        text-transform: capitalize;
+    }
+
+    /* Success checkmark */
+    .biz-checkmark {
+        font-size: 3rem;
+        margin-bottom: 16px;
+    }
+
+    /* Active fee display */
+    .biz-fee-display {
+        color: #4361ee;
+        font-size: 1.8rem;
+        font-weight: 700;
+    }
+
+    /* Savings text coloring */
+    .text-success { color: #22c55e; }
+    .text-accent-blue { color: #4361ee; }
+    .text-muted-warm { color: #8a8278; }
+    .text-warm { color: #b0a89a; }
+    .text-cream { color: #e8dcc8; }
+
+    /* Subscription status dynamic coloring (Jinja-controlled) */
+    .biz-status-active { color: #22c55e; }
+    .biz-status-inactive { color: var(--danger-red); }
+
+    /* Hint text below forms */
+    .biz-hint {
+        color: #8a8278;
+        font-size: 0.8rem;
+        margin-top: 10px;
+    }
+
+    /* APAi link styling */
+    .biz-link-purple {
+        color: #a78bfa;
+        font-size: 0.9rem;
+        text-decoration: underline;
+    }
+
+    /* Card inner heading (Space Grotesk) */
+    .biz-card-heading {
+        font-family: var(--font-brand);
+        color: var(--text-bright);
+        margin-bottom: 12px;
+    }
+    .biz-card-heading-sm {
+        font-family: var(--font-brand);
+        color: var(--text-bright);
+        margin-bottom: 8px;
+    }
+
+    /* Section heading */
+    .biz-section-heading {
+        font-family: var(--font-brand);
+        font-size: 1.3rem;
+        color: var(--text-bright);
+        margin-bottom: 12px;
+    }
+</style>
+"""
+
+
+# ---------------------------------------------------------------------------
 # Templates
 # ---------------------------------------------------------------------------
 
-BUSINESS_LANDING_CONTENT = """
-<div style="max-width:800px;margin:40px auto;padding:0 20px;">
-    <h1 style="font-family:'Cinzel',serif;font-size:2.2rem;color:#e8dcc8;margin-bottom:10px;">
-        MYSTES for Business
-    </h1>
-    <p style="color:#b0a89a;font-size:1.1rem;margin-bottom:30px;">
-        Travel agencies save more with B2B pricing. Lower platform fees,
-        API access, and volume-based tier upgrades.
-    </p>
+BUSINESS_LANDING_CONTENT = BUSINESS_PAGE_STYLES + """
+<div class="biz-page">
+    <div class="mystes-page-header" style="text-align:left;padding-top:0;">
+        <h1>MYSTES for Business</h1>
+        <p class="text-warm" style="font-size:1.1rem;margin-bottom:30px;">
+            Travel agencies save more with B2B pricing. Lower platform fees,
+            API access, and volume-based tier upgrades.
+        </p>
+    </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:40px;">
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;">
-            <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin-bottom:12px;">Consumer</h3>
-            <div style="font-size:2rem;color:#4361ee;font-weight:700;">35%</div>
-            <div style="color:#8a8278;font-size:0.9rem;">of savings per booking</div>
-            <ul style="color:#b0a89a;font-size:0.9rem;margin-top:15px;padding-left:18px;">
+    <div class="mystes-grid-2 mb-lg">
+        <div class="mystes-card compact">
+            <h3 class="biz-card-heading">Consumer</h3>
+            <div class="biz-stat-value">35%</div>
+            <div class="biz-stat-sublabel">of savings per booking</div>
+            <ul class="biz-feature-list">
                 <li>Individual bookings</li>
                 <li>Web search interface</li>
                 <li>Saved payment methods</li>
             </ul>
         </div>
-        <div style="background:rgba(67,97,238,0.08);border:1px solid rgba(67,97,238,0.3);border-radius:12px;padding:24px;">
-            <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin-bottom:12px;">Business</h3>
-            <div style="font-size:2rem;color:#4361ee;font-weight:700;">25%</div>
-            <div style="color:#8a8278;font-size:0.9rem;">of savings per booking</div>
-            <div style="color:#4361ee;font-size:0.85rem;margin-top:4px;">$49/month</div>
-            <ul style="color:#b0a89a;font-size:0.9rem;margin-top:15px;padding-left:18px;">
+        <div class="mystes-card compact biz-card-accent">
+            <h3 class="biz-card-heading">Business</h3>
+            <div class="biz-stat-value">25%</div>
+            <div class="biz-stat-sublabel">of savings per booking</div>
+            <div class="biz-stat-tier">$49/month</div>
+            <ul class="biz-feature-list">
                 <li>Reduced fees (25% &rarr; 15%)</li>
                 <li>API key access</li>
                 <li>Volume analytics</li>
@@ -107,65 +284,54 @@ BUSINESS_LANDING_CONTENT = """
         </div>
     </div>
 
-    <div style="text-align:center;">
+    <div class="text-center">
         {% if current_user.is_authenticated %}
             {% if has_account %}
-                <a href="/business/dashboard"
-                   style="display:inline-block;padding:14px 40px;background:#4361ee;color:white;
-                          text-decoration:none;border-radius:8px;font-size:1.1rem;font-weight:600;">
+                <a href="/business/dashboard" class="mystes-btn mystes-btn-primary mystes-btn-lg">
                     Go to Dashboard
                 </a>
             {% else %}
-                <a href="/business/signup"
-                   style="display:inline-block;padding:14px 40px;background:#4361ee;color:white;
-                          text-decoration:none;border-radius:8px;font-size:1.1rem;font-weight:600;">
+                <a href="/business/signup" class="mystes-btn mystes-btn-primary mystes-btn-lg">
                     Upgrade to Business &mdash; $49/mo
                 </a>
             {% endif %}
         {% else %}
-            <a href="/login"
-               style="display:inline-block;padding:14px 40px;background:#4361ee;color:white;
-                      text-decoration:none;border-radius:8px;font-size:1.1rem;font-weight:600;">
+            <a href="/login" class="mystes-btn mystes-btn-primary mystes-btn-lg">
                 Log In to Get Started
             </a>
         {% endif %}
     </div>
 
-    <div style="margin-top:50px;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;
-                border:1px solid rgba(255,255,255,0.06);">
-        <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin-bottom:12px;">
-            Volume Tier Ladder
-        </h3>
-        <table style="width:100%;color:#b0a89a;font-size:0.9rem;border-collapse:collapse;">
-            <thead>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-                    <th style="text-align:left;padding:8px 0;">Tier</th>
-                    <th style="text-align:left;padding:8px 0;">Tickets / 30 days</th>
-                    <th style="text-align:left;padding:8px 0;">Fee</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td style="padding:6px 0;">Starter &mdash; $49/mo</td><td>0+</td><td>25%</td></tr>
-                <tr><td style="padding:6px 0;">Growth &mdash; $99/mo</td><td>50+</td><td>20%</td></tr>
-                <tr><td style="padding:6px 0;">Volume &mdash; $199/mo</td><td>500+</td><td>15%</td></tr>
-            </tbody>
-        </table>
-        <p style="color:#8a8278;font-size:0.8rem;margin-top:10px;">
+    <div class="mystes-card mt-xl">
+        <h3 class="biz-card-heading">Volume Tier Ladder</h3>
+        <div class="mystes-table-wrap">
+            <table class="mystes-table">
+                <thead>
+                    <tr>
+                        <th>Tier</th>
+                        <th>Tickets / 30 days</th>
+                        <th>Fee</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Starter &mdash; $49/mo</td><td>0+</td><td>25%</td></tr>
+                    <tr><td>Growth &mdash; $99/mo</td><td>50+</td><td>20%</td></tr>
+                    <tr><td>Volume &mdash; $199/mo</td><td>500+</td><td>15%</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="biz-hint">
             Tiers recalculate every 30 days. Two consecutive periods below threshold = downgrade.
         </p>
     </div>
 
-    <div style="margin-top:30px;padding:20px;background:rgba(124,58,237,0.05);border-radius:12px;
-                border:1px solid rgba(124,58,237,0.15);">
-        <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin-bottom:8px;">
-            Want Your Own Branded OTA?
-        </h3>
-        <p style="color:#b0a89a;font-size:0.9rem;">
+    <div class="mystes-card mt-lg biz-upsell-purple">
+        <h3 class="biz-card-heading-sm">Want Your Own Branded OTA?</h3>
+        <p class="text-warm" style="font-size:0.9rem;">
             APAi gives you a turnkey copy of the MYSTES platform with your own brand,
             domain, and AI-powered admin terminal. Click. Pay. Deploy.
         </p>
-        <a href="/apai"
-           style="color:#a78bfa;font-size:0.9rem;text-decoration:underline;">
+        <a href="/apai" class="biz-link-purple">
             Learn more about APAi &rarr;
         </a>
     </div>
@@ -173,241 +339,227 @@ BUSINESS_LANDING_CONTENT = """
 """
 
 
-BUSINESS_SIGNUP_CONTENT = """
-<div style="max-width:500px;margin:40px auto;padding:0 20px;">
-    <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;color:#e8dcc8;margin-bottom:8px;">
-        Create Business Account
-    </h1>
-    <p style="color:#8a8278;font-size:0.9rem;margin-bottom:24px;">
-        $49/month &mdash; cancel anytime. Platform fee drops from 35% to 25% immediately.
-    </p>
+BUSINESS_SIGNUP_CONTENT = BUSINESS_PAGE_STYLES + """
+<div class="biz-page-narrow">
+    <div class="mystes-page-header" style="text-align:left;padding-top:0;">
+        <h1 style="font-size:1.8rem;">Create Business Account</h1>
+        <p class="text-muted-warm" style="font-size:0.9rem;margin-bottom:24px;">
+            $49/month &mdash; cancel anytime. Platform fee drops from 35% to 25% immediately.
+        </p>
+    </div>
 
-    <form method="POST" action="/business/signup" style="display:flex;flex-direction:column;gap:12px;">
+    <form method="POST" action="/business/signup" class="flex flex-col gap-md">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <label style="color:#b0a89a;font-size:0.9rem;">Company Name *</label>
-        <input type="text" name="company_name" required placeholder="Apex Travel Agency"
-               style="padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
-                      border-radius:6px;color:#e8dcc8;font-size:1rem;">
+        <div>
+            <label class="mystes-label">Company Name *</label>
+            <input type="text" name="company_name" required placeholder="Apex Travel Agency"
+                   class="mystes-input">
+        </div>
 
-        <label style="color:#b0a89a;font-size:0.9rem;">Business Email *</label>
-        <input type="email" name="contact_email" required placeholder="ops@apextravel.com"
-               value="{{ current_user.email }}"
-               style="padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
-                      border-radius:6px;color:#e8dcc8;font-size:1rem;">
+        <div>
+            <label class="mystes-label">Business Email *</label>
+            <input type="email" name="contact_email" required placeholder="ops@apextravel.com"
+                   value="{{ current_user.email }}"
+                   class="mystes-input">
+        </div>
 
-        <label style="color:#b0a89a;font-size:0.9rem;">Contact Name</label>
-        <input type="text" name="contact_name" placeholder="Jane Doe"
-               value="{{ current_user.name or '' }}"
-               style="padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
-                      border-radius:6px;color:#e8dcc8;font-size:1rem;">
+        <div>
+            <label class="mystes-label">Contact Name</label>
+            <input type="text" name="contact_name" placeholder="Jane Doe"
+                   value="{{ current_user.name or '' }}"
+                   class="mystes-input">
+        </div>
 
-        <label style="color:#b0a89a;font-size:0.9rem;">Website</label>
-        <input type="url" name="company_website" placeholder="https://apextravel.com"
-               style="padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
-                      border-radius:6px;color:#e8dcc8;font-size:1rem;">
+        <div>
+            <label class="mystes-label">Website</label>
+            <input type="url" name="company_website" placeholder="https://apextravel.com"
+                   class="mystes-input">
+        </div>
 
-        <button type="submit"
-                style="margin-top:8px;padding:14px;background:#4361ee;color:white;border:none;
-                       border-radius:8px;font-size:1.05rem;font-weight:600;cursor:pointer;">
+        <button type="submit" class="mystes-btn mystes-btn-primary mystes-btn-lg mystes-btn-full mt-sm">
             Continue to Payment &mdash; $49/mo
         </button>
     </form>
 
-    <p style="color:#8a8278;font-size:0.8rem;margin-top:16px;text-align:center;">
+    <p class="biz-hint text-center mt-md">
         Secure checkout via Stripe. Cancel anytime from your billing page.
     </p>
 </div>
 """
 
 
-BUSINESS_SUCCESS_CONTENT = """
-<div style="max-width:500px;margin:60px auto;text-align:center;padding:0 20px;">
-    <div style="font-size:3rem;margin-bottom:16px;">&#10003;</div>
-    <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;color:#e8dcc8;margin-bottom:12px;">
-        Welcome to MYSTES Business
-    </h1>
-    <p style="color:#b0a89a;font-size:1rem;margin-bottom:24px;">
-        Your subscription is active. Platform fees are now <strong style="color:#4361ee;">25%</strong>
+BUSINESS_SUCCESS_CONTENT = BUSINESS_PAGE_STYLES + """
+<div class="biz-page-narrow text-center" style="margin-top:60px;">
+    <div class="biz-checkmark">&#10003;</div>
+    <div class="mystes-page-header" style="padding-top:0;">
+        <h1 style="font-size:1.8rem;">Welcome to MYSTES Business</h1>
+    </div>
+    <p class="text-warm mb-lg" style="font-size:1rem;">
+        Your subscription is active. Platform fees are now <strong class="text-accent-blue">25%</strong>
         of savings on every booking.
     </p>
-    <a href="/business/dashboard"
-       style="display:inline-block;padding:14px 32px;background:#4361ee;color:white;
-              text-decoration:none;border-radius:8px;font-size:1rem;font-weight:600;">
+    <a href="/business/dashboard" class="mystes-btn mystes-btn-primary mystes-btn-lg">
         Go to Dashboard
     </a>
 </div>
 """
 
 
-BUSINESS_DASHBOARD_CONTENT = """
-<div style="max-width:900px;margin:30px auto;padding:0 20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-        <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;color:#e8dcc8;margin:0;">
+BUSINESS_DASHBOARD_CONTENT = BUSINESS_PAGE_STYLES + """
+<div class="biz-page-wide">
+    <div class="flex-between mb-lg">
+        <h1 style="font-family:var(--font-brand);font-size:1.8rem;color:var(--text-bright);margin:0;">
             Business Dashboard
         </h1>
-        <span style="color:#8a8278;font-size:0.85rem;">{{ account.account_id }}</span>
+        <span class="text-muted-warm" style="font-size:0.85rem;">{{ account.account_id }}</span>
     </div>
 
     <!-- Account Summary -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:30px;">
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Company</div>
-            <div style="color:#e8dcc8;font-size:1.1rem;margin-top:4px;">{{ account.name }}</div>
+    <div class="mystes-grid-4 mb-lg">
+        <div class="mystes-card compact">
+            <div class="mystes-label mb-0">Company</div>
+            <div class="text-cream" style="font-size:1.1rem;margin-top:4px;">{{ account.name }}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Tier</div>
-            <div style="color:#4361ee;font-size:1.1rem;font-weight:600;margin-top:4px;text-transform:capitalize;">
-                {{ account.current_tier }}
-            </div>
+        <div class="mystes-card compact">
+            <div class="mystes-label mb-0">Tier</div>
+            <div class="biz-tier-value">{{ account.current_tier }}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Fee Rate</div>
-            <div style="color:#e8dcc8;font-size:1.1rem;margin-top:4px;">{{ account.fee_percent }}%</div>
+        <div class="mystes-card compact">
+            <div class="mystes-label mb-0">Fee Rate</div>
+            <div class="text-cream" style="font-size:1.1rem;margin-top:4px;">{{ account.fee_percent }}%</div>
         </div>
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Subscription</div>
-            <div style="color:{% if account.subscription_status == 'active' %}#22c55e{% else %}#ef4444{% endif %};
-                        font-size:1.1rem;margin-top:4px;text-transform:capitalize;">
+        <div class="mystes-card compact">
+            <div class="mystes-label mb-0">Subscription</div>
+            <div class="{% if account.subscription_status == 'active' %}biz-status-active{% else %}biz-status-inactive{% endif %}"
+                 style="font-size:1.1rem;margin-top:4px;text-transform:capitalize;">
                 {{ account.subscription_status }}
             </div>
         </div>
     </div>
 
     <!-- Volume Stats -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:30px;">
-        <div style="background:rgba(67,97,238,0.06);border:1px solid rgba(67,97,238,0.15);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Tickets (30d)</div>
-            <div style="color:#e8dcc8;font-size:1.6rem;font-weight:700;margin-top:4px;">
-                {{ account.tickets_last_30d }}
-            </div>
+    <div class="mystes-grid-4 mb-lg">
+        <div class="mystes-card compact biz-stat-card-accent">
+            <div class="mystes-label mb-0">Tickets (30d)</div>
+            <div class="biz-stat-value-lg">{{ account.tickets_last_30d }}</div>
         </div>
-        <div style="background:rgba(67,97,238,0.06);border:1px solid rgba(67,97,238,0.15);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Total Tickets</div>
-            <div style="color:#e8dcc8;font-size:1.6rem;font-weight:700;margin-top:4px;">
-                {{ account.total_tickets }}
-            </div>
+        <div class="mystes-card compact biz-stat-card-accent">
+            <div class="mystes-label mb-0">Total Tickets</div>
+            <div class="biz-stat-value-lg">{{ account.total_tickets }}</div>
         </div>
-        <div style="background:rgba(67,97,238,0.06);border:1px solid rgba(67,97,238,0.15);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Revenue (30d)</div>
-            <div style="color:#e8dcc8;font-size:1.6rem;font-weight:700;margin-top:4px;">
-                ${{ "%.2f"|format(account.revenue_last_30d_usd) }}
-            </div>
+        <div class="mystes-card compact biz-stat-card-accent">
+            <div class="mystes-label mb-0">Revenue (30d)</div>
+            <div class="biz-stat-value-lg">${{ "%.2f"|format(account.revenue_last_30d_usd) }}</div>
         </div>
-        <div style="background:rgba(67,97,238,0.06);border:1px solid rgba(67,97,238,0.15);
-                    border-radius:10px;padding:18px;">
-            <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;">Total Revenue</div>
-            <div style="color:#e8dcc8;font-size:1.6rem;font-weight:700;margin-top:4px;">
-                ${{ "%.2f"|format(account.total_revenue_usd) }}
-            </div>
+        <div class="mystes-card compact biz-stat-card-accent">
+            <div class="mystes-label mb-0">Total Revenue</div>
+            <div class="biz-stat-value-lg">${{ "%.2f"|format(account.total_revenue_usd) }}</div>
         </div>
     </div>
 
     <!-- Quick Links -->
-    <div style="display:flex;gap:12px;margin-bottom:30px;flex-wrap:wrap;">
-        <a href="/business/billing"
-           style="padding:10px 20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
-                  border-radius:8px;color:#b0a89a;text-decoration:none;font-size:0.9rem;">
+    <div class="flex flex-wrap gap-md mb-lg">
+        <a href="/business/billing" class="mystes-btn mystes-btn-ghost">
             Manage Billing
         </a>
-        <a href="/business/api-keys"
-           style="padding:10px 20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
-                  border-radius:8px;color:#b0a89a;text-decoration:none;font-size:0.9rem;">
+        <a href="/business/api-keys" class="mystes-btn mystes-btn-ghost">
             API Keys ({{ api_key_count }})
         </a>
-        <a href="/business/markup"
-           style="padding:10px 20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
-                  border-radius:8px;color:#b0a89a;text-decoration:none;font-size:0.9rem;">
+        <a href="/business/markup" class="mystes-btn mystes-btn-ghost">
             Pricing &amp; Markup
         </a>
-        <a href="/apai"
-           style="padding:10px 20px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);
-                  border-radius:8px;color:#a855f7;text-decoration:none;font-size:0.9rem;">
+        <a href="/apai" class="mystes-btn mystes-btn-ghost" style="border-color:rgba(124,58,237,0.2);color:#a855f7;">
             Upgrade to APAi
         </a>
-        <a href="/flights"
-           style="padding:10px 20px;background:rgba(67,97,238,0.1);border:1px solid rgba(67,97,238,0.2);
-                  border-radius:8px;color:#4361ee;text-decoration:none;font-size:0.9rem;">
+        <a href="/flights" class="mystes-btn mystes-btn-ghost" style="border-color:rgba(67,97,238,0.2);color:#4361ee;">
             Search Flights
         </a>
     </div>
 
-    <!-- Referral Code -->
+    <!-- Referral Code + QR Code (Build #206) -->
     {% if account.referral_code %}
-    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
-                border-radius:10px;padding:18px;margin-bottom:30px;">
-        <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;margin-bottom:6px;">
-            Referral Code
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;">
-            <code style="color:#4361ee;font-size:1.1rem;background:rgba(67,97,238,0.08);
-                         padding:6px 14px;border-radius:6px;">{{ account.referral_code }}</code>
-            <span style="color:#8a8278;font-size:0.85rem;">
-                {{ account.total_referred_users or 0 }} users referred
-            </span>
+    <div class="mystes-card compact mb-lg">
+        <div class="mystes-label mb-sm">Referral Code &amp; QR</div>
+        <div class="flex gap-lg" style="align-items:flex-start;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+                <div class="flex-center gap-md mb-sm">
+                    <code class="biz-ref-code">{{ account.referral_code }}</code>
+                    <span class="text-muted-warm" style="font-size:0.85rem;">
+                        {{ account.total_referred_users or 0 }} users referred
+                    </span>
+                </div>
+                <p class="text-muted-warm mb-sm" style="font-size:0.8rem;">
+                    Print this QR code on business cards, stickers, and flyers.
+                    Anyone who scans it gets your tier pricing automatically.
+                </p>
+                <div class="flex flex-wrap gap-sm">
+                    <a href="/business/qr/png" download class="mystes-btn mystes-btn-ghost mystes-btn-sm"
+                       style="border-color:rgba(67,97,238,0.25);color:#4361ee;">
+                        Download PNG
+                    </a>
+                    <a href="/business/qr/svg" download class="mystes-btn mystes-btn-ghost mystes-btn-sm"
+                       style="border-color:rgba(67,97,238,0.25);color:#4361ee;">
+                        Download SVG
+                    </a>
+                </div>
+            </div>
+            <div style="flex-shrink:0;" class="text-center">
+                <img src="/business/qr/png" alt="Referral QR Code" width="120" height="120"
+                     class="biz-qr-img">
+            </div>
         </div>
     </div>
     {% endif %}
 
     <!-- Recent Transactions -->
-    <h2 style="font-family:'Cinzel',serif;font-size:1.3rem;color:#e8dcc8;margin-bottom:12px;">
-        Recent Transactions
-    </h2>
+    <h2 class="biz-section-heading">Recent Transactions</h2>
     {% if transactions %}
-    <div style="overflow-x:auto;">
-        <table style="width:100%;color:#b0a89a;font-size:0.85rem;border-collapse:collapse;">
+    <div class="mystes-table-wrap">
+        <table class="mystes-table">
             <thead>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.1);text-align:left;">
-                    <th style="padding:8px 6px;">Date</th>
-                    <th style="padding:8px 6px;">Route</th>
-                    <th style="padding:8px 6px;">Market</th>
-                    <th style="padding:8px 6px;">Retail</th>
-                    <th style="padding:8px 6px;">Booked</th>
-                    <th style="padding:8px 6px;">Savings</th>
-                    <th style="padding:8px 6px;">Fee</th>
+                <tr>
+                    <th>Date</th>
+                    <th>Route</th>
+                    <th>Market</th>
+                    <th>Retail</th>
+                    <th>Booked</th>
+                    <th>Savings</th>
+                    <th>Fee</th>
                 </tr>
             </thead>
             <tbody>
                 {% for tx in transactions %}
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:6px;">{{ tx.created_at.strftime('%m/%d') if tx.created_at else '-' }}</td>
-                    <td style="padding:6px;">{{ tx.origin or '?' }}&rarr;{{ tx.destination or '?' }}</td>
-                    <td style="padding:6px;">{{ tx.market_used or '-' }}</td>
-                    <td style="padding:6px;">${{ "%.0f"|format(tx.retail_price_usd) }}</td>
-                    <td style="padding:6px;">${{ "%.0f"|format(tx.booked_price_usd) }}</td>
-                    <td style="padding:6px;color:#22c55e;">${{ "%.0f"|format(tx.savings_usd) }}</td>
-                    <td style="padding:6px;">${{ "%.2f"|format(tx.fee_amount_usd) }}</td>
+                <tr>
+                    <td>{{ tx.created_at.strftime('%m/%d') if tx.created_at else '-' }}</td>
+                    <td>{{ tx.origin or '?' }}&rarr;{{ tx.destination or '?' }}</td>
+                    <td>{{ tx.market_used or '-' }}</td>
+                    <td>${{ "%.0f"|format(tx.retail_price_usd) }}</td>
+                    <td>${{ "%.0f"|format(tx.booked_price_usd) }}</td>
+                    <td class="text-success">${{ "%.0f"|format(tx.savings_usd) }}</td>
+                    <td>${{ "%.2f"|format(tx.fee_amount_usd) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% else %}
-    <p style="color:#8a8278;font-size:0.9rem;">No transactions yet. Search and book flights to get started.</p>
+    <div class="mystes-empty">
+        <p>No transactions yet. Search and book flights to get started.</p>
+    </div>
     {% endif %}
 
     <!-- ANASTASiA SDK Upgrade -->
-    <div style="margin-top:40px;padding:20px;background:rgba(67,97,238,0.05);border-radius:12px;
-                border:1px solid rgba(67,97,238,0.15);">
-        <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin-bottom:8px;">
-            Scale with ANASTASiA SDK
-        </h3>
-        <p style="color:#b0a89a;font-size:0.9rem;">
+    <div class="mystes-card mt-xl biz-upsell-blue">
+        <h3 class="biz-card-heading-sm">Scale with ANASTASiA SDK</h3>
+        <p class="text-warm" style="font-size:0.9rem;">
             White-label flight search, AI booking agents, multi-POS arbitrage, and full API access.
             Build your own OTA powered by ANASTASiA.
         </p>
         <a href="https://anastasia-api.onrender.com/signup"
            target="_blank"
-           style="display:inline-block;margin-top:8px;padding:10px 20px;background:rgba(67,97,238,0.15);
-                  border:1px solid rgba(67,97,238,0.3);border-radius:8px;color:#4361ee;
-                  text-decoration:none;font-size:0.9rem;">
+           class="mystes-btn mystes-btn-ghost mt-sm"
+           style="border-color:rgba(67,97,238,0.3);color:#4361ee;">
             Explore ANASTASiA SDK &rarr;
         </a>
     </div>
@@ -415,56 +567,50 @@ BUSINESS_DASHBOARD_CONTENT = """
 """
 
 
-BUSINESS_API_KEYS_CONTENT = """
-<div style="max-width:700px;margin:30px auto;padding:0 20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-        <h1 style="font-family:'Cinzel',serif;font-size:1.6rem;color:#e8dcc8;margin:0;">API Keys</h1>
-        <a href="/business/dashboard" style="color:#8a8278;font-size:0.85rem;text-decoration:none;">&larr; Dashboard</a>
+BUSINESS_API_KEYS_CONTENT = BUSINESS_PAGE_STYLES + """
+<div class="biz-page-mid">
+    <div class="flex-between mb-lg">
+        <h1 style="font-family:var(--font-brand);font-size:1.6rem;color:var(--text-bright);margin:0;">API Keys</h1>
+        <a href="/business/dashboard" class="text-muted-warm" style="font-size:0.85rem;text-decoration:none;">&larr; Dashboard</a>
     </div>
 
     <!-- Generate New Key -->
-    <form method="POST" action="/business/api-keys" style="margin-bottom:30px;">
+    <form method="POST" action="/business/api-keys" class="mb-lg">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="display:flex;gap:10px;align-items:end;">
+        <div class="flex gap-md" style="align-items:end;">
             <div style="flex:1;">
-                <label style="color:#b0a89a;font-size:0.85rem;display:block;margin-bottom:4px;">Key Label</label>
+                <label class="mystes-label">Key Label</label>
                 <input type="text" name="label" placeholder="Production" value="Default"
-                       style="width:100%;padding:10px;background:rgba(255,255,255,0.06);
-                              border:1px solid rgba(255,255,255,0.12);border-radius:6px;
-                              color:#e8dcc8;font-size:0.95rem;">
+                       class="mystes-input">
             </div>
-            <button type="submit"
-                    style="padding:10px 20px;background:#4361ee;color:white;border:none;
-                           border-radius:6px;font-size:0.95rem;cursor:pointer;white-space:nowrap;">
+            <button type="submit" class="mystes-btn mystes-btn-primary">
                 Generate Key
             </button>
         </div>
     </form>
 
     {% if new_key %}
-    <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);
-                border-radius:10px;padding:16px;margin-bottom:24px;">
-        <div style="color:#22c55e;font-size:0.85rem;font-weight:600;margin-bottom:6px;">
+    <div class="mystes-card compact biz-new-key-alert mb-lg">
+        <div class="text-success" style="font-size:0.85rem;font-weight:600;margin-bottom:6px;">
             New API Key Generated &mdash; Copy it now, it won&apos;t be shown again!
         </div>
-        <code style="color:#e8dcc8;font-size:0.9rem;word-break:break-all;
-                     background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:6px;
+        <code style="color:var(--text-bright);font-size:0.9rem;word-break:break-all;
+                     background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:var(--radius-sm);
                      display:block;">{{ new_key }}</code>
     </div>
     {% endif %}
 
     <!-- Existing Keys -->
     {% if api_keys %}
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="flex flex-col gap-md">
         {% for key in api_keys %}
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                    border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+        <div class="mystes-card compact flex-between">
             <div>
-                <div style="color:#e8dcc8;font-size:0.95rem;">
+                <div class="text-cream" style="font-size:0.95rem;">
                     <code>{{ key.key_prefix }}...</code>
-                    <span style="color:#8a8278;margin-left:8px;">{{ key.label }}</span>
+                    <span class="text-muted-warm" style="margin-left:8px;">{{ key.label }}</span>
                 </div>
-                <div style="color:#8a8278;font-size:0.8rem;margin-top:3px;">
+                <div class="text-muted-warm" style="font-size:0.8rem;margin-top:3px;">
                     {{ key.total_requests }} requests
                     {% if key.last_used_at %} &middot; Last used {{ key.last_used_at.strftime('%b %d') }}{% endif %}
                     &middot; Created {{ key.created_at.strftime('%b %d, %Y') if key.created_at else 'N/A' }}
@@ -475,21 +621,21 @@ BUSINESS_API_KEYS_CONTENT = """
                 <form method="POST" action="/api/business/api-keys/{{ key.id }}/revoke"
                       style="display:inline;" onsubmit="return confirm('Revoke this API key?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit"
-                            style="padding:6px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);
-                                   border-radius:6px;color:#ef4444;font-size:0.8rem;cursor:pointer;">
+                    <button type="submit" class="mystes-btn mystes-btn-danger mystes-btn-sm">
                         Revoke
                     </button>
                 </form>
                 {% else %}
-                <span style="color:#8a8278;font-size:0.8rem;">Revoked</span>
+                <span class="mystes-badge mystes-badge-neutral">Revoked</span>
                 {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <p style="color:#8a8278;font-size:0.9rem;">No API keys yet. Generate one to integrate with the MYSTES API.</p>
+    <div class="mystes-empty">
+        <p>No API keys yet. Generate one to integrate with the MYSTES API.</p>
+    </div>
     {% endif %}
 </div>
 """
@@ -959,20 +1105,17 @@ def register_business_routes(app, csrf, limiter):
 
             return redirect("/business/markup")
 
-        markup_content = """
-<div style="max-width:700px;margin:30px auto;padding:0 20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-        <h1 style="font-family:'Cinzel',serif;font-size:1.6rem;color:#e8dcc8;margin:0;">Pricing & Markup</h1>
-        <a href="/business/dashboard" style="color:#8a8278;font-size:0.85rem;text-decoration:none;">&larr; Dashboard</a>
+        markup_content = BUSINESS_PAGE_STYLES + """
+<div class="biz-page-mid">
+    <div class="flex-between mb-lg">
+        <h1 style="font-family:var(--font-brand);font-size:1.6rem;color:var(--text-bright);margin:0;">Pricing & Markup</h1>
+        <a href="/business/dashboard" class="text-muted-warm" style="font-size:0.85rem;text-decoration:none;">&larr; Dashboard</a>
     </div>
 
-    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                border-radius:12px;padding:24px;margin-bottom:24px;">
-        <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;margin-bottom:4px;">
-            Your Platform Fee (set by tier)
-        </div>
-        <div style="color:#4361ee;font-size:1.8rem;font-weight:700;">{{ account.fee_percent }}%</div>
-        <div style="color:#8a8278;font-size:0.85rem;margin-top:4px;">
+    <div class="mystes-card mb-lg">
+        <div class="mystes-label mb-0">Your Platform Fee (set by tier)</div>
+        <div class="biz-fee-display">{{ account.fee_percent }}%</div>
+        <div class="text-muted-warm" style="font-size:0.85rem;margin-top:4px;">
             This is the MYSTES platform fee on savings. Your consumer markup is added ON TOP.
         </div>
     </div>
@@ -980,71 +1123,56 @@ def register_business_routes(app, csrf, limiter):
     <form method="POST" action="/business/markup">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <div style="background:rgba(67,97,238,0.06);border:1px solid rgba(67,97,238,0.15);
-                    border-radius:12px;padding:24px;margin-bottom:20px;">
-            <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin:0 0 16px;">Consumer Markup</h3>
-            <p style="color:#8a8278;font-size:0.85rem;margin-bottom:16px;">
+        <div class="mystes-card mb-md biz-stat-card-accent">
+            <h3 class="biz-card-heading" style="margin:0 0 16px;">Consumer Markup</h3>
+            <p class="text-muted-warm mb-md" style="font-size:0.85rem;">
                 Set the markup your consumers see on top of the MYSTES price.
                 This is YOUR revenue on each sale via your referral link.
             </p>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="mystes-form-grid">
                 <div>
-                    <label style="color:#b0a89a;font-size:0.85rem;display:block;margin-bottom:4px;">
-                        Percentage Markup (0-50%)
-                    </label>
+                    <label class="mystes-label">Percentage Markup (0-50%)</label>
                     <input type="number" name="markup_percent" step="0.5" min="0" max="50"
                            value="{{ account.consumer_markup_percent }}"
-                           style="width:100%;padding:10px;background:rgba(255,255,255,0.06);
-                                  border:1px solid rgba(255,255,255,0.12);border-radius:6px;
-                                  color:#e8dcc8;font-size:1rem;">
+                           class="mystes-input">
                 </div>
                 <div>
-                    <label style="color:#b0a89a;font-size:0.85rem;display:block;margin-bottom:4px;">
-                        Flat Markup per Ticket ($0-100)
-                    </label>
+                    <label class="mystes-label">Flat Markup per Ticket ($0-100)</label>
                     <input type="number" name="markup_flat_usd" step="1" min="0" max="100"
                            value="{{ account.consumer_markup_flat_usd }}"
-                           style="width:100%;padding:10px;background:rgba(255,255,255,0.06);
-                                  border:1px solid rgba(255,255,255,0.12);border-radius:6px;
-                                  color:#e8dcc8;font-size:1rem;">
+                           class="mystes-input">
                 </div>
             </div>
         </div>
 
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-                    border-radius:12px;padding:24px;margin-bottom:20px;">
-            <h3 style="color:#e8dcc8;font-family:'Cinzel',serif;margin:0 0 12px;">Referral Link</h3>
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <div class="mystes-card mb-md">
+            <h3 class="biz-card-heading" style="margin:0 0 12px;">Referral Link</h3>
+            <label class="flex-center gap-md" style="cursor:pointer;">
                 <input type="checkbox" name="referral_link_enabled"
                        {{ 'checked' if account.referral_link_enabled else '' }}
                        style="width:18px;height:18px;">
-                <span style="color:#b0a89a;font-size:0.9rem;">
+                <span class="text-warm" style="font-size:0.9rem;">
                     Enable referral link selling (consumers book through your link)
                 </span>
             </label>
             {% if account.referral_code %}
-            <div style="margin-top:12px;padding:10px 14px;background:rgba(0,0,0,0.3);border-radius:6px;">
-                <code style="color:#4361ee;font-size:0.9rem;">
-                    {{ base_url }}/ref/{{ account.referral_code }}
-                </code>
+            <div class="biz-ref-url-box">
+                <code>{{ base_url }}/ref/{{ account.referral_code }}</code>
             </div>
             {% endif %}
         </div>
 
-        <button type="submit"
-                style="width:100%;padding:14px;background:#4361ee;color:white;border:none;
-                       border-radius:8px;font-size:1.05rem;font-weight:600;cursor:pointer;">
+        <button type="submit" class="mystes-btn mystes-btn-primary mystes-btn-lg mystes-btn-full">
             Save Markup Settings
         </button>
     </form>
 
-    <div style="margin-top:24px;padding:16px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);
-                border-radius:10px;">
-        <div style="color:#22c55e;font-size:0.85rem;font-weight:600;margin-bottom:6px;">
+    <div class="mystes-card mt-lg biz-revenue-example">
+        <div class="text-success" style="font-size:0.85rem;font-weight:600;margin-bottom:6px;">
             Revenue Example
         </div>
-        <div style="color:#b0a89a;font-size:0.85rem;">
+        <div class="text-warm" style="font-size:0.85rem;">
             Flight costs $500 wholesale, Google shows $700. Savings = $200.<br>
             MYSTES fee ({{ account.fee_percent }}%) = ${{ "%.0f"|format(200 * account.fee_percent / 100) }}.
             {% if account.consumer_markup_percent > 0 %}
@@ -1073,29 +1201,86 @@ def register_business_routes(app, csrf, limiter):
         )
 
     # ------------------------------------------------------------------
-    # Referral Link Redirect (Build #185)
+    # Referral Link — REMOVED (Build #210)
+    # Consolidated into server.py referral_landing() which handles BOTH
+    # consumer AND B2B referral codes. B2B codes now show branded landing page.
     # ------------------------------------------------------------------
 
-    @app.route("/ref/<referral_code>")
-    def referral_redirect(referral_code):
-        """Redirect from B2B referral link — tracks source in session."""
-        from models import CommercialAccount
-        account = CommercialAccount.query.filter_by(
-            referral_code=referral_code.upper(), is_active=True
-        ).first()
+    # ------------------------------------------------------------------
+    # QR Code Generator (Build #206)
+    # ------------------------------------------------------------------
 
-        if not account:
-            return redirect("/")
+    @app.route("/business/qr/<fmt>")
+    @login_required
+    @b2b_required
+    def business_qr_download(fmt):
+        """Download QR code as PNG or SVG for B2B referral link (Build #206).
 
-        session["referral_source"] = account.account_id
-        session["referral_markup_pct"] = account.consumer_markup_percent
-        session["referral_markup_flat"] = account.consumer_markup_flat_usd
+        Encodes the referral URL so B2B operators can print on business cards,
+        stickers, flyers, and marketing materials. Costs MYSTES $0.
+        """
+        import qrcode
 
-        return redirect("/flights")
+        account = g.b2b_account
+        if not account.referral_code:
+            flash("No referral code found.", "error")
+            return redirect("/business/dashboard")
+
+        base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
+        qr_url = f"{base_url}/ref/{account.referral_code}"
+
+        if fmt == "png":
+            qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=12, border=3,
+            )
+            qr.add_data(qr_url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="#4361ee", back_color="#ffffff")
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            buf.seek(0)
+            return Response(buf.getvalue(), mimetype="image/png", headers={
+                "Content-Disposition": f'attachment; filename="MYSTES_QR_{account.referral_code}.png"',
+            })
+
+        elif fmt == "svg":
+            from qrcode.image.svg import SvgPathImage
+            qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+            )
+            qr.add_data(qr_url)
+            qr.make(fit=True)
+            img = qr.make_image(image_factory=SvgPathImage)
+            buf = io.BytesIO()
+            img.save(buf)
+            buf.seek(0)
+            return Response(buf.getvalue(), mimetype="image/svg+xml", headers={
+                "Content-Disposition": f'attachment; filename="MYSTES_QR_{account.referral_code}.svg"',
+            })
+
+        else:
+            return jsonify({"error": "Invalid format. Use png or svg."}), 400
+
+    @app.route("/api/business/qr-data")
+    @login_required
+    @b2b_required
+    def api_business_qr_data():
+        """Return QR code metadata as JSON (Build #206)."""
+        account = g.b2b_account
+        if not account.referral_code:
+            return jsonify({"error": "No referral code"}), 400
+
+        base_url = os.environ.get('BASE_URL', request.host_url.rstrip('/'))
+        return jsonify({
+            "referral_code": account.referral_code,
+            "referral_url": f"{base_url}/ref/{account.referral_code}",
+            "qr_png_url": "/business/qr/png",
+            "qr_svg_url": "/business/qr/svg",
+        })
 
     # ------------------------------------------------------------------
     # Template Deployment REMOVED (Build #193)
     # Deployment is APAi-only — see /apai/deploy in server.py
     # B2B subscribers operate INSIDE MYSTES. No turnkey. No standalone site.
     # ------------------------------------------------------------------
-

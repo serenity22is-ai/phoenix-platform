@@ -1,0 +1,116 @@
+{
+  "id": "3b6249f1-75dd-58a3-8ee9-1c7136fbf2d7",
+  "name": "Amadeus",
+  "vendor": "Amadeus IT Group",
+  "version": "2.0",
+  "vertical": "flights",
+  "protocol": "rest",
+  "base_url": "api.amadeus.com/v2",
+  "auth_method": "oauth2",
+  "auth_details": {
+    "token_endpoint": "/v1/security/oauth2/token",
+    "grant_type": "client_credentials",
+    "scopes": [],
+    "notes": "Self-Service deprecated. Enterprise API only. Picasso uses Amadeus internally — MYSTES does NOT connect directly."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/shopping/flight-offers",
+        "method": "GET"
+      },
+      {
+        "order": 2,
+        "name": "price",
+        "endpoint": "/shopping/flight-offers/pricing",
+        "method": "POST"
+      },
+      {
+        "order": 3,
+        "name": "book",
+        "endpoint": "/booking/flight-orders",
+        "method": "POST"
+      }
+    ],
+    "total_steps": 3,
+    "estimated_time_seconds": 8.0,
+    "requires_auth": true,
+    "supports_guest": false
+  },
+  "endpoints": [
+    {
+      "path": "/shopping/flight-offers",
+      "method": "GET",
+      "purpose": "Flight search"
+    },
+    {
+      "path": "/shopping/flight-offers/pricing",
+      "method": "POST",
+      "purpose": "Price confirmation"
+    },
+    {
+      "path": "/booking/flight-orders",
+      "method": "POST",
+      "purpose": "Create booking"
+    },
+    {
+      "path": "/reference-data/locations",
+      "method": "GET",
+      "purpose": "Airport/city search"
+    },
+    {
+      "path": "/shopping/seatmaps",
+      "method": "GET",
+      "purpose": "Seat map retrieval"
+    }
+  ],
+  "data_schemas": {
+    "passenger": {
+      "type_codes": [
+        "ADT",
+        "CHD",
+        "INF",
+        "YTH",
+        "STU"
+      ]
+    },
+    "cabin": {
+      "classes": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS",
+        "FIRST"
+      ]
+    }
+  },
+  "quirks": [
+    {
+      "id": "1ec28ff9",
+      "description": "Self-Service tier discontinued in 2025. Enterprise-only access now.",
+      "category": "access",
+      "severity": "critical",
+      "workaround": "Use Picasso/AERTiCKET as consolidator (they use Amadeus internally).",
+      "discovered_at": 1776564133.562301,
+      "discovered_by": "mystes_internal"
+    }
+  ],
+  "adapters": [],
+  "readiness": "documented",
+  "confidence": 0.7,
+  "installations": 0,
+  "first_learned": 1776564133.562303,
+  "last_updated": 1776564133.562303,
+  "learned_from": [
+    "public_docs",
+    "picasso_integration"
+  ],
+  "tags": [
+    "flights",
+    "gds",
+    "enterprise",
+    "oauth2",
+    "global"
+  ]
+}

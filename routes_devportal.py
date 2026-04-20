@@ -157,66 +157,67 @@ def _get_admin_account(member_account):
 # ============================================================
 
 ADMIN_AUTH_CONTENT = """
-<div style="max-width:420px;margin:80px auto;padding:0 20px;">
-    <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;color:#b388ff;text-align:center;margin-bottom:6px;">
-        APAi Admin Portal
-    </h1>
-    <p style="color:#8a8278;text-align:center;margin-bottom:30px;font-size:0.9rem;">
-        Log in to your team workspace
-    </p>
+<div class="apai-login-wrap">
+    <div class="mystes-page-header text-center">
+        <h1>APAi Admin Portal</h1>
+        <p>Log in to your team workspace</p>
+    </div>
 
     {% for cat, msg in get_flashed_messages(with_categories=true) %}
-    <div style="padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;
-        {% if cat == 'error' %}background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;
-        {% else %}background:rgba(20,184,166,0.1);border:1px solid rgba(20,184,166,0.3);color:#14b8a6;{% endif %}">
-        {{ msg }}
-    </div>
+    <div class="alert alert-{{ cat }} mb-md">{{ msg }}</div>
     {% endfor %}
 
-    <form method="POST" style="display:flex;flex-direction:column;gap:14px;">
+    <form method="POST" class="flex flex-col gap-md">
         <input type="email" name="email" placeholder="Email address" required
-            style="padding:12px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e8dcc8;font-family:'Outfit',sans-serif;font-size:0.95rem;outline:none;">
+            class="mystes-input">
         <input type="password" name="password" placeholder="Password" required minlength="8"
-            style="padding:12px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e8dcc8;font-family:'Outfit',sans-serif;font-size:0.95rem;outline:none;">
-        <button type="submit" style="padding:14px;background:linear-gradient(135deg,#7c3aed,#b388ff);border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;font-size:1rem;margin-top:4px;">
+            class="mystes-input">
+        <button type="submit" class="mystes-btn mystes-btn-primary mystes-btn-lg mystes-btn-full mt-sm">
             Log In
         </button>
     </form>
 
-    <p style="text-align:center;margin-top:20px;color:#8a8278;font-size:0.85rem;">
-        Need an APAi subscription? <a href="/apai" style="color:#b388ff;text-decoration:none;">Learn more</a>
+    <p class="text-center mt-md apai-login-footer">
+        Need an APAi subscription? <a href="/apai" class="apai-link">Learn more</a>
     </p>
 </div>
+
+<style>
+.apai-login-wrap { max-width: 420px; margin: 80px auto; padding: 0 20px; }
+.apai-login-footer { color: var(--text-muted); font-size: 0.85rem; }
+.apai-link { color: var(--accent); text-decoration: none; }
+.apai-link:hover { text-decoration: underline; }
+</style>
 """
 
 ADMIN_TERMINAL_CONTENT = """
-<div style="display:flex;height:calc(100vh - 60px);overflow:hidden;">
+<div class="term-layout">
     <!-- Sidebar -->
-    <div id="devSidebar" style="width:260px;background:rgba(0,0,0,0.3);border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;flex-shrink:0;">
-        <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#b388ff;font-family:'Cinzel',serif;font-size:0.9rem;">Conversations</span>
-            <button onclick="newConversation()" style="background:rgba(179,136,255,0.15);border:1px solid rgba(179,136,255,0.3);border-radius:6px;color:#b388ff;padding:4px 10px;cursor:pointer;font-size:0.8rem;">+ New</button>
+    <div id="devSidebar" class="term-sidebar">
+        <div class="term-sidebar-header flex-between">
+            <span class="term-sidebar-title">Conversations</span>
+            <button onclick="newConversation()" class="mystes-btn mystes-btn-ghost mystes-btn-sm">+ New</button>
         </div>
-        <div id="convList" style="flex:1;overflow-y:auto;padding:8px;"></div>
-        <div style="padding:12px;border-top:1px solid rgba(255,255,255,0.06);font-size:0.8rem;color:#8a8278;">
-            <div><span style="color:#b388ff;">{{ account.billing_tier|upper }}</span> &middot; {{ usage.queries_used }}/{{ usage.queries_included or '&infin;' }} queries</div>
-            <a href="/apai/admin" style="color:#b388ff;text-decoration:none;font-size:0.75rem;">Dashboard</a>
-            &middot; <a href="/apai/admin/api-keys" style="color:#8a8278;text-decoration:none;font-size:0.75rem;">API Keys</a>
-            &middot; <a href="/apai/admin/logout" style="color:#8a8278;text-decoration:none;font-size:0.75rem;">Logout</a>
+        <div id="convList" class="term-conv-list"></div>
+        <div class="term-sidebar-footer">
+            <div><span class="term-tier-label">{{ account.billing_tier|upper }}</span> &middot; {{ usage.queries_used }}/{{ usage.queries_included or '&infin;' }} queries</div>
+            <a href="/apai/admin" class="apai-link term-footer-link">Dashboard</a>
+            &middot; <a href="/apai/admin/api-keys" class="term-footer-link-muted">API Keys</a>
+            &middot; <a href="/apai/admin/logout" class="term-footer-link-muted">Logout</a>
         </div>
     </div>
 
     <!-- Chat Area -->
-    <div style="flex:1;display:flex;flex-direction:column;">
-        <div id="devMessages" style="flex:1;overflow-y:auto;padding:24px;"></div>
-        <div style="padding:16px 24px;border-top:1px solid rgba(255,255,255,0.06);">
-            <div style="display:flex;gap:10px;max-width:800px;margin:0 auto;">
+    <div class="term-chat-area">
+        <div id="devMessages" class="term-messages"></div>
+        <div class="term-input-bar">
+            <div class="term-input-row">
                 <textarea id="devInput" rows="1" placeholder="Ask ANASTASiA anything..."
-                    style="flex:1;padding:14px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#e8dcc8;font-family:'Outfit',sans-serif;font-size:0.95rem;resize:none;outline:none;max-height:150px;"
+                    class="mystes-textarea term-chat-input"
                     onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendDevMessage()}"
                     oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,150)+'px'"></textarea>
                 <button onclick="sendDevMessage()" id="devSendBtn"
-                    style="padding:0 20px;background:linear-gradient(135deg,#7c3aed,#b388ff);border:none;border-radius:10px;color:#fff;cursor:pointer;font-size:1.1rem;flex-shrink:0;">
+                    class="mystes-btn mystes-btn-primary term-send-btn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
@@ -231,10 +232,10 @@ let _devSending = false;
 function newConversation() {
     _devConvId = null;
     document.getElementById('devMessages').innerHTML = `
-        <div style="text-align:center;padding:80px 20px;">
-            <div style="font-size:2.5rem;margin-bottom:16px;">&#128640;</div>
-            <h2 style="font-family:'Cinzel',serif;color:#b388ff;margin-bottom:8px;">ANASTASiA Terminal</h2>
-            <p style="color:#8a8278;font-size:0.95rem;">Build anything on your turnkey OTA.</p>
+        <div class="term-welcome">
+            <div class="term-welcome-icon">&#128640;</div>
+            <h2 class="term-welcome-title">ANASTASiA Terminal</h2>
+            <p class="term-welcome-sub">Build anything on your turnkey OTA.</p>
         </div>`;
     document.getElementById('devInput').focus();
 }
@@ -243,15 +244,13 @@ function appendDevMessage(role, content) {
     const el = document.getElementById('devMessages');
     const isUser = role === 'user';
     const div = document.createElement('div');
-    div.style.cssText = 'max-width:800px;margin:0 auto 16px;display:flex;' + (isUser ? 'justify-content:flex-end;' : '');
+    div.className = 'term-msg-row' + (isUser ? ' term-msg-user' : '');
     const bubble = document.createElement('div');
-    bubble.style.cssText = 'max-width:85%;padding:14px 18px;border-radius:12px;font-size:0.95rem;line-height:1.6;font-family:Outfit,sans-serif;' +
-        (isUser ? 'background:rgba(179,136,255,0.15);border:1px solid rgba(179,136,255,0.25);color:#e8dcc8;'
-                 : 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);color:#d0c8bc;');
+    bubble.className = isUser ? 'term-bubble term-bubble-user' : 'term-bubble term-bubble-ai';
     if (!isUser) {
         let html = content
-            .replace(/```(\\w*)\\n([\\s\\S]*?)```/g, '<pre style="background:rgba(0,0,0,0.4);padding:12px;border-radius:8px;overflow-x:auto;margin:8px 0;font-size:0.85rem;"><code>$2</code></pre>')
-            .replace(/`([^`]+)`/g, '<code style="background:rgba(179,136,255,0.1);padding:2px 6px;border-radius:4px;font-size:0.88rem;">$1</code>')
+            .replace(/```(\\w*)\\n([\\s\\S]*?)```/g, '<pre class="term-code-block"><code>$2</code></pre>')
+            .replace(/`([^`]+)`/g, '<code class="term-inline-code">$1</code>')
             .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')
             .replace(/\\n/g, '<br>');
         bubble.innerHTML = html;
@@ -267,11 +266,11 @@ function showTyping() {
     const el = document.getElementById('devMessages');
     const div = document.createElement('div');
     div.id = 'devTyping';
-    div.style.cssText = 'max-width:800px;margin:0 auto 16px;';
-    div.innerHTML = '<div style="display:inline-flex;gap:4px;padding:14px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:12px;">' +
-        '<span style="width:8px;height:8px;background:#b388ff;border-radius:50%;animation:dotPulse 1.2s infinite;"></span>' +
-        '<span style="width:8px;height:8px;background:#b388ff;border-radius:50%;animation:dotPulse 1.2s infinite 0.2s;"></span>' +
-        '<span style="width:8px;height:8px;background:#b388ff;border-radius:50%;animation:dotPulse 1.2s infinite 0.4s;"></span></div>';
+    div.className = 'term-msg-row';
+    div.innerHTML = '<div class="term-typing-dots">' +
+        '<span class="term-dot"></span>' +
+        '<span class="term-dot" style="animation-delay:0.2s"></span>' +
+        '<span class="term-dot" style="animation-delay:0.4s"></span></div>';
     el.appendChild(div);
     el.scrollTop = el.scrollHeight;
 }
@@ -330,13 +329,11 @@ async function loadConversations() {
         if (!data.conversations) return;
         list.innerHTML = data.conversations.map(c =>
             `<div onclick="loadConversation('${c.conversation_id}')"
-                style="padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;
-                ${_devConvId === c.conversation_id ? 'background:rgba(179,136,255,0.1);border:1px solid rgba(179,136,255,0.2);' : 'border:1px solid transparent;'}
-                transition:background 0.15s;"
+                class="term-conv-item ${_devConvId === c.conversation_id ? 'active' : ''}"
                 onmouseover="if('${c.conversation_id}'!==(''+_devConvId))this.style.background='rgba(255,255,255,0.03)'"
                 onmouseout="if('${c.conversation_id}'!==(''+_devConvId))this.style.background='transparent'">
-                <div style="color:#e8dcc8;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.title || 'New conversation'}</div>
-                <div style="color:#666;font-size:0.7rem;">${c.message_count} messages</div>
+                <div class="term-conv-title">${c.title || 'New conversation'}</div>
+                <div class="term-conv-meta">${c.message_count} messages</div>
             </div>`
         ).join('');
     } catch(e) {}
@@ -363,10 +360,58 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <style>
+/* Terminal layout */
+.term-layout { display: flex; height: calc(100vh - 60px); overflow: hidden; }
+
+/* Sidebar */
+.term-sidebar { width: 260px; background: rgba(0,0,0,0.3); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; flex-shrink: 0; }
+.term-sidebar-header { padding: 16px; border-bottom: 1px solid var(--glass-border); }
+.term-sidebar-title { color: var(--accent); font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; }
+.term-conv-list { flex: 1; overflow-y: auto; padding: 8px; }
+.term-sidebar-footer { padding: 12px; border-top: 1px solid var(--glass-border); font-size: 0.8rem; color: var(--text-muted); }
+.term-tier-label { color: var(--accent); }
+.term-footer-link { font-size: 0.75rem; }
+.term-footer-link-muted { color: var(--text-muted); text-decoration: none; font-size: 0.75rem; }
+.term-footer-link-muted:hover { color: var(--accent); }
+
+/* Conversation list items */
+.term-conv-item { padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; transition: background 0.15s; }
+.term-conv-item.active { background: rgba(179,136,255,0.1); border-color: rgba(179,136,255,0.2); }
+.term-conv-title { color: #e8dcc8; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.term-conv-meta { color: #666; font-size: 0.7rem; }
+
+/* Chat area */
+.term-chat-area { flex: 1; display: flex; flex-direction: column; }
+.term-messages { flex: 1; overflow-y: auto; padding: 24px; }
+.term-input-bar { padding: 16px 24px; border-top: 1px solid var(--glass-border); }
+.term-input-row { display: flex; gap: 10px; max-width: 800px; margin: 0 auto; }
+.term-chat-input { flex: 1; resize: none; max-height: 150px; border-radius: var(--radius-lg) !important; }
+.term-send-btn { padding: 0 20px; border-radius: var(--radius-lg); font-size: 1.1rem; flex-shrink: 0; }
+
+/* Message bubbles */
+.term-msg-row { max-width: 800px; margin: 0 auto 16px; display: flex; }
+.term-msg-user { justify-content: flex-end; }
+.term-bubble { max-width: 85%; padding: 14px 18px; border-radius: var(--radius-lg); font-size: 0.95rem; line-height: 1.6; font-family: var(--font-body); }
+.term-bubble-user { background: rgba(179,136,255,0.15); border: 1px solid rgba(179,136,255,0.25); color: #e8dcc8; }
+.term-bubble-ai { background: var(--glass-bg); border: 1px solid var(--glass-border); color: #d0c8bc; }
+
+/* Code in chat */
+.term-code-block { background: rgba(0,0,0,0.4); padding: 12px; border-radius: var(--radius-md); overflow-x: auto; margin: 8px 0; font-size: 0.85rem; }
+.term-inline-code { background: rgba(179,136,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; }
+
+/* Typing indicator */
+.term-typing-dots { display: inline-flex; gap: 4px; padding: 14px 18px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); }
+.term-dot { width: 8px; height: 8px; background: var(--accent); border-radius: var(--radius-full); animation: dotPulse 1.2s infinite; }
 @keyframes dotPulse {
     0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
     40% { opacity: 1; transform: scale(1); }
 }
+
+/* Welcome screen */
+.term-welcome { text-align: center; padding: 80px 20px; }
+.term-welcome-icon { font-size: 2.5rem; margin-bottom: 16px; }
+.term-welcome-title { font-family: 'Space Grotesk', sans-serif; color: var(--accent); margin-bottom: 8px; }
+.term-welcome-sub { color: var(--text-muted); font-size: 0.95rem; }
 </style>
 """
 
@@ -407,86 +452,106 @@ def register_devportal_routes(app, csrf, limiter):
         total_team_queries = sum(m.get('queries_used', 0) for m in team_members)
         team_html = ""
         for m in team_members:
-            role_badge = '<span style="color:#b388ff;font-size:0.7rem;background:rgba(179,136,255,0.15);padding:2px 8px;border-radius:4px;">ADMIN</span>' if m['role'] == 'admin' else '<span style="color:#8a8278;font-size:0.7rem;">Member</span>'
+            role_badge = '<span class="mystes-badge mystes-badge-purple">ADMIN</span>' if m['role'] == 'admin' else '<span class="dash-member-role">Member</span>'
             member_queries = m.get('queries_used', 0)
             limit_val = m.get('query_limit')
             limit_text = str(limit_val) if limit_val else "Unlimited"
             bar_max = limit_val or usage.get('queries_included', 500) or 500
             bar_pct = min(100, int((member_queries / bar_max) * 100)) if bar_max > 0 else 0
             bar_color = "#22c55e" if bar_pct < 70 else ("#f59e0b" if bar_pct < 90 else "#ef4444")
-            remove_btn = "" if m['role'] == 'admin' else f"""<button onclick="removeMember('{m['account_id']}')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem;">Remove</button>"""
+            remove_btn = "" if m['role'] == 'admin' else f"""<button onclick="removeMember('{m['account_id']}')" class="mystes-btn mystes-btn-danger mystes-btn-sm">Remove</button>"""
             team_html += f"""
-            <div style="padding:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div class="mystes-card compact mb-sm">
+                <div class="flex-between mb-sm">
                     <div>
-                        <div style="color:#e8dcc8;font-size:0.9rem;">{m.get('name') or m['email']} {role_badge}</div>
-                        <div style="color:#8a8278;font-size:0.8rem;">{m['email']}</div>
+                        <div class="dash-member-name">{m.get('name') or m['email']} {role_badge}</div>
+                        <div class="dash-member-email">{m['email']}</div>
                     </div>
                     {remove_btn}
                 </div>
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;">
-                        <div style="width:{bar_pct}%;background:{bar_color};height:100%;border-radius:4px;transition:width 0.3s;"></div>
+                <div class="dash-progress-row">
+                    <div class="dash-progress-track">
+                        <div class="dash-progress-fill" style="width:{bar_pct}%;background:{bar_color};"></div>
                     </div>
-                    <div style="color:#8a8278;font-size:0.75rem;white-space:nowrap;">{member_queries} / {limit_text}</div>
+                    <div class="dash-progress-label">{member_queries} / {limit_text}</div>
                 </div>
             </div>"""
 
         admin_section = ""
         if account.role == 'admin':
             admin_section = f"""
-            <div style="margin-bottom:40px;">
-                <h2 style="font-family:'Cinzel',serif;font-size:1.3rem;color:#b388ff;margin-bottom:16px;">Team Members</h2>
-                <form id="addMemberForm" style="display:flex;gap:10px;margin-bottom:20px;">
+            <div class="mb-lg">
+                <h2 class="dash-section-title">Team Members</h2>
+                <form id="addMemberForm" class="dash-invite-form mb-md">
                     <input type="email" id="memberEmail" placeholder="team@example.com" required
-                        style="flex:1;padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e8dcc8;font-family:'Outfit',sans-serif;outline:none;">
+                        class="mystes-input" style="flex:1;">
                     <input type="text" id="memberName" placeholder="Name (optional)"
-                        style="width:160px;padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e8dcc8;font-family:'Outfit',sans-serif;outline:none;">
-                    <button type="submit" style="padding:10px 20px;background:linear-gradient(135deg,#7c3aed,#b388ff);border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;">Invite</button>
+                        class="mystes-input" style="width:160px;">
+                    <button type="submit" class="mystes-btn mystes-btn-primary">Invite</button>
                 </form>
                 {team_html}
             </div>"""
 
         content = f"""
-        <div style="max-width:800px;margin:50px auto;padding:0 20px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:30px;">
-                <h1 style="font-family:'Cinzel',serif;font-size:2rem;color:#b388ff;">APAi Admin</h1>
-                <a href="/apai/admin/terminal" style="background:linear-gradient(135deg,#7c3aed,#b388ff);color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-family:'Outfit',sans-serif;">
+        <div class="mystes-page" style="padding-top:50px;">
+            <div class="flex-between mb-lg">
+                <h1 class="dash-title">APAi Admin</h1>
+                <a href="/apai/admin/terminal" class="mystes-btn mystes-btn-primary">
                     Open Terminal
                 </a>
             </div>
 
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:40px;">
-                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;">
-                    <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;">Tier</div>
-                    <div style="color:#b388ff;font-size:1.4rem;font-weight:700;">{usage.get('tier', 'pro').upper()}</div>
+            <div class="dash-stats-grid mb-lg">
+                <div class="mystes-card compact">
+                    <div class="dash-stat-label">Tier</div>
+                    <div class="dash-stat-value dash-stat-accent">{usage.get('tier', 'pro').upper()}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;">
-                    <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;">Queries Used</div>
-                    <div style="color:#e8dcc8;font-size:1.4rem;font-weight:700;">{usage.get('queries_used', 0)} / {usage.get('queries_included', 0)}</div>
+                <div class="mystes-card compact">
+                    <div class="dash-stat-label">Queries Used</div>
+                    <div class="dash-stat-value">{usage.get('queries_used', 0)} / {usage.get('queries_included', 0)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;">
-                    <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;">Overage</div>
-                    <div style="color:#e8dcc8;font-size:1.4rem;font-weight:700;">{usage.get('overage_queries', 0)}</div>
+                <div class="mystes-card compact">
+                    <div class="dash-stat-label">Overage</div>
+                    <div class="dash-stat-value">{usage.get('overage_queries', 0)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;">
-                    <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;">Est. Cost</div>
-                    <div style="color:#e8dcc8;font-size:1.4rem;font-weight:700;">${{usage.get('estimated_cost_usd', 0):.2f}}</div>
+                <div class="mystes-card compact">
+                    <div class="dash-stat-label">Est. Cost</div>
+                    <div class="dash-stat-value">${{usage.get('estimated_cost_usd', 0):.2f}}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;">
-                    <div style="color:#8a8278;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;">Team Size</div>
-                    <div style="color:#e8dcc8;font-size:1.4rem;font-weight:700;">{len(team_members)}</div>
+                <div class="mystes-card compact">
+                    <div class="dash-stat-label">Team Size</div>
+                    <div class="dash-stat-value">{len(team_members)}</div>
                 </div>
             </div>
 
             {admin_section}
 
-            <div style="display:flex;gap:12px;">
-                <a href="/apai/admin/terminal" style="color:#b388ff;text-decoration:none;font-size:0.9rem;">Terminal</a>
-                <a href="/apai/admin/api-keys" style="color:#8a8278;text-decoration:none;font-size:0.9rem;">API Keys</a>
-                <a href="/apai/admin/logout" style="color:#8a8278;text-decoration:none;font-size:0.9rem;">Logout</a>
+            <div class="dash-nav-links">
+                <a href="/apai/admin/terminal" class="apai-link">Terminal</a>
+                <a href="/apai/admin/api-keys" class="dash-nav-muted">API Keys</a>
+                <a href="/apai/admin/logout" class="dash-nav-muted">Logout</a>
             </div>
         </div>
+
+        <style>
+        .dash-title {{ font-family: 'Space Grotesk', sans-serif; font-size: 2rem; color: var(--accent); }}
+        .dash-section-title {{ font-family: 'Space Grotesk', sans-serif; font-size: 1.3rem; color: var(--accent); margin-bottom: 16px; }}
+        .dash-stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }}
+        .dash-stat-label {{ color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }}
+        .dash-stat-value {{ color: #e8dcc8; font-size: 1.4rem; font-weight: 700; }}
+        .dash-stat-accent {{ color: var(--accent); }}
+        .dash-invite-form {{ display: flex; gap: 10px; }}
+        .dash-member-name {{ color: #e8dcc8; font-size: 0.9rem; }}
+        .dash-member-email {{ color: var(--text-muted); font-size: 0.8rem; }}
+        .dash-member-role {{ color: var(--text-muted); font-size: 0.7rem; }}
+        .dash-progress-row {{ display: flex; align-items: center; gap: 12px; }}
+        .dash-progress-track {{ flex: 1; background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden; }}
+        .dash-progress-fill {{ height: 100%; border-radius: 4px; transition: width 0.3s; }}
+        .dash-progress-label {{ color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }}
+        .dash-nav-links {{ display: flex; gap: 12px; }}
+        .dash-nav-muted {{ color: var(--text-muted); text-decoration: none; font-size: 0.9rem; }}
+        .dash-nav-muted:hover {{ color: var(--accent); }}
+        </style>
 
         <script>
         document.getElementById('addMemberForm')?.addEventListener('submit', async function(e) {{
@@ -952,34 +1017,45 @@ def register_devportal_routes(app, csrf, limiter):
         key_list_html = ""
         for k in keys:
             key_list_html += f"""
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;margin-bottom:8px;">
+            <div class="mystes-card compact flex-between mb-sm">
                 <div>
-                    <div style="color:#e8dcc8;font-family:monospace;font-size:0.9rem;">{k.key_prefix}...</div>
-                    <div style="color:#8a8278;font-size:0.8rem;">{k.label} &middot; {k.total_requests} requests</div>
+                    <div class="keys-prefix">{k.key_prefix}...</div>
+                    <div class="keys-meta">{k.label} &middot; {k.total_requests} requests</div>
                 </div>
-                <button onclick="revokeKey({k.id})" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;">Revoke</button>
+                <button onclick="revokeKey({k.id})" class="mystes-btn mystes-btn-danger mystes-btn-sm">Revoke</button>
             </div>"""
 
         content = f"""
-        <div style="max-width:600px;margin:50px auto;padding:0 20px;">
-            <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;color:#b388ff;margin-bottom:8px;">API Keys</h1>
-            <p style="color:#8a8278;margin-bottom:24px;font-size:0.9rem;">Use API keys for programmatic access to the ANASTASiA chat API.</p>
+        <div class="mystes-page keys-page">
+            <div class="mystes-page-header">
+                <h1>API Keys</h1>
+                <p>Use API keys for programmatic access to the ANASTASiA chat API.</p>
+            </div>
 
             {{% for cat, msg in get_flashed_messages(with_categories=true) %}}
-            <div style="padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:0.9rem;background:rgba(20,184,166,0.1);border:1px solid rgba(20,184,166,0.3);color:#14b8a6;">{{{{ msg }}}}</div>
+            <div class="alert alert-success mb-md">{{{{ msg }}}}</div>
             {{% endfor %}}
 
-            <form method="POST" style="display:flex;gap:10px;margin-bottom:24px;">
+            <form method="POST" class="keys-gen-form mb-lg">
                 <input type="text" name="label" placeholder="Key label (e.g. Production)" value="Default"
-                    style="flex:1;padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e8dcc8;font-family:'Outfit',sans-serif;outline:none;">
-                <button type="submit" style="padding:10px 20px;background:linear-gradient(135deg,#7c3aed,#b388ff);border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;">Generate</button>
+                    class="mystes-input" style="flex:1;">
+                <button type="submit" class="mystes-btn mystes-btn-primary">Generate</button>
             </form>
 
             {key_list_html}
 
-            <div style="margin-top:20px;">
-                <a href="/apai/admin" style="color:#b388ff;text-decoration:none;font-size:0.9rem;">&larr; Back to Dashboard</a>
+            <div class="mt-md">
+                <a href="/apai/admin" class="apai-link">&larr; Back to Dashboard</a>
             </div>
+
+            <style>
+            .keys-page {{ max-width: 600px; padding-top: 50px; }}
+            .keys-gen-form {{ display: flex; gap: 10px; }}
+            .keys-prefix {{ color: #e8dcc8; font-family: monospace; font-size: 0.9rem; }}
+            .keys-meta {{ color: var(--text-muted); font-size: 0.8rem; }}
+            .apai-link {{ color: var(--accent); text-decoration: none; font-size: 0.9rem; }}
+            .apai-link:hover {{ text-decoration: underline; }}
+            </style>
 
             <script>
             async function revokeKey(keyId) {{

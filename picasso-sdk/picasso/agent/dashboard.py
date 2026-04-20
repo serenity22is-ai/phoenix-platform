@@ -21,7 +21,7 @@ ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ANASTASiA — Admin Dashboard</title>
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cinzel:wght@600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
         --bg: #0f0f1a;
@@ -54,7 +54,7 @@ ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
         align-items: center;
     }
     .header h1 {
-        font-family: 'Cinzel', serif;
+        font-family: 'Space Grotesk', sans-serif;
         font-size: 20px;
         letter-spacing: 2px;
     }
@@ -544,7 +544,7 @@ ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
                 <div class="form-group">
                     <label>Heading Font</label>
                     <select id="brand-heading-font">
-                        <option value="Cinzel">Cinzel (Serif)</option>
+                        <option value="Space Grotesk">Space Grotesk (Geometric)</option>
                         <option value="Inter">Inter (Sans-serif)</option>
                         <option value="Playfair Display">Playfair Display (Serif)</option>
                         <option value="Montserrat">Montserrat (Sans-serif)</option>
@@ -681,7 +681,7 @@ ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
             <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">
                 <div style="flex:1;min-width:250px;">
                     <div style="font-size:13px;color:var(--text-dim);margin-bottom:4px;">Current Plan</div>
-                    <div style="font-size:24px;font-weight:600;font-family:'Cinzel',serif;" id="blPlanName">—</div>
+                    <div style="font-size:24px;font-weight:600;font-family:'Space Grotesk',sans-serif;" id="blPlanName">—</div>
                     <div style="font-size:14px;color:var(--text-dim);margin-top:4px;" id="blPlanPrice">—</div>
                     <div style="margin-top:12px;font-size:13px;color:var(--text-dim);" id="blPlanStatus">—</div>
                 </div>
@@ -924,7 +924,7 @@ async function loadConfig() {
             document.getElementById('brand-primary').value = b.primary_color || '#1a1a2e';
             document.getElementById('brand-accent').value = b.accent_color || '#6366f1';
             document.getElementById('brand-favicon').value = b.favicon_url || '';
-            document.getElementById('brand-heading-font').value = b.heading_font || 'Cinzel';
+            document.getElementById('brand-heading-font').value = b.heading_font || 'Space Grotesk';
             document.getElementById('brand-body-font').value = b.body_font || 'Outfit';
         }
 
@@ -1317,7 +1317,7 @@ async function loadBilling() {
         const plans = data.plans||[];
         document.getElementById('blPlanCards').innerHTML = plans.map(p =>
             '<div style="background:var(--input-bg);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;">' +
-            '<div style="font-family:Cinzel,serif;font-size:18px;">'+p.name+'</div>' +
+            '<div style="font-family:Space Grotesk,sans-serif;font-size:18px;">'+p.name+'</div>' +
             '<div style="font-size:28px;font-weight:600;color:var(--accent);margin:8px 0;">$'+p.price_monthly+'<span style="font-size:14px;color:var(--text-dim);">/mo</span></div>' +
             '<div style="font-size:12px;color:var(--text-dim);">'+((p.limits||{}).ai_requests_per_month||0).toLocaleString()+' AI requests/mo</div>' +
             '<ul style="list-style:none;margin-top:12px;font-size:12px;color:var(--text-dim);text-align:left;">' +

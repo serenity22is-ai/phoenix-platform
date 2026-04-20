@@ -472,7 +472,7 @@ class TestMigration:
         """Build #184-186 migration file exists."""
         migration_path = os.path.join(
             _root, 'migrations', 'versions',
-            'u1v2w3x4y5z6_build184_186_devportal_and_b2b_markup.py'
+            'aa184186b2b1_build184_186_devportal_and_b2b_markup.py'
         )
         assert os.path.exists(migration_path), "Migration file not found"
 
@@ -480,7 +480,7 @@ class TestMigration:
         """Migration has both upgrade() and downgrade() functions."""
         migration_path = os.path.join(
             _root, 'migrations', 'versions',
-            'u1v2w3x4y5z6_build184_186_devportal_and_b2b_markup.py'
+            'aa184186b2b1_build184_186_devportal_and_b2b_markup.py'
         )
         with open(migration_path) as f:
             content = f.read()

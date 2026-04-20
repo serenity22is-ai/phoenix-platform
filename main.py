@@ -64,6 +64,17 @@ except ImportError:
     KIWI_CONFIGURED = False
     print("Note: Kiwi Tequila client not available")
 
+# AirGateway NDC — NDC aggregator + AERTiCKET consolidator (25+ airlines, POS arbitrage)
+try:
+    from clients.airgateway import AirGatewayClient
+    AIRGATEWAY_AVAILABLE = True
+    _airgateway_client = AirGatewayClient()
+    AIRGATEWAY_CONFIGURED = _airgateway_client.is_configured()
+except ImportError:
+    AIRGATEWAY_AVAILABLE = False
+    AIRGATEWAY_CONFIGURED = False
+    print("Note: AirGateway NDC client not available")
+
 # Scraping mode: "hybrid" (default, Amadeus + proxies), "direct" (proxies only)
 SCRAPING_MODE = os.getenv("SCRAPING_MODE", "hybrid")
 

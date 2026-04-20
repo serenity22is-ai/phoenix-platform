@@ -35,44 +35,18 @@ logger = logging.getLogger(__name__)
 FRIENDS_CONTENT = """
 <style>
 /* ============================================
-   FRIENDS PAGE — Dark OTA aesthetic
+   FRIENDS PAGE — Page-specific layout
    ============================================ */
 
 .friends-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
-.friends-page-header {
-    text-align: center;
-    padding: 40px 0 10px;
-}
-.friends-page-header h1 {
-    font-family: var(--font-brand, 'Cinzel', serif);
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: var(--text-bright, #f5f5f5);
-    margin: 0 0 8px;
-}
-.friends-page-header p {
-    color: var(--text-secondary, #aaa);
-    font-size: 15px;
-    margin: 0;
-}
-
-/* Add friend card */
-.friends-add-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
+/* Add-friend form layout */
+.friends-add-card { margin-bottom: 24px; }
 .friends-add-card h2 {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand);
     font-size: 18px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright);
     margin: 0 0 16px;
     letter-spacing: 1px;
 }
@@ -81,276 +55,120 @@ FRIENDS_CONTENT = """
     gap: 12px;
     align-items: flex-end;
 }
-.friends-add-form .input-group {
-    flex: 1;
-}
-.friends-add-form label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: var(--text-secondary, #aaa);
-    margin-bottom: 6px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-}
-.friends-add-form input {
-    width: 100%;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    color: #f5f5f5;
-    border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 15px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    outline: none;
-    transition: border-color 0.2s;
-    box-sizing: border-box;
-}
-.friends-add-form input:focus {
-    border-color: rgba(201,164,74,0.5);
-}
-.friends-add-form input::placeholder {
-    color: rgba(255,255,255,0.3);
-}
-.friends-send-btn {
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    padding: 12px 24px;
-    font-size: 14px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-.friends-send-btn:hover {
-    background: #d4af55;
-    transform: translateY(-1px);
-}
-.friends-send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-}
+.friends-add-form .input-group { flex: 1; }
+
+/* Feedback message */
 .friends-msg {
     margin-top: 12px;
     padding: 10px 16px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     font-size: 14px;
     display: none;
-    font-family: var(--font-body, 'Outfit', sans-serif);
 }
 .friends-msg.success {
-    background: rgba(76,175,80,0.12);
-    border: 1px solid rgba(76,175,80,0.3);
-    color: #4caf50;
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: #4ade80;
     display: block;
 }
 .friends-msg.error {
-    background: rgba(244,67,54,0.12);
-    border: 1px solid rgba(244,67,54,0.3);
-    color: #f44336;
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #f87171;
     display: block;
 }
 
-/* Pending requests section */
-.friends-section {
-    margin-bottom: 28px;
-}
+/* Sections */
+.friends-section { margin-bottom: 28px; }
 .friends-section h2 {
-    font-family: var(--font-brand, 'Cinzel', serif);
+    font-family: var(--font-brand);
     font-size: 18px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright);
     margin: 0 0 16px;
     letter-spacing: 1px;
 }
+
+/* Pending list layout */
 .friends-pending-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 .friends-pending-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(201,164,74,0.2);
-    border-radius: 16px;
-    padding: 20px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+    border-color: rgba(201,169,110,0.2);
 }
-.friends-pending-info {
-    flex: 1;
-    min-width: 0;
-}
+.friends-pending-info { flex: 1; min-width: 0; }
 .friends-pending-name {
     font-size: 16px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright);
     margin: 0 0 4px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
 }
 .friends-pending-email {
     font-size: 13px;
-    color: rgba(255,255,255,0.6);
-    font-family: var(--font-body, 'Outfit', sans-serif);
+    color: var(--text-muted);
 }
 .friends-pending-actions {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
 }
-.friends-accept-btn {
-    background: rgba(76,175,80,0.15);
-    color: #4caf50;
-    border: 1px solid rgba(76,175,80,0.3);
-    border-radius: 10px;
-    padding: 8px 18px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.friends-accept-btn:hover {
-    background: rgba(76,175,80,0.25);
-    border-color: #4caf50;
-}
-.friends-reject-btn {
-    background: rgba(255,255,255,0.06);
-    color: #aaa;
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    padding: 8px 18px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.friends-reject-btn:hover {
-    background: rgba(244,67,54,0.12);
-    border-color: rgba(244,67,54,0.3);
-    color: #f44336;
-}
 
-/* Friends list */
+/* Friends list layout */
 .friends-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 .friend-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    transition: border-color 0.2s;
 }
-.friend-card:hover {
-    border-color: rgba(255,255,255,0.15);
-}
-.friend-info {
-    flex: 1;
-    min-width: 0;
-}
+.friend-info { flex: 1; min-width: 0; }
 .friend-name {
     font-size: 16px;
     font-weight: 600;
-    color: #f5f5f5;
+    color: var(--text-bright);
     margin: 0 0 4px;
-    font-family: var(--font-body, 'Outfit', sans-serif);
 }
 .friend-meta {
     font-size: 13px;
-    color: rgba(255,255,255,0.6);
-    font-family: var(--font-body, 'Outfit', sans-serif);
+    color: var(--text-muted);
 }
-.friend-meta span {
-    margin-right: 16px;
-}
-.friend-unfriend-btn {
-    background: transparent;
-    color: #aaa;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 10px;
-    padding: 6px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-}
-.friend-unfriend-btn:hover {
-    background: rgba(244,67,54,0.12);
-    border-color: rgba(244,67,54,0.3);
-    color: #f44336;
-}
+.friend-meta span { margin-right: 16px; }
 
-/* Empty state */
-.friends-empty {
-    text-align: center;
-    padding: 60px 20px;
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-}
-.friends-empty-icon {
-    font-size: 48px;
-    opacity: 0.3;
-    margin-bottom: 16px;
-}
+/* Empty state text override */
 .friends-empty p {
-    color: rgba(255,255,255,0.6);
-    font-size: 15px;
     max-width: 400px;
     margin: 0 auto;
     line-height: 1.6;
-    font-family: var(--font-body, 'Outfit', sans-serif);
+    font-size: 15px;
 }
 
 /* Mobile responsive */
 @media (max-width: 640px) {
-    .friends-add-form {
-        flex-direction: column;
-    }
-    .friends-send-btn {
-        width: 100%;
-    }
+    .friends-add-form { flex-direction: column; }
+    .friends-add-form .mystes-btn { width: 100%; }
     .friends-pending-card,
     .friend-card {
         flex-direction: column;
         align-items: flex-start;
     }
-    .friends-pending-actions {
-        width: 100%;
-    }
-    .friends-pending-actions button {
-        flex: 1;
-    }
-    .friend-unfriend-btn {
-        align-self: flex-end;
-    }
+    .friends-pending-actions { width: 100%; }
+    .friends-pending-actions button { flex: 1; }
+    .friend-card .mystes-btn { align-self: flex-end; }
 }
 </style>
 
 <div class="friends-page">
-    <div class="friends-page-header">
+    <div class="mystes-page-header">
         <h1>FRIENDS</h1>
         <p>Connect with fellow travelers on MYSTES</p>
     </div>
@@ -361,14 +179,14 @@ FRIENDS_CONTENT = """
         <h2>Pending Requests</h2>
         <div class="friends-pending-list">
             {% for req in pending_requests %}
-            <div class="friends-pending-card" id="pending-{{ req.id }}">
+            <div class="mystes-card compact friends-pending-card" id="pending-{{ req.id }}">
                 <div class="friends-pending-info">
                     <div class="friends-pending-name">{{ req.requester.name or 'MYSTES User' }}</div>
                     <div class="friends-pending-email">{{ req.requester_email_masked }}</div>
                 </div>
                 <div class="friends-pending-actions">
-                    <button class="friends-accept-btn" onclick="acceptRequest({{ req.id }})">Accept</button>
-                    <button class="friends-reject-btn" onclick="rejectRequest({{ req.id }})">Reject</button>
+                    <button class="mystes-btn mystes-btn-success mystes-btn-sm" onclick="acceptRequest({{ req.id }})">Accept</button>
+                    <button class="mystes-btn mystes-btn-ghost mystes-btn-sm" onclick="rejectRequest({{ req.id }})">Reject</button>
                 </div>
             </div>
             {% endfor %}
@@ -377,15 +195,15 @@ FRIENDS_CONTENT = """
     {% endif %}
 
     <!-- Add Friend -->
-    <div class="friends-add-card">
+    <div class="mystes-card friends-add-card">
         <h2>Add Friend</h2>
         <div class="friends-add-form">
             <div class="input-group">
-                <label for="friend-email">Email Address</label>
-                <input type="email" id="friend-email" placeholder="friend@example.com"
+                <label class="mystes-label" for="friend-email">Email Address</label>
+                <input class="mystes-input" type="email" id="friend-email" placeholder="friend@example.com"
                        onkeydown="if(event.key==='Enter'){sendFriendRequest();}">
             </div>
-            <button class="friends-send-btn" id="send-req-btn" onclick="sendFriendRequest()">Send Request</button>
+            <button class="mystes-btn mystes-btn-gold" id="send-req-btn" onclick="sendFriendRequest()">Send Request</button>
         </div>
         <div class="friends-msg" id="friends-msg"></div>
     </div>
@@ -396,7 +214,7 @@ FRIENDS_CONTENT = """
         {% if friends %}
         <div class="friends-list">
             {% for f in friends %}
-            <div class="friend-card" id="friend-{{ f.friendship_id }}">
+            <div class="mystes-card compact friend-card" id="friend-{{ f.friendship_id }}">
                 <div class="friend-info">
                     <div class="friend-name">{{ f.name or 'MYSTES User' }}</div>
                     <div class="friend-meta">
@@ -404,13 +222,13 @@ FRIENDS_CONTENT = """
                         <span>Member since {{ f.member_since }}</span>
                     </div>
                 </div>
-                <button class="friend-unfriend-btn" onclick="unfriend({{ f.friendship_id }})">Unfriend</button>
+                <button class="mystes-btn mystes-btn-danger mystes-btn-sm" onclick="unfriend({{ f.friendship_id }})">Unfriend</button>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <div class="friends-empty">
-            <div class="friends-empty-icon">&#x1f465;</div>
+        <div class="mystes-card mystes-empty friends-empty">
+            <div class="mystes-empty-icon">&#x1f465;</div>
             <p>Connect with fellow travelers. Add friends to collaborate on trips and share collections.</p>
         </div>
         {% endif %}
@@ -894,3 +712,67 @@ def register_friend_routes(app, csrf, limiter):
         activity.sort(key=lambda x: x.get("created_at") or "", reverse=True)
 
         return jsonify({"activity": activity[:20]})
+
+    # ------------------------------------------------------------------
+    # API: Set Companion Nickname (Build #220)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/friends/<int:friendship_id>/nickname", methods=["POST"])
+    @csrf.exempt
+    @login_required
+    def api_friends_set_nickname(friendship_id):
+        """Set a nickname for a travel companion."""
+        friendship = db.session.get(Friendship, friendship_id)
+        if not friendship:
+            return jsonify({"success": False, "error": "Not found"}), 404
+
+        me = current_user.id
+        if friendship.requester_id != me and friendship.addressee_id != me:
+            return jsonify({"success": False, "error": "Not your friendship"}), 403
+
+        data = request.get_json(silent=True) or {}
+        nickname = (data.get("nickname") or "").strip()
+        if len(nickname) > 50:
+            nickname = nickname[:50]
+
+        friendship.nickname = nickname or None
+        db.session.commit()
+
+        return jsonify({"success": True, "nickname": friendship.nickname})
+
+    # ------------------------------------------------------------------
+    # API: Get Companions with Trip Stats (Build #220)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/friends/companions")
+    @csrf.exempt
+    @login_required
+    def api_friends_companions():
+        """List accepted friends with companion details (nickname, trip count)."""
+        me = current_user.id
+        friendships = Friendship.query.filter(
+            Friendship.status == "accepted",
+            db.or_(
+                Friendship.requester_id == me,
+                Friendship.addressee_id == me,
+            )
+        ).order_by(Friendship.trips_together_count.desc()).all()
+
+        companions = []
+        for f in friendships:
+            companion_id = f.addressee_id if f.requester_id == me else f.requester_id
+            companion_user = db.session.get(User, companion_id)
+            companions.append({
+                "friendship_id": f.id,
+                "user_id": companion_id,
+                "name": companion_user.name if companion_user else "Unknown",
+                "email": companion_user.email if companion_user else None,
+                "nickname": f.nickname,
+                "trips_together": f.trips_together_count or 0,
+                "first_trip_at": f.first_trip_together_at.isoformat() if f.first_trip_together_at else None,
+                "since": f.accepted_at.isoformat() if f.accepted_at else f.created_at.isoformat(),
+            })
+
+        return jsonify({"companions": companions, "count": len(companions)})
+
+    logger.info("Friends + Companions routes registered (Build #220 enhanced)")

@@ -535,6 +535,26 @@ class CredentialVault:
                 )
             ]
 
+    def list(self, tenant_id: Optional[str] = None) -> List[dict]:
+        """
+        List active credentials as lightweight dicts — used by CredentialNetwork.
+
+        Returns provider_id, pos_markets, vertical, and owner for each
+        active credential. Never includes encrypted data.
+        """
+        entries = self.list_credentials(tenant_id)
+        return [
+            {
+                "credential_id": e.credential_id,
+                "provider_id": e.provider_id,
+                "pos_markets": e.metadata.get("pos_markets", []),
+                "vertical": e.metadata.get("vertical", "flights"),
+                "owner_tenant_id": e.owner_tenant_id,
+            }
+            for e in entries
+            if e.status == "active"
+        ]
+
     # ------------------------------------------------------------------
     # Sharing
     # ------------------------------------------------------------------

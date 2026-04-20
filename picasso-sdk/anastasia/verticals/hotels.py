@@ -232,5 +232,5 @@ class HotelsNeuron(NeuronModule):
     def _on_booking_created(self, event: Event) -> None:
         """Track hotel bookings."""
         source = event.data.get("source", "")
-        if source in {"liteapi"}:
+        if source in {"liteapi", "duffel_stays"}:
             self._booking_count += 1

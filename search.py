@@ -36,6 +36,8 @@ from main import (
     DUFFEL_CONFIGURED,
     KIWI_AVAILABLE,
     KIWI_CONFIGURED,
+    AIRGATEWAY_AVAILABLE,
+    AIRGATEWAY_CONFIGURED,
 )
 
 import re as _re
@@ -427,6 +429,51 @@ def search_global(
     from payments import get_fee_percent
     fee_pct = get_fee_percent(user)
 
+    # --- ANASTASiA GeoIP: detect customer country + pipeline routing ---
+    _use_arbitrage = True  # Default: assume US customer → arbitrage pipeline
+    _customer_country = "US"
+    try:
+        import sys as _geo_sys, os as _geo_os
+        _geo_sdk = _geo_os.path.join(_geo_os.path.dirname(__file__), "picasso-sdk")
+        if _geo_sdk not in _geo_sys.path:
+            _geo_sys.path.insert(0, _geo_sdk)
+        from anastasia.geoip import GeoIPModule
+        from anastasia.core.events import EventBus as _GeoBus
+
+        _geoip = GeoIPModule()
+        _geoip.initialize(event_bus=_GeoBus(), config={})
+
+        # Get request headers from Flask context (if available)
+        try:
+            from flask import request as _flask_req
+            _req_headers = dict(_flask_req.headers)
+            _remote_addr = _flask_req.remote_addr or ""
+        except (RuntimeError, ImportError):
+            _req_headers = {}
+            _remote_addr = ""
+
+        _geo_result = _geoip.detect_and_route(_req_headers, _remote_addr)
+        _customer_country = _geo_result["country"]
+        _use_arbitrage = _geo_result["use_arbitrage"]
+        print(f"  [GeoIP] Customer: {_customer_country}, pipeline: {_geo_result['pipeline']}")
+    except Exception as _geo_err:
+        logger.debug("[GeoIP] Detection unavailable: %s — defaulting to US arbitrage", _geo_err)
+
+    # --- ANASTASiA ArbitrageModule: reusable spread calculator ---
+    _arbitrage_module = None
+    try:
+        import sys as _arb_sys, os as _arb_os
+        _arb_sdk = _arb_os.path.join(_arb_os.path.dirname(__file__), "picasso-sdk")
+        if _arb_sdk not in _arb_sys.path:
+            _arb_sys.path.insert(0, _arb_sdk)
+        from anastasia.arbitrage import ArbitrageModule
+        from anastasia.core.events import EventBus as _ArbBus
+
+        _arbitrage_module = ArbitrageModule()
+        _arbitrage_module.initialize(event_bus=_ArbBus(), config={})
+    except Exception as _arb_err:
+        logger.debug("[Arbitrage] Module unavailable: %s — using inline calc", _arb_err)
+
     # Determine trip type
     is_round_trip = bool(return_date)
     trip_type_str = "ROUND-TRIP" if is_round_trip else "ONE-WAY"
@@ -457,6 +504,22 @@ def search_global(
             _sys.path.insert(0, _sdk_path)
         from anastasia.dispatch import SearchOrchestrator
 
+        # --- Credential routing for B2B/APAi tenants ---
+        _credential_router = None
+        _requester_tenant_id = None
+        if user and getattr(user, 'tenant_id', None):
+            _requester_tenant_id = user.tenant_id
+            try:
+                from anastasia.credentials import CredentialModule
+                from anastasia.dispatch import CredentialRouter
+                _cred_module = CredentialModule()
+                _cred_module.initialize(event_bus=None, config={})
+                _credential_router = CredentialRouter(_cred_module.network, _cred_module.vault)
+                print(f"  [ANASTASiA] Credential routing active for tenant {_requester_tenant_id}")
+            except Exception as _cr_err:
+                print(f"  [ANASTASiA] Credential routing unavailable: {_cr_err}")
+                _credential_router = None
+
         # Build orchestrator-compatible client adapters
         _orch_clients = {}
         if PICASSO_AVAILABLE and PICASSO_CONFIGURED:
@@ -486,6 +549,16 @@ def search_global(
                 _orch_clients["kiwi_tequila"] = _KiwiAdapter()
             except ImportError:
                 pass
+        if AIRGATEWAY_AVAILABLE and AIRGATEWAY_CONFIGURED:
+            try:
+                from clients.airgateway import AirGatewayClient as _AgwClient
+                _agw_inst = _AgwClient()
+                class _AirGatewayAdapter:
+                    def search_flights(self, origin, destination, departure_date, return_date=None, adults=1, cabin_class="economy", **kw):
+                        return _agw_inst.search_flights(origin=origin, destination=destination, departure_date=departure_date, return_date=return_date, adults=adults, cabin_class=cabin_class)
+                _orch_clients["airgateway_ndc"] = _AirGatewayAdapter()
+            except ImportError:
+                pass
 
         if _orch_clients:
             print(f"\n  [ANASTASiA] SearchOrchestrator dispatching to {list(_orch_clients.keys())}...")
@@ -494,6 +567,8 @@ def search_global(
                 origin=origin, destination=destination, departure_date=date,
                 return_date=return_date, adults=adults, cabin_class=cabin_class,
                 clients=_orch_clients,
+                credential_router=_credential_router,
+                requester_tenant_id=_requester_tenant_id,
             )
 
             if _orch_result.get("success") and _orch_result.get("flights"):
@@ -585,8 +660,9 @@ def search_global(
                         logger.warning("[SERPAPI] Failed: %s", _serp_err)
 
                 # Match orchestrator flights to Google flights for real deal pricing
+                # Skip arbitrage comparison for non-US customers (zero proxy cost path)
                 matched_count = 0
-                if google_flights:
+                if google_flights and _use_arbitrage:
                     # Build pseudo-picasso list for _match_picasso_to_google (uses airline_name + departure_time)
                     _pseudo_picasso = [{"airline_name": f.get("airline", ""), "departure_time": f.get("departure_time", "")} for f in formatted_flights]
                     matches = _match_picasso_to_google(_pseudo_picasso, google_flights)
@@ -597,62 +673,63 @@ def search_global(
                             continue
                         google_price = gf.get("price", 0)
                         our_price = formatted_flights[p_idx].get("cheapest_price", 0)
-                        gross_savings = google_price - our_price
 
-                        if gross_savings >= 10:
-                            platform_fee = round(gross_savings * fee_pct, 2)
-                            fn = formatted_flights[p_idx].get("flight_number", "")
-                            formatted_flights[p_idx]["deal"] = {
-                                "deal_id": f"deal_{origin}_{destination}_{date}_{fn}",
-                                "home_price": round(google_price, 2),
-                                "arbitrage_price": round(our_price, 2),
-                                "gross_savings": round(gross_savings, 2),
-                                "price_difference": round(gross_savings, 2),
-                                "user_savings": round(gross_savings - platform_fee, 2),
-                                "platform_fee_usd": platform_fee,
-                                "user_saves_pct": round((gross_savings / google_price) * 100, 1),
-                                "cheapest_market": "Mystes",
-                                "is_good_deal": True,
-                                "proxy_verified": True,
-                                "price_source": "serpapi" if serpapi_flights else "google_scraper",
-                                "booking_token": gf.get("booking_token", ""),
-                            }
-                            formatted_flights[p_idx]["savings"] = round(gross_savings - platform_fee, 2)
-                            formatted_flights[p_idx]["savings_pct"] = round((gross_savings / google_price) * 100, 1)
-                            matched_count += 1
-
-                # --- Estimated markup for unmatched flights (1.55x conservative) ---
-                ESTIMATED_RETAIL_MARKUP = 1.55
-                estimated_count = 0
-                for idx, ff in enumerate(formatted_flights):
-                    if ff.get("deal"):
-                        continue
-                    our_price = ff.get("cheapest_price") or 0
-                    if our_price <= 0:
-                        continue
-                    est_home_price = round(our_price * ESTIMATED_RETAIL_MARKUP, 2)
-                    est_gross = round(est_home_price - our_price, 2)
-                    if est_gross < 5:
-                        continue
-                    est_fee = round(est_gross * fee_pct, 2)
-                    fn = ff.get("flight_number", "")
-                    formatted_flights[idx]["deal"] = {
-                        "deal_id": f"deal_{origin}_{destination}_{date}_{fn}",
-                        "home_price": est_home_price,
-                        "arbitrage_price": round(our_price, 2),
-                        "gross_savings": est_gross,
-                        "price_difference": est_gross,
-                        "user_savings": round(est_gross - est_fee, 2),
-                        "platform_fee_usd": est_fee,
-                        "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
-                        "cheapest_market": "Mystes",
-                        "is_good_deal": True,
-                        "proxy_verified": False,
-                        "estimated": True,
-                    }
-                    formatted_flights[idx]["savings"] = round(est_gross - est_fee, 2)
-                    formatted_flights[idx]["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
-                    estimated_count += 1
+                        # --- ANASTASiA ArbitrageModule: neuron-based spread calc ---
+                        # Enforces $3 min fee, NO max cap, tier-based %, event tracking
+                        if _arbitrage_module:
+                            _spread = _arbitrage_module.calculate_spread(
+                                us_retail_price=google_price,
+                                foreign_pos_price=our_price,
+                                foreign_market="API",  # API source, not a POS market
+                                fee_percent=fee_pct,
+                            )
+                            if _spread.has_arbitrage:
+                                _display = _spread.to_display()
+                                fn = formatted_flights[p_idx].get("flight_number", "")
+                                formatted_flights[p_idx]["deal"] = {
+                                    "deal_id": f"deal_{origin}_{destination}_{date}_{fn}",
+                                    "home_price": _display["google_price"],
+                                    "arbitrage_price": round(our_price, 2),
+                                    "gross_savings": round(_spread.spread, 2),
+                                    "price_difference": round(_spread.spread, 2),
+                                    "user_savings": _display["you_save"],
+                                    "platform_fee_usd": _display["service_fee"],
+                                    "user_saves_pct": _display["savings_percent"],
+                                    "cheapest_market": "Mystes",
+                                    "is_good_deal": True,
+                                    "proxy_verified": True,
+                                    "price_source": "serpapi" if serpapi_flights else "google_scraper",
+                                    "booking_token": gf.get("booking_token", ""),
+                                }
+                                formatted_flights[p_idx]["savings"] = _display["you_save"]
+                                formatted_flights[p_idx]["savings_pct"] = _display["savings_percent"]
+                                matched_count += 1
+                        else:
+                            # Inline fallback if ArbitrageModule unavailable
+                            gross_savings = google_price - our_price
+                            if gross_savings >= 10:
+                                platform_fee = round(max(gross_savings * fee_pct, 3.0), 2)
+                                customer_savings = round(gross_savings - platform_fee, 2)
+                                if customer_savings > 0:
+                                    fn = formatted_flights[p_idx].get("flight_number", "")
+                                    formatted_flights[p_idx]["deal"] = {
+                                        "deal_id": f"deal_{origin}_{destination}_{date}_{fn}",
+                                        "home_price": round(google_price, 2),
+                                        "arbitrage_price": round(our_price, 2),
+                                        "gross_savings": round(gross_savings, 2),
+                                        "price_difference": round(gross_savings, 2),
+                                        "user_savings": customer_savings,
+                                        "platform_fee_usd": platform_fee,
+                                        "user_saves_pct": round((customer_savings / google_price) * 100, 1),
+                                        "cheapest_market": "Mystes",
+                                        "is_good_deal": True,
+                                        "proxy_verified": True,
+                                        "price_source": "serpapi" if serpapi_flights else "google_scraper",
+                                        "booking_token": gf.get("booking_token", ""),
+                                    }
+                                    formatted_flights[p_idx]["savings"] = customer_savings
+                                    formatted_flights[p_idx]["savings_pct"] = round((customer_savings / google_price) * 100, 1)
+                                    matched_count += 1
 
                 deals = [f for f in formatted_flights if f.get("deal")]
 
@@ -666,7 +743,7 @@ def search_global(
                 if agg_count: source_parts.append(f"{agg_count} Kiwi")
                 source_str = " + ".join(source_parts) if source_parts else str(len(formatted_flights))
                 print(f"\n{'='*60}")
-                print(f"ANASTASiA RESULTS: {len(formatted_flights)} flights ({source_str}), {matched_count} Google-verified, {estimated_count} estimated")
+                print(f"ANASTASiA RESULTS: {len(formatted_flights)} flights ({source_str}), {matched_count} Google-verified")
                 print(f"{'='*60}")
 
                 return {
@@ -854,42 +931,6 @@ def search_global(
                             formatted_flights[p_idx]["savings_pct"] = round((gross_savings / google_price) * 100, 1)
                             matched_count += 1
 
-                # --- Estimated markup for unmatched flights ---
-                # When Google scrape fails or a flight has no Google match,
-                # estimate the retail price using a conservative multiplier.
-                # Data shows Google averages 1.72x Picasso (range 1.45-1.93x).
-                # Using 1.55x as moderate conservative estimate.
-                ESTIMATED_RETAIL_MARKUP = 1.55
-                estimated_count = 0
-                for idx, ff in enumerate(formatted_flights):
-                    if ff.get("deal"):
-                        continue  # already has real Google comparison
-                    picasso_price = ff.get("cheapest_price") or ff.get("price") or 0
-                    if not picasso_price or picasso_price <= 0:
-                        continue
-                    est_home_price = round(picasso_price * ESTIMATED_RETAIL_MARKUP, 2)
-                    est_gross = round(est_home_price - picasso_price, 2)
-                    if est_gross < 5:
-                        continue
-                    est_fee = round(est_gross * fee_pct, 2)
-                    flight_num = ff.get("flight_number", "")
-                    formatted_flights[idx]["deal"] = {
-                        "deal_id": f"deal_{origin}_{destination}_{date}_{flight_num}",
-                        "home_price": est_home_price,
-                        "arbitrage_price": round(picasso_price, 2),
-                        "gross_savings": est_gross,
-                        "price_difference": est_gross,
-                        "user_savings": round(est_gross - est_fee, 2),
-                        "platform_fee_usd": est_fee,
-                        "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
-                        "cheapest_market": "Mystes",
-                        "is_good_deal": True,
-                        "proxy_verified": False,
-                        "estimated": True,
-                    }
-                    formatted_flights[idx]["savings"] = round(est_gross - est_fee, 2)
-                    formatted_flights[idx]["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
-                    estimated_count += 1
 
                 # --- DUFFEL NDC SEARCH (parallel source — NDC-direct fares) ---
                 duffel_count = 0
@@ -972,28 +1013,6 @@ def search_global(
                                         "return_flight": df.get("return_slice"),
                                         "expires_at": df.get("expires_at"),
                                     }
-
-                                    # Apply estimated markup deal for NDC flights too
-                                    est_home_price = round(df_price * ESTIMATED_RETAIL_MARKUP, 2)
-                                    est_gross = round(est_home_price - df_price, 2)
-                                    if est_gross >= 5:
-                                        est_fee = round(est_gross * fee_pct, 2)
-                                        ndc_flight["deal"] = {
-                                            "deal_id": f"deal_ndc_{origin}_{destination}_{date}_{flight_num}",
-                                            "home_price": est_home_price,
-                                            "arbitrage_price": round(df_price, 2),
-                                            "gross_savings": est_gross,
-                                            "price_difference": est_gross,
-                                            "user_savings": round(est_gross - est_fee, 2),
-                                            "platform_fee_usd": est_fee,
-                                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
-                                            "cheapest_market": "Mystes",
-                                            "is_good_deal": True,
-                                            "proxy_verified": False,
-                                            "estimated": True,
-                                        }
-                                        ndc_flight["savings"] = round(est_gross - est_fee, 2)
-                                        ndc_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
 
                                     formatted_flights.append(ndc_flight)
                                     duffel_count += 1
@@ -1080,27 +1099,6 @@ def search_global(
                                         "virtual_interlining": kf.get("virtual_interlining", False),
                                     }
 
-                                    est_home_price = round(kf_price * ESTIMATED_RETAIL_MARKUP, 2)
-                                    est_gross = round(est_home_price - kf_price, 2)
-                                    if est_gross >= 5:
-                                        est_fee = round(est_gross * fee_pct, 2)
-                                        kiwi_flight["deal"] = {
-                                            "deal_id": f"deal_kiwi_{origin}_{destination}_{date}_{flight_num}",
-                                            "home_price": est_home_price,
-                                            "arbitrage_price": round(kf_price, 2),
-                                            "gross_savings": est_gross,
-                                            "price_difference": est_gross,
-                                            "user_savings": round(est_gross - est_fee, 2),
-                                            "platform_fee_usd": est_fee,
-                                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
-                                            "cheapest_market": "Mystes",
-                                            "is_good_deal": True,
-                                            "proxy_verified": False,
-                                            "estimated": True,
-                                        }
-                                        kiwi_flight["savings"] = round(est_gross - est_fee, 2)
-                                        kiwi_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
-
                                     formatted_flights.append(kiwi_flight)
                                     kiwi_count += 1
 
@@ -1110,7 +1108,7 @@ def search_global(
                     except Exception as e:
                         logger.error("[KIWI] Aggregator search error: %s", e)
 
-                # Deals = flights with a populated deal object (verified or estimated)
+                # Deals = flights with a populated deal object (Google-verified)
                 deals = [f for f in formatted_flights if f.get("deal")]
 
                 # Determine data sources used
@@ -1129,7 +1127,7 @@ def search_global(
                 if ndc_count: source_parts.append(f"{ndc_count} NDC")
                 if agg_count: source_parts.append(f"{agg_count} Kiwi")
                 source_str = " + ".join(source_parts) if source_parts else str(len(formatted_flights))
-                print(f"RESULTS: {len(formatted_flights)} flights ({source_str}), {matched_count} Google-verified, {estimated_count} estimated")
+                print(f"RESULTS: {len(formatted_flights)} flights ({source_str}), {matched_count} Google-verified")
                 print(f"{'='*60}")
 
                 return {
@@ -1186,7 +1184,6 @@ def search_global(
                 print(f"  [DUFFEL] Found {len(duffel_flights)} NDC offers")
 
                 formatted_flights = []
-                ESTIMATED_RETAIL_MARKUP = 1.55
                 for df in duffel_flights:
                     df_price = float(df.get("price", 0))
                     if df_price <= 0:
@@ -1227,28 +1224,6 @@ def search_global(
                         "return_flight": df.get("return_slice"),
                         "expires_at": df.get("expires_at"),
                     }
-
-                    # Estimated markup deal
-                    est_home_price = round(df_price * ESTIMATED_RETAIL_MARKUP, 2)
-                    est_gross = round(est_home_price - df_price, 2)
-                    if est_gross >= 5:
-                        est_fee = round(est_gross * fee_pct, 2)
-                        ndc_flight["deal"] = {
-                            "deal_id": f"deal_ndc_{origin}_{destination}_{date}_{flight_num}",
-                            "home_price": est_home_price,
-                            "arbitrage_price": round(df_price, 2),
-                            "gross_savings": est_gross,
-                            "price_difference": est_gross,
-                            "user_savings": round(est_gross - est_fee, 2),
-                            "platform_fee_usd": est_fee,
-                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
-                            "cheapest_market": "Mystes",
-                            "is_good_deal": True,
-                            "proxy_verified": False,
-                            "estimated": True,
-                        }
-                        ndc_flight["savings"] = round(est_gross - est_fee, 2)
-                        ndc_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
 
                     formatted_flights.append(ndc_flight)
 
@@ -1308,7 +1283,6 @@ def search_global(
                 print(f"  [KIWI] Found {len(kiwi_flights)} aggregator offers")
 
                 formatted_flights = []
-                ESTIMATED_RETAIL_MARKUP = 1.55
                 for kf in kiwi_flights:
                     kf_price = float(kf.get("price", 0))
                     if kf_price <= 0:
@@ -1348,27 +1322,6 @@ def search_global(
                         "return_flight": kf.get("return_slice"),
                         "virtual_interlining": kf.get("virtual_interlining", False),
                     }
-
-                    est_home_price = round(kf_price * ESTIMATED_RETAIL_MARKUP, 2)
-                    est_gross = round(est_home_price - kf_price, 2)
-                    if est_gross >= 5:
-                        est_fee = round(est_gross * fee_pct, 2)
-                        kiwi_flight["deal"] = {
-                            "deal_id": f"deal_kiwi_{origin}_{destination}_{date}_{flight_num}",
-                            "home_price": est_home_price,
-                            "arbitrage_price": round(kf_price, 2),
-                            "gross_savings": est_gross,
-                            "price_difference": est_gross,
-                            "user_savings": round(est_gross - est_fee, 2),
-                            "platform_fee_usd": est_fee,
-                            "user_saves_pct": round((est_gross / est_home_price) * 100, 1),
-                            "cheapest_market": "Mystes",
-                            "is_good_deal": True,
-                            "proxy_verified": False,
-                            "estimated": True,
-                        }
-                        kiwi_flight["savings"] = round(est_gross - est_fee, 2)
-                        kiwi_flight["savings_pct"] = round((est_gross / est_home_price) * 100, 1)
 
                     formatted_flights.append(kiwi_flight)
 

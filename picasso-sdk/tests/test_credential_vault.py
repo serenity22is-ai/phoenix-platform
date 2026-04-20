@@ -387,60 +387,57 @@ class TestCredentialVaultPersistence:
 
 
 class TestRevenueCalculatorSplit:
-    """Tests for calculate_split with default and custom ratios."""
+    """Tests for calculate_split with percentage fee + 70/30 model (Build #203)."""
 
     def test_calculate_split_default(self, calculator):
-        """Default split is 85% host / 10% platform / 5% router."""
+        """Default split: Pro tier 5% fee + 70/30 router/host on remainder."""
         result = calculator.calculate_split(100.0)
 
         assert result["transaction_amount"] == 100.0, "transaction_amount should match"
-        # Platform is 10% of 100 = $10, router is 5% of 100 = $5
-        # Owner gets remainder: 100 - 10 - 5 = $85
-        assert result["platform_amount"] == 10.0, "platform should get $10 (10%)"
-        assert result["router_amount"] == 5.0, "router should get $5 (5%)"
-        assert result["owner_amount"] == 85.0, "owner should get $85 (remainder)"
+        # Pro tier: 5% of $100 = $5 platform fee, remainder = $95
+        # Router gets 70% of $95 = $66.50, Host gets 30% of $95 = $28.50
+        assert result["platform_amount"] == 5.0, "platform should get $5.00 (5% Pro)"
+        assert result["router_amount"] == 66.5, "router should get $66.50 (70% of $95)"
+        assert result["owner_amount"] == 28.5, "owner should get $28.50 (30% of $95)"
 
     def test_calculate_split_custom(self, calculator):
-        """Custom split ratios are applied correctly."""
+        """Custom split ratios override the 70/30 default."""
         custom = {
-            "credential_host": 0.70,
-            "platform": 0.20,
-            "routing_agency": 0.10,
+            "credential_host": 0.60,
+            "routing_agency": 0.40,
         }
-        result = calculator.calculate_split(200.0, custom_split=custom)
+        result = calculator.calculate_split(200.0, custom_split=custom, apai_tier="enterprise")
 
-        assert result["platform_amount"] == 40.0, "platform should get $40 (20%)"
-        assert result["router_amount"] == 20.0, "router should get $20 (10%)"
-        assert result["owner_amount"] == 140.0, "owner should get $140 (remainder)"
+        # Enterprise tier: 3% of $200 = $6 platform fee, remainder = $194
+        assert result["platform_amount"] == 6.0, "platform should get $6.00 (3% Enterprise)"
+        assert result["router_amount"] == 77.6, "router should get $77.60 (40% of $194)"
+        assert result["owner_amount"] == 116.4, "owner should get $116.40 (60% of $194)"
 
     def test_platform_fee_floor(self, calculator):
-        """Platform fee has a minimum floor of $1.00."""
-        # On a $5 transaction, default 10% platform = $0.50, should be raised to $1.00
-        result = calculator.calculate_split(5.0)
+        """Platform fee has a minimum floor of $3.00."""
+        # $5 at Scale (2%) = $0.10 raw → floored to $3
+        result = calculator.calculate_split(5.0, apai_tier="scale")
 
-        assert result["platform_amount"] == 1.0, (
-            "platform fee should be floored to $1.00"
+        assert result["platform_amount"] == 3.0, (
+            "platform fee should be floored to $3.00"
         )
-        # Router gets 5% of 5 = $0.25
-        assert result["router_amount"] == 0.25, "router should get $0.25"
-        # Owner gets remainder: 5.0 - 1.0 - 0.25 = $3.75
-        assert result["owner_amount"] == 3.75, (
+        # Remainder = max(5.0 - 3.0, 0) = $2.00, router = 70% = $1.40, host = 30% = $0.60
+        assert result["router_amount"] == 1.4, "router should get $1.40"
+        assert result["owner_amount"] == 0.6, (
             "owner should get remainder after floor adjustment"
         )
 
-    def test_platform_fee_cap(self, calculator):
-        """Platform fee has a maximum cap of $100.00."""
-        # On a $5000 transaction, default 10% platform = $500, should be capped to $100
+    def test_platform_fee_scales_with_transaction(self, calculator):
+        """Platform fee scales as percentage — NO cap. $5000 Pro = $250."""
         result = calculator.calculate_split(5000.0)
 
-        assert result["platform_amount"] == 100.0, (
-            "platform fee should be capped at $100.00"
+        assert result["platform_amount"] == 250.0, (
+            "platform fee should be $250.00 (5% of $5000, NO cap)"
         )
-        # Router gets 5% of 5000 = $250
-        assert result["router_amount"] == 250.0, "router should get $250"
-        # Owner gets remainder: 5000 - 100 - 250 = $4650
-        assert result["owner_amount"] == 4650.0, (
-            "owner should get remainder after cap adjustment"
+        # Remainder = $4750, router = 70% = $3325.00, host = 30% = $1425.00
+        assert result["router_amount"] == 3325.0, "router should get $3325.00"
+        assert result["owner_amount"] == 1425.0, (
+            "owner should get $1425.00"
         )
 
 
@@ -456,13 +453,15 @@ class TestRevenueCalculatorRecords:
             router_tenant_id="tenant-router",
             provider_id="sabre",
             transaction_amount=100.0,
+            apai_tier="pro",
         )
 
         assert record.record_id, "record_id should be set"
         assert record.transaction_amount_usd == 100.0, "transaction amount should match"
-        assert record.owner_amount_usd == 85.0, "owner amount should be $85"
-        assert record.platform_amount_usd == 10.0, "platform amount should be $10"
-        assert record.router_amount_usd == 5.0, "router amount should be $5"
+        # Pro 5% of $100 = $5 platform, remainder $95: host=30%=$28.50, router=70%=$66.50
+        assert record.owner_amount_usd == 28.5, "owner amount should be $28.50"
+        assert record.platform_amount_usd == 5.0, "platform amount should be $5.00"
+        assert record.router_amount_usd == 66.5, "router amount should be $66.50"
         assert record.status == "pending", "status should default to pending"
         assert record.period, "period should be set (YYYY-MM)"
         assert calculator.record_count == 1, "calculator should have 1 record"
@@ -508,10 +507,11 @@ class TestRevenueCalculatorRecords:
         assert summary["tenant_id"] == "tenant-host", "tenant_id should match"
         assert summary["transactions"] == 2, "should have 2 transactions as host"
         assert summary["earned_as_host"] > 0, "should have positive host earnings"
-        # 100*0.85 + 200*0.85 = 85 + 170 = 255 (but capped platform alters owner)
-        # Actually for $100: platform=10, router=5, owner=85
-        # For $200: platform=20, router=10, owner=170
-        assert summary["earned_as_host"] == 255.0, "host earnings should be $255"
+        # Pro 5% platform + 70/30 on remainder:
+        # $100: platform=$5, remainder=$95, host=30%=$28.50
+        # $200: platform=$10, remainder=$190, host=30%=$57.00
+        # Total host = $28.50 + $57.00 = $85.50
+        assert summary["earned_as_host"] == 85.50, "host earnings should be $85.50"
 
     def test_network_revenue(self, calculator):
         """get_network_revenue aggregates platform-wide metrics."""
@@ -541,9 +541,9 @@ class TestRevenueCalculatorRecords:
         assert network["platform_revenue_usd"] > 0, (
             "platform should have positive revenue"
         )
-        # $100: platform=$10, $300: platform=$30 => total platform=$40
-        assert network["platform_revenue_usd"] == 40.0, (
-            "platform revenue should be $40"
+        # Pro 5%: $100 * 5% = $5 + $300 * 5% = $15 → total $20
+        assert network["platform_revenue_usd"] == 20.0, (
+            "platform revenue should be $20.00 (5% Pro on $100 + $300)"
         )
         assert network["avg_transaction_usd"] == 200.0, (
             "average transaction should be $200"

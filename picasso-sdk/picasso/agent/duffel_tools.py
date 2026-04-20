@@ -262,8 +262,36 @@ DUFFEL_TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "duffel_get_cancellation_quote",
+        "description": "Get a cancellation refund quote for a Duffel order WITHOUT cancelling it. Returns the exact refund amount, penalties, and expiry time. Use this to show the user what they'll get back before proceeding.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "Duffel order ID to quote cancellation for (ord_...)"
+                }
+            },
+            "required": ["order_id"]
+        }
+    },
+    {
+        "name": "duffel_confirm_cancellation",
+        "description": "Confirm a previously quoted cancellation. This EXECUTES the cancellation and triggers the refund. CRITICAL: Only call after showing the user the refund quote from duffel_get_cancellation_quote.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cancellation_id": {
+                    "type": "string",
+                    "description": "Cancellation ID from the quote response (ore_...)"
+                }
+            },
+            "required": ["cancellation_id"]
+        }
+    },
+    {
         "name": "duffel_cancel_order",
-        "description": "Cancel a Duffel booking/order. This is a two-step process: requests cancellation, then confirms it. Returns refund amount and penalty information. IMPORTANT: Always check conditions first and confirm with the user before cancelling.",
+        "description": "Cancel a Duffel order in a single call (quotes + confirms automatically). For more control, use duffel_get_cancellation_quote then duffel_confirm_cancellation separately. IMPORTANT: Always confirm with the user before cancelling.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -277,7 +305,7 @@ DUFFEL_TOOL_DEFINITIONS = [
     },
     {
         "name": "duffel_change_order",
-        "description": "Request a change to an existing Duffel order (date or route change). Creates a change request that generates available change offers with fare differences.",
+        "description": "Request a change to an existing Duffel order (date or route change). Creates a change request that generates available change offers with fare differences. Use duffel_get_change_offers to retrieve the offers, then duffel_confirm_change to accept one.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -313,6 +341,86 @@ DUFFEL_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["order_id", "new_slices"]
+        }
+    },
+    {
+        "name": "duffel_get_change_offers",
+        "description": "Get available change offers for a previously submitted change request. Returns a list of alternative itineraries with fare differences (additional cost or refund).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "change_request_id": {
+                    "type": "string",
+                    "description": "Change request ID from duffel_change_order response (ocr_...)"
+                }
+            },
+            "required": ["change_request_id"]
+        }
+    },
+    {
+        "name": "duffel_confirm_change",
+        "description": "Confirm and accept a change offer, modifying the original order. CRITICAL: Only call after showing the user the change offer from duffel_get_change_offers and getting their approval.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "change_offer_id": {
+                    "type": "string",
+                    "description": "Change offer ID to accept (oco_...)"
+                },
+                "payment": {
+                    "type": "object",
+                    "description": "Payment for fare difference (if additional cost). Omit if refund or no difference.",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Payment type (e.g., 'balance')",
+                            "default": "balance"
+                        },
+                        "amount": {
+                            "type": "string",
+                            "description": "Amount to pay"
+                        },
+                        "currency": {
+                            "type": "string",
+                            "description": "Currency code (e.g., 'USD')"
+                        }
+                    }
+                }
+            },
+            "required": ["change_offer_id"]
+        }
+    },
+    {
+        "name": "duffel_add_services",
+        "description": "Add ancillary services (extra bags, meals, seats) to an existing Duffel order post-booking. Use duffel_get_services with the original offer_id first to see available services.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "Duffel order ID to add services to (ord_...)"
+                },
+                "services": {
+                    "type": "array",
+                    "description": "Services to add",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Service ID"
+                            },
+                            "quantity": {
+                                "type": "integer",
+                                "description": "Quantity (default: 1)",
+                                "default": 1
+                            }
+                        },
+                        "required": ["id"]
+                    }
+                }
+            },
+            "required": ["order_id", "services"]
         }
     },
 ]

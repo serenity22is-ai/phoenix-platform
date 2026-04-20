@@ -214,6 +214,8 @@ class SearchOrchestrator:
         cabin_class: str = "economy",
         max_results: int = 50,
         timeout_seconds: int = 30,
+        credential_router=None,
+        requester_tenant_id: Optional[str] = None,
     ) -> dict:
         """
         Search all registered flight sources in parallel with deduplication.
@@ -228,6 +230,8 @@ class SearchOrchestrator:
             cabin_class: "economy" | "premium_economy" | "business" | "first"
             max_results: Max flights per source
             timeout_seconds: Per-source search timeout
+            credential_router: Optional CredentialRouter for network-routed clients
+            requester_tenant_id: Tenant ID for credential routing (B2B/APAi)
 
         Returns:
             {
@@ -241,6 +245,26 @@ class SearchOrchestrator:
                 source_metadata: {source: {fare_search_id, offer_request_id, ...}},
             }
         """
+        # Credential network routing: merge network-routed clients
+        self._routing_metadata = {}  # source → RoutingResult (for raw_offer injection)
+        if credential_router and requester_tenant_id:
+            try:
+                routed = credential_router.get_routed_clients(
+                    requester_tenant_id,
+                    requested_sources=list(clients.keys()) + ["picasso", "duffel_ndc", "kiwi_tequila"],
+                )
+                for source, entry in routed.items():
+                    if source not in clients and entry.get("client"):
+                        clients[source] = entry["client"]
+                    if entry.get("routing"):
+                        self._routing_metadata[source] = entry["routing"]
+                    logger.info(
+                        "[SEARCH] Credential routing: %s → Tier %d (owner=%s)",
+                        source, entry.get("tier", 0), entry.get("owner_tenant_id", "self"),
+                    )
+            except Exception as e:
+                logger.warning("[SEARCH] Credential routing failed, using standard clients: %s", e)
+
         search_plan = self._build_plan(clients)
 
         if not search_plan:
@@ -468,29 +492,43 @@ class SearchOrchestrator:
     def _build_raw_offer(self, flight: dict, source: str, result: dict) -> dict:
         """Build raw_offer dict with booking references for BookingDispatcher."""
         if source in ("picasso", "picasso_redbox"):
-            return {
+            raw = {
                 "fare_id": flight.get("fare_id", flight.get("offer_id", "")),
                 "fare_search_id": result.get("fare_search_id", ""),
                 "source": "picasso",
             }
         elif source == "duffel_ndc":
-            return {
+            raw = {
                 "offer_id": flight.get("offer_id", ""),
                 "source": "duffel_ndc",
             }
         elif source == "kiwi_tequila":
-            return {
+            raw = {
                 "booking_token": flight.get("booking_token", ""),
                 "kiwi_id": flight.get("kiwi_id", flight.get("id", "")),
                 "source": "kiwi_tequila",
             }
         elif source == "airgateway_ndc":
-            return {
+            raw = {
                 "offer_id": flight.get("offer_id", ""),
                 "shopping_response_id": result.get("shopping_response_id", ""),
                 "source": "airgateway_ndc",
             }
-        return {"source": source}
+        else:
+            raw = {"source": source}
+
+        # Inject credential routing metadata (survives dedup — travels with winner)
+        routing_meta = getattr(self, "_routing_metadata", {}).get(source)
+        if routing_meta:
+            raw["_routing"] = {
+                "result_id": getattr(routing_meta, "result_id", ""),
+                "credential_id": getattr(routing_meta, "credential_id", ""),
+                "owner_tenant_id": getattr(routing_meta, "owner_tenant_id", ""),
+                "requester_tenant_id": getattr(routing_meta, "requester_tenant_id", ""),
+                "routing_tier": getattr(routing_meta, "routing_tier", 0),
+            }
+
+        return raw
 
     def _deduplicate(self, flights: List[dict]) -> List[dict]:
         """

@@ -28,9 +28,6 @@ websockets>=11.0,<14.0
 # Environment & Configuration
 python-dotenv>=1.0,<2.0
 
-# XRPL (Crypto Payments)
-xrpl-py>=2.5,<4.0
-
 # Payment Processing
 stripe>=7.0,<11.0
 
@@ -43,6 +40,13 @@ celery[redis]>=5.3,<6.0
 # Production Server
 gunicorn>=21.2,<23.0
 # gevent removed — psycopg2 (C ext) corrupts under gevent monkey-patching; using gthread instead
+
+# QR Code Generation (Build #206)
+qrcode[pil]>=7.4,<8.0
+Pillow>=10.0,<11.0
+
+# Error Tracking
+sentry-sdk[flask]>=2.0,<3.0
 
 # Dev & Testing
 pytest>=7.4,<9.0

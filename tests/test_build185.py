@@ -395,5 +395,9 @@ class TestB2BEnhancements:
         db.session.commit()
 
         resp = client.get('/ref/TESTREF185', follow_redirects=False)
-        assert resp.status_code == 302
-        assert '/flights' in resp.headers.get('Location', '')
+        # Build #210: B2B referral codes now show a branded landing page (200)
+        # instead of blind redirect (302).
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert 'Referral Agency' in html
+        assert 'MYSTES' in html

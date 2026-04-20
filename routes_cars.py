@@ -27,86 +27,27 @@ logger = logging.getLogger(__name__)
 CARS_SEARCH_CONTENT = """
 <style>
 /* ============================================
-   CARS PAGE — Matches flights/hotels aesthetic
+   CARS PAGE — Page-specific styles only.
+   Glass cards, form inputs, buttons, spinners,
+   shimmer, and page header handled by
+   mystes-* component library in base_template.
    ============================================ */
 
 .cars-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
-.cars-page-header {
-    text-align: center;
-    padding: 40px 0 10px;
-}
-.cars-page-header .brand-label {
-    font-family: var(--font-brand, 'Cinzel', serif);
+/* Brand label inside page header */
+.cars-page .mystes-page-header .brand-label {
+    font-family: var(--font-brand, 'Space Grotesk', sans-serif);
     font-size: 14px;
     font-weight: 600;
     letter-spacing: 6px;
-    color: #c9a44a;
+    color: var(--accent, #c9a44a);
     display: block;
     margin-bottom: 8px;
 }
-.cars-page-header h1 {
-    font-family: var(--font-brand, 'Cinzel', serif);
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: var(--text-bright, #f5f5f5);
-    margin: 0 0 8px;
-}
-.cars-page-header p {
-    color: var(--text-secondary, #aaa);
-    font-size: 15px;
-    margin: 0;
-}
 
-/* Search form card */
-.car-search-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 24px;
-}
-.car-search-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-.car-search-grid .full-width { grid-column: 1 / -1; }
-
-.car-search-card label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: var(--text-secondary, #aaa);
-    margin-bottom: 6px;
-}
-.car-search-card input,
-.car-search-card select {
-    width: 100%;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 10px;
-    color: var(--text-bright, #f5f5f5);
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    font-size: 15px;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
-}
-.car-search-card input:focus,
-.car-search-card select:focus {
-    outline: none;
-    background: rgba(255, 255, 255, 0.10);
-    border-color: #c9a44a;
-    box-shadow: 0 0 0 3px rgba(201, 164, 74, 0.15);
-}
-.car-search-card input::placeholder { color: rgba(255,255,255,0.3); }
-.car-search-card select option { background: #1a1a2e; color: #f5f5f5; }
+/* Search form card extra padding */
+.car-search-card { padding: 28px; margin-bottom: 24px; }
 
 /* Location autocomplete */
 .loc-autocomplete-wrapper {
@@ -122,7 +63,7 @@ CARS_SEARCH_CONTENT = """
     background: rgba(20, 14, 35, 0.98);
     backdrop-filter: blur(16px);
     border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
+    border-radius: var(--radius-md, 10px);
     margin-top: 4px;
     max-height: 260px;
     overflow-y: auto;
@@ -149,7 +90,7 @@ CARS_SEARCH_CONTENT = """
     margin-top: 4px;
     cursor: pointer;
     font-size: 13px;
-    color: #c9a44a;
+    color: var(--accent, #c9a44a);
     user-select: none;
 }
 .return-toggle input { display: none; }
@@ -167,76 +108,36 @@ CARS_SEARCH_CONTENT = """
 }
 .return-toggle input:checked + .toggle-box {
     background: rgba(201, 164, 74, 0.2);
-    border-color: #c9a44a;
-    color: #c9a44a;
+    border-color: var(--accent, #c9a44a);
+    color: var(--accent, #c9a44a);
 }
 
-/* Search button */
-.car-search-btn {
-    width: 100%;
-    margin-top: 18px;
-    padding: 14px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    cursor: pointer;
-    transition: all 0.3s;
-    letter-spacing: 0.5px;
-}
-.car-search-btn:hover {
-    background: #d4b05c;
-    box-shadow: 0 8px 30px rgba(201, 164, 74, 0.35);
-    transform: translateY(-1px);
-}
-.car-search-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-.car-search-spinner {
-    display: inline-block; width: 16px; height: 16px;
-    border: 2px solid rgba(0,0,0,0.2);
-    border-top-color: #000; border-radius: 50%;
-    animation: cspin 0.6s linear infinite;
-    vertical-align: middle; margin-right: 8px;
-}
-@keyframes cspin { to { transform: rotate(360deg); } }
-
-/* Loading skeleton */
+/* Loading skeleton (car-specific layout) */
 .car-loading-state {
     margin-top: 20px; padding: 30px;
     background: rgba(15, 10, 25, 0.6);
-    border-radius: 16px;
+    border-radius: var(--radius-xl, 16px);
     border: 1px solid rgba(201, 164, 74, 0.15);
 }
 .car-loading-header {
     display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
 }
-.car-loading-spinner {
-    width: 40px; height: 40px;
-    border: 3px solid rgba(201, 164, 74, 0.2);
-    border-top-color: #c9a44a; border-radius: 50%;
-    animation: cspin 0.8s linear infinite; flex-shrink: 0;
-}
 .car-skeleton-cards { display: flex; flex-direction: column; gap: 12px; }
 .car-skeleton-card {
-    background: rgba(255,255,255,0.05); border-radius: 12px;
+    background: rgba(255,255,255,0.05); border-radius: var(--radius-lg, 12px);
     padding: 20px; display: flex; gap: 16px;
 }
 .car-skeleton-img {
-    width: 140px; height: 90px; border-radius: 8px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
-    background-size: 200% 100%; animation: cshimmer 1.5s infinite; flex-shrink: 0;
+    width: 140px; height: 90px; border-radius: var(--radius-md, 8px);
+    flex-shrink: 0;
 }
 .car-skeleton-line {
     height: 14px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
-    background-size: 200% 100%; animation: cshimmer 1.5s infinite; border-radius: 6px;
+    border-radius: var(--radius-sm, 6px);
 }
 .car-skeleton-line.w40 { width: 40%; }
 .car-skeleton-line.w60 { width: 60%; }
 .car-skeleton-line.w30 { width: 30%; }
-@keyframes cshimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* Results header + controls */
 .car-results-bar {
@@ -250,15 +151,6 @@ CARS_SEARCH_CONTENT = """
 .car-controls {
     display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
-.car-sort-select,
-.car-filter-select {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
-    color: #f5f5f5; font-size: 13px;
-    font-family: var(--font-body, 'Outfit', sans-serif); cursor: pointer;
-}
-.car-sort-select option,
-.car-filter-select option { background: #1a1a2e; }
 
 /* ============================================
    CAR RESULT CARDS
@@ -267,17 +159,18 @@ CARS_SEARCH_CONTENT = """
 .car-cards-grid { display: flex; flex-direction: column; gap: 14px; }
 
 .car-card {
-    background: rgba(10, 6, 18, 0.85);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl, 16px);
     position: relative;
     transition: all 0.2s ease;
     overflow: hidden;
 }
 .car-card:hover {
     background: rgba(15, 10, 25, 0.95);
-    border-color: rgba(201, 164, 74, 0.3);
+    border-color: var(--glass-border-hover);
     transform: translateY(-2px);
     box-shadow: 0 8px 30px rgba(0,0,0,0.3);
 }
@@ -311,7 +204,7 @@ CARS_SEARCH_CONTENT = """
     font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 4px;
 }
 .car-card-supplier {
-    font-size: 12px; color: #c9a44a; margin-bottom: 8px; font-weight: 500;
+    font-size: 12px; color: var(--accent, #c9a44a); margin-bottom: 8px; font-weight: 500;
 }
 
 .car-card-features {
@@ -332,42 +225,14 @@ CARS_SEARCH_CONTENT = """
 .car-card-price-label {
     font-size: 11px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px;
 }
-.car-card-price-value { font-size: 24px; font-weight: 700; color: #c9a44a; }
+.car-card-price-value { font-size: 24px; font-weight: 700; color: var(--accent, #c9a44a); }
 .car-card-price-unit { font-size: 13px; font-weight: 400; color: rgba(255,255,255,0.5); }
 .car-card-price-total { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 2px; }
-
-.car-card-cta {
-    padding: 10px 24px;
-    background: #c9a44a;
-    color: #000;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: var(--font-body, 'Outfit', sans-serif);
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-.car-card-cta:hover {
-    background: #d4b05c;
-    box-shadow: 0 4px 15px rgba(201, 164, 74, 0.3);
-}
-.car-card-cta:disabled { opacity: 0.6; cursor: not-allowed; }
-
-/* No results */
-.car-no-results {
-    text-align: center; padding: 60px 20px;
-}
-.car-no-results-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
 
 /* Responsive */
 @media (max-width: 700px) {
     .car-card-inner { flex-direction: column; }
     .car-card-image { width: 100%; min-height: 140px; max-height: 180px; }
-    .car-search-grid { grid-template-columns: 1fr; }
-    .car-search-grid .full-width { grid-column: 1; }
     .car-results-bar { flex-direction: column; align-items: flex-start; }
     .car-card-name { white-space: normal; }
     .car-card-bottom { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -376,19 +241,19 @@ CARS_SEARCH_CONTENT = """
 </style>
 
 <div class="cars-page">
-    <div class="cars-page-header">
+    <div class="mystes-page-header">
         <span class="brand-label">MYSTES</span>
         <h1>CAR RENTALS</h1>
         <p>500+ suppliers. Best rates. Powered by MYSTES.</p>
     </div>
 
     <!-- Search Form -->
-    <div class="car-search-card">
-        <div class="car-search-grid">
+    <div class="mystes-card car-search-card">
+        <div class="mystes-form-grid">
             <div class="form-group full-width">
-                <label>Pickup Location</label>
+                <label class="mystes-label">Pickup Location</label>
                 <div class="loc-autocomplete-wrapper" id="pickup-wrapper">
-                    <input type="text" id="car-pickup-location" placeholder="Airport, city, or address..." autocomplete="off" oninput="debouncedLocationSearch(this, 'pickup')">
+                    <input type="text" id="car-pickup-location" class="mystes-input" placeholder="Airport, city, or address..." autocomplete="off" oninput="debouncedLocationSearch(this, 'pickup')">
                     <input type="hidden" id="car-pickup-location-id">
                     <div class="loc-autocomplete-dropdown" id="pickup-dropdown"></div>
                 </div>
@@ -401,35 +266,35 @@ CARS_SEARCH_CONTENT = """
                 </label>
             </div>
             <div class="form-group full-width" id="dropoff-location-group" style="display: none;">
-                <label>Dropoff Location</label>
+                <label class="mystes-label">Dropoff Location</label>
                 <div class="loc-autocomplete-wrapper" id="dropoff-wrapper">
-                    <input type="text" id="car-dropoff-location" placeholder="Return to a different location..." autocomplete="off" oninput="debouncedLocationSearch(this, 'dropoff')">
+                    <input type="text" id="car-dropoff-location" class="mystes-input" placeholder="Return to a different location..." autocomplete="off" oninput="debouncedLocationSearch(this, 'dropoff')">
                     <input type="hidden" id="car-dropoff-location-id">
                     <div class="loc-autocomplete-dropdown" id="dropoff-dropdown"></div>
                 </div>
             </div>
             <div class="form-group">
-                <label>Pickup Date</label>
-                <input type="date" id="car-pickup-date">
+                <label class="mystes-label">Pickup Date</label>
+                <input type="date" id="car-pickup-date" class="mystes-input">
             </div>
             <div class="form-group">
-                <label>Dropoff Date</label>
-                <input type="date" id="car-dropoff-date">
+                <label class="mystes-label">Dropoff Date</label>
+                <input type="date" id="car-dropoff-date" class="mystes-input">
             </div>
             <div class="form-group">
-                <label>Pickup Time</label>
-                <input type="time" id="car-pickup-time" value="10:00">
+                <label class="mystes-label">Pickup Time</label>
+                <input type="time" id="car-pickup-time" class="mystes-input" value="10:00">
             </div>
             <div class="form-group">
-                <label>Dropoff Time</label>
-                <input type="time" id="car-dropoff-time" value="10:00">
+                <label class="mystes-label">Dropoff Time</label>
+                <input type="time" id="car-dropoff-time" class="mystes-input" value="10:00">
             </div>
             <div class="form-group">
-                <label>Driver Age</label>
-                <input type="number" id="car-driver-age" value="30" min="18" max="99">
+                <label class="mystes-label">Driver Age</label>
+                <input type="number" id="car-driver-age" class="mystes-input" value="30" min="18" max="99">
             </div>
         </div>
-        <button class="car-search-btn" id="car-search-btn" onclick="searchCars()">
+        <button class="mystes-btn mystes-btn-gold mystes-btn-lg mystes-btn-full mt-md" id="car-search-btn" onclick="searchCars()">
             Search Car Rentals
         </button>
     </div>
@@ -438,7 +303,7 @@ CARS_SEARCH_CONTENT = """
     <div id="car-loading" style="display: none;">
         <div class="car-loading-state">
             <div class="car-loading-header">
-                <div class="car-loading-spinner"></div>
+                <div class="mystes-spinner"></div>
                 <div>
                     <div style="color: #f5f5f5; font-size: 16px; font-weight: 600;">Searching rental cars...</div>
                     <div style="color: rgba(255,255,255,0.5); font-size: 13px; margin-top: 4px;">Comparing 500+ suppliers worldwide</div>
@@ -446,27 +311,27 @@ CARS_SEARCH_CONTENT = """
             </div>
             <div class="car-skeleton-cards">
                 <div class="car-skeleton-card">
-                    <div class="car-skeleton-img"></div>
+                    <div class="car-skeleton-img mystes-skeleton"></div>
                     <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
-                        <div class="car-skeleton-line w60"></div>
-                        <div class="car-skeleton-line w40"></div>
-                        <div class="car-skeleton-line w30"></div>
+                        <div class="car-skeleton-line w60 mystes-skeleton"></div>
+                        <div class="car-skeleton-line w40 mystes-skeleton"></div>
+                        <div class="car-skeleton-line w30 mystes-skeleton"></div>
                     </div>
                 </div>
                 <div class="car-skeleton-card">
-                    <div class="car-skeleton-img"></div>
+                    <div class="car-skeleton-img mystes-skeleton"></div>
                     <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
-                        <div class="car-skeleton-line w60"></div>
-                        <div class="car-skeleton-line w40"></div>
-                        <div class="car-skeleton-line w30"></div>
+                        <div class="car-skeleton-line w60 mystes-skeleton"></div>
+                        <div class="car-skeleton-line w40 mystes-skeleton"></div>
+                        <div class="car-skeleton-line w30 mystes-skeleton"></div>
                     </div>
                 </div>
                 <div class="car-skeleton-card">
-                    <div class="car-skeleton-img"></div>
+                    <div class="car-skeleton-img mystes-skeleton"></div>
                     <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
-                        <div class="car-skeleton-line w60"></div>
-                        <div class="car-skeleton-line w40"></div>
-                        <div class="car-skeleton-line w30"></div>
+                        <div class="car-skeleton-line w60 mystes-skeleton"></div>
+                        <div class="car-skeleton-line w40 mystes-skeleton"></div>
+                        <div class="car-skeleton-line w30 mystes-skeleton"></div>
                     </div>
                 </div>
             </div>
@@ -592,7 +457,7 @@ async function searchCars() {
 
     var btn = document.getElementById('car-search-btn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="car-search-spinner"></span>Searching...';
+    btn.innerHTML = '<span class="mystes-spinner mystes-spinner-sm" style="border-color:rgba(0,0,0,0.2);border-top-color:#000;"></span>Searching...';
     document.getElementById('car-loading').style.display = 'block';
     document.getElementById('car-results').style.display = 'none';
 
@@ -635,10 +500,10 @@ function renderCarResults(data, location, pickupDate, dropoffDate) {
 
     if (!data.success || !allCars.length) {
         header.innerHTML = '';
-        list.innerHTML = '<div class="car-no-results">' +
-            '<div class="car-no-results-icon">&#128663;</div>' +
+        list.innerHTML = '<div class="mystes-empty">' +
+            '<div class="mystes-empty-icon">&#128663;</div>' +
             '<h3 style="color:#f5f5f5; margin:0 0 8px;">No cars found</h3>' +
-            '<p style="color:rgba(255,255,255,0.5);">' + (data.error || 'Try different dates or location') + '</p></div>';
+            '<p>' + (data.error || 'Try different dates or location') + '</p></div>';
         return;
     }
 
@@ -649,11 +514,11 @@ function renderCarResults(data, location, pickupDate, dropoffDate) {
                 '<div class="car-results-dates">' + location + ' &middot; ' + pickupDate + ' to ' + dropoffDate + '</div>' +
             '</div>' +
             '<div class="car-controls">' +
-                '<select class="car-sort-select" id="car-sort" onchange="sortAndFilterCars()">' +
+                '<select class="mystes-select" style="width:auto;padding:8px 12px;font-size:13px;" id="car-sort" onchange="sortAndFilterCars()">' +
                     '<option value="price-asc">Price: Low to High</option>' +
                     '<option value="price-desc">Price: High to Low</option>' +
                 '</select>' +
-                '<select class="car-filter-select" id="car-filter-type" onchange="sortAndFilterCars()">' +
+                '<select class="mystes-select" style="width:auto;padding:8px 12px;font-size:13px;" id="car-filter-type" onchange="sortAndFilterCars()">' +
                     '<option value="">Any Type</option>' +
                     '<option value="economy">Economy</option>' +
                     '<option value="compact">Compact</option>' +
@@ -662,7 +527,7 @@ function renderCarResults(data, location, pickupDate, dropoffDate) {
                     '<option value="suv">SUV</option>' +
                     '<option value="van">Van</option>' +
                 '</select>' +
-                '<select class="car-filter-select" id="car-filter-transmission" onchange="sortAndFilterCars()">' +
+                '<select class="mystes-select" style="width:auto;padding:8px 12px;font-size:13px;" id="car-filter-transmission" onchange="sortAndFilterCars()">' +
                     '<option value="">Any Transmission</option>' +
                     '<option value="automatic">Automatic</option>' +
                     '<option value="manual">Manual</option>' +
@@ -739,7 +604,7 @@ function renderCarCards(cars) {
                             '<div><span class="car-card-price-value">$' + c.price_total.toFixed(0) + '</span><span class="car-card-price-unit"> total</span></div>' +
                             '<span class="car-card-price-total">$' + perDay + '/day</span>' +
                         '</div>' +
-                        '<button class="car-card-cta" data-car="' + safeJson + '" onclick="selectCar(this)">Select</button>' +
+                        '<button class="mystes-btn mystes-btn-gold" data-car="' + safeJson + '" onclick="selectCar(this)">Select</button>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -759,7 +624,7 @@ async function selectCar(btn) {
 
     btn.disabled = true;
     var orig = btn.innerHTML;
-    btn.innerHTML = '<span class="car-search-spinner"></span>';
+    btn.innerHTML = '<span class="mystes-spinner mystes-spinner-sm" style="border-color:rgba(0,0,0,0.2);border-top-color:#000;"></span>';
 
     try {
         var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
@@ -788,30 +653,41 @@ async function selectCar(btn) {
 
 CAR_BOOK_CONTENT = """
 <style>
-    .payment-method-card { border: 2px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: white; }
-    .payment-method-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15); }
-    .payment-method-card.selected { border-color: #7c3aed; background: #f5f3ff; }
+    .payment-method-card { border: 2px solid rgba(255,255,255,0.1); border-radius: var(--radius-lg, 12px); padding: 20px; margin-bottom: 15px; cursor: pointer; transition: all 0.2s ease; background: var(--glass-bg); }
+    .payment-method-card:hover { border-color: var(--accent-purple, #7c3aed); box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15); }
+    .payment-method-card.selected { border-color: var(--accent-purple, #7c3aed); background: rgba(124, 58, 237, 0.08); }
     .payment-method-card .method-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
     .payment-method-card .method-icon { font-size: 32px; width: 50px; text-align: center; }
-    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: #16213e; }
-    .payment-method-card .method-subtitle { color: #666; font-size: 14px; }
-    .payment-details-panel { display: none; background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 15px; }
+    .payment-method-card .method-title { font-weight: bold; font-size: 18px; color: var(--text-bright, #f5f5f5); }
+    .payment-method-card .method-subtitle { color: var(--text-muted, #ccc); font-size: 14px; }
+    .payment-details-panel { display: none; background: rgba(255,255,255,0.04); border-radius: var(--radius-md, 8px); padding: 20px; margin-top: 15px; }
     .payment-details-panel.active { display: block; }
-    .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; }
-    .order-summary h3 { margin: 0 0 20px 0; color: #14b8a6; }
+    .order-summary { background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%); color: white; border-radius: var(--radius-lg, 12px); padding: 25px; margin-bottom: 25px; }
+    .order-summary h3 { margin: 0 0 20px 0; color: var(--accent-teal, #14b8a6); }
     .order-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .order-row:last-child { border-bottom: none; }
     .order-row.total { font-size: 20px; font-weight: bold; padding-top: 15px; margin-top: 10px; border-top: 2px solid rgba(255,255,255,0.3); }
-    .flight-leg-item { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; }
+    .flight-leg-item { background: rgba(255,255,255,0.1); border-radius: var(--radius-md, 8px); padding: 12px 15px; margin-bottom: 10px; }
     .processing-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; }
     .processing-overlay.active { display: flex; }
-    .processing-box { background: white; border-radius: 16px; padding: 40px; text-align: center; max-width: 400px; }
-    .spinner { width: 50px; height: 50px; border: 4px solid #e9ecef; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .processing-box { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-xl, 16px); padding: 40px; text-align: center; max-width: 400px; color: var(--text-bright, #f5f5f5); }
+    /* Driver info form section */
+    .car-book-form-section { background: rgba(255,255,255,0.04); border-radius: var(--radius-lg, 12px); padding: 25px; border: 1px solid var(--glass-border); }
+    .car-book-form-section h4 { margin: 0 0 20px 0; color: var(--text-bright, #f5f5f5); }
+    .car-book-form-section p.form-hint { color: var(--text-muted, #ccc); margin-bottom: 20px; }
+    .booking-method-box { margin-top: 25px; padding: 20px; background: rgba(124, 58, 237, 0.08); border-radius: var(--radius-md, 8px); border: 1px solid rgba(124, 58, 237, 0.15); }
+    .booking-method-box h5 { margin: 0 0 10px 0; color: var(--text-bright, #f5f5f5); }
+    .booking-method-box label { display: flex; align-items: center; cursor: pointer; color: var(--text-muted, #ccc); }
+    .booking-method-box label input { margin-right: 10px; }
+    /* Guest checkout section */
+    .guest-checkout-box { background: rgba(124, 58, 237, 0.08); border: 2px solid var(--accent-purple, #7c3aed); border-radius: var(--radius-lg, 12px); padding: 20px; margin-bottom: 25px; }
+    .guest-checkout-box h4 { margin: 0 0 15px 0; color: var(--text-bright, #f5f5f5); }
+    .guest-checkout-box p { color: var(--text-muted, #ccc); margin-bottom: 15px; }
+    .guest-checkout-box small a { color: var(--accent-purple, #7c3aed); }
 </style>
 
-<div class="card card-light" style="max-width: 800px; margin: 40px auto;">
-    <h2 style="text-align: center; margin-bottom: 25px; color: #1a1a2e;">Complete Your Car Rental</h2>
+<div class="mystes-card" style="max-width: 800px; margin: 40px auto;">
+    <h2 style="text-align: center; margin-bottom: 25px; color: var(--text-bright, #f5f5f5);">Complete Your Car Rental</h2>
 
     <!-- Order Summary -->
     <div class="order-summary">
@@ -820,12 +696,12 @@ CAR_BOOK_CONTENT = """
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <strong>{{ deal.hotel_name }}</strong><br>
-                    <span style="color: #14b8a6;">{{ deal.city_code }}</span><br>
+                    <span style="color: var(--accent-teal, #14b8a6);">{{ deal.city_code }}</span><br>
                     <small>{{ deal.check_in_date }} to {{ deal.check_out_date }} ({{ deal.nights }} day{{ 's' if deal.nights != 1 else '' }})</small>
                 </div>
                 <div style="text-align: right;">
                     <span style="font-size: 18px; font-weight: bold;">${{ "%.0f"|format(deal.price_total_usd or 0) }}</span>
-                    <br><small style="color: #14b8a6;">${{ "%.0f"|format(deal.price_per_night_usd or 0) }}/day</small>
+                    <br><small style="color: var(--accent-teal, #14b8a6);">${{ "%.0f"|format(deal.price_per_night_usd or 0) }}/day</small>
                 </div>
             </div>
         </div>
@@ -846,38 +722,38 @@ CAR_BOOK_CONTENT = """
 
     {% if payment_verified %}
         <!-- Payment Complete - Collect Driver Details -->
-        <div class="alert alert-success" style="text-align: center; padding: 25px;">
+        <div style="text-align: center; padding: 25px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.2); border-radius: var(--radius-lg, 12px); margin-bottom: 20px;">
             <span style="font-size: 48px;">&#9989;</span>
-            <h3 style="margin: 15px 0;">Payment Verified!</h3>
-            <p>Your payment has been confirmed. Please provide driver details to complete your booking.</p>
+            <h3 style="margin: 15px 0; color: var(--text-bright, #f5f5f5);">Payment Verified!</h3>
+            <p style="color: var(--text-muted, #ccc);">Your payment has been confirmed. Please provide driver details to complete your booking.</p>
         </div>
 
         <form id="guest-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" style="margin-top: 20px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px;">
-                <h4 style="margin: 0 0 20px 0; color: #1a1a2e;">Driver Information</h4>
-                <p style="color: #666; margin-bottom: 20px;">Enter details for the primary driver (must match driver's license).</p>
+            <div class="car-book-form-section">
+                <h4>Driver Information</h4>
+                <p class="form-hint">Enter details for the primary driver (must match driver's license).</p>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="mystes-form-grid">
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">First Name *</label>
-                        <input type="text" name="first_name" required placeholder="John" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">First Name *</label>
+                        <input type="text" name="first_name" required placeholder="John" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Last Name *</label>
-                        <input type="text" name="last_name" required placeholder="Doe" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Last Name *</label>
+                        <input type="text" name="last_name" required placeholder="Doe" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Email *</label>
-                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Email *</label>
+                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john@email.com" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Phone *</label>
-                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Phone *</label>
+                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" class="mystes-input">
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Country *</label>
-                        <select name="nationality" required style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Country *</label>
+                        <select name="nationality" required class="mystes-select">
                             <option value="US">United States</option>
                             <option value="GB">United Kingdom</option>
                             <option value="CA">Canada</option>
@@ -893,24 +769,24 @@ CAR_BOOK_CONTENT = """
                         </select>
                     </div>
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Driver Age *</label>
-                        <input type="number" name="driver_age" required min="18" max="99" value="30" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Driver Age *</label>
+                        <input type="number" name="driver_age" required min="18" max="99" value="30" class="mystes-input">
                     </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Flight Number (optional, for airport pickup)</label>
-                        <input type="text" name="flight_number" placeholder="AA 1234" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                    <div class="form-group full-width">
+                        <label class="mystes-label">Flight Number (optional, for airport pickup)</label>
+                        <input type="text" name="flight_number" placeholder="AA 1234" class="mystes-input">
                     </div>
                 </div>
 
-                <div style="margin-top: 25px; padding: 20px; background: #f5f3ff; border-radius: 8px;">
-                    <h5 style="margin: 0 0 10px 0;">Booking Method</h5>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
+                <div class="booking-method-box">
+                    <h5>Booking Method</h5>
+                    <label>
+                        <input type="radio" name="fulfillment_type" value="automated" checked>
                         <span><strong>Automated Booking</strong> - We book for you (recommended)</span>
                     </label>
                 </div>
 
-                <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 25px; padding: 15px; font-size: 18px;">
+                <button type="submit" class="mystes-btn mystes-btn-success mystes-btn-lg mystes-btn-full mt-lg">
                     Complete Car Rental Booking
                 </button>
             </div>
@@ -919,25 +795,25 @@ CAR_BOOK_CONTENT = """
     {% else %}
         <!-- Guest Email Collection -->
         {% if not current_user.is_authenticated %}
-        <div style="background: #f5f3ff; border: 2px solid #7c3aed; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
-            <h4 style="margin: 0 0 15px 0; color: #16213e;">Guest Checkout</h4>
-            <p style="color: #666; margin-bottom: 15px;">Enter your email to receive your booking confirmation.</p>
+        <div class="guest-checkout-box">
+            <h4>Guest Checkout</h4>
+            <p>Enter your email to receive your booking confirmation.</p>
             <div class="form-group" style="margin-bottom: 0;">
-                <label for="guest_email" style="font-weight: bold; color: #16213e;">Email Address *</label>
+                <label class="mystes-label" for="guest_email">Email Address *</label>
                 <input type="email" id="guest_email" name="guest_email" required
                        value="{{ session.get('guest_email', '') }}"
                        placeholder="your@email.com"
-                       style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       class="mystes-input"
                        onchange="saveGuestEmail(this.value)">
             </div>
-            <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                <a href="/register?deal={{ deal.deal_id }}" style="color: #7c3aed;">Create an account</a> to track your bookings.
+            <p style="margin-top: 10px; font-size: 12px; color: var(--text-muted, #ccc);">
+                <a href="/register?deal={{ deal.deal_id }}" style="color: var(--accent-purple, #7c3aed);">Create an account</a> to track your bookings.
             </p>
         </div>
         {% endif %}
 
         <!-- Payment Selection -->
-        <h3 style="margin-bottom: 20px;">Choose Payment Method</h3>
+        <h3 style="margin-bottom: 20px; color: var(--text-bright, #f5f5f5);">Choose Payment Method</h3>
 
         <div class="payment-method-card" onclick="selectPayment('card')" id="method-card">
             <div class="method-header">
@@ -946,19 +822,19 @@ CAR_BOOK_CONTENT = """
                     <div class="method-title">Credit or Debit Card</div>
                     <div class="method-subtitle">Visa, Mastercard, American Express</div>
                 </div>
-                <div style="margin-left: auto; font-weight: bold; color: #7c3aed;">
+                <div style="margin-left: auto; font-weight: bold; color: var(--accent-purple, #7c3aed);">
                     ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }}
                 </div>
             </div>
             <div class="payment-details-panel" id="details-card">
-                <p>Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
-                <button class="btn" onclick="payWithCard(event)" style="width: 100%; margin-top: 10px;">
+                <p style="color: var(--text-muted, #ccc);">Secure payment powered by Stripe. You'll be redirected to complete your payment.</p>
+                <button class="mystes-btn mystes-btn-primary mystes-btn-full mt-sm" onclick="payWithCard(event)">
                     Pay ${{ "%.2f"|format((deal.price_total_usd or 0) + (deal.platform_fee_usd or 0)) }} with Card
                 </button>
             </div>
         </div>
 
-        <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
+        <p style="text-align: center; color: var(--text-muted, #ccc); margin-top: 20px; font-size: 14px;">
             All payments are secure and encrypted<br>
             <small>By proceeding, you agree to our Terms of Service</small>
         </p>
@@ -968,9 +844,9 @@ CAR_BOOK_CONTENT = """
 <!-- Processing Overlay -->
 <div class="processing-overlay" id="processing-overlay">
     <div class="processing-box">
-        <div class="spinner"></div>
+        <div class="mystes-spinner" style="margin: 0 auto 20px;"></div>
         <h3 id="processing-title">Processing Payment...</h3>
-        <p id="processing-message">Please wait while we verify your payment.</p>
+        <p id="processing-message" style="color: var(--text-muted, #ccc);">Please wait while we verify your payment.</p>
     </div>
 </div>
 

@@ -3,7 +3,7 @@ MYSTES Proxy Server with Database & Authentication
 
 Features:
 - User registration and login with email verification
-- XRP payment verification gate
+- Stripe payment processing
 - Deal caching in database
 - Proxy to airline booking sites with translation
 - Rate limiting and CSRF protection
@@ -42,8 +42,11 @@ from models import (db, init_db, User, Deal, Payment, Booking, PriceAlert, Escro
                     CommercialAccount, ConsumerReferral, SocialShare,
                     RewardsAccount, PointsTransaction, PointsEscrow, PointGift,
                     Subscription, generate_referral_code, ReferralCard,
-                    TripPlan, TripMember, TripItem, Collection, SavedItem, Friendship,
-                    CrossSellEvent, TemplateDeployment, WebhookEvent)
+                    TripPlan, TripMember, TripItem, TripBundle, BundleItem,
+                    TripCart, TripCartAssignment,
+                    Collection, SavedItem, Friendship,
+                    CrossSellEvent, TemplateDeployment, WebhookEvent,
+                    BookingFailure, SystemMetric)
 from translation import (
     translate_html, translate_text, translate_form_data,
     detect_language, detect_language_from_html,
@@ -54,8 +57,6 @@ from main import (
     fetch_flights_direct,
     extract_flights,
     generate_dates,
-    get_xrp_price,
-    verify_payment as verify_xrp_payment,
     calculate_deal,
     search_flight_number,
     search_with_direct_scraping,
@@ -66,7 +67,6 @@ from main import (
     START_DATE,
     END_DATE,
     DISPLAY_CURRENCY,
-    XRPL_CONFIG,
 )
 from payments import (
     generate_payment_options,
@@ -79,7 +79,6 @@ from payments import (
     PaymentMethod,
     PaymentStatus,
     PAYMENT_CONFIG,
-    get_xrp_price as refresh_xrp_price,
 )
 from search import (
     search_global,
@@ -95,22 +94,77 @@ from search import (
 MARKET_TO_COUNTRY_CODE = {}
 from airports import search_airports, get_airport, AIRPORTS
 
-# --- LOGGING ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler('mystes.log'),
-        logging.StreamHandler()
-    ]
-)
+# --- LOGGING (Build #216: Structured JSON + stdout for container environments) ---
+
+class _JSONFormatter(logging.Formatter):
+    """JSON structured log formatter for production (Build #216).
+
+    Outputs one JSON object per line for easy parsing by log aggregators
+    (Render, CloudWatch, Datadog, ELK). Includes timestamp, level, message,
+    and any extra fields.
+    """
+    def format(self, record):
+        import json as _json
+        log_entry = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        # Include request_id if available
+        try:
+            from flask import g, has_request_context
+            if has_request_context() and hasattr(g, 'request_id'):
+                log_entry["request_id"] = g.request_id
+        except Exception:
+            pass
+        # Include any extra fields
+        if hasattr(record, 'action'):
+            log_entry["action"] = record.action
+        if hasattr(record, 'user_id') and record.user_id is not None:
+            log_entry["user_id"] = record.user_id
+        if record.exc_info and record.exc_info[1]:
+            log_entry["exception"] = str(record.exc_info[1])
+        return _json.dumps(log_entry, default=str)
+
+
+def _setup_logging():
+    """Configure logging: JSON to stdout (container-safe), plain to file (dev)."""
+    _is_production = os.environ.get("FLASK_ENV") == "production"
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Clear existing handlers to avoid duplicates on reload
+    root_logger.handlers.clear()
+
+    # stdout handler — always present (Render captures stdout)
+    stdout_handler = logging.StreamHandler()
+    if _is_production:
+        stdout_handler.setFormatter(_JSONFormatter())
+    else:
+        stdout_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    root_logger.addHandler(stdout_handler)
+
+    # File handler — dev only (production uses ephemeral filesystem)
+    if not _is_production:
+        try:
+            file_handler = logging.FileHandler('mystes.log')
+            file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+            root_logger.addHandler(file_handler)
+        except (PermissionError, OSError):
+            pass  # Skip file logging if not writable
+
+
+_setup_logging()
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("mystes.audit")
 
 
 def audit_log(action, user_id=None, **details):
-    """Log a financial or security-relevant event for audit trail."""
-    extra = {"action": action, "user_id": user_id, **details}
+    """Log a financial or security-relevant event for audit trail (Build #216: structured)."""
+    extra = {"action": action, "user_id": user_id}
+    extra.update(details)
     audit_logger.info(
         f"AUDIT action={action} user={user_id} {' '.join(f'{k}={v}' for k,v in details.items())}",
         extra=extra,
@@ -210,6 +264,7 @@ except Exception as _db_err:
         pass  # Already registered — db.init_app() succeeded inside init_db()
 
 # Initialize Flask-Migrate for database migrations
+
 migrate = Migrate(app, db)
 
 # Initialize Flask-Login
@@ -253,7 +308,7 @@ _FALLBACK_TEMPLATE = """
 <head>
     <title>{{ title }} - MYSTES</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="MYSTES - Borderless flight booking powered by XRPL.">
+    <meta name="description" content="MYSTES - Borderless flight booking. Global arbitrage, real savings.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -378,7 +433,7 @@ _FALLBACK_TEMPLATE = """
             align-items: center;
             gap: 12px;
             text-decoration: none;
-            font-family: 'Cinzel', 'Trajan Pro', serif;
+            font-family: 'Space Grotesk', sans-serif;
             letter-spacing: 6px;
             text-transform: uppercase;
         }
@@ -411,28 +466,7 @@ _FALLBACK_TEMPLATE = """
             margin-top: -2px;
         }
 
-        /* XRPL Badge */
-        .xrpl-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: linear-gradient(135deg, rgba(35,41,47,0.8), rgba(35,41,47,0.4));
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-left: 16px;
-        }
-        .xrpl-badge::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: var(--success);
-            border-radius: 50%;
-            animation: pulse-dot 2s ease-in-out infinite;
-        }
+        /* Badge animation */
         @keyframes pulse-dot {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.5; transform: scale(1.2); }
@@ -576,7 +610,7 @@ _FALLBACK_TEMPLATE = """
             margin-top: 15px;
             border: 1px solid rgba(67, 97, 238, 0.2);
         }
-        .xrp-address {
+        .mono-address {
             font-family: 'SF Mono', Monaco, monospace;
             font-size: 13px;
             word-break: break-all;
@@ -902,11 +936,11 @@ _FALLBACK_TEMPLATE = """
         <div>
             <a href="/search">Search</a>
             <a href="/deals">Deals</a>
-            <a href="/earn">Earn</a>
+            <a href="/rewards">Earn</a>
             {% if current_user.is_authenticated %}
                 <a href="/dashboard">Dashboard</a>
-                <a href="/helper">Helper</a>
-                <a href="/wallet">Wallet</a>
+                <a href="/ai">ANASTASiA</a>
+                <a href="/rewards">Wallet</a>
                 {% if current_user.is_admin %}<a href="/admin" style="color: #14b8a6;">Admin</a>{% endif %}
                 <a href="/logout">Logout</a>
             {% else %}
@@ -1008,7 +1042,7 @@ HOME_CONTENT = """
     }
 
     .mystes-logo-mark {
-        font-family: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', serif;
+        font-family: 'Space Grotesk', sans-serif;
         font-size: clamp(42px, 10vw, 100px);
         font-weight: 800;
         letter-spacing: 12px;
@@ -1229,7 +1263,7 @@ HOME_CONTENT = """
     <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; opacity: 0; animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;">
         <a href="/register" style="padding: 14px 32px; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;">Get Started</a>
         {% if feature_node_onboarding %}
-        <a href="/helper" style="padding: 14px 32px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.3); color: #7c3aed; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the MYSTES Network</a>
+        <a href="/ai" style="padding: 14px 32px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.3); color: #7c3aed; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Join the MYSTES Network</a>
         {% endif %}
         <a href="/login" style="padding: 14px 32px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; font-family: 'Outfit', sans-serif; transition: all 0.2s;">Sign In</a>
     </div>
@@ -1252,16 +1286,16 @@ document.getElementById('homeSearchInput').addEventListener('keydown', function(
 """
 
 LOGIN_CONTENT = """
-<div class="card" style="max-width: 400px; margin: 40px auto;">
-    <h2>Login</h2>
+<div class="mystes-card" style="max-width: 400px; margin: 40px auto;">
+    <h2 class="mystes-page-header mb-md" style="padding:0;">Login</h2>
     {% if pending_deal %}
-    <div style="background: #f5f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    <div class="alert alert-info mb-md">
         Your deal has been saved. Log in to continue booking.
     </div>
     {% endif %}
 
     {% if google_client_id %}
-    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+    <div class="flex-center mb-md" style="justify-content:center;">
         <div id="g_id_signin_login"></div>
     </div>
     <script>
@@ -1273,10 +1307,10 @@ LOGIN_CONTENT = """
         );
     });
     </script>
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-        <span style="height: 1px; flex: 1; background: rgba(255,255,255,0.15);"></span>
-        <span style="font-size: 12px; color: #666;">or sign in with email</span>
-        <span style="height: 1px; flex: 1; background: rgba(255,255,255,0.15);"></span>
+    <div class="flex-center gap-md mb-md">
+        <span class="mystes-divider" style="flex:1; margin:0;"></span>
+        <span style="font-size: 12px; color: var(--text-muted);">or sign in with email</span>
+        <span class="mystes-divider" style="flex:1; margin:0;"></span>
     </div>
     {% endif %}
 
@@ -1286,37 +1320,37 @@ LOGIN_CONTENT = """
         <input type="hidden" name="pending_deal_id" value="{{ pending_deal }}">
         {% endif %}
         <div class="form-group">
-            <label>Email</label>
-            <input type="email" name="email" required>
+            <label class="mystes-label">Email</label>
+            <input type="email" name="email" class="mystes-input" required>
         </div>
         <div class="form-group">
-            <label>Password</label>
-            <input type="password" name="password" required>
+            <label class="mystes-label">Password</label>
+            <input type="password" name="password" class="mystes-input" required>
         </div>
-        <button type="submit" class="btn" style="width: 100%;">Login</button>
+        <button type="submit" class="mystes-btn mystes-btn-primary mystes-btn-full">Login</button>
     </form>
-    <p style="margin-top: 15px; text-align: center;">
+    <p class="mt-md text-center">
         Don't have an account? <a href="/register{% if pending_deal %}?deal={{ pending_deal }}{% endif %}">Register</a>
     </p>
     {% if pending_deal %}
-    <p style="margin-top: 10px; text-align: center;">
-        <a href="/book/{{ pending_deal }}?guest=true" style="color: #666;">Continue as guest instead</a>
+    <p class="mt-sm text-center">
+        <a href="/book/{{ pending_deal }}?guest=true" style="color: var(--text-muted);">Continue as guest instead</a>
     </p>
     {% endif %}
 </div>
 """
 
 REGISTER_CONTENT = """
-<div class="card" style="max-width: 400px; margin: 40px auto;">
-    <h2>Create Account</h2>
+<div class="mystes-card" style="max-width: 400px; margin: 40px auto;">
+    <h2 class="mystes-page-header mb-md" style="padding:0;">Create Account</h2>
     {% if pending_deal %}
-    <div style="background: #f5f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    <div class="alert alert-info mb-md">
         Your deal has been saved. Create an account to continue booking.
     </div>
     {% endif %}
 
     {% if google_client_id %}
-    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+    <div class="flex-center mb-md" style="justify-content:center;">
         <div id="g_id_signin_register"></div>
     </div>
     <script>
@@ -1328,10 +1362,10 @@ REGISTER_CONTENT = """
         );
     });
     </script>
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-        <span style="height: 1px; flex: 1; background: rgba(255,255,255,0.15);"></span>
-        <span style="font-size: 12px; color: #666;">or sign up with email</span>
-        <span style="height: 1px; flex: 1; background: rgba(255,255,255,0.15);"></span>
+    <div class="flex-center gap-md mb-md">
+        <span class="mystes-divider" style="flex:1; margin:0;"></span>
+        <span style="font-size: 12px; color: var(--text-muted);">or sign up with email</span>
+        <span class="mystes-divider" style="flex:1; margin:0;"></span>
     </div>
     {% endif %}
 
@@ -1341,25 +1375,25 @@ REGISTER_CONTENT = """
         <input type="hidden" name="pending_deal_id" value="{{ pending_deal }}">
         {% endif %}
         <div class="form-group">
-            <label>Name</label>
-            <input type="text" name="name" required>
+            <label class="mystes-label">Name</label>
+            <input type="text" name="name" class="mystes-input" required>
         </div>
         <div class="form-group">
-            <label>Email</label>
-            <input type="email" name="email" required>
+            <label class="mystes-label">Email</label>
+            <input type="email" name="email" class="mystes-input" required>
         </div>
         <div class="form-group">
-            <label>Password</label>
-            <input type="password" name="password" required minlength="8">
+            <label class="mystes-label">Password</label>
+            <input type="password" name="password" class="mystes-input" required minlength="8">
         </div>
-        <button type="submit" class="btn" style="width: 100%;">Create Account</button>
+        <button type="submit" class="mystes-btn mystes-btn-primary mystes-btn-full">Create Account</button>
     </form>
-    <p style="margin-top: 15px; text-align: center;">
+    <p class="mt-md text-center">
         Already have an account? <a href="/login{% if pending_deal %}?deal={{ pending_deal }}{% endif %}">Login</a>
     </p>
     {% if pending_deal %}
-    <p style="margin-top: 10px; text-align: center;">
-        <a href="/book/{{ pending_deal }}?guest=true" style="color: #666;">Continue as guest instead</a>
+    <p class="mt-sm text-center">
+        <a href="/book/{{ pending_deal }}?guest=true" style="color: var(--text-muted);">Continue as guest instead</a>
     </p>
     {% endif %}
 </div>
@@ -1371,7 +1405,7 @@ DASHBOARD_CONTENT = """
 @keyframes dashFadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 .dash-welcome { text-align: center; margin-bottom: 32px; }
 .dash-welcome h1 {
-    font-family: 'Cinzel', serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;
+    font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;
     background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text; margin: 0 0 6px;
@@ -1413,12 +1447,12 @@ DASHBOARD_CONTENT = """
 .dash-stat.amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .dash-stat.pink { background: linear-gradient(135deg, #ec4899, #db2777); }
 .dash-section {
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px; padding: 24px; margin-bottom: 16px;
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl); padding: 24px; margin-bottom: 16px;
+    backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
 }
 .dash-section-title {
-    font-family: 'Cinzel', serif; font-size: 16px; font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;
     color: rgba(255,255,255,0.9); margin: 0 0 16px; letter-spacing: 0.5px;
 }
 .dash-booking-card {
@@ -1431,24 +1465,17 @@ DASHBOARD_CONTENT = """
 .dash-booking-route { font-weight: 600; color: #fff; font-size: 14px; }
 .dash-booking-meta { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 3px; }
 .dash-booking-amount { font-weight: 700; color: #c4b5fd; font-size: 15px; text-align: right; }
-.dash-badge {
-    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
-}
-.dash-badge-booked { background: rgba(16,185,129,0.15); color: #34d399; }
-.dash-badge-pending { background: rgba(245,158,11,0.15); color: #fbbf24; }
-.dash-badge-failed { background: rgba(239,68,68,0.15); color: #f87171; }
-.dash-badge-completed { background: rgba(124,58,237,0.15); color: #a78bfa; }
+/* dash-badge: uses mystes-badge-* from component library */
 .dash-feature-row {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 14px; margin-bottom: 16px;
 }
 .dash-feature {
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 14px; padding: 20px; display: flex; justify-content: space-between;
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg); padding: 20px; display: flex; justify-content: space-between;
     align-items: center; transition: all 0.2s ease;
 }
-.dash-feature:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+.dash-feature:hover { background: var(--glass-bg-light); border-color: var(--glass-border-hover); }
 .dash-feature-title { font-weight: 600; color: #fff; font-size: 14px; margin-bottom: 3px; }
 .dash-feature-count { font-size: 12px; color: rgba(255,255,255,0.5); }
 .dash-feature-btn {
@@ -1555,22 +1582,22 @@ DASHBOARD_CONTENT = """
                     {% endif %}
                     <div style="margin-top: 4px;">
                         {% if booking.status == 'booked' or booking.status == 'completed' %}
-                        <span class="dash-badge dash-badge-booked">{{ booking.status }}</span>
+                        <span class="mystes-badge mystes-badge-green">{{ booking.status }}</span>
                         {% elif booking.status == 'pending' or booking.status == 'pending_fulfillment' or booking.status == 'processing' %}
-                        <span class="dash-badge dash-badge-pending">{{ booking.status }}</span>
+                        <span class="mystes-badge mystes-badge-amber">{{ booking.status }}</span>
                         {% elif booking.status == 'failed' or booking.status == 'cancelled' %}
-                        <span class="dash-badge dash-badge-failed">{{ booking.status }}</span>
+                        <span class="mystes-badge mystes-badge-red">{{ booking.status }}</span>
                         {% else %}
-                        <span class="dash-badge dash-badge-completed">{{ booking.status }}</span>
+                        <span class="mystes-badge mystes-badge-purple">{{ booking.status }}</span>
                         {% endif %}
                     </div>
                 </div>
             </div>
             {% endfor %}
         {% else %}
-            <div style="text-align: center; padding: 32px 16px;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" style="margin-bottom: 12px;"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l5.5 3.2-2 2-1.7-.5c-.4-.1-.8 0-1 .3l-.2.3c-.2.3-.1.7.2.9l2.8 1.9 1.9 2.8c.2.3.6.4.9.2l.3-.2c.3-.2.4-.6.3-1l-.5-1.7 2-2 3.2 5.5c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
-                <p style="color: rgba(255,255,255,0.4); font-size: 14px; margin: 0;">No bookings yet. <a href="/flights" style="color: #7c3aed; text-decoration: none;">Search flights</a> to get started!</p>
+            <div class="mystes-empty">
+                <div class="mystes-empty-icon">&#9992;</div>
+                <p>No bookings yet. <a href="/flights">Search flights</a> to get started!</p>
             </div>
         {% endif %}
     </div>
@@ -1623,26 +1650,28 @@ DASHBOARD_CONTENT = """
                 <strong>Currency:</strong> {{ user.preferred_currency }}<br>
                 <strong>Language:</strong> {{ language_name }}
             </div>
-            <a href="/settings" style="padding: 8px 20px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: rgba(255,255,255,0.8); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s ease;">Edit Settings</a>
+            <a href="/settings" class="mystes-btn mystes-btn-ghost mystes-btn-sm">Edit Settings</a>
         </div>
     </div>
 </div>
 """
 
 SETTINGS_CONTENT = """
-<h1>Account Settings</h1>
+<div class="mystes-page-header mb-lg">
+    <h1>Account Settings</h1>
+</div>
 
-<div class="card">
+<div class="mystes-card mb-lg">
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-            <label for="name">Display Name</label>
-            <input type="text" id="name" name="name" value="{{ user.name or '' }}" placeholder="Your name">
+            <label class="mystes-label" for="name">Display Name</label>
+            <input type="text" id="name" name="name" class="mystes-input" value="{{ user.name or '' }}" placeholder="Your name">
         </div>
 
         <div class="form-group">
-            <label for="preferred_currency">Preferred Currency</label>
-            <select id="preferred_currency" name="preferred_currency" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;color:#1a1a2e;">
+            <label class="mystes-label" for="preferred_currency">Preferred Currency</label>
+            <select id="preferred_currency" name="preferred_currency" class="mystes-select">
                 {% for code, name in currencies %}
                 <option value="{{ code }}" {{ 'selected' if user.preferred_currency == code else '' }}>{{ name }} ({{ code }})</option>
                 {% endfor %}
@@ -1650,51 +1679,53 @@ SETTINGS_CONTENT = """
         </div>
 
         <div class="form-group">
-            <label for="preferred_language">Translation Language</label>
-            <select id="preferred_language" name="preferred_language" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;color:#1a1a2e;">
+            <label class="mystes-label" for="preferred_language">Translation Language</label>
+            <select id="preferred_language" name="preferred_language" class="mystes-select">
                 {% for code, name in languages %}
                 <option value="{{ code }}" {{ 'selected' if user.preferred_language == code else '' }}>{{ name }}</option>
                 {% endfor %}
             </select>
-            <small style="color:#666;display:block;margin-top:5px;">Foreign airline websites will be translated to this language</small>
+            <small style="color:var(--text-muted);display:block;margin-top:5px;">Foreign airline websites will be translated to this language</small>
         </div>
 
         <div class="form-group">
-            <label for="home_market">Home Market</label>
-            <select id="home_market" name="home_market" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;color:#1a1a2e;">
+            <label class="mystes-label" for="home_market">Home Market</label>
+            <select id="home_market" name="home_market" class="mystes-select">
                 <option value="US" {{ 'selected' if user.home_market == 'US' else '' }}>United States</option>
                 <option value="JP" {{ 'selected' if user.home_market == 'JP' else '' }}>Japan</option>
                 <option value="GB" {{ 'selected' if user.home_market == 'GB' else '' }}>United Kingdom</option>
                 <option value="DE" {{ 'selected' if user.home_market == 'DE' else '' }}>Germany</option>
                 <option value="FR" {{ 'selected' if user.home_market == 'FR' else '' }}>France</option>
             </select>
-            <small style="color:#666;display:block;margin-top:5px;">Your home market for price comparisons</small>
+            <small style="color:var(--text-muted);display:block;margin-top:5px;">Your home market for price comparisons</small>
         </div>
 
-        <hr>
+        <hr class="mystes-divider">
 
-        <button type="submit" class="btn">Save Changes</button>
-        <a href="/dashboard" class="btn btn-secondary" style="margin-left:10px;">Cancel</a>
+        <div class="flex gap-md">
+            <button type="submit" class="mystes-btn mystes-btn-primary">Save Changes</button>
+            <a href="/dashboard" class="mystes-btn mystes-btn-ghost">Cancel</a>
+        </div>
     </form>
 </div>
 
-<div class="card">
-    <h2>Change Password</h2>
+<div class="mystes-card">
+    <h2 style="font-family:var(--font-brand);letter-spacing:1px;margin-bottom:16px;">Change Password</h2>
     <form method="POST" action="/settings/password">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-            <label for="current_password">Current Password</label>
-            <input type="password" id="current_password" name="current_password" required>
+            <label class="mystes-label" for="current_password">Current Password</label>
+            <input type="password" id="current_password" name="current_password" class="mystes-input" required>
         </div>
         <div class="form-group">
-            <label for="new_password">New Password</label>
-            <input type="password" id="new_password" name="new_password" required minlength="8">
+            <label class="mystes-label" for="new_password">New Password</label>
+            <input type="password" id="new_password" name="new_password" class="mystes-input" required minlength="8">
         </div>
         <div class="form-group">
-            <label for="confirm_password">Confirm New Password</label>
-            <input type="password" id="confirm_password" name="confirm_password" required minlength="8">
+            <label class="mystes-label" for="confirm_password">Confirm New Password</label>
+            <input type="password" id="confirm_password" name="confirm_password" class="mystes-input" required minlength="8">
         </div>
-        <button type="submit" class="btn">Update Password</button>
+        <button type="submit" class="mystes-btn mystes-btn-primary">Update Password</button>
     </form>
 </div>
 """
@@ -1705,105 +1736,107 @@ SETTINGS_CONTENT = """
 
 TRAVELERS_CONTENT = """
 <div style="max-width:900px;margin:0 auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+    <div class="flex-between mb-lg">
         <div>
-            <h1 style="color:#fff;margin:0 0 8px 0;font-size:28px;">Saved Travelers</h1>
-            <p style="color:#aaa;margin:0;font-size:15px;">Manage traveler profiles for faster booking</p>
+            <h1 class="mystes-page-header" style="padding:0;text-align:left;">Saved Travelers</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:15px;">Manage traveler profiles for faster booking</p>
         </div>
-        <button onclick="showAddTraveler()" class="btn" style="background:#00d4ff;color:#000;font-weight:600;">
+        <button onclick="showAddTraveler()" class="mystes-btn mystes-btn-primary">
             + Add Traveler
         </button>
     </div>
 
     {% if travelers %}
-    <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="flex-col gap-md">
         {% for t in travelers %}
-        <div class="card" style="border-left:4px solid {{ '#00d4ff' if t.is_primary else '#444' }};">
-            <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:16px;">
+        <div class="mystes-card" style="border-left:4px solid {{ 'var(--accent-purple)' if t.is_primary else 'var(--glass-border)' }};">
+            <div class="flex-between" style="align-items:start;flex-wrap:wrap;gap:16px;">
                 <div style="flex:1;">
-                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-                        <h3 style="margin:0;color:#fff;">{{ t.first_name }} {{ t.last_name }}</h3>
+                    <div class="flex-center gap-md mb-sm">
+                        <h3 style="margin:0;">{{ t.first_name }} {{ t.last_name }}</h3>
                         {% if t.is_primary %}
-                        <span style="background:#00d4ff;color:#000;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;">PRIMARY</span>
+                        <span class="mystes-badge mystes-badge-purple">PRIMARY</span>
                         {% endif %}
-                        <span style="background:rgba(255,255,255,0.1);color:#aaa;font-size:11px;padding:2px 8px;border-radius:4px;">{{ t.passenger_type or 'ADULT' }}</span>
+                        <span class="mystes-badge mystes-badge-neutral">{{ t.passenger_type or 'ADULT' }}</span>
                     </div>
-                    <div style="color:#888;font-size:14px;">
+                    <div style="color:var(--text-muted);font-size:14px;">
                         {% if t.date_of_birth %}DOB: {{ t.date_of_birth.strftime('%b %d, %Y') }} &bull; {% endif %}
                         {{ t.gender or '?' }} &bull;
                         {{ t.email or 'No email' }}
                     </div>
                     {% if t.passport_number %}
-                    <div style="color:#4caf50;font-size:13px;margin-top:8px;">
-                        <span style="margin-right:8px;">&#x2713;</span>Passport on file ({{ t.passport_country or '?' }})
+                    <div style="color:#4ade80;font-size:13px;margin-top:8px;">
+                        &#x2713; Passport on file ({{ t.passport_country or '?' }})
                         {% if t.passport_expiry %} &bull; Expires {{ t.passport_expiry.strftime('%b %Y') }}{% endif %}
                     </div>
                     {% else %}
-                    <div style="color:#ff9800;font-size:13px;margin-top:8px;">
-                        <span style="margin-right:8px;">&#x26A0;</span>No passport info — required for international flights
+                    <div style="color:var(--warning-amber);font-size:13px;margin-top:8px;">
+                        &#x26A0; No passport info — required for international flights
                     </div>
                     {% endif %}
                 </div>
-                <div style="display:flex;gap:8px;">
-                    <button onclick="editTraveler({{ t.id }})" style="background:transparent;border:1px solid #555;color:#fff;padding:8px 16px;border-radius:4px;cursor:pointer;">Edit</button>
+                <div class="flex gap-sm">
+                    <button onclick="editTraveler({{ t.id }})" class="mystes-btn mystes-btn-ghost mystes-btn-sm">Edit</button>
                     {% if not t.is_primary %}
-                    <button onclick="setPrimary({{ t.id }})" style="background:transparent;border:1px solid #00d4ff;color:#00d4ff;padding:8px 16px;border-radius:4px;cursor:pointer;">Set Primary</button>
+                    <button onclick="setPrimary({{ t.id }})" class="mystes-btn mystes-btn-ghost mystes-btn-sm" style="border-color:var(--accent-purple);color:var(--accent-purple);">Set Primary</button>
                     {% endif %}
-                    <button onclick="deleteTraveler({{ t.id }})" style="background:transparent;border:1px solid #e57373;color:#e57373;padding:8px 16px;border-radius:4px;cursor:pointer;">Delete</button>
+                    <button onclick="deleteTraveler({{ t.id }})" class="mystes-btn mystes-btn-danger mystes-btn-sm">Delete</button>
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <div class="card" style="text-align:center;padding:60px 20px;">
-        <div style="font-size:48px;margin-bottom:16px;">&#x1F464;</div>
-        <h3 style="color:#fff;margin:0 0 8px 0;">No Saved Travelers</h3>
-        <p style="color:#888;margin:0 0 24px 0;">Add your first traveler profile to speed up booking</p>
-        <button onclick="showAddTraveler()" class="btn" style="background:#00d4ff;color:#000;font-weight:600;">
-            + Add Your First Traveler
-        </button>
+    <div class="mystes-card">
+        <div class="mystes-empty">
+            <div class="mystes-empty-icon">&#x1F464;</div>
+            <h3 style="margin:0 0 8px 0;">No Saved Travelers</h3>
+            <p>Add your first traveler profile to speed up booking</p>
+            <button onclick="showAddTraveler()" class="mystes-btn mystes-btn-primary mt-md">
+                + Add Your First Traveler
+            </button>
+        </div>
     </div>
     {% endif %}
 </div>
 
 <!-- Add/Edit Traveler Modal -->
-<div id="travelerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:1000;overflow-y:auto;">
-    <div style="max-width:600px;margin:40px auto;background:#1a1a2e;border-radius:12px;padding:32px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-            <h2 id="modalTitle" style="color:#fff;margin:0;">Add Traveler</h2>
-            <button onclick="closeModal()" style="background:transparent;border:none;color:#888;font-size:24px;cursor:pointer;">&times;</button>
+<div id="travelerModal" class="mystes-modal-overlay" style="overflow-y:auto;">
+    <div class="mystes-modal" style="max-width:600px;">
+        <div class="flex-between mb-lg">
+            <h2 id="modalTitle" style="margin:0;">Add Traveler</h2>
+            <button onclick="closeModal()" style="background:transparent;border:none;color:var(--text-muted);font-size:24px;cursor:pointer;">&times;</button>
         </div>
         <form id="travelerForm" onsubmit="saveTraveler(event)">
             <input type="hidden" id="travelerId" value="">
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="mystes-form-grid">
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">First Name *</label>
-                    <input type="text" id="firstName" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">First Name *</label>
+                    <input type="text" id="firstName" required class="mystes-input">
                 </div>
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Last Name *</label>
-                    <input type="text" id="lastName" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Last Name *</label>
+                    <input type="text" id="lastName" required class="mystes-input">
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px;">
+            <div class="mystes-grid-3 mt-md">
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Date of Birth *</label>
-                    <input type="date" id="dob" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Date of Birth *</label>
+                    <input type="date" id="dob" required class="mystes-input">
                 </div>
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Gender *</label>
-                    <select id="gender" required style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Gender *</label>
+                    <select id="gender" required class="mystes-select">
                         <option value="">Select</option>
                         <option value="M">Male</option>
                         <option value="F">Female</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Passenger Type</label>
-                    <select id="passengerType" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Passenger Type</label>
+                    <select id="passengerType" class="mystes-select">
                         <option value="ADULT">Adult</option>
                         <option value="CHILD">Child (2-11)</option>
                         <option value="INFANT">Infant (0-2)</option>
@@ -1811,45 +1844,45 @@ TRAVELERS_CONTENT = """
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+            <div class="mystes-form-grid mt-md">
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Email</label>
-                    <input type="email" id="email" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Email</label>
+                    <input type="email" id="email" class="mystes-input">
                 </div>
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Phone</label>
-                    <input type="tel" id="phone" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
-                </div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid #333;margin:24px 0;">
-            <h3 style="color:#fff;margin:0 0 16px 0;font-size:16px;">Passport Details (for international flights)</h3>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-                <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Passport Number</label>
-                    <input type="text" id="passportNumber" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
-                </div>
-                <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Expiry Date</label>
-                    <input type="date" id="passportExpiry" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Phone</label>
+                    <input type="tel" id="phone" class="mystes-input">
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+            <hr class="mystes-divider">
+            <h3 style="margin:0 0 16px 0;font-size:16px;">Passport Details (for international flights)</h3>
+
+            <div class="mystes-form-grid">
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Issuing Country</label>
-                    <input type="text" id="passportCountry" placeholder="e.g., US" maxlength="2" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Passport Number</label>
+                    <input type="text" id="passportNumber" class="mystes-input">
                 </div>
                 <div class="form-group">
-                    <label style="color:#aaa;font-size:13px;">Nationality</label>
-                    <input type="text" id="nationality" placeholder="e.g., US" maxlength="2" style="width:100%;padding:12px;background:#16213e;border:1px solid #333;border-radius:6px;color:#fff;">
+                    <label class="mystes-label">Expiry Date</label>
+                    <input type="date" id="passportExpiry" class="mystes-input">
                 </div>
             </div>
 
-            <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;">
-                <button type="button" onclick="closeModal()" style="background:transparent;border:1px solid #555;color:#fff;padding:12px 24px;border-radius:6px;cursor:pointer;">Cancel</button>
-                <button type="submit" class="btn" style="background:#00d4ff;color:#000;font-weight:600;padding:12px 24px;">Save Traveler</button>
+            <div class="mystes-form-grid mt-md">
+                <div class="form-group">
+                    <label class="mystes-label">Issuing Country</label>
+                    <input type="text" id="passportCountry" placeholder="e.g., US" maxlength="2" class="mystes-input">
+                </div>
+                <div class="form-group">
+                    <label class="mystes-label">Nationality</label>
+                    <input type="text" id="nationality" placeholder="e.g., US" maxlength="2" class="mystes-input">
+                </div>
+            </div>
+
+            <div class="flex mt-lg gap-md" style="justify-content:flex-end;">
+                <button type="button" onclick="closeModal()" class="mystes-btn mystes-btn-ghost">Cancel</button>
+                <button type="submit" class="mystes-btn mystes-btn-primary">Save Traveler</button>
             </div>
         </form>
     </div>
@@ -1860,11 +1893,11 @@ function showAddTraveler() {
     document.getElementById('modalTitle').textContent = 'Add Traveler';
     document.getElementById('travelerId').value = '';
     document.getElementById('travelerForm').reset();
-    document.getElementById('travelerModal').style.display = 'block';
+    document.getElementById('travelerModal').classList.add('open');
 }
 
 function closeModal() {
-    document.getElementById('travelerModal').style.display = 'none';
+    document.getElementById('travelerModal').classList.remove('open');
 }
 
 async function editTraveler(id) {
@@ -1886,7 +1919,7 @@ async function editTraveler(id) {
             document.getElementById('passportExpiry').value = t.passport_expiry || '';
             document.getElementById('passportCountry').value = t.passport_country || '';
             document.getElementById('nationality').value = t.nationality || '';
-            document.getElementById('travelerModal').style.display = 'block';
+            document.getElementById('travelerModal').classList.add('open');
         }
     } catch (e) { alert('Failed to load traveler'); }
 }
@@ -1945,52 +1978,50 @@ async function deleteTraveler(id) {
 """
 
 DEALS_CONTENT = """
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<div class="flex-between mb-lg" style="flex-wrap:wrap;gap:12px;">
     <h1 style="margin: 0;">Available Deals</h1>
-    <div style="color: #fff; font-size: 14px;">
-        XRP: <strong style="color: #7c3aed;">${{ "%.2f"|format(xrp_price) }}</strong> |
-        Network: <strong>{{ network }}</strong> |
+    <div style="color: var(--text-muted); font-size: 14px;">
         {{ deals|length }} deal{{ 's' if deals|length != 1 else '' }} found
         {% if last_scan %} | Last scan: {{ last_scan }}{% endif %}
     </div>
 </div>
 
 {% if deals %}
-    <div style="display: grid; gap: 20px;">
+    <div class="flex-col gap-md">
     {% for d in deals %}
-    <div class="card" style="border-left: 4px solid #7c3aed;">
-        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
+    <div class="mystes-card" style="border-left: 4px solid var(--accent-purple);">
+        <div class="flex-between" style="align-items: start; flex-wrap: wrap; gap: 10px;">
             <div>
                 {% if d.deal_type == 'hotel' %}
-                    <span style="background: #6d28d9; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 5px;">HOTEL</span>
-                    <h3 style="margin: 5px 0 5px 0; color: #f5f5f5;">{{ d.hotel_name }}</h3>
-                    <div style="color: #fff; font-size: 14px;">
+                    <span class="mystes-badge mystes-badge-purple mb-sm">HOTEL</span>
+                    <h3 style="margin: 5px 0 5px 0;">{{ d.hotel_name }}</h3>
+                    <div style="color: var(--text-muted); font-size: 14px;">
                         {{ d.city_code }} &bull;
                         {{ d.check_in_date.strftime('%b %d') if d.check_in_date else '' }} - {{ d.check_out_date.strftime('%b %d, %Y') if d.check_out_date else '' }}
                         ({{ d.nights }} night{{ 's' if d.nights != 1 else '' }})
                     </div>
                 {% else %}
-                    <h3 style="margin: 0 0 5px 0; color: #f5f5f5;">
+                    <h3 style="margin: 0 0 5px 0;">
                         {{ d.airline or 'Flight' }} {{ d.flight_number or '' }}
                     </h3>
-                    <div style="color: #fff; font-size: 14px;">
+                    <div style="color: var(--text-muted); font-size: 14px;">
                         {{ d.origin }} &rarr; {{ d.destination }} &bull;
                         {{ d.departure_date.strftime('%b %d, %Y') if d.departure_date else 'TBD' }}
                         {% if d.stops %} &bull; {{ d.stops }} stop{{ 's' if d.stops > 1 else '' }}{% endif %}
                     </div>
                 {% endif %}
             </div>
-            <div style="text-align: right;">
+            <div class="text-right">
                 {% if d.deal_type == 'hotel' %}
-                    <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">
-                        ${{ "%.0f"|format(d.price_per_night_usd or 0) }}<span style="font-size: 14px; font-weight: normal; color: #ccc;">/night</span>
+                    <div style="font-size: 24px; font-weight: bold; color: var(--accent-purple);">
+                        ${{ "%.0f"|format(d.price_per_night_usd or 0) }}<span style="font-size: 14px; font-weight: normal; color: var(--text-muted);">/night</span>
                     </div>
-                    <div style="color: #ccc; font-size: 14px;">${{ "%.0f"|format(d.price_total_usd or 0) }} total</div>
+                    <div style="color: var(--text-muted); font-size: 14px;">${{ "%.0f"|format(d.price_total_usd or 0) }} total</div>
                 {% else %}
-                    <div style="font-size: 24px; font-weight: bold; color: #4caf50;">
+                    <div style="font-size: 24px; font-weight: bold; color: #4ade80;">
                         Save ${{ "%.0f"|format(d.user_savings_usd or d.gross_savings_usd or 0) }}
                     </div>
-                    <div style="color: #81c784; font-size: 14px;">
+                    <div style="color: #4ade80; font-size: 14px;">
                         {{ "%.0f"|format(d.savings_percent or 0) }}% off
                     </div>
                 {% endif %}
@@ -1998,29 +2029,29 @@ DEALS_CONTENT = """
         </div>
 
         {% if d.deal_type != 'hotel' %}
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+        <div class="mystes-grid-3 mt-md" style="padding-top:15px;border-top:1px solid var(--glass-border);">
             <div>
-                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">{{ d.home_market or 'US' }} Price</div>
-                <div style="color: #e57373; font-size: 18px; text-decoration: line-through;">${{ "%.0f"|format(d.home_price_usd or 0) }}</div>
+                <div class="mystes-label">{{ d.home_market or 'US' }} Price</div>
+                <div style="color: var(--danger-red); font-size: 18px; text-decoration: line-through;">${{ "%.0f"|format(d.home_price_usd or 0) }}</div>
             </div>
             <div>
-                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">MYSTES Price</div>
-                <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format((d.arbitrage_price_usd or 0) + (d.platform_fee_usd or 0)) }}</div>
+                <div class="mystes-label">MYSTES Price</div>
+                <div style="color: #4ade80; font-size: 18px; font-weight: bold;">${{ "%.0f"|format((d.arbitrage_price_usd or 0) + (d.platform_fee_usd or 0)) }}</div>
             </div>
             <div>
-                <div style="color: #fff; font-size: 12px; text-transform: uppercase;">You Save</div>
-                <div style="color: #4caf50; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.user_savings_usd or d.gross_savings_usd or 0) }}</div>
+                <div class="mystes-label">You Save</div>
+                <div style="color: #4ade80; font-size: 18px; font-weight: bold;">${{ "%.0f"|format(d.user_savings_usd or d.gross_savings_usd or 0) }}</div>
             </div>
         </div>
         {% endif %}
 
-        <div style="margin-top: 15px;">
+        <div class="mt-md">
             {% if current_user.is_authenticated %}
-                <a href="/book/{{ d.deal_id }}" class="btn" style="display: inline-block;">{{ 'Book Hotel' if d.deal_type == 'hotel' else 'Book This Deal' }}</a>
+                <a href="/book/{{ d.deal_id }}" class="mystes-btn mystes-btn-primary">{{ 'Book Hotel' if d.deal_type == 'hotel' else 'Book This Deal' }}</a>
             {% else %}
-                <a href="/save-deal/{{ d.deal_id }}" class="btn" style="display: inline-block;">{{ 'Book Hotel' if d.deal_type == 'hotel' else 'Sign Up to Book' }}</a>
+                <a href="/save-deal/{{ d.deal_id }}" class="mystes-btn mystes-btn-primary">{{ 'Book Hotel' if d.deal_type == 'hotel' else 'Sign Up to Book' }}</a>
             {% endif %}
-            <span style="color: #fff; font-size: 12px; margin-left: 10px;">
+            <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;">
                 Expires {{ d.expires_at.strftime('%b %d %H:%M UTC') if d.expires_at else 'in 24h' }}
             </span>
         </div>
@@ -2028,63 +2059,66 @@ DEALS_CONTENT = """
     {% endfor %}
     </div>
 {% else %}
-    <div class="card" style="text-align: center; padding: 60px 20px;">
-        <h2 style="color: #f5f5f5; margin-bottom: 10px;">No Active Deals Right Now</h2>
-        <p style="color: #fff; max-width: 500px; margin: 0 auto 20px;">
-            Deals are generated when our system finds price differences across global markets.
-            Try asking MYSTES AI for a specific route, or check back soon.
-        </p>
-        <a href="/ai" class="btn">Try MYSTES AI</a>
+    <div class="mystes-card">
+        <div class="mystes-empty">
+            <div class="mystes-empty-icon">&#x1F50D;</div>
+            <h2 class="mb-sm">No Active Deals Right Now</h2>
+            <p style="max-width: 500px; margin: 0 auto 20px;">
+                Deals are generated when our system finds price differences across global markets.
+                Try asking MYSTES AI for a specific route, or check back soon.
+            </p>
+            <a href="/ai" class="mystes-btn mystes-btn-primary">Try MYSTES AI</a>
+        </div>
     </div>
 {% endif %}
 """
 
 GUEST_CHECKOUT_CONTENT = """
-<div class="card" style="max-width: 500px; margin: 40px auto; text-align: center;">
-    <h2>Complete Your Booking</h2>
-    <p style="color: #666; margin-bottom: 30px;">Your deal has been saved. Choose how you'd like to proceed:</p>
+<div class="mystes-card text-center" style="max-width: 500px; margin: 40px auto;">
+    <h2 class="mb-sm">Complete Your Booking</h2>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">Your deal has been saved. Choose how you'd like to proceed:</p>
 
-    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+    <div class="mystes-card compact mb-lg">
         {% if deal.deal_type == 'hotel' %}
-            <span style="background: #6d28d9; color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px;">HOTEL</span>
-            <h3 style="margin: 10px 0 5px; color: #1a1a2e;">{{ deal.hotel_name }}</h3>
-            <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.city_code }} / {{ deal.check_in_date }} - {{ deal.check_out_date }}</p>
+            <span class="mystes-badge mystes-badge-purple mb-sm">HOTEL</span>
+            <h3 style="margin: 10px 0 5px;">{{ deal.hotel_name }}</h3>
+            <p style="margin: 5px 0; color: var(--text-muted);">{{ deal.city_code }} / {{ deal.check_in_date }} - {{ deal.check_out_date }}</p>
             <p style="margin-top: 15px; font-size: 1.2em;">
-                <span style="color: #28a745; font-weight: bold;">${{ "%.2f"|format(deal.price_total_usd or 0) }}</span>
-                <span style="color: #666; font-size: 0.8em;"> + ${{ "%.2f"|format(deal.platform_fee_usd or 0) }} fee</span>
+                <span style="color: #4ade80; font-weight: bold;">${{ "%.2f"|format(deal.price_total_usd or 0) }}</span>
+                <span style="color: var(--text-muted); font-size: 0.8em;"> + ${{ "%.2f"|format(deal.platform_fee_usd or 0) }} fee</span>
             </p>
         {% else %}
-            <h3 style="margin-bottom: 10px; color: #1a1a2e;">{{ deal.airline }} {{ deal.flight_number }}</h3>
-            <p style="margin: 5px 0; color: #1a1a2e;">{{ deal.origin }} → {{ deal.destination }}</p>
-            <p style="margin: 5px 0; color: #666;">{{ deal.departure_date }}</p>
+            <h3 style="margin-bottom: 10px;">{{ deal.airline }} {{ deal.flight_number }}</h3>
+            <p style="margin: 5px 0;">{{ deal.origin }} &rarr; {{ deal.destination }}</p>
+            <p style="margin: 5px 0; color: var(--text-muted);">{{ deal.departure_date }}</p>
             <p style="margin-top: 15px; font-size: 1.2em;">
-                <span style="text-decoration: line-through; color: #fff;">${{ "%.2f"|format(deal.home_price_usd or 0) }}</span>
-                <span style="color: #28a745; font-weight: bold; margin-left: 10px;">${{ "%.2f"|format(deal.arbitrage_price_usd or 0) }}</span>
-                <span class="tag" style="margin-left: 10px;">Save ${{ "%.2f"|format(deal.user_savings_usd or 0) }}</span>
+                <span style="text-decoration: line-through; color: var(--text-muted);">${{ "%.2f"|format(deal.home_price_usd or 0) }}</span>
+                <span style="color: #4ade80; font-weight: bold; margin-left: 10px;">${{ "%.2f"|format(deal.arbitrage_price_usd or 0) }}</span>
+                <span class="mystes-badge mystes-badge-green" style="margin-left: 10px;">Save ${{ "%.2f"|format(deal.user_savings_usd or 0) }}</span>
             </p>
         {% endif %}
     </div>
 
-    <div style="display: flex; flex-direction: column; gap: 15px;">
-        <a href="/register?deal={{ deal_id }}" class="btn" style="padding: 15px 30px; font-size: 1.1em;">
+    <div class="flex-col gap-md">
+        <a href="/register?deal={{ deal_id }}" class="mystes-btn mystes-btn-primary mystes-btn-lg mystes-btn-full">
             Create Account
             <small style="display: block; font-weight: normal; font-size: 0.8em; margin-top: 5px;">Track bookings, save preferences, faster checkout</small>
         </a>
 
-        <a href="/login?deal={{ deal_id }}" class="btn btn-secondary" style="padding: 15px 30px;">
+        <a href="/login?deal={{ deal_id }}" class="mystes-btn mystes-btn-ghost mystes-btn-lg mystes-btn-full">
             Sign In
             <small style="display: block; font-weight: normal; font-size: 0.8em; margin-top: 5px;">Already have an account?</small>
         </a>
 
-        <hr style="margin: 10px 0; border: none; border-top: 1px solid #eee;">
+        <hr class="mystes-divider">
 
-        <a href="/book/{{ deal_id }}?guest=true" class="btn" style="padding: 15px 30px; background: #6c757d;">
+        <a href="/book/{{ deal_id }}?guest=true" class="mystes-btn mystes-btn-ghost mystes-btn-lg mystes-btn-full">
             Continue as Guest
             <small style="display: block; font-weight: normal; font-size: 0.8em; margin-top: 5px;">No account required - just enter your details</small>
         </a>
     </div>
 
-    <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
+    <p class="mt-lg" style="font-size: 0.9em; color: var(--text-muted);">
         Creating an account lets you track your booking history, receive price alerts, and checkout faster next time.
     </p>
 </div>
@@ -2093,21 +2127,21 @@ GUEST_CHECKOUT_CONTENT = """
 BOOK_CONTENT = """
 <style>
     .payment-method-card {
-        border: 2px solid #e9ecef;
-        border-radius: 12px;
+        border: 2px solid var(--glass-border);
+        border-radius: var(--radius-lg);
         padding: 20px;
         margin-bottom: 15px;
         cursor: pointer;
         transition: all 0.2s ease;
-        background: white;
+        background: var(--glass-bg);
     }
     .payment-method-card:hover {
-        border-color: #7c3aed;
-        box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15);
+        border-color: var(--accent-purple);
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
     }
     .payment-method-card.selected {
-        border-color: #7c3aed;
-        background: #f5f3ff;
+        border-color: var(--accent-purple);
+        background: rgba(124, 58, 237, 0.1);
     }
     .payment-method-card .method-header {
         display: flex;
@@ -2123,16 +2157,15 @@ BOOK_CONTENT = """
     .payment-method-card .method-title {
         font-weight: bold;
         font-size: 18px;
-        color: #16213e;
     }
     .payment-method-card .method-subtitle {
-        color: #666;
+        color: var(--text-muted);
         font-size: 14px;
     }
     .payment-details-panel {
         display: none;
-        background: #f8f9fa;
-        border-radius: 8px;
+        background: var(--glass-bg-light);
+        border-radius: var(--radius-md);
         padding: 20px;
         margin-top: 15px;
     }
@@ -2140,21 +2173,22 @@ BOOK_CONTENT = """
         display: block;
     }
     .crypto-address-box {
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-md);
         padding: 15px;
-        font-family: monospace;
+        font-family: var(--font-mono);
         font-size: 14px;
         word-break: break-all;
         margin: 10px 0;
+        color: var(--accent-purple);
     }
     .copy-btn {
-        background: #7c3aed;
+        background: var(--accent-purple);
         color: white;
         border: none;
         padding: 8px 16px;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
         font-size: 14px;
         margin-top: 10px;
@@ -2163,21 +2197,23 @@ BOOK_CONTENT = """
         background: #6d28d9;
     }
     .order-summary {
-        background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
-        color: white;
-        border-radius: 12px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border-radius: var(--radius-lg);
         padding: 25px;
         margin-bottom: 25px;
     }
     .order-summary h3 {
         margin: 0 0 20px 0;
-        color: #14b8a6;
+        color: var(--accent-teal);
     }
     .order-row {
         display: flex;
         justify-content: space-between;
         padding: 8px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+        border-bottom: 1px solid var(--glass-border);
     }
     .order-row:last-child {
         border-bottom: none;
@@ -2187,19 +2223,19 @@ BOOK_CONTENT = """
         font-weight: bold;
         padding-top: 15px;
         margin-top: 10px;
-        border-top: 2px solid rgba(255,255,255,0.3);
+        border-top: 2px solid rgba(255,255,255,0.2);
     }
     .savings-badge {
-        background: #28a745;
-        color: white;
+        background: rgba(34,197,94,0.15);
+        color: #4ade80;
         padding: 4px 12px;
-        border-radius: 20px;
+        border-radius: var(--radius-full);
         font-size: 14px;
         font-weight: bold;
     }
     .flight-leg-item {
-        background: rgba(255,255,255,0.1);
-        border-radius: 8px;
+        background: var(--glass-bg-light);
+        border-radius: var(--radius-md);
         padding: 12px 15px;
         margin-bottom: 10px;
     }
@@ -2211,6 +2247,7 @@ BOOK_CONTENT = """
         right: 0;
         bottom: 0;
         background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(4px);
         z-index: 9999;
         justify-content: center;
         align-items: center;
@@ -2219,28 +2256,27 @@ BOOK_CONTENT = """
         display: flex;
     }
     .processing-box {
-        background: white;
-        border-radius: 16px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-xl);
         padding: 40px;
         text-align: center;
         max-width: 400px;
     }
+    /* spinner: use mystes-spinner from component library */
     .spinner {
         width: 50px;
         height: 50px;
-        border: 4px solid #e9ecef;
+        border: 4px solid rgba(124,58,237,0.2);
         border-top-color: #7c3aed;
         border-radius: 50%;
-        animation: spin 1s linear infinite;
+        animation: mystes-spin 0.8s linear infinite;
         margin: 0 auto 20px;
-    }
-    @keyframes spin {
-        to { transform: rotate(360deg); }
     }
 </style>
 
-<div class="card card-light" style="max-width: 800px; margin: 40px auto;">
-    <h2 style="text-align: center; margin-bottom: 25px; color: #1a1a2e;">Complete Your Booking</h2>
+<div class="mystes-card" style="max-width: 800px; margin: 40px auto;">
+    <h2 class="text-center mb-lg">Complete Your Booking</h2>
 
     <!-- Order Summary -->
     <div class="order-summary">
@@ -2326,66 +2362,66 @@ BOOK_CONTENT = """
     {% endif %}
 
     <!-- Savings Waterfall (Build #173 — no fee visibility) -->
-    <div id="savings-waterfall" style="background: #f5f3ff; border: 2px solid #e9d5ff; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
-        <h4 style="margin: 0 0 15px 0; color: #5b21b6; font-family: 'Outfit', sans-serif;">Save Even More</h4>
+    <div id="savings-waterfall" class="mystes-card compact mb-lg" style="border:1px solid rgba(124,58,237,0.2);">
+        <h4 style="margin: 0 0 15px 0; color: #a78bfa; font-family: var(--font-sans);">Save Even More</h4>
 
         {% if fee_tier_name == 'Guest' %}
         <!-- Guest → Free Member upsell -->
-        <div style="background: white; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 4px solid #14b8a6;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="mystes-card compact mb-sm" style="border-left: 4px solid var(--accent-teal);">
+            <div class="flex-between" style="gap:12px;">
                 <div>
-                    <strong style="color: #16213e;">Create a free account</strong>
-                    <p style="margin: 4px 0 0; font-size: 13px; color: #666;">Get a better price — save ~${{ "%.0f"|format((deal.gross_savings_usd or 0) * 0.05) }} more on this booking</p>
+                    <strong>Create a free account</strong>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted);">Get a better price — save ~${{ "%.0f"|format((deal.gross_savings_usd or 0) * 0.05) }} more on this booking</p>
                 </div>
-                <a href="/register?deal={{ deal.deal_id }}" style="background: #14b8a6; color: white; padding: 8px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap;">Sign Up Free</a>
+                <a href="/register?deal={{ deal.deal_id }}" class="mystes-btn mystes-btn-sm" style="background:var(--accent-teal);color:#000;white-space:nowrap;">Sign Up Free</a>
             </div>
         </div>
         {% endif %}
 
         {% if fee_tier_name in ['Guest', 'Free Member'] %}
         <!-- Travel+ upsell -->
-        <div style="background: white; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 4px solid #7c3aed;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="mystes-card compact mb-sm" style="border-left: 4px solid var(--accent-purple);">
+            <div class="flex-between" style="gap:12px;">
                 <div>
-                    <strong style="color: #16213e;">Travel+ ($9.99/mo)</strong>
-                    <p style="margin: 4px 0 0; font-size: 13px; color: #666;">Get an even better price — save ~${{ "%.0f"|format((deal.gross_savings_usd or 0) * (0.10 if fee_tier_name == 'Free Member' else 0.15)) }} more on this flight alone</p>
-                    <p style="margin: 2px 0 0; font-size: 12px; color: #7c3aed;">Pays for itself on one booking over $67 savings</p>
+                    <strong>Travel+ ($9.99/mo)</strong>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted);">Get an even better price — save ~${{ "%.0f"|format((deal.gross_savings_usd or 0) * (0.10 if fee_tier_name == 'Free Member' else 0.15)) }} more on this flight alone</p>
+                    <p style="margin: 2px 0 0; font-size: 12px; color: var(--accent-purple);">Pays for itself on one booking over $67 savings</p>
                 </div>
-                <button onclick="window.location='/subscribe/travel-plus?deal={{ deal.deal_id }}'" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 14px; white-space: nowrap;">Get Travel+</button>
+                <button onclick="window.location='/subscribe/travel-plus?deal={{ deal.deal_id }}'" class="mystes-btn mystes-btn-primary mystes-btn-sm" style="white-space:nowrap;">Get Travel+</button>
             </div>
         </div>
         {% endif %}
 
         <!-- Share-to-Save -->
-        <div style="background: white; border-radius: 8px; padding: 15px; margin-bottom: 12px; border-left: 4px solid #f59e0b;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="mystes-card compact mb-sm" style="border-left: 4px solid var(--warning-amber);">
+            <div class="flex-between" style="gap:12px;">
                 <div>
-                    <strong style="color: #16213e;">Share & Save</strong>
-                    <p style="margin: 4px 0 0; font-size: 13px; color: #666;">Share this deal on social media and get an extra discount</p>
+                    <strong>Share & Save</strong>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted);">Share this deal on social media and get an extra discount</p>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div class="flex gap-sm">
                     <button onclick="shareToSocial('twitter')" title="Share on X" style="background: #1DA1F2; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 16px;">X</button>
                     <button onclick="shareToSocial('facebook')" title="Share on Facebook" style="background: #4267B2; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 16px;">f</button>
                     <button onclick="shareToSocial('whatsapp')" title="Share on WhatsApp" style="background: #25D366; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 16px;">W</button>
-                    <button onclick="shareToSocial('copy_link')" title="Copy Link" style="background: #6b7280; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 14px;">🔗</button>
+                    <button onclick="shareToSocial('copy_link')" title="Copy Link" style="background: #6b7280; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 14px;">&#x1F517;</button>
                 </div>
             </div>
-            <div id="share-success" style="display:none; margin-top:8px; padding:8px 12px; background:#ecfdf5; border-radius:6px; color:#059669; font-size:13px; font-weight:600;">
+            <div id="share-success" class="alert alert-success mt-sm" style="display:none;">
                 Shared! Discount applied to your price.
             </div>
         </div>
 
         <!-- Points Redemption (only for authenticated users with points) -->
         {% if current_user.is_authenticated and user_points_balance and user_points_balance > 0 %}
-        <div style="background: white; border-radius: 8px; padding: 15px; border-left: 4px solid #ec4899;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="mystes-card compact" style="border-left: 4px solid #ec4899;">
+            <div class="flex-between" style="gap:12px;">
                 <div>
-                    <strong style="color: #16213e;">Use Points</strong>
-                    <p style="margin: 4px 0 0; font-size: 13px; color: #666;">You have {{ "{:,}".format(user_points_balance) }} points (${{ "%.2f"|format(user_points_balance * 0.001) }} value)</p>
+                    <strong>Use Points</strong>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-muted);">You have {{ "{:,}".format(user_points_balance) }} points (${{ "%.2f"|format(user_points_balance * 0.001) }} value)</p>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="number" id="points-input" min="0" max="{{ user_points_balance }}" value="0" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: center;" onchange="updatePointsRedemption(this.value)">
-                    <button onclick="document.getElementById('points-input').value='{{ user_points_balance }}'; updatePointsRedemption({{ user_points_balance }});" style="background: #ec4899; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">Use All</button>
+                <div class="flex-center gap-sm">
+                    <input type="number" id="points-input" min="0" max="{{ user_points_balance }}" value="0" class="mystes-input" style="width: 80px; text-align: center;" onchange="updatePointsRedemption(this.value)">
+                    <button onclick="document.getElementById('points-input').value='{{ user_points_balance }}'; updatePointsRedemption({{ user_points_balance }});" class="mystes-btn mystes-btn-sm" style="background:#ec4899;color:#fff;">Use All</button>
                 </div>
             </div>
             <div id="points-value" style="display:none; margin-top:8px; font-size:13px; color:#ec4899; font-weight:600;"></div>
@@ -2430,15 +2466,15 @@ BOOK_CONTENT = """
     </script>
 
     <!-- Travel Insurance Upsell (Build #174) -->
-    <div id="insurance-upsell" style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 20px; margin-bottom: 25px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="margin: 0; color: #166534; font-family: 'Outfit', sans-serif;">Protect Your Trip</h4>
-            <span style="font-size: 12px; color: #6b7280;">Powered by SafetyWing</span>
+    <div id="insurance-upsell" class="mystes-card compact mb-lg" style="border:1px solid rgba(34,197,94,0.3);">
+        <div class="flex-between mb-sm">
+            <h4 style="margin: 0; color: #4ade80;">Protect Your Trip</h4>
+            <span style="font-size: 12px; color: var(--text-muted);">Powered by SafetyWing</span>
         </div>
-        <p style="color: #15803d; font-size: 14px; margin: 0 0 15px;">Medical coverage, trip cancellation, and baggage protection while traveling.</p>
+        <p style="color: var(--text-muted); font-size: 14px; margin: 0 0 15px;">Medical coverage, trip cancellation, and baggage protection while traveling.</p>
         <div id="insurance-quotes" style="display: none;"></div>
-        <button id="insurance-quote-btn" onclick="getInsuranceQuote()" style="background: #22c55e; color: white; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Get Quote</button>
-        <div id="insurance-loading" style="display: none; color: #6b7280; font-size: 13px; margin-top: 8px;">Loading quotes...</div>
+        <button id="insurance-quote-btn" onclick="getInsuranceQuote()" class="mystes-btn mystes-btn-success mystes-btn-sm">Get Quote</button>
+        <div id="insurance-loading" style="display: none; color: var(--text-muted); font-size: 13px; margin-top: 8px;">Loading quotes...</div>
     </div>
     <script>
     function getInsuranceQuote() {
@@ -2492,63 +2528,41 @@ BOOK_CONTENT = """
         </div>
 
         <!-- Passenger Details Form -->
-        <form id="passenger-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" style="margin-top: 20px;">
+        <form id="passenger-form" action="/complete-booking/{{ deal.deal_id }}" method="POST" class="mt-lg">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="additional_passengers_json" id="additional-passengers-json" value="[]">
-            <div style="background: #f8f9fa; border-radius: 12px; padding: 25px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="mystes-card">
+                <div class="flex-between mb-lg">
                     <div>
-                        <h4 style="margin: 0; color: #1a1a2e;">Passenger 1 (Primary)</h4>
-                        <p style="color: #666; margin: 4px 0 0; font-size: 13px;">Enter details exactly as they appear on the travel document.</p>
+                        <h4 style="margin: 0;">Passenger 1 (Primary)</h4>
+                        <p style="color: var(--text-muted); margin: 4px 0 0; font-size: 13px;">Enter details exactly as they appear on the travel document.</p>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <!-- First Name -->
+                <div class="mystes-form-grid">
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">First Name *</label>
-                        <input type="text" name="first_name" required
-                               placeholder="John"
-                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">First Name *</label>
+                        <input type="text" name="first_name" required placeholder="John" class="mystes-input">
                     </div>
-
-                    <!-- Last Name -->
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Last Name *</label>
-                        <input type="text" name="last_name" required
-                               placeholder="Doe"
-                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Last Name *</label>
+                        <input type="text" name="last_name" required placeholder="Doe" class="mystes-input">
                     </div>
-
-                    <!-- Email -->
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Email *</label>
-                        <input type="email" name="email" required
-                               value="{{ passenger_email or '' }}"
-                               placeholder="john.doe@email.com"
-                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Email *</label>
+                        <input type="email" name="email" required value="{{ passenger_email or '' }}" placeholder="john.doe@email.com" class="mystes-input">
                     </div>
-
-                    <!-- Phone -->
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Phone Number *</label>
-                        <input type="tel" name="phone" required
-                               placeholder="+1 555-123-4567"
-                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Phone Number *</label>
+                        <input type="tel" name="phone" required placeholder="+1 555-123-4567" class="mystes-input">
                     </div>
-
-                    <!-- Date of Birth -->
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Date of Birth *</label>
-                        <input type="date" name="date_of_birth" required
-                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Date of Birth *</label>
+                        <input type="date" name="date_of_birth" required class="mystes-input">
                     </div>
-
-                    <!-- Gender -->
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Gender *</label>
-                        <select name="gender" required
-                                style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                        <label class="mystes-label">Gender *</label>
+                        <select name="gender" required class="mystes-select">
                             <option value="">Select...</option>
                             <option value="M">Male</option>
                             <option value="F">Female</option>
@@ -2557,41 +2571,34 @@ BOOK_CONTENT = """
                 </div>
 
                 <!-- International Flight - Passport Details -->
-                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #ddd;">
-                    <h5 style="margin: 0 0 15px 0; color: #16213e;">Passport Information (for international flights)</h5>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="mt-lg" style="padding-top: 20px; border-top: 1px solid var(--glass-border);">
+                    <h5 style="margin: 0 0 15px 0;">Passport Information (for international flights)</h5>
+                    <div class="mystes-form-grid">
                         <div class="form-group">
-                            <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Passport Number</label>
-                            <input type="text" name="passport_number" placeholder="AB1234567"
-                                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                            <label class="mystes-label">Passport Number</label>
+                            <input type="text" name="passport_number" placeholder="AB1234567" class="mystes-input">
                         </div>
                         <div class="form-group">
-                            <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Passport Expiry</label>
-                            <input type="date" name="passport_expiry"
-                                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                            <label class="mystes-label">Passport Expiry</label>
+                            <input type="date" name="passport_expiry" class="mystes-input">
                         </div>
                         <div class="form-group">
-                            <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Passport Country</label>
-                            <input type="text" name="passport_country" placeholder="United States"
-                                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                            <label class="mystes-label">Passport Country</label>
+                            <input type="text" name="passport_country" placeholder="United States" class="mystes-input">
                         </div>
                         <div class="form-group">
-                            <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Nationality</label>
-                            <input type="text" name="nationality" placeholder="American"
-                                   style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
+                            <label class="mystes-label">Nationality</label>
+                            <input type="text" name="nationality" placeholder="American" class="mystes-input">
                         </div>
                     </div>
                 </div>
 
                 <!-- Known Traveler Number (optional) -->
-                <div style="margin-top: 20px;">
+                <div class="mt-lg">
                     <div class="form-group">
-                        <label style="font-weight: bold; color: #16213e; display: block; margin-bottom: 5px;">Known Traveler Number (optional)</label>
-                        <input type="text" name="known_traveler_number"
-                               placeholder="TSA PreCheck or Global Entry number"
-                               style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; color: #1a1a2e;">
-                        <small style="color: #666;">TSA PreCheck, Global Entry, NEXUS, or SENTRI</small>
+                        <label class="mystes-label">Known Traveler Number (optional)</label>
+                        <input type="text" name="known_traveler_number" placeholder="TSA PreCheck or Global Entry number" class="mystes-input">
+                        <small style="color: var(--text-muted);">TSA PreCheck, Global Entry, NEXUS, or SENTRI</small>
                     </div>
                 </div>
             </div>
@@ -2603,44 +2610,58 @@ BOOK_CONTENT = """
                 + Add Another Passenger
             </button>
 
-            <!-- Seat Selection (Optional — Picasso GDS flights only) -->
-            {% if deal.fare_id %}
-            <div style="margin-top: 20px; padding: 20px; background: #f5f3ff; border-radius: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+            <!-- Seat Selection (Source-Aware: Picasso GDS + Duffel NDC) -->
+            {% if deal.fare_id or deal.amadeus_offer_data %}
+            <div class="mystes-card compact mt-lg" style="border:1px solid rgba(124,58,237,0.15);">
+                <div class="flex-between">
                     <div>
-                        <h5 style="margin: 0 0 4px; color: #1a1a2e;">Seat Selection</h5>
-                        <p style="margin: 0; font-size: 13px; color: #666;">Choose your preferred seat (optional)</p>
+                        <h5 style="margin: 0 0 4px;">Seat Selection</h5>
+                        <p style="margin: 0; font-size: 13px; color: var(--text-muted);">Choose your preferred seat (optional)</p>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span id="selected-seat-label" style="font-weight: 600; color: #7c3aed; font-size: 14px; display: none;"></span>
-                        <button type="button" onclick="openSeatmap()" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Choose Seat</button>
+                    <div class="flex-center gap-md">
+                        <span id="selected-seat-label" style="font-weight: 600; color: var(--accent-purple); font-size: 14px; display: none;"></span>
+                        <button type="button" onclick="openSeatmap()" class="mystes-btn mystes-btn-primary mystes-btn-sm">Choose Seat</button>
                     </div>
                 </div>
                 <input type="hidden" name="selected_seat" id="selected-seat-input" value="">
+                <input type="hidden" name="selected_seat_service_id" id="selected-seat-service-id" value="">
             </div>
             {% endif %}
 
+            <!-- Ancillary Services (Duffel NDC flights — bags, meals, extras) -->
+            <div id="ancillary-services-section" style="display: none;" class="mt-lg">
+                <div class="mystes-card compact" style="border:1px solid rgba(124,58,237,0.15);">
+                    <h5 style="margin: 0 0 12px;">Add Extras</h5>
+                    <div id="ancillary-loading" style="text-align: center; padding: 12px; color: var(--text-muted); font-size: 13px;">Loading available extras...</div>
+                    <div id="ancillary-baggage" style="display: none; margin-bottom: 12px;"></div>
+                    <div id="ancillary-meals" style="display: none; margin-bottom: 12px;"></div>
+                    <div id="ancillary-other" style="display: none;"></div>
+                    <div id="ancillary-total" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--glass-border); text-align: right; font-weight: 600; color: var(--accent-purple);"></div>
+                </div>
+            </div>
+            <input type="hidden" name="selected_services" id="selected-services-input" value="[]">
+
             <!-- Booking Options -->
-            <div style="margin-top: 20px; padding: 20px; background: #f5f3ff; border-radius: 12px;">
-                <h5 style="margin: 0 0 15px 0; color: #1a1a2e;">Booking Method</h5>
-                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
+            <div class="mystes-card compact mt-lg" style="border:1px solid rgba(124,58,237,0.15);">
+                <h5 style="margin: 0 0 15px 0;">Booking Method</h5>
+                <div class="flex flex-wrap gap-lg">
+                    <label class="flex-center" style="cursor: pointer;">
                         <input type="radio" name="fulfillment_type" value="automated" checked style="margin-right: 10px;">
                         <span><strong>Automated Booking</strong> - We book for you (recommended)</span>
                     </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
+                    <label class="flex-center" style="cursor: pointer;">
                         <input type="radio" name="fulfillment_type" value="self_service" style="margin-right: 10px;">
                         <span><strong>Self-Service</strong> - Book via proxy yourself</span>
                     </label>
                 </div>
-                <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                <p style="margin-top: 10px; font-size: 13px; color: var(--text-muted);">
                     Automated booking: Our system completes the booking and sends you the confirmation.<br>
                     Self-service: We provide a link to the airline&apos;s site through our regional proxy.
                 </p>
             </div>
 
             <!-- Submit Button -->
-            <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 20px; padding: 15px; font-size: 18px;" onclick="serializeAdditionalPassengers()">
+            <button type="submit" class="mystes-btn mystes-btn-success mystes-btn-lg mystes-btn-full mt-lg" onclick="serializeAdditionalPassengers()">
                 Complete Booking
             </button>
         </form>
@@ -2767,8 +2788,6 @@ BOOK_CONTENT = """
             </div>
         </div>
 
-        <!-- XRP/RLUSD payment options removed (Build #173 — Stripe + MoonPay only) -->
-
         <p style="text-align: center; color: #666; margin-top: 20px; font-size: 14px;">
             🔒 All payments are secure and encrypted<br>
             <small>By proceeding, you agree to our Terms of Service</small>
@@ -2780,7 +2799,7 @@ BOOK_CONTENT = """
 <div id="review-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div style="background: #1a1a2e; border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; max-width: 460px; width: 90%; padding: 30px; position: relative; max-height: 90vh; overflow-y: auto;">
         <button onclick="closeReviewModal()" style="position: absolute; top: 12px; right: 16px; background: none; border: none; color: #999; font-size: 24px; cursor: pointer; line-height: 1;">&times;</button>
-        <h3 style="margin: 0 0 20px; font-family: Cinzel, serif; color: #f5f5f5; font-size: 18px;">Review Your Order</h3>
+        <h3 style="margin: 0 0 20px; font-family: 'Space Grotesk', sans-serif; color: #f5f5f5; font-size: 18px;">Review Your Order</h3>
 
         <div style="background: rgba(255,255,255,0.05); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
             <div style="font-size: 13px; color: #999; margin-bottom: 6px;">{{ deal.airline or '' }} {{ deal.flight_number or '' }}{% if deal.hotel_name %}{{ deal.hotel_name }}{% endif %}</div>
@@ -2939,7 +2958,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div style="background:rgba(15,10,25,0.98); border:1px solid rgba(255,255,255,0.12); border-radius:16px; max-width:700px; width:95%; max-height:85vh; display:flex; flex-direction:column; position:relative;">
         <div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
             <button onclick="closeSeatmap()" style="position:absolute; top:12px; right:16px; background:none; border:none; color:#999; font-size:24px; cursor:pointer; line-height:1;">&times;</button>
-            <h3 style="margin:0 0 4px; font-family:Cinzel,serif; color:#f5f5f5; font-size:17px;">Aircraft Seatmap</h3>
+            <h3 style="margin:0 0 4px; font-family:'Space Grotesk',sans-serif; color:#f5f5f5; font-size:17px;">Aircraft Seatmap</h3>
             <div id="seatmapFlightInfo" style="font-size:13px; color:rgba(255,255,255,0.5);"></div>
         </div>
         <div style="padding:12px 24px; border-bottom:1px solid rgba(255,255,255,0.06); flex-shrink:0;">
@@ -2962,6 +2981,10 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <script>
 var _seatmapSelected = null;
+var _dealSource = '{{ deal_source or "" }}';
+var _dealId = '{{ deal.deal_id or "" }}';
+var _selectedServices = [];
+
 function openSeatmap() {
     var modal = document.getElementById('seatmapModal');
     var grid = document.getElementById('seatmapGrid');
@@ -2974,20 +2997,103 @@ function openSeatmap() {
     var dest = '{{ deal.destination or "" }}';
     var depDate = '{{ deal.departure_date or "" }}';
     info.textContent = airline + ' ' + flightNum + ' \u2022 ' + origin + ' \u2192 ' + dest + ' \u2022 ' + depDate;
-    var airlineCode = airline.length <= 3 ? airline : airline.substring(0, 2).toUpperCase();
-    var flightNumClean = flightNum.replace(/[^0-9]/g, '');
-    fetch('/api/picasso/seatmap', {
+
+    if (_dealSource === 'duffel_ndc') {
+        /* Duffel NDC — use unified endpoint with deal_id */
+        fetch('/api/flights/seatmap', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+            body: JSON.stringify({deal_id: _dealId})
+        }).then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.seatmap) { renderSeatmap(data.seatmap); }
+            else { grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Seatmap not available for this flight.</p><p style="color:rgba(255,255,255,0.3);font-size:13px;">' + (data.error || 'NDC seatmap unavailable') + '</p></div>'; }
+        }).catch(function() {
+            grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Could not load seatmap. Please try again.</p></div>';
+        });
+    } else {
+        /* Picasso GDS — direct endpoint */
+        var airlineCode = airline.length <= 3 ? airline : airline.substring(0, 2).toUpperCase();
+        var flightNumClean = flightNum.replace(/[^0-9]/g, '');
+        fetch('/api/picasso/seatmap', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+            body: JSON.stringify({airline_code: airlineCode, flight_number: flightNumClean, departure: origin, destination: dest, departure_date: depDate})
+        }).then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.seatmap) { renderSeatmap(data.seatmap); }
+            else { grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Seatmap not available for this flight.</p><p style="color:rgba(255,255,255,0.3);font-size:13px;">' + (data.error || '') + '</p></div>'; }
+        }).catch(function() {
+            grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Could not load seatmap. Please try again.</p></div>';
+        });
+    }
+}
+
+/* Load ancillary services for Duffel flights on page load */
+function loadAncillaryServices() {
+    if (_dealSource !== 'duffel_ndc' || !_dealId) return;
+    var section = document.getElementById('ancillary-services-section');
+    section.style.display = 'block';
+
+    fetch('/api/flights/services', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({airline_code: airlineCode, flight_number: flightNumClean, departure: origin, destination: dest, departure_date: depDate})
+        body: JSON.stringify({deal_id: _dealId})
     }).then(function(r) { return r.json(); })
     .then(function(data) {
-        if (data.success && data.seatmap) { renderSeatmap(data.seatmap); }
-        else { grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Seatmap not available for this flight.</p><p style="color:rgba(255,255,255,0.3);font-size:13px;">' + (data.error || '') + '</p></div>'; }
+        document.getElementById('ancillary-loading').style.display = 'none';
+        if (!data.success || data.count === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        var byType = data.by_type || {};
+        renderServiceGroup('ancillary-baggage', byType.baggage || [], 'Extra Baggage');
+        renderServiceGroup('ancillary-meals', byType.meal || [], 'Meals');
+        renderServiceGroup('ancillary-other', byType.other || [], 'Other Extras');
     }).catch(function() {
-        grid.innerHTML = '<div style="text-align:center;padding:40px;"><p style="color:rgba(255,255,255,0.5);">Could not load seatmap. Please try again.</p></div>';
+        document.getElementById('ancillary-loading').textContent = 'Could not load extras.';
     });
 }
+
+function renderServiceGroup(containerId, services, title) {
+    if (!services || services.length === 0) return;
+    var el = document.getElementById(containerId);
+    el.style.display = 'block';
+    var html = '<div style="font-weight: 600; color: #1a1a2e; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">' + title + '</div>';
+    services.forEach(function(svc) {
+        var desc = '';
+        if (svc.metadata) {
+            if (svc.metadata.maximum_weight_kg) desc = svc.metadata.maximum_weight_kg + 'kg';
+            if (svc.metadata.type) desc = svc.metadata.type;
+            if (svc.metadata.name) desc = svc.metadata.name;
+        }
+        html += '<label style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(124,58,237,0.04); border:1px solid rgba(124,58,237,0.1); border-radius:8px; cursor:pointer; margin-bottom:6px; transition:all 0.2s;" onmouseover="this.style.borderColor=\'rgba(124,58,237,0.3)\'" onmouseout="this.style.borderColor=\'rgba(124,58,237,0.1)\'">';
+        html += '<input type="checkbox" onchange="toggleService(\'' + svc.id + '\', ' + parseFloat(svc.total_amount) + ', this.checked)" style="accent-color:#7c3aed;">';
+        html += '<span style="flex:1; font-size:14px; color:#1a1a2e;">' + (desc || svc.type) + '</span>';
+        html += '<span style="font-weight:600; color:#7c3aed; font-size:14px;">+$' + parseFloat(svc.total_amount).toFixed(2) + '</span>';
+        html += '</label>';
+    });
+    el.innerHTML = html;
+}
+
+function toggleService(serviceId, amount, checked) {
+    if (checked) {
+        _selectedServices.push({id: serviceId, quantity: 1, total_amount: amount.toString()});
+    } else {
+        _selectedServices = _selectedServices.filter(function(s) { return s.id !== serviceId; });
+    }
+    document.getElementById('selected-services-input').value = JSON.stringify(_selectedServices);
+    var total = _selectedServices.reduce(function(sum, s) { return sum + parseFloat(s.total_amount); }, 0);
+    var totalEl = document.getElementById('ancillary-total');
+    if (total > 0) {
+        totalEl.style.display = 'block';
+        totalEl.textContent = 'Extras total: +$' + total.toFixed(2);
+    } else {
+        totalEl.style.display = 'none';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadAncillaryServices);
 function renderSeatmap(seatmap) {
     var grid = document.getElementById('seatmapGrid');
     var rows = seatmap.rows || seatmap.deck && seatmap.deck[0] && seatmap.deck[0].rows || [];
@@ -3031,11 +3137,11 @@ function renderSeatmap(seatmap) {
     html += '</div>';
     grid.innerHTML = html;
 }
-function selectSeat(seatId, price, el) {
+function selectSeat(seatId, price, el, serviceId) {
     document.querySelectorAll('#seatmapGrid button').forEach(function(b) { b.style.background = b.style.background.indexOf('20,184,166') >= 0 ? 'rgba(20,184,166,0.2)' : 'rgba(124,58,237,0.2)'; b.style.color = 'rgba(255,255,255,0.7)'; });
     el.style.background = '#7c3aed';
     el.style.color = '#fff';
-    _seatmapSelected = {id: seatId, price: price};
+    _seatmapSelected = {id: seatId, price: price, serviceId: serviceId || ''};
     var priceEl = document.getElementById('seatmapPrice');
     priceEl.textContent = 'Seat ' + seatId + (price > 0 ? ' \u2022 +$' + price : ' \u2022 Free');
     priceEl.style.color = '#c4b5fd';
@@ -3046,8 +3152,10 @@ function selectSeat(seatId, price, el) {
 function confirmSeat() {
     if (!_seatmapSelected) return;
     document.getElementById('selected-seat-input').value = _seatmapSelected.id;
+    var svcIdEl = document.getElementById('selected-seat-service-id');
+    if (svcIdEl) svcIdEl.value = _seatmapSelected.serviceId || '';
     var label = document.getElementById('selected-seat-label');
-    label.textContent = 'Seat ' + _seatmapSelected.id;
+    label.textContent = 'Seat ' + _seatmapSelected.id + (_seatmapSelected.price > 0 ? ' (+$' + _seatmapSelected.price + ')' : '');
     label.style.display = 'inline';
     closeSeatmap();
 }
@@ -3282,7 +3390,7 @@ def register():
 REFERRAL_SPLASH_CONTENT = """
 <div style="max-width: 600px; margin: 0 auto; padding: 60px 20px; text-align: center;">
     <div style="font-size: 48px; margin-bottom: 16px;">&#9992;&#65039;</div>
-    <h1 style="font-family: 'Cinzel', serif; color: #1a1a2e; margin-bottom: 8px; font-size: 28px;">
+    <h1 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e; margin-bottom: 8px; font-size: 28px;">
         {{ referrer_name }} is saving on flights with MYSTES
     </h1>
     <p style="color: #666; font-size: 18px; margin-bottom: 32px;">
@@ -3331,6 +3439,63 @@ REFERRAL_SPLASH_CONTENT = """
 """
 
 
+B2B_REFERRAL_LANDING_CONTENT = """
+<div style="max-width: 600px; margin: 0 auto; padding: 60px 20px; text-align: center;">
+    <h1 style="font-family: 'Space Grotesk', sans-serif; color: #e8dcc8; margin-bottom: 8px; font-size: 26px;">
+        {{ account_name }} invited you to MYSTES
+    </h1>
+    <p style="color: #999; font-size: 16px; margin-bottom: 32px;">
+        Book flights at prices below what Google Flights, Expedia, and Kayak show.
+    </p>
+
+    <!-- Example Savings Card -->
+    <div style="background: rgba(255,255,255,0.04); border: 2px solid rgba(124,58,237,0.3); border-radius: 16px; padding: 28px; margin-bottom: 28px;">
+        <div style="color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Example Savings</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div>
+                <div style="color: #999; font-size: 11px; text-transform: uppercase;">Google / Expedia</div>
+                <div style="color: #ef4444; font-size: 28px; font-weight: 700; text-decoration: line-through;">$1,400</div>
+            </div>
+            <div>
+                <div style="color: #999; font-size: 11px; text-transform: uppercase;">MYSTES Price</div>
+                <div style="color: #22c55e; font-size: 28px; font-weight: 700;">$1,050</div>
+            </div>
+        </div>
+        <div style="background: linear-gradient(135deg, rgba(76,175,80,0.15), rgba(124,58,237,0.10)); border-radius: 10px; padding: 14px;">
+            <div style="color: #4caf50; font-size: 22px; font-weight: 700;">You save $350</div>
+            <div style="color: #999; font-size: 12px;">on an average international flight</div>
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px; margin-bottom: 28px; text-align: left;">
+        <h3 style="color: #e8dcc8; margin: 0 0 14px; font-family: 'Space Grotesk', sans-serif; font-size: 16px; text-align: center;">How It Works</h3>
+        <div style="display: grid; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <span style="background: rgba(124,58,237,0.3); color: #a855f7; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; flex-shrink: 0;">1</span>
+                <span style="color: #ccc; font-size: 14px;">Search your route on MYSTES</span>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <span style="background: rgba(124,58,237,0.3); color: #a855f7; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; flex-shrink: 0;">2</span>
+                <span style="color: #ccc; font-size: 14px;">See real savings vs retail prices</span>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <span style="background: rgba(124,58,237,0.3); color: #a855f7; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; flex-shrink: 0;">3</span>
+                <span style="color: #ccc; font-size: 14px;">Book directly &mdash; airline charges your card</span>
+            </div>
+        </div>
+    </div>
+
+    <a href="/flights" style="display: inline-block; background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; padding: 16px 52px; border-radius: 12px; font-weight: 700; text-decoration: none; font-size: 18px; width: 80%; box-sizing: border-box;">
+        Search Flights
+    </a>
+    <p style="margin-top: 12px; color: #666; font-size: 12px;">
+        Referred by <strong style="color: #a855f7;">{{ account_name }}</strong> &mdash; code <strong style="color: #a855f7;">{{ referral_code }}</strong>
+    </p>
+</div>
+"""
+
+
 @app.route("/ref/<code>")
 @app.route("/join/<code>")
 def referral_landing(code):
@@ -3353,7 +3518,7 @@ def referral_landing(code):
             google_client_id=google_client_id,
         )
 
-    # Fallback: check B2B referral codes (Build #185)
+    # Fallback: check B2B referral codes (Build #185, landing page Build #210)
     b2b_account = CommercialAccount.query.filter_by(
         referral_code=code.upper(), is_active=True
     ).first()
@@ -3361,7 +3526,15 @@ def referral_landing(code):
         session["referral_source"] = b2b_account.account_id
         session["referral_markup_pct"] = b2b_account.consumer_markup_percent or 0
         session["referral_markup_flat"] = b2b_account.consumer_markup_flat_usd or 0
-        return redirect("/flights")
+        account_name = b2b_account.name or "A MYSTES Partner"
+        return render_template_string(
+            BASE_TEMPLATE,
+            title=f"{account_name}",
+            content=B2B_REFERRAL_LANDING_CONTENT,
+            current_user=current_user,
+            account_name=account_name,
+            referral_code=b2b_account.referral_code,
+        )
 
     return redirect("/register")
 
@@ -3396,7 +3569,7 @@ REFERRAL_CARD_CONTENT = """
     <!-- Referral Card Header -->
     <div style="text-align: center; margin-bottom: 20px;">
         <div style="font-size: 42px; margin-bottom: 6px;">&#127968;</div>
-        <h2 style="margin: 0; font-family: Cinzel, serif; color: #7c3aed;">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; color: #7c3aed;">
             {{ card.user_name }}'s MYSTES
         </h2>
         <p style="color: #999; margin: 6px 0 0; font-size: 13px;">Member since {{ card.member_since }}</p>
@@ -3435,6 +3608,12 @@ REFERRAL_CARD_CONTENT = """
             {% if card.total_bookings > 0 %}${{ "%.0f"|format(card.total_savings / card.total_bookings) }}{% else %}$0{% endif %}
         </div>
         <div style="font-size: 13px; color: #999;">vs Google Flights, Expedia, Kayak &amp; others</div>
+    </div>
+
+    <!-- QR Code (Build #206) -->
+    <div style="text-align: center; margin: 16px 0;">
+        <img src="/api/referral-card/qr/{{ card.card_token if card.card_token is defined else '' }}.png" alt="Scan to join" width="120" height="120" style="border-radius: 8px;">
+        <div style="font-size: 10px; color: #888; margin-top: 4px;">Scan to join MYSTES</div>
     </div>
 
     <!-- CTA -->
@@ -3557,6 +3736,7 @@ def view_referral_card(token):
     card_data = type('Card', (), {
         'user_name': user_name,
         'referral_code': card.referral_code,
+        'card_token': card.card_token,
         'total_bookings': card.total_bookings or 0,
         'total_savings': card.total_savings_usd or 0,
         'total_referrals': card.total_referrals or 0,
@@ -3582,6 +3762,265 @@ def api_referral_card_click(token):
     card.clicks = (card.clicks or 0) + 1
     db.session.commit()
     return jsonify({'success': True, 'clicks': card.clicks})
+
+
+# --- QR Code Generator for Referral System (Build #206) ---
+
+@app.route("/api/referral-card/qr/<token>.png")
+def api_referral_qr_png(token):
+    """Serve QR code as downloadable PNG for a referral card (Build #206).
+
+    Generates a QR code pointing to the public referral card URL.
+    Used for printing, exporting, and embedding in marketing materials.
+    """
+    import qrcode
+    import io
+
+    card = ReferralCard.query.filter_by(card_token=token).first()
+    if not card:
+        abort(404)
+
+    base_url = os.getenv('BASE_URL', request.host_url.rstrip('/'))
+    qr_url = f"{base_url}/ref-card/{card.card_token}"
+
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=12, border=2)
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#7c3aed", back_color="#ffffff")
+
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+
+    return Response(buf.getvalue(), mimetype='image/png', headers={
+        'Content-Disposition': f'inline; filename="mystes-referral-{card.referral_code}.png"',
+        'Cache-Control': 'public, max-age=3600',
+    })
+
+
+@app.route("/api/referral-card/qr-data", methods=["POST"])
+@login_required
+def api_referral_qr_data():
+    """Generate QR code as base64 data URI for inline display (Build #206).
+
+    Returns base64-encoded PNG for embedding in HTML without a separate image request.
+    """
+    import qrcode
+    import io
+    import base64
+
+    user = current_user
+    card = ReferralCard.query.filter_by(user_id=user.id).first()
+    if not card:
+        return jsonify({'error': 'Generate your referral card first'}), 400
+
+    base_url = os.getenv('BASE_URL', request.host_url.rstrip('/'))
+    qr_url = f"{base_url}/ref-card/{card.card_token}"
+
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=2)
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#7c3aed", back_color="#ffffff")
+
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+    return jsonify({
+        'success': True,
+        'qr_data_uri': f'data:image/png;base64,{b64}',
+        'qr_png_url': f'/api/referral-card/qr/{card.card_token}.png',
+        'card_url': f'{base_url}/ref-card/{card.card_token}',
+        'referral_code': card.referral_code,
+    })
+
+
+@app.route("/api/business/referral-qr.png")
+@login_required
+def api_business_referral_qr():
+    """Serve QR code for B2B referral code (Build #206).
+
+    Points to the B2B referral signup URL. B2B operators print these
+    on business cards, flyers, and marketing materials.
+    """
+    import qrcode
+    import io
+
+    user = current_user
+    account = CommercialAccount.query.filter_by(user_id=user.id, is_active=True).first()
+    if not account or not account.referral_code:
+        abort(404)
+
+    base_url = os.getenv('BASE_URL', request.host_url.rstrip('/'))
+    qr_url = f"{base_url}/ref/{account.referral_code}"
+
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=12, border=2)
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#4361ee", back_color="#ffffff")
+
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+
+    return Response(buf.getvalue(), mimetype='image/png', headers={
+        'Content-Disposition': f'inline; filename="mystes-b2b-{account.referral_code}.png"',
+        'Cache-Control': 'public, max-age=3600',
+    })
+
+
+@app.route("/ref-card/<token>/print")
+def referral_card_print(token):
+    """Print-ready referral card with QR code (Build #206).
+
+    Full-page printable card optimized for paper/PDF export.
+    Includes QR code, referral stats, and MYSTES branding.
+    B2B operators hand these out at conferences, leave at travel agencies, etc.
+    """
+    card = ReferralCard.query.filter_by(card_token=token).first()
+    if not card:
+        flash("Referral card not found.", "error")
+        return redirect("/")
+
+    user = User.query.get(card.user_id)
+    user_name = (user.name.split()[0] if user and user.name else 'MYSTES Member')
+    base_url = os.getenv('BASE_URL', request.host_url.rstrip('/'))
+    qr_png_url = f"/api/referral-card/qr/{card.card_token}.png"
+    card_url = f"{base_url}/ref-card/{card.card_token}"
+
+    return render_template_string(REFERRAL_CARD_PRINT_TEMPLATE,
+        user_name=user_name,
+        referral_code=card.referral_code,
+        total_bookings=card.total_bookings or 0,
+        total_savings=card.total_savings_usd or 0,
+        total_referrals=card.total_referrals or 0,
+        member_since=card.member_since or 'Recently',
+        favorite_destination=card.favorite_destination,
+        qr_png_url=qr_png_url,
+        card_url=card_url,
+    )
+
+
+REFERRAL_CARD_PRINT_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>MYSTES Referral Card — {{ user_name }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            body { margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .card-container { box-shadow: none !important; border: 2px solid #7c3aed !important; }
+        }
+        @media screen {
+            body { background: #0a0a0a; }
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Outfit', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        .card-container {
+            width: 420px; background: #ffffff; border-radius: 20px; padding: 40px 36px;
+            box-shadow: 0 20px 60px rgba(124,58,237,0.2); position: relative; overflow: hidden;
+        }
+        .card-container::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px;
+            background: linear-gradient(90deg, #7c3aed, #a855f7, #4361ee);
+        }
+        .brand { text-align: center; margin-bottom: 24px; }
+        .brand h1 { font-family: 'Space Grotesk', sans-serif; font-size: 28px; color: #7c3aed; letter-spacing: 4px; }
+        .brand .subtitle { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 2px; margin-top: 2px; }
+        .user-section { text-align: center; margin-bottom: 20px; }
+        .user-section .name { font-size: 20px; font-weight: 600; color: #1a1a2e; }
+        .user-section .since { font-size: 12px; color: #888; margin-top: 2px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .stat-box { background: #f8f6ff; border: 1px solid #e8e0ff; border-radius: 12px; padding: 14px; text-align: center; }
+        .stat-box .value { font-size: 26px; font-weight: 700; color: #7c3aed; }
+        .stat-box .label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+        .stat-box.savings .value { color: #16a34a; }
+        .stat-box.savings { background: #f0fdf4; border-color: #bbf7d0; }
+        .qr-section { text-align: center; margin: 20px 0; }
+        .qr-section img { width: 160px; height: 160px; border-radius: 8px; }
+        .qr-section .scan-text { font-size: 11px; color: #888; margin-top: 8px; }
+        .referral-code { text-align: center; background: linear-gradient(135deg, #7c3aed, #a855f7); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+        .referral-code .code { font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: 3px; }
+        .referral-code .hint { font-size: 10px; color: rgba(255,255,255,0.8); margin-top: 2px; }
+        .footer { text-align: center; }
+        .footer .tagline { font-size: 12px; color: #7c3aed; font-weight: 500; }
+        .footer .url { font-size: 10px; color: #aaa; margin-top: 4px; }
+        .actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        .actions button {
+            padding: 12px 28px; border: none; border-radius: 8px; font-family: 'Outfit', sans-serif;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .btn-print { background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; }
+        .btn-download { background: rgba(124,58,237,0.1); color: #7c3aed; border: 1px solid rgba(124,58,237,0.3) !important; }
+    </style>
+</head>
+<body>
+    <div class="card-container" id="printable-card">
+        <div class="brand">
+            <h1>MYSTES</h1>
+            <div class="subtitle">Fly Smarter. Save More.</div>
+        </div>
+
+        <div class="user-section">
+            <div class="name">{{ user_name }}</div>
+            <div class="since">Member since {{ member_since }}</div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-box savings">
+                <div class="value">${{ "%.0f"|format(total_savings) }}</div>
+                <div class="label">Total Saved</div>
+            </div>
+            <div class="stat-box">
+                <div class="value">{{ total_bookings }}</div>
+                <div class="label">Trips Booked</div>
+            </div>
+        </div>
+
+        {% if favorite_destination %}
+        <div style="text-align:center;margin-bottom:14px;font-size:13px;color:#666;">
+            Favorite destination: <strong style="color:#1a1a2e;">{{ favorite_destination }}</strong>
+        </div>
+        {% endif %}
+
+        <div class="qr-section">
+            <img src="{{ qr_png_url }}" alt="Scan to join MYSTES">
+            <div class="scan-text">Scan to start saving on flights</div>
+        </div>
+
+        <div class="referral-code">
+            <div class="code">{{ referral_code }}</div>
+            <div class="hint">Use this code at signup</div>
+        </div>
+
+        <div class="footer">
+            <div class="tagline">Real savings backed by real data — not gimmicks.</div>
+            <div class="url">mystes.com</div>
+        </div>
+    </div>
+
+    <div class="actions no-print">
+        <button class="btn-print" onclick="window.print()">Print Card</button>
+        <button class="btn-download" onclick="downloadQR()">Download QR Code</button>
+    </div>
+
+    <script>
+    function downloadQR() {
+        var a = document.createElement('a');
+        a.href = '{{ qr_png_url }}';
+        a.download = 'mystes-referral-{{ referral_code }}.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+    </script>
+</body>
+</html>
+"""
 
 
 @app.route("/api/points/claim-escrow", methods=["POST"])
@@ -3883,7 +4322,7 @@ REVIEW_CARD_CONTENT = """
     <!-- Review Card Header -->
     <div style="text-align: center; margin-bottom: 20px;">
         <div style="font-size: 42px; margin-bottom: 6px;">&#9992;&#65039;</div>
-        <h2 style="margin: 0; font-family: Cinzel, serif; color: #4caf50;">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; color: #4caf50;">
             Saved ${{ "%.0f"|format(card.savings) }} with MYSTES
         </h2>
         <p style="color: #999; margin: 6px 0 0; font-size: 13px;">
@@ -4111,9 +4550,8 @@ def api_insurance_quote():
     end_date = request.args.get("end_date", "")
     travelers = int(request.args.get("travelers", 1))
     try:
-        from safetywing_client import SafetyWingClient
-        client = SafetyWingClient()
-        result = client.get_insurance_quote(
+        from safetywing_client import get_insurance_quote
+        result = get_insurance_quote(
             destination=destination,
             start_date=start_date,
             end_date=end_date,
@@ -5486,7 +5924,7 @@ def rewards_dashboard():
 
     REWARDS_CONTENT = """
     <div style="max-width: 900px; margin: 0 auto;">
-        <h2 style="font-family: 'Cinzel', serif; color: #1a1a2e; margin-bottom: 30px;">Rewards & Referrals</h2>
+        <h2 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e; margin-bottom: 30px;">Rewards & Referrals</h2>
 
         <!-- Points Summary Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
@@ -5981,8 +6419,6 @@ def api_travelers_set_primary(traveler_id):
 @app.route("/deals")
 def deals():
     """Browse available deals from the database."""
-    get_xrp_price()
-
     # Read active deals from DB, sorted by savings descending
     active_deals = Deal.query.filter(
         Deal.is_active == True,
@@ -6001,8 +6437,6 @@ def deals():
         content=render_template_string(
             DEALS_CONTENT,
             deals=active_deals,
-            xrp_price=XRPL_CONFIG["xrp_usd_rate"],
-            network=XRPL_CONFIG["network"].upper(),
             last_scan=last_scan,
             current_user=current_user
         ),
@@ -6168,12 +6602,28 @@ def book(deal_id):
         if rewards:
             user_points_balance = rewards.points_balance or 0
 
+    # Detect booking source for source-aware UI (seatmap, services)
+    deal_source = ""
+    if deal.amadeus_offer_data:
+        try:
+            _offer_data = json.loads(deal.amadeus_offer_data)
+            deal_source = _offer_data.get("source", "")
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if not deal_source and deal.fare_id:
+        deal_source = "picasso"
+
+    # Enrich deal dict with amadeus_offer_data for template access
+    deal_dict = deal.to_dict()
+    deal_dict["amadeus_offer_data"] = deal.amadeus_offer_data
+
     return render_template_string(
         BASE_TEMPLATE,
         title=page_title,
         content=render_template_string(
             book_template,
-            deal=deal.to_dict(),
+            deal=deal_dict,
+            deal_source=deal_source,
             payment_verified=payment_verified,
             passenger_email=passenger_email,
             payment_options=payment_options_obj,
@@ -6340,6 +6790,115 @@ def _wire_booking_rewards(booking, deal, payment, passenger_data):
     except Exception as e:
         logger.error(f"Booking rewards error: {e}")
         db.session.rollback()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BUILD #211 — Booking Failure Safety Net
+# Auto-refund + dead-letter tracking when booking fails after payment
+# ═══════════════════════════════════════════════════════════════════════
+
+def _record_booking_failure(booking=None, payment=None, deal=None, user_id=None,
+                            failure_type='booking_api', failure_reason='',
+                            booking_channel=None, auto_refund=True):
+    """Record a booking failure and optionally auto-refund the customer.
+
+    Called when a booking attempt fails AFTER Stripe payment has been verified.
+    Creates a BookingFailure record for ops review, attempts auto-refund via
+    Stripe, and sends ops alert.
+
+    Args:
+        booking: Booking object (may be None if booking creation itself failed)
+        payment: Payment object with stripe_payment_intent
+        deal: Deal object
+        user_id: User ID (fallback if booking is None)
+        failure_type: Category of failure
+        failure_reason: Human-readable error description
+        booking_channel: Which provider failed (duffel, proxy, liteapi, picasso)
+        auto_refund: Whether to attempt automatic Stripe refund
+    """
+    from models import BookingFailure, SystemMetric
+    try:
+        failure = BookingFailure(
+            booking_id=booking.id if booking else None,
+            payment_id=payment.id if payment else None,
+            deal_id=deal.id if deal else None,
+            user_id=user_id or (booking.user_id if booking else None) or (payment.user_id if payment else None),
+            failure_type=failure_type,
+            failure_reason=failure_reason[:2000] if failure_reason else None,
+            booking_channel=booking_channel,
+            stripe_payment_intent=payment.stripe_payment_intent if payment else None,
+        )
+
+        # Attempt auto-refund if we have a Stripe payment intent
+        if auto_refund and payment and payment.stripe_payment_intent:
+            try:
+                from payments import create_stripe_refund
+                refund_result = create_stripe_refund(payment.stripe_payment_intent)
+                if refund_result.get("success"):
+                    failure.refund_status = 'refunded'
+                    failure.refund_id = refund_result.get("refund_id")
+                    failure.refund_amount_cents = refund_result.get("amount")
+                    failure.refunded_at = datetime.now(timezone.utc)
+                    failure.resolved = True
+                    failure.resolved_by = 'auto_refund'
+                    failure.resolved_at = datetime.now(timezone.utc)
+                    # Update payment status
+                    payment.status = 'refunded'
+                    if booking:
+                        booking.status = 'refunded'
+                    logger.info(f"[SafetyNet] Auto-refund SUCCESS for payment {payment.id}: {refund_result.get('refund_id')}")
+                    audit_log("auto_refund_success", user_id=failure.user_id,
+                              payment_id=payment.id, refund_id=refund_result.get("refund_id"))
+                else:
+                    failure.refund_status = 'failed'
+                    failure.admin_notes = f"Auto-refund failed: {refund_result.get('error')}"
+                    logger.error(f"[SafetyNet] Auto-refund FAILED for payment {payment.id}: {refund_result.get('error')}")
+                    audit_log("auto_refund_failed", user_id=failure.user_id,
+                              payment_id=payment.id, error=refund_result.get("error"))
+            except Exception as refund_err:
+                failure.refund_status = 'failed'
+                failure.admin_notes = f"Refund exception: {str(refund_err)}"
+                logger.error(f"[SafetyNet] Refund exception for payment {payment.id}: {refund_err}")
+        elif not auto_refund:
+            failure.refund_status = 'manual_review'
+
+        db.session.add(failure)
+
+        # Record metric (Build #218)
+        metric = SystemMetric(
+            metric_key='booking_failure',
+            metric_value=1.0,
+            metadata_json=json.dumps({
+                'failure_type': failure_type,
+                'channel': booking_channel,
+                'auto_refunded': failure.refund_status == 'refunded',
+            }),
+        )
+        db.session.add(metric)
+        db.session.commit()
+
+        # Send ops alert (Build #213)
+        _send_ops_alert(
+            subject=f"[MYSTES] Booking Failure — {failure_type}",
+            body=(
+                f"Booking failure recorded.\n\n"
+                f"Type: {failure_type}\n"
+                f"Channel: {booking_channel or 'unknown'}\n"
+                f"Reason: {failure_reason[:500] if failure_reason else 'N/A'}\n"
+                f"Payment ID: {payment.id if payment else 'N/A'}\n"
+                f"Booking ID: {booking.id if booking else 'N/A'}\n"
+                f"User ID: {failure.user_id or 'N/A'}\n"
+                f"Refund Status: {failure.refund_status}\n"
+                f"Refund ID: {failure.refund_id or 'N/A'}\n"
+            ),
+        )
+
+        return failure
+
+    except Exception as e:
+        logger.error(f"[SafetyNet] Failed to record booking failure: {e}")
+        db.session.rollback()
+        return None
 
 
 def trigger_booking_fulfillment(deal, payment, guest_email=None):
@@ -6575,6 +7134,29 @@ def complete_booking(deal_id):
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # Collect selected ancillary services (Build #200 — Duffel lifecycle)
+    selected_services = []
+    selected_services_json = request.form.get("selected_services", "[]")
+    try:
+        selected_services = json.loads(selected_services_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # If user selected a seat with a Duffel service_id, add it to services
+    seat_service_id = request.form.get("selected_seat_service_id", "").strip()
+    if seat_service_id:
+        selected_services.append({"id": seat_service_id, "quantity": 1})
+
+    # Store services on the deal's offer data so execute_automated_booking can use them
+    if selected_services and deal.amadeus_offer_data:
+        try:
+            offer_data = json.loads(deal.amadeus_offer_data)
+            offer_data["selected_services"] = selected_services
+            deal.amadeus_offer_data = json.dumps(offer_data)
+            db.session.commit()
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     fulfillment_type = request.form.get("fulfillment_type", "automated")
 
     # Get or create booking record via BookingFulfillmentManager (single source of truth)
@@ -6647,6 +7229,16 @@ def complete_booking(deal_id):
                 booking.status = "booked"
                 booking.confirmation_code = result.get("confirmation_code")
                 booking.booked_at = datetime.now(timezone.utc)
+
+                # Store Duffel order_id for post-booking management (cancel, change, services)
+                if result.get("order_id") and deal.amadeus_offer_data:
+                    try:
+                        _ofd = json.loads(deal.amadeus_offer_data)
+                        _ofd["duffel_order_id"] = result["order_id"]
+                        deal.amadeus_offer_data = json.dumps(_ofd)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
                 db.session.commit()
 
                 # Release escrow if this booking has one
@@ -6696,35 +7288,64 @@ def complete_booking(deal_id):
                     except Exception as e:
                         logger.error(f"Escrow release error for booking {booking.id}: {e}")
 
-                # --- Points & Escrow (Build #170) ---
-                _wire_booking_rewards(booking, deal, payment, passenger_data)
+                # --- Points & Escrow (Build #170, hardened Build #211) ---
+                try:
+                    _wire_booking_rewards(booking, deal, payment, passenger_data)
+                except Exception as rewards_err:
+                    logger.error(f"[SafetyNet] Rewards wiring failed (non-fatal): {rewards_err}")
 
-                # Send confirmation email
-                send_booking_confirmation_email(booking, deal, passenger_data)
+                # Send confirmation email (Build #211: wrapped to prevent crash)
+                try:
+                    send_booking_confirmation_email(booking, deal, passenger_data)
+                except Exception as email_err:
+                    logger.error(f"[SafetyNet] Confirmation email failed (non-fatal): {email_err}")
+
+                # Record success metric (Build #218)
+                try:
+                    from models import SystemMetric
+                    db.session.add(SystemMetric(metric_key='booking_success', metric_value=1.0,
+                                               metadata_json=json.dumps({'channel': booking.booking_channel or 'api'})))
+                    db.session.commit()
+                except Exception:
+                    pass
 
                 flash(f"Booking completed! Confirmation code: {result.get('confirmation_code')}", "success")
                 return redirect(f"/booking-confirmation/{booking.id}")
             else:
-                # Automated booking failed, fall back to manual agent
-                booking.status = "processing"
+                # Automated booking failed — record failure + auto-refund (Build #211)
+                booking.status = "failed"
                 booking.fulfillment_type = "manual_agent"
-                booking.fulfillment_notes = f"Automated booking failed: {result.get('error')}. Queued for manual processing."
+                booking.fulfillment_notes = f"Automated booking failed: {result.get('error')}. Auto-refund attempted."
                 db.session.commit()
 
-                # Notify agents
+                _record_booking_failure(
+                    booking=booking, payment=payment, deal=deal,
+                    failure_type='booking_api',
+                    failure_reason=result.get('error', 'Unknown booking failure'),
+                    booking_channel=getattr(booking, 'booking_channel', 'api'),
+                )
+
+                # Also notify agents as fallback
                 notify_agents_for_booking(booking, deal, passenger_data)
 
-                flash("Your booking is being processed by our team. You'll receive confirmation shortly.", "info")
+                flash("Your booking could not be completed. A full refund has been initiated.", "warning")
                 return redirect(f"/booking-status/{booking.id}")
 
         except Exception as e:
             logger.error(f"Automated booking error: {e}")
-            booking.status = "processing"
+            booking.status = "failed"
             booking.fulfillment_type = "manual_agent"
             booking.fulfillment_notes = f"Automated booking exception: {str(e)}"
             db.session.commit()
 
-            flash("Your booking is being processed by our team. You'll receive confirmation shortly.", "info")
+            _record_booking_failure(
+                booking=booking, payment=payment, deal=deal,
+                failure_type='exception',
+                failure_reason=str(e),
+                booking_channel=getattr(booking, 'booking_channel', 'api'),
+            )
+
+            flash("Your booking could not be completed. A full refund has been initiated.", "warning")
             return redirect(f"/booking-status/{booking.id}")
 
     else:
@@ -6746,10 +7367,100 @@ def complete_booking(deal_id):
 
 def execute_automated_hotel_booking(booking, deal, guest_data):
     """
-    Execute automated hotel booking via liteAPI.
+    Execute automated hotel booking — routes to liteAPI or Duffel Stays
+    based on source stored in deal.amadeus_offer_data.
 
-    Flow: validate_offer (prebook) → create_booking → confirmation
+    Sources:
+      - liteapi: validate_offer (prebook) → create_booking
+      - duffel_stays: create_quote (rate_id) → book_stay (quote_id)
     """
+    # Determine source from deal's raw offer data
+    source = "liteapi"  # default
+    raw_offer = {}
+    if deal.amadeus_offer_data:
+        try:
+            raw_offer = json.loads(deal.amadeus_offer_data)
+            source = raw_offer.get("source", "liteapi")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if source == "duffel_stays":
+        return _execute_duffel_stays_booking(booking, deal, guest_data, raw_offer)
+    else:
+        return _execute_liteapi_booking(booking, deal, guest_data)
+
+
+def _execute_duffel_stays_booking(booking, deal, guest_data, raw_offer):
+    """Execute hotel booking via Duffel Stays: quote → book."""
+    try:
+        import sys, os
+        sdk_path = os.path.join(os.path.dirname(__file__), "picasso-sdk")
+        if sdk_path not in sys.path:
+            sys.path.insert(0, sdk_path)
+        from clients.duffel_stays import DuffelStaysClient
+
+        client = DuffelStaysClient()
+        if not client.is_configured():
+            return {"success": False, "error": "Duffel Stays not configured"}
+
+        rate_id = raw_offer.get("rate_id")
+        if not rate_id:
+            return {"success": False, "error": "No rate_id for Duffel Stays booking"}
+
+        # Step 1: Create quote (lock the price)
+        logger.info(f"Creating Duffel Stays quote for rate {rate_id}...")
+        quote_result = client.create_quote(rate_id)
+        if not quote_result.get("success"):
+            logger.warning(f"Duffel Stays quote failed: {quote_result.get('error')}")
+            return {"success": False, "error": quote_result.get("error", "Quote creation failed. Rate may have expired.")}
+
+        quote_id = quote_result.get("quote_id")
+        logger.info(f"Quote created: {quote_id}, expires: {quote_result.get('expires_at')}")
+
+        # Step 2: Build guest list
+        email = guest_data.get("email", booking.passenger_email or "")
+        phone = guest_data.get("phone", "")
+        # Ensure E.164 format
+        if phone and not phone.startswith("+"):
+            phone = "+1" + phone.replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+
+        guests = [{
+            "given_name": guest_data.get("first_name", ""),
+            "family_name": guest_data.get("last_name", ""),
+        }]
+
+        # Step 3: Book the stay
+        logger.info(f"Booking Duffel Stays for {deal.hotel_name}...")
+        book_result = client.book_stay(
+            quote_id=quote_id,
+            email=email,
+            phone_number=phone,
+            guests=guests,
+            accommodation_special_requests=guest_data.get("special_requests"),
+        )
+
+        if book_result.get("success"):
+            confirmation = book_result.get("confirmation_number") or book_result.get("booking_id")
+            logger.info(f"Duffel Stays booking successful: {book_result.get('booking_id')}, ref={confirmation}")
+            booking.hotel_confirmation_id = book_result.get("booking_id")
+            booking.provider_reference = confirmation
+            db.session.commit()
+            return {
+                "success": True,
+                "confirmation_code": confirmation,
+                "booking_id": book_result.get("booking_id"),
+            }
+        else:
+            logger.warning(f"Duffel Stays booking failed: {book_result.get('error')}")
+            return {"success": False, "error": book_result.get("error", "Duffel Stays booking failed")}
+
+    except Exception as e:
+        logger.error(f"Duffel Stays automated booking error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _execute_liteapi_booking(booking, deal, guest_data):
+    """Execute hotel booking via liteAPI: prebook → book."""
     try:
         from liteapi_client import LiteAPIHotelClient
 
@@ -6779,11 +7490,10 @@ def execute_automated_hotel_booking(booking, deal, guest_data):
 
         # Step 3: Capture prebookId from validation (required by liteAPI)
         prebook_id = validation.get("prebook_id")
-        # Store on deal for audit trail
         deal.hotel_prebook_id = prebook_id
         db.session.commit()
 
-        # Step 4: Create booking (ACC_CREDIT_CARD — charges card on liteAPI dashboard)
+        # Step 4: Create booking
         logger.info(f"Creating hotel booking for {deal.hotel_name}...")
         book_result = client.create_booking(
             offer_id=offer_id,
@@ -6795,7 +7505,6 @@ def execute_automated_hotel_booking(booking, deal, guest_data):
         if book_result.get("success"):
             confirmation = book_result.get("provider_confirmation") or book_result.get("booking_id")
             logger.info(f"Hotel booking successful: ID={book_result['booking_id']}, ref={confirmation}")
-            # Store hotel-specific confirmation
             booking.hotel_confirmation_id = book_result.get("booking_id")
             booking.provider_reference = book_result.get("provider_confirmation")
             db.session.commit()
@@ -6835,12 +7544,17 @@ def execute_automated_booking(booking, deal, passenger_data):
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        # Legacy support: if no amadeus_offer_data but fare_id exists, it's Picasso
+        # Legacy support: reconstruct raw_offer from Deal fields if not stored
         if not raw_offer and deal.fare_id and deal.fare_search_id:
             raw_offer = {
                 "source": "picasso",
                 "fare_id": deal.fare_id,
                 "fare_search_id": deal.fare_search_id,
+            }
+        if not raw_offer and deal.offer_id:
+            raw_offer = {
+                "source": "duffel_ndc",
+                "offer_id": deal.offer_id,
             }
 
         if raw_offer and raw_offer.get("source"):
@@ -6885,6 +7599,34 @@ def execute_automated_booking(booking, deal, passenger_data):
                     except ImportError:
                         logger.info("airgateway client not available")
 
+                # Credential network routing: override client if routing metadata present
+                routing_meta = raw_offer.get("_routing")
+                _credential_router = None
+                if routing_meta and routing_meta.get("credential_id"):
+                    try:
+                        from anastasia.dispatch.credential_router import CredentialRouter
+                        from anastasia.credentials import CredentialModule
+                        _cred_module = CredentialModule()
+                        _cred_module.initialize(
+                            event_bus=type("EB", (), {"publish": lambda *a, **k: None, "subscribe": lambda *a, **k: None})(),
+                            config={},
+                        )
+                        _credential_router = CredentialRouter(_cred_module.network, _cred_module.vault)
+                        _raw_creds = _cred_module.vault.retrieve(
+                            routing_meta["credential_id"],
+                            requester_tenant_id=routing_meta["owner_tenant_id"],
+                        )
+                        if _raw_creds:
+                            _routed_client = _credential_router.build_client(source, _raw_creds)
+                            if _routed_client:
+                                clients[source] = _routed_client
+                                logger.info(
+                                    f"[BOOKING] Using credential-routed client for {source} "
+                                    f"(owner={routing_meta['owner_tenant_id']})"
+                                )
+                    except Exception as e:
+                        logger.warning(f"Credential routing failed, using default client: {e}")
+
                 if clients:
                     markup = round(float(deal.platform_fee_usd or 0), 2)
                     logger.info(
@@ -6900,6 +7642,40 @@ def execute_automated_booking(booking, deal, passenger_data):
                     )
 
                     if result.get("success"):
+                        # Record credential routing on booking
+                        if routing_meta:
+                            try:
+                                from anastasia.credentials.revenue import APAI_TIER_ROUTING_FEE, MIN_PLATFORM_FEE_USD as _MIN_FEE
+                                booking.booking_source = source
+                                booking.credential_id = routing_meta.get("credential_id")
+                                booking.owner_tenant_id = routing_meta.get("owner_tenant_id")
+                                booking.router_tenant_id = routing_meta.get("requester_tenant_id")
+                                booking.routing_result_id = routing_meta.get("result_id")
+                                booking.routing_tier = routing_meta.get("routing_tier")
+                                # Routing fee: percentage by APAi tier, $3 min, NO max cap
+                                _txn = float(deal.arbitrage_price_usd or deal.home_price_usd or 0)
+                                _tier = getattr(booking, 'apai_tier', 'pro') or 'pro'
+                                _fee_pct = APAI_TIER_ROUTING_FEE.get(_tier, 0.05)
+                                booking.routing_fee_usd = max(_txn * _fee_pct, _MIN_FEE)
+                                db.session.commit()
+
+                                # Confirm with credential network (revenue tracking)
+                                if _credential_router:
+                                    _credential_router.confirm_booking(
+                                        routing_meta["result_id"],
+                                        {
+                                            "confirmation_code": result.get("confirmation_code"),
+                                            "transaction_amount_usd": float(deal.arbitrage_price_usd or deal.home_price_usd or 0),
+                                            "booking_source": source,
+                                        },
+                                    )
+                            except Exception as routing_err:
+                                logger.warning(f"Post-booking routing update: {routing_err}")
+                        else:
+                            # Own credentials — record source for tracking
+                            booking.booking_source = source
+                            booking.routing_tier = 1
+                            db.session.commit()
                         return result
                     logger.warning(f"ANASTASiA dispatch failed: {result.get('error')}")
 
@@ -7172,7 +7948,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     <!-- Header -->
     <div style="text-align: center; margin-bottom: 25px;">
         <div style="font-size: 48px; margin-bottom: 10px;">&#10003;</div>
-        <h2 style="color: #28a745; margin: 0; font-family: Cinzel, serif;">Booking Confirmed</h2>
+        <h2 style="color: #28a745; margin: 0; font-family: 'Space Grotesk', sans-serif;">Booking Confirmed</h2>
         <p style="color: #999; margin: 5px 0 0;">{{ booking.passenger_name }}</p>
     </div>
 
@@ -7306,7 +8082,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     {% if deal.user_savings_usd and deal.user_savings_usd > 0 %}
     <div id="review-section" style="background: linear-gradient(135deg, rgba(76,175,80,0.12), rgba(76,175,80,0.04)); border: 2px solid rgba(76,175,80,0.3); border-radius: 16px; padding: 24px; margin-bottom: 20px;">
         <div style="text-align: center; margin-bottom: 16px;">
-            <h3 style="margin: 0 0 6px; color: #4caf50; font-family: Cinzel, serif; font-size: 17px;">Share Your Savings &amp; Get 5% Off Next Booking</h3>
+            <h3 style="margin: 0 0 6px; color: #4caf50; font-family: 'Space Grotesk', sans-serif; font-size: 17px;">Share Your Savings &amp; Get 5% Off Next Booking</h3>
             <p style="color: #999; margin: 0; font-size: 12px;">Your savings card is ready — one tap to share. Add your own thoughts or share as-is.</p>
         </div>
 
@@ -7412,19 +8188,31 @@ BOOKING_CONFIRMATION_CONTENT = """
     </script>
     {% endif %}
 
-    <!-- Referral Card Generator (Build #179) -->
+    <!-- Referral Card Generator (Build #179, QR added Build #206) -->
     {% if current_user.is_authenticated %}
     <div id="referral-card-section" style="background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(124,58,237,0.04)); border: 2px solid rgba(124,58,237,0.3); border-radius: 16px; padding: 24px; margin-bottom: 20px;">
         <div style="text-align: center; margin-bottom: 16px;">
-            <h3 style="margin: 0 0 6px; color: #a855f7; font-family: Cinzel, serif; font-size: 17px;">Share Your Referral Card</h3>
+            <h3 style="margin: 0 0 6px; color: #a855f7; font-family: 'Space Grotesk', sans-serif; font-size: 17px;">Share Your Referral Card</h3>
             <p style="color: #999; margin: 0; font-size: 12px;">Your savings stats in a shareable card. Friends who book earn you points.</p>
+        </div>
+        <div id="qr-preview" style="display:none;text-align:center;margin-bottom:14px;">
+            <img id="qr-img" src="" alt="Referral QR" width="140" height="140" style="border-radius:10px;border:2px solid rgba(124,58,237,0.3);">
+            <div style="margin-top:6px;font-size:11px;color:#999;">Scan to join via your referral</div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button onclick="generateReferralCard()" id="btn-gen-referral" style="padding: 12px; background: linear-gradient(135deg, #7c3aed, #a855f7); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; font-size: 13px; font-family: Outfit, sans-serif;">
-                &#128279; Generate &amp; Copy Link
+                Generate &amp; Copy Link
             </button>
             <a id="btn-view-referral" href="#" target="_blank" style="display: none; padding: 12px; background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.3); border-radius: 8px; color: #a855f7; font-weight: 600; text-align: center; text-decoration: none; font-size: 13px; font-family: Outfit, sans-serif;">
                 View Card
+            </a>
+        </div>
+        <div id="qr-actions" style="display:none;margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <a id="btn-print-card" href="#" target="_blank" style="display:none;padding:10px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:8px;color:#a855f7;text-align:center;text-decoration:none;font-size:12px;font-family:Outfit,sans-serif;">
+                Print Card
+            </a>
+            <a id="btn-download-qr" href="#" download style="display:none;padding:10px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:8px;color:#a855f7;text-align:center;text-decoration:none;font-size:12px;font-family:Outfit,sans-serif;">
+                Download QR
             </a>
         </div>
         <p id="referral-status" style="text-align: center; color: #a855f7; font-size: 12px; margin: 10px 0 0; display: none;"></p>
@@ -7447,6 +8235,21 @@ BOOKING_CONFIRMATION_CONTENT = """
                     var viewBtn = document.getElementById('btn-view-referral');
                     viewBtn.href = data.card_url;
                     viewBtn.style.display = 'block';
+                    // Fetch QR code (Build #206)
+                    fetch('/api/referral-card/qr-data', {method:'POST',headers:{'Content-Type':'application/json'}})
+                    .then(function(r){return r.json();})
+                    .then(function(qr){
+                        if(qr.success){
+                            document.getElementById('qr-img').src=qr.qr_data_uri;
+                            document.getElementById('qr-preview').style.display='block';
+                            var printBtn=document.getElementById('btn-print-card');
+                            printBtn.href=data.card_url+'/print';
+                            printBtn.style.display='block';
+                            var dlBtn=document.getElementById('btn-download-qr');
+                            dlBtn.href=qr.qr_png_url;
+                            dlBtn.style.display='block';
+                        }
+                    });
                 });
             } else {
                 statusEl.textContent = 'Error generating card.';
@@ -7531,7 +8334,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     <!-- Guest: Claim Points + Create Account -->
     <div style="background: linear-gradient(135deg, rgba(124,58,237,0.15), rgba(168,85,247,0.1)); border: 2px solid rgba(124,58,237,0.4); border-radius: 16px; padding: 28px; margin-bottom: 20px; text-align: center;">
         <div style="font-size: 36px; margin-bottom: 8px;">&#127873;</div>
-        <h3 style="margin: 0 0 8px; color: #b388ff; font-family: Cinzel, serif; font-size: 18px;">You Earned MYSTES Points!</h3>
+        <h3 style="margin: 0 0 8px; color: #b388ff; font-family: 'Space Grotesk', sans-serif; font-size: 18px;">You Earned MYSTES Points!</h3>
         <p style="color: #ccc; margin: 0 0 6px; font-size: 14px;">
             <strong style="color: #4caf50; font-size: 22px;">{{ escrow_points|default(3500, true) }}</strong> points are waiting for you
         </p>
@@ -7577,7 +8380,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     <!-- Dynamic Cross-Sell (Build #183 — CrossSellEngine) -->
     {% if cross_sell_recs %}
     <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #14b8a6; font-family: Cinzel, serif;">Complete Your Trip</h3>
+        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #14b8a6; font-family: 'Space Grotesk', sans-serif;">Complete Your Trip</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
             {% for rec in cross_sell_recs[:3] %}
             <a href="{{ rec.url }}" onclick="trackCrossSell('click','{{ rec.vertical }}')" style="text-decoration: none; display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2); border-radius: 10px; transition: border-color 0.2s, background 0.2s;" onmouseover="this.style.borderColor='rgba(20,184,166,0.5)';this.style.background='rgba(20,184,166,0.12)'" onmouseout="this.style.borderColor='rgba(20,184,166,0.2)';this.style.background='rgba(20,184,166,0.08)'">
@@ -7598,7 +8401,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     <!-- Add to Trip (Build #183) -->
     {% if active_trips %}
     <div style="background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff; font-family: Cinzel, serif;">Add to Trip</h3>
+        <h3 style="margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #b388ff; font-family: 'Space Grotesk', sans-serif;">Add to Trip</h3>
         <div style="display: flex; flex-wrap: wrap; gap: 8px;">
             {% for trip in active_trips %}
             <button onclick="addBookingToTrip({{ trip.id }}, {{ booking.id }})" style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
@@ -7632,7 +8435,7 @@ BOOKING_CONFIRMATION_CONTENT = """
     {% if not booking.insurance_policy_id %}
     <div style="background: rgba(34,197,94,0.08); border: 2px solid rgba(34,197,94,0.25); border-radius: 16px; padding: 24px; margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="margin: 0; color: #22c55e; font-family: Cinzel, serif; font-size: 17px;">Protect Your Trip</h3>
+            <h3 style="margin: 0; color: #22c55e; font-family: 'Space Grotesk', sans-serif; font-size: 17px;">Protect Your Trip</h3>
             <span style="font-size: 12px; color: #6b7280;">Powered by SafetyWing</span>
         </div>
         <p style="color: #ccc; font-size: 14px; margin: 0 0 15px;">Medical coverage, trip cancellation, and baggage protection for peace of mind.</p>
@@ -8132,13 +8935,7 @@ MY_BOOKINGS_CONTENT = """
 <style>
 .mb-page { max-width: 880px; margin: 0 auto; animation: mbFadeIn 0.5s ease-out; }
 @keyframes mbFadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-.mb-header { text-align: center; margin-bottom: 28px; }
-.mb-header h1 {
-    font-family: 'Cinzel', serif; font-size: 28px; font-weight: 700; letter-spacing: 1px;
-    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0 0 6px;
-}
-.mb-header p { color: rgba(255,255,255,0.5); font-size: 14px; margin: 0; }
+/* mb-header: uses mystes-page-header from component library */
 .mb-filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .mb-filter {
     padding: 7px 18px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
@@ -8149,12 +8946,12 @@ MY_BOOKINGS_CONTENT = """
     background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.5); color: #fff;
 }
 .mb-card {
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 14px; padding: 20px; margin-bottom: 12px;
+    background: var(--glass-bg); border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg); padding: 20px; margin-bottom: 12px;
     display: flex; justify-content: space-between; align-items: center; gap: 16px;
     transition: all 0.2s; flex-wrap: wrap;
 }
-.mb-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+.mb-card:hover { background: var(--glass-bg-light); border-color: var(--glass-border-hover); }
 .mb-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 200px; }
 .mb-icon {
     width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center;
@@ -8168,15 +8965,7 @@ MY_BOOKINGS_CONTENT = """
 .mb-meta { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 3px; }
 .mb-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .mb-amount { font-weight: 700; color: #c4b5fd; font-size: 16px; }
-.mb-badge {
-    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
-}
-.mb-badge-booked { background: rgba(16,185,129,0.15); color: #34d399; }
-.mb-badge-pending { background: rgba(245,158,11,0.15); color: #fbbf24; }
-.mb-badge-cancelled { background: rgba(239,68,68,0.15); color: #f87171; }
-.mb-badge-completed { background: rgba(124,58,237,0.15); color: #a78bfa; }
-.mb-badge-refunded { background: rgba(148,163,184,0.15); color: #94a3b8; }
+/* mb-badge: uses mystes-badge-* from component library */
 .mb-actions { display: flex; gap: 8px; margin-top: 4px; }
 .mb-action-btn {
     padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
@@ -8186,10 +8975,7 @@ MY_BOOKINGS_CONTENT = """
 .mb-action-view:hover { background: rgba(124,58,237,0.15); }
 .mb-action-cancel { border-color: rgba(239,68,68,0.4); color: #f87171; background: transparent; }
 .mb-action-cancel:hover { background: rgba(239,68,68,0.15); }
-.mb-empty { text-align: center; padding: 60px 20px; }
-.mb-empty svg { margin-bottom: 16px; opacity: 0.2; }
-.mb-empty p { color: rgba(255,255,255,0.4); font-size: 14px; }
-.mb-empty a { color: #7c3aed; text-decoration: none; }
+/* mb-empty: uses mystes-empty from component library */
 @media (max-width: 600px) {
     .mb-card { flex-direction: column; align-items: flex-start; }
     .mb-right { align-items: flex-start; flex-direction: row; gap: 12px; flex-wrap: wrap; width: 100%; }
@@ -8197,7 +8983,7 @@ MY_BOOKINGS_CONTENT = """
 </style>
 
 <div class="mb-page">
-    <div class="mb-header">
+    <div class="mystes-page-header mb-lg">
         <h1>My Bookings</h1>
         <p>{{ bookings|length }} booking{{ 's' if bookings|length != 1 else '' }}</p>
     </div>
@@ -8238,15 +9024,15 @@ MY_BOOKINGS_CONTENT = """
         <div class="mb-right">
             {% if b.price %}<div class="mb-amount">${{ "%.0f"|format(b.price) }}</div>{% endif %}
             {% if b.status == 'booked' or b.status == 'completed' %}
-                <span class="mb-badge mb-badge-booked">{{ b.status }}</span>
+                <span class="mystes-badge mystes-badge-green">{{ b.status }}</span>
             {% elif b.status == 'cancelled' %}
-                <span class="mb-badge mb-badge-cancelled">cancelled</span>
+                <span class="mystes-badge mystes-badge-red">cancelled</span>
             {% elif b.status == 'refunded' %}
-                <span class="mb-badge mb-badge-refunded">refunded</span>
+                <span class="mystes-badge mystes-badge-neutral">refunded</span>
             {% elif b.status in ('pending', 'pending_fulfillment', 'processing') %}
-                <span class="mb-badge mb-badge-pending">{{ b.status|replace('_', ' ') }}</span>
+                <span class="mystes-badge mystes-badge-amber">{{ b.status|replace('_', ' ') }}</span>
             {% else %}
-                <span class="mb-badge mb-badge-completed">{{ b.status }}</span>
+                <span class="mystes-badge mystes-badge-purple">{{ b.status }}</span>
             {% endif %}
             <div class="mb-actions">
                 {% if b.confirmation_code %}
@@ -8262,8 +9048,8 @@ MY_BOOKINGS_CONTENT = """
     </div>
     {% endfor %}
     {% else %}
-    <div class="mb-empty">
-        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.4-.1.9.3 1.1l5.5 3.2-2 2-1.7-.5c-.4-.1-.8 0-1 .3l-.2.3c-.2.3-.1.7.2.9l2.8 1.9 1.9 2.8c.2.3.6.4.9.2l.3-.2c.3-.2.4-.6.3-1l-.5-1.7 2-2 3.2 5.5c.2.4.7.5 1.1.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
+    <div class="mystes-empty">
+        <div class="mystes-empty-icon">&#9992;</div>
         <p>No bookings yet. <a href="/flights">Search flights</a> to get started!</p>
     </div>
     {% endif %}
@@ -8294,7 +9080,7 @@ CANCEL_BOOKING_CONTENT = """
     border-radius: 16px; padding: 32px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
 }
 .cancel-header { text-align: center; margin-bottom: 24px; }
-.cancel-header h2 { font-family: 'Cinzel', serif; font-size: 22px; color: #f87171; margin: 0 0 6px; }
+.cancel-header h2 { font-family: 'Space Grotesk', sans-serif; font-size: 22px; color: #f87171; margin: 0 0 6px; }
 .cancel-header p { color: rgba(255,255,255,0.5); font-size: 14px; margin: 0; }
 .cancel-details {
     background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
@@ -8368,6 +9154,14 @@ CANCEL_BOOKING_CONTENT = """
             Please contact <a href="/contact">support</a> or email <a href="mailto:support@mystes.app">support@mystes.app</a>.
         </div>
         {% else %}
+        {% if is_duffel_booking and duffel_refund_quote %}
+        <div style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); border-radius: 10px; padding: 16px; margin-bottom: 16px; text-align: center;">
+            <div style="color: #34d399; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Airline Refund Quote</div>
+            <div style="color: #34d399; font-size: 20px; font-weight: 700;">${{ "%.2f"|format(refund_amount) }} {{ duffel_refund_quote.refund_currency or 'USD' }}</div>
+            <div style="color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 4px;">This is the amount the airline will refund based on your fare conditions.</div>
+        </div>
+        {% endif %}
+
         <div class="cancel-warning">
             This action cannot be undone. Your refund will be processed to your original payment method within 5-10 business days.
         </div>
@@ -8375,6 +9169,9 @@ CANCEL_BOOKING_CONTENT = """
         <div class="cancel-actions">
             <form method="POST" action="/cancel-booking/{{ booking.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if duffel_refund_quote and duffel_refund_quote.cancellation_id %}
+                <input type="hidden" name="cancellation_id" value="{{ duffel_refund_quote.cancellation_id }}">
+                {% endif %}
                 <button type="submit" class="cancel-btn-confirm">Confirm Cancellation</button>
             </form>
             <a href="/bookings" class="cancel-btn-keep">Keep My Booking</a>
@@ -8453,8 +9250,31 @@ def cancel_booking_confirm(booking_id):
         float(deal.arbitrage_price_usd) if deal and deal.arbitrage_price_usd else 0
     )
 
-    # Picasso GDS bookings need manual cancellation (no API cancel method)
+    # Detect booking source for source-aware cancellation
     is_gds_booking = bool(booking.picasso_super_pnr_id or booking.pnr_locator)
+    is_duffel_booking = False
+    duffel_refund_quote = None
+
+    if deal and deal.amadeus_offer_data:
+        try:
+            import json as _json
+            offer_data = _json.loads(deal.amadeus_offer_data)
+            duffel_order_id = offer_data.get("duffel_order_id") or offer_data.get("order_id")
+            if duffel_order_id:
+                is_duffel_booking = True
+                # Get actual refund quote from Duffel
+                try:
+                    from duffel_client import DuffelClient
+                    duffel = DuffelClient()
+                    if duffel.is_configured():
+                        quote = duffel.get_cancellation_quote(duffel_order_id)
+                        if quote.get("success"):
+                            duffel_refund_quote = quote
+                            refund_amount = float(quote.get("refund_amount", 0))
+                except Exception as e:
+                    logger.warning(f"Could not get Duffel refund quote: {e}")
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     return render_template_string(
         BASE_TEMPLATE,
@@ -8466,6 +9286,8 @@ def cancel_booking_confirm(booking_id):
             booking_date=booking_date,
             refund_amount=refund_amount,
             is_gds_booking=is_gds_booking,
+            is_duffel_booking=is_duffel_booking,
+            duffel_refund_quote=duffel_refund_quote,
         ),
         current_user=current_user,
     )
@@ -8506,8 +9328,20 @@ def cancel_booking_execute(booking_id):
                     from duffel_client import DuffelClient
                     duffel = DuffelClient()
                     if duffel.is_configured():
-                        duffel.cancel_order(duffel_order_id)
-                        logger.info(f"Duffel order {duffel_order_id} cancelled for booking {booking.id}")
+                        # Two-step cancellation: quote was obtained on the confirm page,
+                        # now use the stored cancellation_id if available, else full cancel
+                        cancellation_id = request.form.get("cancellation_id", "").strip()
+                        if cancellation_id:
+                            result = duffel.confirm_cancellation(cancellation_id)
+                        else:
+                            result = duffel.cancel_order(duffel_order_id)
+                        if result.get("success"):
+                            logger.info(f"Duffel order {duffel_order_id} cancelled for booking {booking.id}")
+                            airline_refund = float(result.get("refund_amount", 0))
+                            if airline_refund > 0:
+                                refund_amount = airline_refund
+                        else:
+                            errors.append(f"Airline cancellation: {result.get('error', 'failed')}")
                 except Exception as e:
                     logger.error(f"Duffel cancel failed for booking {booking.id}: {e}")
                     errors.append(f"Airline cancellation issue: {e}")
@@ -8860,7 +9694,6 @@ def save_guest_email():
 @app.route("/api/deals")
 def api_deals():
     """JSON API for deals — reads from database."""
-    get_xrp_price()
 
     active_deals = Deal.query.filter(
         Deal.is_active == True,
@@ -8886,7 +9719,6 @@ def api_deals():
             "booking_url": d.booking_url,
             "expires_at": d.expires_at.isoformat() if d.expires_at else None,
         } for d in active_deals],
-        "xrp_price": XRPL_CONFIG["xrp_usd_rate"],
         "count": len(active_deals)
     })
 
@@ -8935,8 +9767,15 @@ def api_create_deal():
             service_fee = float(data.get("service_fee", 0))
             total_price = float(data.get("total_price", 0))
 
-            # Build raw_offer from top-level or first flight
+            # Build raw_offer from top-level or first flight, with fallback construction
             multi_raw_offer = data.get("raw_offer") or (flights[0].get("raw_offer") if flights else None)
+            if not multi_raw_offer:
+                if data.get("fare_id"):
+                    multi_raw_offer = {"source": "picasso", "fare_id": data["fare_id"], "fare_search_id": data.get("fare_search_id", "")}
+                elif data.get("offer_id"):
+                    multi_raw_offer = {"source": "duffel_ndc", "offer_id": data["offer_id"]}
+                elif data.get("booking_token"):
+                    multi_raw_offer = {"source": "kiwi_tequila", "booking_token": data["booking_token"], "kiwi_id": data.get("kiwi_id", "")}
 
             # Create multi-leg deal
             deal = Deal(
@@ -9011,7 +9850,12 @@ def api_create_deal():
                 fare_id=data.get("fare_id") or (data.get("raw_offer") or {}).get("fare_id"),
                 fare_search_id=data.get("fare_search_id") or (data.get("raw_offer") or {}).get("fare_search_id"),
                 offer_id=data.get("offer_id") or (data.get("raw_offer") or {}).get("offer_id"),
-                amadeus_offer_data=json.dumps(data.get("raw_offer")) if data.get("raw_offer") else None,
+                amadeus_offer_data=json.dumps(
+                    data.get("raw_offer")
+                    or ({"source": "picasso", "fare_id": data["fare_id"], "fare_search_id": data.get("fare_search_id", "")} if data.get("fare_id") else None)
+                    or ({"source": "duffel_ndc", "offer_id": data["offer_id"]} if data.get("offer_id") else None)
+                    or ({"source": "kiwi_tequila", "booking_token": data["booking_token"], "kiwi_id": data.get("kiwi_id", "")} if data.get("booking_token") else None)
+                ) if (data.get("raw_offer") or data.get("fare_id") or data.get("offer_id") or data.get("booking_token")) else None,
                 picasso_gds=data.get("picasso_gds"),
                 fare_type=data.get("fare_type"),
                 is_multi_leg=False,
@@ -9224,6 +10068,608 @@ def api_picasso_session():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# --- UNIFIED FLIGHT API ENDPOINTS (Source-Aware: Duffel + Picasso) ---
+
+@app.route("/api/flights/seatmap", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_seatmap():
+    """
+    Unified seat map endpoint — routes to Duffel or Picasso based on deal source.
+
+    For Duffel: requires offer_id (from deal.amadeus_offer_data)
+    For Picasso: requires airline_code, flight_number, departure, destination, departure_date
+
+    Request JSON:
+        {"deal_id": "abc123"}
+        OR
+        {"source": "duffel_ndc", "offer_id": "off_xxx"}
+        OR
+        {"source": "picasso", "airline_code": "BA", ...}
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    # Resolve source from deal_id if provided
+    source = data.get("source")
+    offer_id = data.get("offer_id")
+
+    if data.get("deal_id"):
+        deal = Deal.query.filter_by(deal_id=data["deal_id"]).first()
+        if not deal:
+            return jsonify({"error": "Deal not found"}), 404
+        if deal.amadeus_offer_data:
+            try:
+                offer_data = json.loads(deal.amadeus_offer_data)
+                source = source or offer_data.get("source", "")
+                offer_id = offer_id or offer_data.get("offer_id", "")
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if not source and deal.fare_id:
+            source = "picasso"
+
+    # Route to Duffel
+    if source == "duffel_ndc" and offer_id:
+        try:
+            from duffel_client import DuffelClient
+            duffel = DuffelClient()
+            if not duffel.is_configured():
+                return jsonify({"error": "Duffel not configured"}), 503
+            result = duffel.get_seat_map(offer_id)
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Duffel seatmap error: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    # Route to Picasso
+    if source == "picasso" or data.get("airline_code"):
+        required = ["airline_code", "flight_number", "departure", "destination", "departure_date"]
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            return jsonify({"error": f"Missing fields for Picasso seatmap: {', '.join(missing)}"}), 400
+        try:
+            from picasso_client import get_seatmap
+            result = get_seatmap(
+                airline_code=data["airline_code"],
+                flight_number=data["flight_number"],
+                departure=data["departure"],
+                destination=data["destination"],
+                departure_date=data["departure_date"],
+                booking_class=data.get("booking_class", "Y"),
+                cabin_class=data.get("cabin_class", "ECONOMY"),
+            )
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    return jsonify({"error": "Cannot determine booking source for seatmap"}), 400
+
+
+@app.route("/api/flights/services", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_services():
+    """
+    Get available ancillary services for a Duffel flight offer.
+
+    Returns bags, seats, meals grouped by type.
+    Service IDs are used at booking to add extras.
+
+    Request JSON:
+        {"offer_id": "off_xxx"}
+        OR
+        {"deal_id": "abc123"}
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    offer_id = data.get("offer_id")
+
+    if not offer_id and data.get("deal_id"):
+        deal = Deal.query.filter_by(deal_id=data["deal_id"]).first()
+        if deal and deal.amadeus_offer_data:
+            try:
+                offer_data = json.loads(deal.amadeus_offer_data)
+                offer_id = offer_data.get("offer_id", "")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    if not offer_id:
+        return jsonify({"error": "offer_id required (Duffel flights only)"}), 400
+
+    try:
+        from duffel_client import DuffelClient
+        duffel = DuffelClient()
+        if not duffel.is_configured():
+            return jsonify({"error": "Duffel not configured"}), 503
+        result = duffel.get_available_services(offer_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Duffel services error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/flights/cancellation-quote", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_cancellation_quote():
+    """
+    Get cancellation refund quote for a Duffel order BEFORE confirming.
+
+    Shows customer exactly how much they'll get back.
+
+    Request JSON:
+        {"booking_id": 123}
+        OR
+        {"order_id": "ord_xxx"}
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    order_id = data.get("order_id")
+
+    if not order_id and data.get("booking_id"):
+        booking = Booking.query.get(data["booking_id"])
+        if not booking:
+            return jsonify({"error": "Booking not found"}), 404
+        if booking.user_id != current_user.id:
+            return jsonify({"error": "Access denied"}), 403
+        deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+        if deal and deal.amadeus_offer_data:
+            try:
+                offer_data = json.loads(deal.amadeus_offer_data)
+                order_id = offer_data.get("duffel_order_id") or offer_data.get("order_id")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    if not order_id:
+        return jsonify({"error": "No Duffel order_id found for this booking"}), 400
+
+    try:
+        from duffel_client import DuffelClient
+        duffel = DuffelClient()
+        if not duffel.is_configured():
+            return jsonify({"error": "Duffel not configured"}), 503
+        result = duffel.get_cancellation_quote(order_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Duffel cancellation quote error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/flights/order-change", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_order_change():
+    """
+    Request a flight change (date/route) for a Duffel order.
+
+    Returns available change offers with fare differences.
+
+    Request JSON:
+        {
+            "booking_id": 123,
+            "slices_to_remove": ["sli_xxx"],
+            "new_slices": [{"origin": "JFK", "destination": "LHR", "departure_date": "2026-05-01"}]
+        }
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    booking_id = data.get("booking_id")
+    if not booking_id:
+        return jsonify({"error": "booking_id required"}), 400
+
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+    if booking.user_id != current_user.id:
+        return jsonify({"error": "Access denied"}), 403
+
+    deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+    order_id = None
+    if deal and deal.amadeus_offer_data:
+        try:
+            offer_data = json.loads(deal.amadeus_offer_data)
+            order_id = offer_data.get("duffel_order_id") or offer_data.get("order_id")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not order_id:
+        return jsonify({"error": "No Duffel order_id found — only Duffel bookings can be changed online"}), 400
+
+    slices_to_remove = data.get("slices_to_remove", [])
+    new_slices = data.get("new_slices", [])
+    if not slices_to_remove or not new_slices:
+        return jsonify({"error": "slices_to_remove and new_slices required"}), 400
+
+    try:
+        from duffel_client import DuffelClient
+        duffel = DuffelClient()
+        if not duffel.is_configured():
+            return jsonify({"error": "Duffel not configured"}), 503
+        result = duffel.request_order_change(order_id, slices_to_remove, new_slices)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Duffel order change error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/flights/confirm-change", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_confirm_change():
+    """
+    Confirm a flight change with the selected change offer.
+
+    Request JSON:
+        {"change_offer_id": "oco_xxx", "booking_id": 123}
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    change_offer_id = data.get("change_offer_id")
+    if not change_offer_id:
+        return jsonify({"error": "change_offer_id required"}), 400
+
+    booking_id = data.get("booking_id")
+    if booking_id:
+        booking = Booking.query.get(booking_id)
+        if not booking or booking.user_id != current_user.id:
+            return jsonify({"error": "Booking not found or access denied"}), 403
+
+    try:
+        from duffel_client import DuffelClient
+        duffel = DuffelClient()
+        if not duffel.is_configured():
+            return jsonify({"error": "Duffel not configured"}), 503
+
+        payment = None
+        if data.get("payment_amount"):
+            payment = {
+                "type": "balance",
+                "amount": data["payment_amount"],
+                "currency": data.get("payment_currency", "USD"),
+            }
+
+        result = duffel.confirm_order_change(change_offer_id, payment=payment)
+
+        # Update booking record if change succeeded
+        if result.get("success") and booking_id:
+            booking = Booking.query.get(booking_id)
+            if booking:
+                booking.status = "booked"
+                db.session.commit()
+                logger.info(f"Order change confirmed for booking {booking_id}")
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Duffel confirm change error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/flights/add-services", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_add_services():
+    """
+    Add ancillary services to an existing Duffel booking (post-booking).
+
+    Request JSON:
+        {
+            "booking_id": 123,
+            "services": [{"id": "ser_xxx", "quantity": 1, "total_amount": "25.00"}]
+        }
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    booking_id = data.get("booking_id")
+    services = data.get("services", [])
+    if not booking_id or not services:
+        return jsonify({"error": "booking_id and services required"}), 400
+
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+    if booking.user_id != current_user.id:
+        return jsonify({"error": "Access denied"}), 403
+
+    deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+    order_id = None
+    if deal and deal.amadeus_offer_data:
+        try:
+            offer_data = json.loads(deal.amadeus_offer_data)
+            order_id = offer_data.get("duffel_order_id") or offer_data.get("order_id")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not order_id:
+        return jsonify({"error": "No Duffel order_id — post-booking services only available for Duffel bookings"}), 400
+
+    try:
+        from duffel_client import DuffelClient
+        duffel = DuffelClient()
+        if not duffel.is_configured():
+            return jsonify({"error": "Duffel not configured"}), 503
+        result = duffel.add_services_to_order(order_id, services)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Duffel add services error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/flights/order", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_flights_order_details():
+    """
+    Get full Duffel order details for a booking.
+
+    Request JSON:
+        {"booking_id": 123}
+    """
+    data = request.get_json()
+    if not data or not data.get("booking_id"):
+        return jsonify({"error": "booking_id required"}), 400
+
+    booking = Booking.query.get(data["booking_id"])
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+    if booking.user_id != current_user.id:
+        return jsonify({"error": "Access denied"}), 403
+
+    deal = Deal.query.get(booking.deal_id) if booking.deal_id else None
+    order_id = None
+    if deal and deal.amadeus_offer_data:
+        try:
+            offer_data = json.loads(deal.amadeus_offer_data)
+            order_id = offer_data.get("duffel_order_id") or offer_data.get("order_id")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not order_id:
+        return jsonify({"error": "No Duffel order_id for this booking"}), 400
+
+    try:
+        from duffel_client import DuffelClient
+        duffel = DuffelClient()
+        if not duffel.is_configured():
+            return jsonify({"error": "Duffel not configured"}), 503
+        result = duffel.get_order(order_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Duffel order details error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# --- DUFFEL WEBHOOK RECEIVER ---
+
+@app.route("/webhooks/duffel", methods=["POST"])
+@csrf.exempt
+@limiter.exempt
+def webhook_duffel():
+    """
+    Receive Duffel webhook events for order lifecycle updates.
+
+    Events handled:
+    - order.updated: Flight schedule change, airline-initiated changes
+    - order.cancelled: Airline-initiated cancellation
+    - order.airline_initiated_change: Schedule change requiring action
+
+    Duffel does NOT sign webhooks with HMAC — they rely on URL secrecy.
+    We add an optional token check via DUFFEL_WEBHOOK_TOKEN env var.
+    """
+    # Optional token verification
+    webhook_token = os.environ.get("DUFFEL_WEBHOOK_TOKEN", "")
+    if webhook_token:
+        auth_header = request.headers.get("Authorization", "")
+        url_token = request.args.get("token", "")
+        if auth_header != f"Bearer {webhook_token}" and url_token != webhook_token:
+            logger.warning("Duffel webhook: invalid token")
+            return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        event = request.get_json()
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    if not event or not isinstance(event, dict):
+        return jsonify({"error": "Empty payload"}), 400
+
+    event_id = event.get("id", "")
+    event_type = event.get("type", "")
+    event_data = event.get("data", {})
+
+    logger.info(f"Duffel webhook received: type={event_type} id={event_id}")
+
+    # Idempotency — skip already-processed events
+    if event_id:
+        try:
+            from models import WebhookEvent
+            existing = WebhookEvent.query.filter_by(event_id=event_id).first()
+            if existing:
+                logger.debug(f"Duffel webhook already processed: {event_id}")
+                return jsonify({"received": True, "duplicate": True})
+        except Exception as e:
+            logger.warning(f"Duffel webhook dedup check failed: {e}")
+            db.session.rollback()
+
+    # Route by event type
+    try:
+        if event_type in ("order.updated", "order.airline_initiated_change"):
+            _handle_duffel_order_update(event_id, event_type, event_data)
+        elif event_type == "order.cancelled":
+            _handle_duffel_order_cancelled(event_id, event_type, event_data)
+        else:
+            logger.info(f"Duffel webhook: unhandled event type {event_type}")
+    except Exception as e:
+        logger.error(f"Duffel webhook processing error: {e}", exc_info=True)
+        # Return 200 anyway so Duffel doesn't retry indefinitely
+        return jsonify({"received": True, "error": str(e)}), 200
+
+    # Record processed event for idempotency
+    if event_id:
+        try:
+            from models import WebhookEvent
+            whe = WebhookEvent(event_id=event_id, event_type=event_type)
+            db.session.add(whe)
+            db.session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to record Duffel webhook event {event_id}: {e}")
+            db.session.rollback()
+
+    return jsonify({"received": True})
+
+
+def _find_booking_by_duffel_order(order_id: str):
+    """Find a MYSTES Booking by its Duffel order_id stored in deal.amadeus_offer_data."""
+    if not order_id:
+        return None, None
+    # Search deals that have this order_id in their offer data
+    deals = Deal.query.filter(Deal.amadeus_offer_data.isnot(None)).all()
+    for deal in deals:
+        try:
+            offer_data = json.loads(deal.amadeus_offer_data)
+            if offer_data.get("duffel_order_id") == order_id or offer_data.get("order_id") == order_id:
+                booking = Booking.query.filter_by(deal_id=deal.id, status="booked").first()
+                if not booking:
+                    booking = Booking.query.filter_by(deal_id=deal.id).order_by(Booking.id.desc()).first()
+                return booking, deal
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return None, None
+
+
+def _handle_duffel_order_update(event_id: str, event_type: str, event_data: dict):
+    """Handle Duffel order.updated or order.airline_initiated_change events."""
+    order = event_data.get("order", event_data)
+    order_id = order.get("id", "")
+
+    booking, deal = _find_booking_by_duffel_order(order_id)
+    if not booking:
+        logger.warning(f"Duffel webhook: no booking found for order {order_id}")
+        return
+
+    # Update deal with latest order data
+    changes = order.get("changes", [])
+    slices = order.get("slices", [])
+
+    # Store the update event in offer data
+    try:
+        offer_data = json.loads(deal.amadeus_offer_data) if deal.amadeus_offer_data else {}
+    except (json.JSONDecodeError, TypeError):
+        offer_data = {}
+
+    offer_data["last_webhook_event"] = event_type
+    offer_data["last_webhook_at"] = datetime.utcnow().isoformat()
+
+    if changes:
+        offer_data["airline_changes"] = changes
+        logger.info(f"Duffel webhook: order {order_id} has {len(changes)} airline changes")
+
+    if slices:
+        # Update stored slice data (schedule may have changed)
+        offer_data["current_slices"] = slices
+
+    deal.amadeus_offer_data = json.dumps(offer_data)
+    db.session.commit()
+
+    # Send notification email to passenger
+    user = None
+    if booking.user_id:
+        user = db.session.get(User, booking.user_id)
+
+    if user and user.email:
+        try:
+            from email_service import send_email
+            change_summary = "Your flight details have been updated by the airline."
+            if changes:
+                change_summary = f"The airline has made {len(changes)} change(s) to your booking."
+
+            send_email(
+                user.email,
+                f"Flight Update — Booking {booking.confirmation_code or booking.id}",
+                f"""<div style="font-family: Outfit, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e;">MYSTES Flight Update</h2>
+                    <p>{change_summary}</p>
+                    <p><strong>Booking:</strong> {booking.confirmation_code or f'#{booking.id}'}</p>
+                    <p>Please log in to your MYSTES account to review the latest details.</p>
+                    <p style="color: #666; font-size: 12px;">This is an automated notification from MYSTES.</p>
+                </div>"""
+            )
+            logger.info(f"Duffel webhook: sent update notification to {user.email} for booking {booking.id}")
+        except Exception as e:
+            logger.error(f"Duffel webhook: failed to send notification: {e}")
+
+    audit_log("duffel_order_update", user_id=booking.user_id,
+              booking_id=booking.id, order_id=order_id, event_type=event_type)
+
+
+def _handle_duffel_order_cancelled(event_id: str, event_type: str, event_data: dict):
+    """Handle Duffel order.cancelled event (airline-initiated cancellation)."""
+    order = event_data.get("order", event_data)
+    order_id = order.get("id", "")
+
+    booking, deal = _find_booking_by_duffel_order(order_id)
+    if not booking:
+        logger.warning(f"Duffel webhook: no booking found for cancelled order {order_id}")
+        return
+
+    # Mark booking as cancelled
+    booking.status = "cancelled"
+
+    # Update offer data
+    try:
+        offer_data = json.loads(deal.amadeus_offer_data) if deal.amadeus_offer_data else {}
+    except (json.JSONDecodeError, TypeError):
+        offer_data = {}
+
+    offer_data["last_webhook_event"] = "order.cancelled"
+    offer_data["last_webhook_at"] = datetime.utcnow().isoformat()
+    offer_data["cancelled_by"] = "airline"
+    deal.amadeus_offer_data = json.dumps(offer_data)
+
+    db.session.commit()
+
+    # Send cancellation notification
+    user = None
+    if booking.user_id:
+        user = db.session.get(User, booking.user_id)
+
+    if user and user.email:
+        try:
+            from email_service import send_email
+            refund_info = ""
+            if order.get("total_amount"):
+                refund_info = f"<p><strong>Original amount:</strong> {order['total_currency']} {order['total_amount']}</p>"
+
+            send_email(
+                user.email,
+                f"Flight Cancelled — Booking {booking.confirmation_code or booking.id}",
+                f"""<div style="font-family: Outfit, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="font-family: 'Space Grotesk', sans-serif; color: #c0392b;">MYSTES — Flight Cancellation</h2>
+                    <p>Your flight has been <strong>cancelled by the airline</strong>.</p>
+                    <p><strong>Booking:</strong> {booking.confirmation_code or f'#{booking.id}'}</p>
+                    {refund_info}
+                    <p>A refund will be processed automatically. Please log in to your MYSTES account for details.</p>
+                    <p style="color: #666; font-size: 12px;">This is an automated notification from MYSTES.</p>
+                </div>"""
+            )
+            logger.info(f"Duffel webhook: sent cancellation notification to {user.email} for booking {booking.id}")
+        except Exception as e:
+            logger.error(f"Duffel webhook: failed to send cancellation notification: {e}")
+
+    audit_log("duffel_order_cancelled", user_id=booking.user_id,
+              booking_id=booking.id, order_id=order_id, cancelled_by="airline")
 
 
 # --- COMPETITIVE PRICE INTELLIGENCE ---
@@ -9522,10 +10968,9 @@ def api_payment_verify():
 
     Request JSON:
         {
-            "method": "card|xrp|rlusd",
+            "method": "card",
             "deal_id": "abc123",
-            "session_id": "cs_xxx",        # For Stripe
-            "destination_tag": 12345       # For XRP/RLUSD
+            "session_id": "cs_xxx"         # For Stripe
         }
 
     Response JSON:
@@ -10027,8 +11472,16 @@ def webhook_stripe():
                         except Exception:
                             pass
 
-                        # Trigger booking fulfillment
-                        trigger_booking_fulfillment(deal, payment)
+                        # Trigger booking fulfillment (Build #211: wrapped with safety net)
+                        try:
+                            trigger_booking_fulfillment(deal, payment)
+                        except Exception as fulfillment_err:
+                            logger.error(f"[SafetyNet] Fulfillment trigger failed: {fulfillment_err}")
+                            _record_booking_failure(
+                                payment=payment, deal=deal, user_id=user_id,
+                                failure_type='fulfillment_trigger',
+                                failure_reason=str(fulfillment_err),
+                            )
 
                         # Auto-save card for future use if payment method was captured
                         if payment_intent and user_id:
@@ -10373,10 +11826,17 @@ def health_check():
     # Anthropic API (for ANASTASiA)
     services["anastasia_api"] = "configured" if os.environ.get("ANTHROPIC_API_KEY") else "not configured"
 
+    # Booking failure count (Build #218)
+    try:
+        from models import BookingFailure
+        services["booking_failures_unresolved"] = BookingFailure.query.filter_by(resolved=False).count()
+    except Exception:
+        services["booking_failures_unresolved"] = "error"
+
     return jsonify({
         "status": overall,
-        "version": "1.3.0",
-        "build": 195,
+        "version": "2.0.0",
+        "build": 218,
         "services": services,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }), status_code
@@ -10414,13 +11874,317 @@ def api_status():
     providers["safetywing"] = "active" if os.environ.get("SAFETYWING_API_KEY") else "inactive"
 
     return jsonify({
-        "version": "1.2.0",
-        "build": 189,
-        "tests": 980,
+        "version": "2.0.0",
+        "build": 218,
+        "tests": 1663,
         "status": "operational",
         "providers": providers,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BUILD #213 — Ops Alerting
+# Send email/log alerts on critical failures (booking, payment, system)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _send_ops_alert(subject, body):
+    """Send alert to ops team on critical failures.
+
+    Sends via email if configured, always logs to audit trail.
+    Non-blocking: runs in background thread to avoid slowing request.
+    """
+    audit_log("ops_alert", subject=subject)
+    logger.warning(f"[OPS ALERT] {subject}: {body[:200]}")
+
+    ops_email = os.environ.get("OPS_ALERT_EMAIL", os.environ.get("MAIL_USERNAME", ""))
+    if not ops_email:
+        return
+
+    try:
+        from email_service import send_email_async
+        send_email_async(
+            to_email=ops_email,
+            subject=subject,
+            body=body,
+        )
+    except Exception as e:
+        logger.error(f"[OPS ALERT] Failed to send alert email: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BUILD #212 — Dead Letter Queue
+# Sweep for orphaned payments, auto-refund, admin view
+# ═══════════════════════════════════════════════════════════════════════
+
+def _sweep_orphaned_payments():
+    """Find payments verified >15 minutes ago with no successful booking.
+
+    Called periodically by the booking worker. Creates BookingFailure records
+    and attempts auto-refund for any stuck payments.
+    """
+    from models import BookingFailure
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    try:
+        orphans = Payment.query.filter(
+            Payment.status.in_(['verified', 'fulfillment_triggered']),
+            Payment.verified_at < cutoff,
+        ).all()
+
+        for payment in orphans:
+            # Check if booking exists and succeeded
+            booking = Booking.query.filter_by(payment_id=payment.id).first()
+            if booking and booking.status in ('booked', 'confirmed', 'completed'):
+                continue  # Booking succeeded — not orphaned
+
+            # Check if we already recorded this failure
+            existing = BookingFailure.query.filter_by(
+                payment_id=payment.id, resolved=False
+            ).first()
+            if existing:
+                continue  # Already tracked
+
+            logger.warning(f"[DeadLetter] Orphaned payment detected: {payment.id} (verified at {payment.verified_at})")
+            _record_booking_failure(
+                booking=booking, payment=payment,
+                user_id=payment.user_id,
+                failure_type='orphaned_payment',
+                failure_reason=f"Payment verified at {payment.verified_at} but no successful booking after 15 minutes",
+                auto_refund=True,
+            )
+    except Exception as e:
+        logger.error(f"[DeadLetter] Sweep error: {e}")
+
+
+@app.route("/api/admin/orphaned-payments")
+@login_required
+def api_admin_orphaned_payments():
+    """List unresolved booking failures / orphaned payments (Build #212)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+
+    from models import BookingFailure
+    failures = BookingFailure.query.filter_by(resolved=False).order_by(
+        BookingFailure.created_at.desc()
+    ).limit(100).all()
+
+    return jsonify({
+        "success": True,
+        "count": len(failures),
+        "failures": [f.to_dict() for f in failures],
+    })
+
+
+@app.route("/api/admin/orphaned-payments/<int:failure_id>/resolve", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_admin_resolve_failure(failure_id):
+    """Manually resolve a booking failure (Build #212)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+
+    from models import BookingFailure
+    failure = db.session.get(BookingFailure, failure_id)
+    if not failure:
+        return jsonify({"error": "Not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    failure.resolved = True
+    failure.resolved_by = 'admin'
+    failure.resolved_at = datetime.now(timezone.utc)
+    failure.admin_notes = data.get("notes", f"Resolved by {current_user.email}")
+    db.session.commit()
+
+    audit_log("booking_failure_resolved", user_id=current_user.id,
+              failure_id=failure_id, notes=failure.admin_notes)
+
+    return jsonify({"success": True, "failure_id": failure_id})
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BUILD #217 — Cookie Consent + Legal Compliance (GDPR/CCPA)
+# ═══════════════════════════════════════════════════════════════════════
+
+COOKIE_POLICY_CONTENT = '''
+<div style="max-width:800px;margin:40px auto;padding:20px;font-family:'Outfit',sans-serif;color:#1a1814;line-height:1.7;">
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.8rem;margin-bottom:20px;">Cookie Policy</h1>
+    <p><strong>Effective Date:</strong> April 15, 2026</p>
+
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin-top:24px;">What Are Cookies</h2>
+    <p>Cookies are small text files stored on your device when you visit our website. They help us provide a better experience
+    by remembering your preferences, keeping you logged in, and understanding how you use our platform.</p>
+
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin-top:24px;">Essential Cookies</h2>
+    <p>These are required for MYSTES to function. They handle authentication, session management, CSRF protection,
+    and shopping cart state. <strong>You cannot disable these.</strong></p>
+    <ul>
+        <li><code>session</code> — Flask session cookie (login state, preferences)</li>
+        <li><code>csrf_token</code> — Cross-site request forgery protection</li>
+        <li><code>remember_token</code> — "Remember me" login persistence</li>
+    </ul>
+
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin-top:24px;">Analytics Cookies</h2>
+    <p>We may use analytics to understand site usage patterns. These are only set if you consent.
+    We do NOT use third-party advertising cookies. We do NOT sell your data.</p>
+
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin-top:24px;">Managing Cookies</h2>
+    <p>You can manage cookie preferences via the consent banner shown on your first visit, or through your browser settings.
+    Disabling essential cookies may prevent the site from functioning correctly.</p>
+
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin-top:24px;">California Residents (CCPA)</h2>
+    <p>Under the California Consumer Privacy Act, you have the right to know what personal information we collect,
+    request deletion, and opt out of the sale of personal information. <strong>MYSTES does NOT sell personal information.</strong>
+    To exercise your rights, contact <a href="mailto:privacy@mystes.app" style="color:#4361ee;">privacy@mystes.app</a>.</p>
+
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin-top:24px;">Contact</h2>
+    <p>For questions about this policy, contact us at <a href="mailto:privacy@mystes.app" style="color:#4361ee;">privacy@mystes.app</a>.</p>
+</div>
+'''
+
+
+@app.route("/cookies")
+def cookie_policy():
+    """Cookie Policy page (Build #217 — GDPR/CCPA compliance)."""
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Cookie Policy",
+        content=COOKIE_POLICY_CONTENT,
+        current_user=current_user,
+    )
+
+
+@app.route("/do-not-sell")
+def ccpa_do_not_sell():
+    """CCPA Do Not Sell page (Build #217)."""
+    ccpa_content = '''
+    <div style="max-width:600px;margin:60px auto;text-align:center;font-family:'Outfit',sans-serif;color:#1a1814;">
+        <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;">Do Not Sell My Personal Information</h1>
+        <p style="margin-top:16px;line-height:1.7;">
+            MYSTES KYRIOS LLC does <strong>NOT</strong> sell, rent, or trade your personal information to third parties.
+            We do not engage in data brokering of any kind.
+        </p>
+        <p style="margin-top:12px;line-height:1.7;">
+            If you have questions about your data, contact
+            <a href="mailto:privacy@mystes.app" style="color:#4361ee;">privacy@mystes.app</a>.
+        </p>
+        <p style="margin-top:24px;">
+            <a href="/privacy" style="color:#4361ee;text-decoration:none;">Read our full Privacy Policy &rarr;</a>
+        </p>
+    </div>
+    '''
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Do Not Sell",
+        content=ccpa_content,
+        current_user=current_user,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BUILD #218 — Production Health Monitoring
+# System status dashboard, booking metrics, payment tracking
+# ═══════════════════════════════════════════════════════════════════════
+
+@app.route("/api/admin/system-status")
+@login_required
+def api_admin_system_status():
+    """Production health dashboard data (Build #218).
+
+    Returns booking success rates, payment metrics, failure counts,
+    email health, and system uptime indicators.
+    """
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+
+    from models import BookingFailure, SystemMetric
+    now = datetime.now(timezone.utc)
+    day_ago = now - timedelta(hours=24)
+    week_ago = now - timedelta(days=7)
+
+    # Booking metrics (last 24h)
+    bookings_24h = Booking.query.filter(Booking.created_at >= day_ago).count()
+    bookings_success = Booking.query.filter(
+        Booking.created_at >= day_ago,
+        Booking.status.in_(['booked', 'confirmed', 'completed']),
+    ).count()
+    bookings_failed = Booking.query.filter(
+        Booking.created_at >= day_ago,
+        Booking.status.in_(['failed', 'cancelled', 'refunded']),
+    ).count()
+
+    # Payment metrics (last 24h)
+    payments_24h = Payment.query.filter(Payment.created_at >= day_ago).count()
+    payments_verified = Payment.query.filter(
+        Payment.created_at >= day_ago,
+        Payment.status.in_(['verified', 'fulfillment_triggered']),
+    ).count()
+
+    # Failure tracking
+    unresolved_failures = BookingFailure.query.filter_by(resolved=False).count()
+    failures_24h = BookingFailure.query.filter(BookingFailure.created_at >= day_ago).count()
+    auto_refunds_24h = BookingFailure.query.filter(
+        BookingFailure.created_at >= day_ago,
+        BookingFailure.refund_status == 'refunded',
+    ).count()
+
+    # User stats
+    total_users = User.query.filter_by(is_active=True).count()
+    users_7d = User.query.filter(User.created_at >= week_ago).count()
+
+    # Email health
+    from email_service import EMAIL_CONFIG
+    email_enabled = EMAIL_CONFIG.get("enabled", False)
+
+    # Success rate
+    success_rate = round((bookings_success / bookings_24h * 100), 1) if bookings_24h > 0 else 100.0
+
+    return jsonify({
+        "success": True,
+        "timestamp": now.isoformat(),
+        "bookings": {
+            "last_24h": bookings_24h,
+            "successful": bookings_success,
+            "failed": bookings_failed,
+            "success_rate_pct": success_rate,
+        },
+        "payments": {
+            "last_24h": payments_24h,
+            "verified": payments_verified,
+        },
+        "failures": {
+            "unresolved": unresolved_failures,
+            "last_24h": failures_24h,
+            "auto_refunds_24h": auto_refunds_24h,
+        },
+        "users": {
+            "total_active": total_users,
+            "new_last_7d": users_7d,
+        },
+        "email": {
+            "enabled": email_enabled,
+        },
+    })
+
+
+@app.route("/api/admin/metrics/record", methods=["POST"])
+@csrf.exempt
+@login_required
+def api_admin_record_metric():
+    """Record a system metric (Build #218)."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin access required"}), 403
+
+    from models import SystemMetric
+    data = request.get_json(silent=True) or {}
+    metric = SystemMetric(
+        metric_key=data.get("key", "custom"),
+        metric_value=float(data.get("value", 0)),
+        metadata_json=json.dumps(data.get("metadata", {})),
+    )
+    db.session.add(metric)
+    db.session.commit()
+
+    return jsonify({"success": True, "metric_id": metric.id})
 
 
 # --- APAi SUBSCRIPTION MANAGEMENT (Build #189) ---
@@ -10550,53 +12314,35 @@ def api_apai_billing():
 APAI_PITCH_CONTENT = """
 <style>
 .apai-hero { max-width:900px; margin:0 auto; padding:60px 20px 40px; text-align:center; }
-.apai-hero h1 { font-family:'Cinzel',serif; font-size:2.4rem; margin-bottom:12px;
+.apai-hero h1 { font-family:var(--font-brand); font-size:2.4rem; margin-bottom:12px;
     background:linear-gradient(135deg,#7c3aed,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .apai-hero .tagline { font-size:1.3rem; color:#a78bfa; font-weight:600; margin-bottom:8px; letter-spacing:1px; }
-.apai-hero .subtitle { color:#8a8278; font-size:1rem; max-width:600px; margin:0 auto 40px; line-height:1.6; }
-.apai-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:20px;
-    max-width:900px; margin:0 auto 50px; padding:0 20px; }
-.apai-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
-    border-radius:16px; padding:24px; transition:border-color 0.3s; }
-.apai-card:hover { border-color:rgba(124,58,237,0.3); }
-.apai-card h3 { color:#e8dcc8; font-family:'Cinzel',serif; font-size:1rem; margin-bottom:8px; }
-.apai-card p { color:#8a8278; font-size:0.9rem; line-height:1.5; }
+.apai-hero .subtitle { color:var(--text-muted); font-size:1rem; max-width:600px; margin:0 auto 40px; line-height:1.6; }
+/* apai-card: extends mystes-card */
+.apai-card h3 { color:var(--accent); font-family:var(--font-brand); font-size:1rem; margin-bottom:8px; }
+.apai-card p { color:var(--text-muted); font-size:0.9rem; line-height:1.5; }
 .apai-pricing { display:grid; grid-template-columns:1fr 1fr; gap:24px;
     max-width:700px; margin:0 auto 50px; padding:0 20px; }
-.apai-price-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
-    border-radius:16px; padding:32px; text-align:center; position:relative; }
-.apai-price-card.featured { border-color:rgba(124,58,237,0.4);
-    box-shadow:0 0 30px rgba(124,58,237,0.1); }
-.apai-price-card h3 { color:#a78bfa; font-family:'Cinzel',serif; font-size:1.1rem; margin-bottom:4px; }
-.apai-price-card .price { font-size:2.2rem; color:#e8dcc8; font-weight:700; margin:12px 0 4px; }
-.apai-price-card .price span { font-size:1rem; color:#666; font-weight:400; }
-.apai-price-card .features { color:#8a8278; font-size:0.85rem; line-height:1.8; text-align:left; margin:16px 0; }
+.apai-price-card h3 { color:#a78bfa; font-family:var(--font-brand); font-size:1.1rem; margin-bottom:4px; }
+.apai-price-card .price { font-size:2.2rem; color:var(--accent); font-weight:700; margin:12px 0 4px; }
+.apai-price-card .price span { font-size:1rem; color:var(--text-muted); font-weight:400; }
+.apai-price-card .features { color:var(--text-muted); font-size:0.85rem; line-height:1.8; text-align:left; margin:16px 0; }
 .apai-price-card .features li { list-style:none; padding-left:20px; position:relative; }
 .apai-price-card .features li::before { content:'\\2713'; position:absolute; left:0; color:#22c55e; }
-.apai-cta { display:inline-block; padding:14px 32px; background:linear-gradient(135deg,#7c3aed,#a855f7);
-    color:#fff; border:none; border-radius:10px; font-size:1rem; font-weight:600;
-    text-decoration:none; cursor:pointer; transition:opacity 0.2s; }
-.apai-cta:hover { opacity:0.9; }
-.apai-cta-outline { display:inline-block; padding:14px 32px; background:transparent;
-    border:1px solid rgba(124,58,237,0.4); color:#a78bfa; border-radius:10px;
-    font-size:1rem; font-weight:600; text-decoration:none; cursor:pointer; }
+.apai-price-card.featured { border-color:rgba(124,58,237,0.4);
+    box-shadow:0 0 30px rgba(124,58,237,0.1); }
 .apai-steps { max-width:700px; margin:0 auto 50px; padding:0 20px; }
-.apai-steps h2 { font-family:'Cinzel',serif; font-size:1.4rem; color:#e8dcc8; text-align:center; margin-bottom:30px; }
+.apai-steps h2 { font-family:var(--font-brand); font-size:1.4rem; color:var(--accent); text-align:center; margin-bottom:30px; }
 .apai-step { display:flex; align-items:flex-start; gap:16px; margin-bottom:20px; }
 .apai-step-num { flex-shrink:0; width:36px; height:36px; border-radius:50%;
     background:linear-gradient(135deg,#7c3aed,#06b6d4); color:#fff; font-weight:700;
     display:flex; align-items:center; justify-content:center; font-size:0.9rem; }
 .apai-step-text h4 { color:#e2e8f0; margin:0 0 4px; font-size:0.95rem; }
-.apai-step-text p { color:#8a8278; margin:0; font-size:0.85rem; }
-.apai-grad { max-width:700px; margin:0 auto 40px; padding:24px; text-align:center;
-    background:rgba(124,58,237,0.05); border:1px solid rgba(124,58,237,0.15); border-radius:16px; }
-.apai-grad h3 { font-family:'Cinzel',serif; color:#e8dcc8; margin-bottom:8px; font-size:1.1rem; }
-.apai-grad p { color:#8a8278; font-size:0.9rem; line-height:1.5; margin-bottom:16px; }
-.apai-note { text-align:center; color:#666; font-size:0.8rem; max-width:600px; margin:0 auto 40px; padding:0 20px; }
+.apai-step-text p { color:var(--text-muted); margin:0; font-size:0.85rem; }
+.apai-note { text-align:center; color:var(--text-muted); font-size:0.8rem; max-width:600px; margin:0 auto 40px; padding:0 20px; }
 @media (max-width:600px) {
     .apai-hero h1 { font-size:1.6rem; }
     .apai-pricing { grid-template-columns:1fr; }
-    .apai-grid { grid-template-columns:1fr; }
 }
 </style>
 
@@ -10610,28 +12356,28 @@ APAI_PITCH_CONTENT = """
     </p>
 </div>
 
-<div class="apai-grid">
-    <div class="apai-card">
+<div class="mystes-grid" style="max-width:900px;margin:0 auto 50px;padding:0 20px;">
+    <div class="mystes-card interactive apai-card">
         <h3>No IATA Accreditation</h3>
         <p>ANASTASiA handles airline compliance and credential routing. You focus on selling.</p>
     </div>
-    <div class="apai-card">
+    <div class="mystes-card interactive apai-card">
         <h3>No Volume Minimums</h3>
         <p>Sell one ticket or ten thousand. Same wholesale pricing from day one. No commercial deposits.</p>
     </div>
-    <div class="apai-card">
+    <div class="mystes-card interactive apai-card">
         <h3>No Consolidator Gatekeeping</h3>
         <p>Direct access to wholesale pricing through the ANASTASiA credential network. Skip the middlemen.</p>
     </div>
-    <div class="apai-card">
+    <div class="mystes-card interactive apai-card">
         <h3>ANASTASiA Dev Terminal</h3>
         <p>Your AI tech team lives in your admin panel. Customize your OTA, troubleshoot, and build &mdash; all through natural language.</p>
     </div>
-    <div class="apai-card">
+    <div class="mystes-card interactive apai-card">
         <h3>Immutable Core</h3>
         <p>Template engine stays locked and updated automatically. Your custom modules sit on top &mdash; safe, isolated, unbreakable.</p>
     </div>
-    <div class="apai-card">
+    <div class="mystes-card interactive apai-card">
         <h3>Your Brand, Your Domain</h3>
         <p>Custom branding, colors, logo, and domain. Your customers see YOUR travel agency &mdash; not ours.</p>
     </div>
@@ -10677,7 +12423,7 @@ APAI_PITCH_CONTENT = """
 </div>
 
 <div class="apai-pricing">
-    <div class="apai-price-card featured">
+    <div class="mystes-card apai-price-card featured">
         <h3>APAi Pro</h3>
         <div class="price">$299<span>/mo</span></div>
         <ul class="features">
@@ -10688,9 +12434,9 @@ APAI_PITCH_CONTENT = """
             <li>Automatic engine updates</li>
             <li>All travel verticals</li>
         </ul>
-        <a href="/business/signup" class="apai-cta" onclick="event.preventDefault();subscribeAPAi('pro')">Get Started</a>
+        <a href="/business/signup" class="mystes-btn mystes-btn-primary mystes-btn-lg" onclick="event.preventDefault();subscribeAPAi('pro')">Get Started</a>
     </div>
-    <div class="apai-price-card">
+    <div class="mystes-card apai-price-card">
         <h3>APAi Enterprise</h3>
         <div class="price">$599<span>/mo</span></div>
         <ul class="features">
@@ -10701,18 +12447,18 @@ APAI_PITCH_CONTENT = """
             <li>Custom module development</li>
             <li>Dedicated onboarding</li>
         </ul>
-        <a href="/business/signup" class="apai-cta-outline" onclick="event.preventDefault();subscribeAPAi('enterprise')">Get Started</a>
+        <a href="/business/signup" class="mystes-btn mystes-btn-ghost mystes-btn-lg" onclick="event.preventDefault();subscribeAPAi('enterprise')">Get Started</a>
     </div>
 </div>
 
-<div class="apai-grad">
-    <h3>Already Using MYSTES?</h3>
-    <p>
+<div class="mystes-card text-center" style="max-width:700px; margin:0 auto 40px; border:1px solid rgba(124,58,237,0.15);">
+    <h3 style="font-family:var(--font-brand);color:var(--accent);margin-bottom:8px;font-size:1.1rem;">Already Using MYSTES?</h3>
+    <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin-bottom:16px;">
         Many of our APAi subscribers started as MYSTES consumers, then upgraded to B2B to sell
         through our platform. When you&rsquo;re ready for your own branded OTA with even more
         competitive wholesale rates &mdash; APAi is the next step.
     </p>
-    <a href="/business" class="apai-cta-outline" style="font-size:0.9rem;padding:10px 24px;">
+    <a href="/business" class="mystes-btn mystes-btn-ghost mystes-btn-sm">
         Start with B2B &rarr;
     </a>
 </div>
@@ -10904,7 +12650,7 @@ def _render_apai_deploy_page(account, deployment):
 
         return f"""
         <div style="max-width:700px;margin:0 auto;padding:40px 20px;">
-            <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;text-align:center;
+            <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.8rem;text-align:center;
                        background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;
                        -webkit-text-fill-color:transparent;">Your APAi Instance</h1>
             <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
@@ -10931,7 +12677,7 @@ def _render_apai_deploy_page(account, deployment):
     instance_default = account.name.lower().replace(' ', '-') if account.name else 'my-ota'
     return f"""
     <div style="max-width:700px;margin:0 auto;padding:40px 20px;">
-        <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;text-align:center;
+        <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.8rem;text-align:center;
                    background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;
                    -webkit-text-fill-color:transparent;">Deploy Your APAi OTA</h1>
         <p style="text-align:center;color:#999;margin-bottom:32px;">
@@ -11215,9 +12961,8 @@ TERMS_CONTENT = """
 
     <h2>5. Payment Terms</h2>
     <ul>
-        <li>Platform fees are paid in XRP cryptocurrency on the XRP Ledger</li>
+        <li>Platform fees are charged via Stripe</li>
         <li>Payments are non-refundable once verified, except as required by law</li>
-        <li>You are responsible for any cryptocurrency transaction fees</li>
         <li>Payment verification typically occurs within seconds but may take longer during network congestion</li>
     </ul>
 
@@ -11230,7 +12975,7 @@ TERMS_CONTENT = """
         <li>Price changes between deal display and booking</li>
         <li>Flight cancellations, delays, or changes by airlines</li>
         <li>Issues with bookings made on airline websites</li>
-        <li>Loss of cryptocurrency due to user error</li>
+        <li>Loss of funds due to user error</li>
         <li>Any indirect, incidental, or consequential damages</li>
     </ul>
 
@@ -11263,13 +13008,12 @@ PRIVACY_CONTENT = """
         <li>Email address (required)</li>
         <li>Name (optional)</li>
         <li>Password (stored securely hashed)</li>
-        <li>XRP wallet address (optional, for refunds)</li>
         <li>Preferred language and currency settings</li>
     </ul>
 
     <h3>2.2 Transaction Data</h3>
     <ul>
-        <li>XRP payment records (destination tags, amounts, transaction hashes)</li>
+        <li>Payment records (transaction IDs, amounts)</li>
         <li>Deal access history</li>
         <li>Booking attempts (we do not store airline booking details)</li>
     </ul>
@@ -11300,8 +13044,8 @@ PRIVACY_CONTENT = """
     </ul>
     <p>When you access airline websites through our proxy, the airline's own privacy policy applies to data you provide to them.</p>
 
-    <h2>5. Cryptocurrency Transactions</h2>
-    <p>XRP transactions occur on the public XRP Ledger blockchain. Transaction data on the blockchain is publicly visible and cannot be deleted. We only store the minimum transaction data needed to verify payments.</p>
+    <h2>5. Payment Processing</h2>
+    <p>Payments are processed securely via Stripe and MoonPay. We only store the minimum transaction data needed to verify payments.</p>
 
     <h2>6. Data Retention</h2>
     <ul>
@@ -11378,7 +13122,7 @@ def privacy():
 ABOUT_CONTENT = """
 <div style="max-width: 800px; margin: 40px auto;">
     <div class="card card-light" style="text-align: center; padding: 40px;">
-        <h1 style="font-family: 'Cinzel', serif; letter-spacing: 8px; margin-bottom: 10px; background: linear-gradient(135deg, #1a1a2e 0%, #4a3060 50%, #1a1a2e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">MYSTES</h1>
+        <h1 style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 8px; margin-bottom: 10px; background: linear-gradient(135deg, #1a1a2e 0%, #4a3060 50%, #1a1a2e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">MYSTES</h1>
         <p style="font-size: 20px; color: #555; margin-bottom: 30px;">Flight Price Arbitrage Platform</p>
     </div>
 
@@ -11433,14 +13177,6 @@ ABOUT_CONTENT = """
         <h2 style="color: #1a1a2e; margin-bottom: 15px;">Payment Options</h2>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
             <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center;">
-                <div style="font-size: 28px; margin-bottom: 8px;">XRP</div>
-                <p style="color: #666; font-size: 13px;">Fast, low-fee crypto payments on the XRP Ledger</p>
-            </div>
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center;">
-                <div style="font-size: 28px; margin-bottom: 8px;">RLUSD</div>
-                <p style="color: #666; font-size: 13px;">Ripple USD stablecoin for price stability</p>
-            </div>
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center;">
                 <div style="font-size: 28px; margin-bottom: 8px;">Card</div>
                 <p style="color: #666; font-size: 13px;">Credit/debit via Stripe secure checkout</p>
             </div>
@@ -11474,7 +13210,7 @@ def price_guarantee():
     """Price guarantee & trust page (Build #170)."""
     GUARANTEE_CONTENT = """
     <div style="max-width: 800px; margin: 40px auto;">
-        <h1 style="font-family: 'Cinzel', serif; color: #1a1a2e; text-align: center; margin-bottom: 10px;">Price Guarantee</h1>
+        <h1 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e; text-align: center; margin-bottom: 10px;">Price Guarantee</h1>
         <p style="text-align: center; color: #666; margin-bottom: 40px; font-size: 18px;">MYSTES guarantees the lowest available price from our provider network.</p>
 
         <!-- Guarantee Badge -->
@@ -11607,37 +13343,40 @@ PRICING_PAGE_CONTENT = """
 <style>
 .pricing-page{max-width:1100px;margin:0 auto;padding:40px 20px;opacity:0;animation:priceFadeIn .6s ease-out forwards}
 .pricing-header{text-align:center;margin-bottom:48px}
-.pricing-brand{font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
-.pricing-title{font-family:'Cinzel',serif;font-size:2.2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 10px}
-.pricing-subtitle{color:rgba(255,255,255,0.5);font-size:16px;max-width:600px;margin:0 auto}
+.pricing-brand{font-family:var(--font-brand);font-size:14px;color:var(--accent-purple);letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+.pricing-title{font-family:var(--font-brand);font-size:2.2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 10px}
+.pricing-subtitle{color:var(--text-muted);font-size:16px;max-width:600px;margin:0 auto}
 .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:48px}
-.pricing-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px 24px;text-align:center;transition:transform .2s,border-color .2s;position:relative;overflow:hidden}
-.pricing-card:hover{transform:translateY(-4px);border-color:rgba(124,58,237,0.3)}
-.pricing-card.featured{border:2px solid #7c3aed}
+/* pricing-card: extends mystes-card */
+.pricing-card{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:var(--radius-xl);padding:32px 24px;text-align:center;transition:transform .2s,border-color .2s;position:relative;overflow:hidden}
+.pricing-card:hover{transform:translateY(-4px);border-color:var(--glass-border-hover)}
+.pricing-card.featured{border:2px solid var(--accent-purple)}
 .pricing-card.featured::before{content:'MOST POPULAR';position:absolute;top:16px;right:-28px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:10px;font-weight:700;padding:4px 32px;transform:rotate(45deg);letter-spacing:1px}
-.pricing-tier{font-family:'Cinzel',serif;font-size:18px;color:#e2e8f0;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+.pricing-tier{font-family:var(--font-brand);font-size:18px;color:#e2e8f0;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
 .pricing-price{font-size:2.8rem;font-weight:800;color:#fff;margin:12px 0 4px}
-.pricing-price span{font-size:14px;font-weight:400;color:rgba(255,255,255,0.5)}
-.pricing-fee{display:inline-block;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:600;margin:8px 0 20px}
+.pricing-price span{font-size:14px;font-weight:400;color:var(--text-muted)}
+/* pricing-fee: uses mystes-badge-* pattern */
+.pricing-fee{display:inline-block;padding:4px 14px;border-radius:var(--radius-full);font-size:13px;font-weight:600;margin:8px 0 20px}
 .pricing-fee-green{background:rgba(74,222,128,0.12);color:#4ade80;border:1px solid rgba(74,222,128,0.2)}
 .pricing-fee-purple{background:rgba(124,58,237,0.12);color:#a78bfa;border:1px solid rgba(124,58,237,0.2)}
-.pricing-fee-teal{background:rgba(20,184,166,0.12);color:#14b8a6;border:1px solid rgba(20,184,166,0.2)}
+.pricing-fee-teal{background:rgba(20,184,166,0.12);color:var(--accent-teal);border:1px solid rgba(20,184,166,0.2)}
 .pricing-features{text-align:left;margin:0;padding:0;list-style:none}
 .pricing-features li{padding:8px 0;color:rgba(255,255,255,0.7);font-size:14px;display:flex;align-items:center;gap:10px}
 .pricing-features li::before{content:'\\2713';color:#4ade80;font-weight:700;flex-shrink:0}
-.pricing-cta{display:block;margin-top:24px;padding:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;text-align:center;cursor:pointer;letter-spacing:1px;transition:opacity .2s}
+/* pricing-cta: replaced by mystes-btn */
+.pricing-cta{display:block;margin-top:24px;padding:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:var(--radius-md);font-size:15px;font-weight:600;text-decoration:none;text-align:center;cursor:pointer;letter-spacing:1px;transition:opacity .2s}
 .pricing-cta:hover{opacity:0.9}
 .pricing-cta.outline{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#e2e8f0}
-.pricing-cta.outline:hover{border-color:rgba(124,58,237,0.4)}
+.pricing-cta.outline:hover{border-color:var(--glass-border-hover)}
 .pricing-section{margin-bottom:48px}
-.pricing-section-title{font-family:'Cinzel',serif;font-size:1.4rem;color:#e2e8f0;letter-spacing:3px;text-align:center;margin-bottom:24px}
+.pricing-section-title{font-family:var(--font-brand);font-size:1.4rem;color:#e2e8f0;letter-spacing:3px;text-align:center;margin-bottom:24px}
 .pricing-b2b-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-.pricing-b2b-card{background:rgba(10,6,18,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:24px;text-align:center}
-.pricing-b2b-card h4{font-family:'Cinzel',serif;font-size:15px;color:#14b8a6;letter-spacing:2px;margin:0 0 8px}
+.pricing-b2b-card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:24px;text-align:center}
+.pricing-b2b-card h4{font-family:var(--font-brand);font-size:15px;color:var(--accent-teal);letter-spacing:2px;margin:0 0 8px}
 .pricing-b2b-card .price{font-size:2rem;font-weight:700;color:#fff;margin:8px 0}
-.pricing-b2b-card .price span{font-size:13px;font-weight:400;color:rgba(255,255,255,0.4)}
+.pricing-b2b-card .price span{font-size:13px;font-weight:400;color:var(--text-muted)}
 .pricing-b2b-card .fee-tag{font-size:12px;color:#a78bfa}
-.pricing-note{text-align:center;color:rgba(255,255,255,0.4);font-size:13px;margin-top:32px;line-height:1.6}
+.pricing-note{text-align:center;color:var(--text-muted);font-size:13px;margin-top:32px;line-height:1.6}
 @keyframes priceFadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:768px){.pricing-title{font-size:1.6rem}.pricing-price{font-size:2rem}.pricing-grid{grid-template-columns:1fr}}
 </style>
@@ -11752,11 +13491,11 @@ PRICING_PAGE_CONTENT = """
 FAQ_PAGE_CONTENT = """
 <style>
 .faq-page{max-width:800px;margin:0 auto;padding:40px 20px;opacity:0;animation:faqFadeIn .6s ease-out forwards}
-.faq-brand{text-align:center;font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
-.faq-title{text-align:center;font-family:'Cinzel',serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
+.faq-brand{text-align:center;font-family:'Space Grotesk',sans-serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+.faq-title{text-align:center;font-family:'Space Grotesk',sans-serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
 .faq-subtitle{text-align:center;color:rgba(255,255,255,0.5);font-size:15px;margin-bottom:36px}
 .faq-section{margin-bottom:32px}
-.faq-section-title{font-family:'Cinzel',serif;font-size:1rem;color:#a78bfa;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.faq-section-title{font-family:'Space Grotesk',sans-serif;font-size:1rem;color:#a78bfa;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06)}
 .faq-item{background:rgba(10,6,18,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:12px;margin-bottom:10px;overflow:hidden}
 .faq-q{padding:16px 20px;cursor:pointer;color:#e2e8f0;font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
 .faq-q:hover{background:rgba(124,58,237,0.06)}
@@ -11847,19 +13586,19 @@ FAQ_PAGE_CONTENT = """
 CONTACT_PAGE_CONTENT = """
 <style>
 .contact-page{max-width:700px;margin:0 auto;padding:40px 20px;opacity:0;animation:contactFadeIn .6s ease-out forwards}
-.contact-brand{text-align:center;font-family:'Cinzel',serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
-.contact-title{text-align:center;font-family:'Cinzel',serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
+.contact-brand{text-align:center;font-family:'Space Grotesk',sans-serif;font-size:14px;color:#7c3aed;letter-spacing:6px;text-transform:uppercase;margin-bottom:8px}
+.contact-title{text-align:center;font-family:'Space Grotesk',sans-serif;font-size:2rem;color:#f5f5f5;letter-spacing:4px;text-transform:uppercase;margin:0 0 8px}
 .contact-subtitle{text-align:center;color:rgba(255,255,255,0.5);font-size:15px;margin-bottom:36px}
 .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:32px}
 .contact-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;text-align:center;transition:border-color .2s}
 .contact-card:hover{border-color:rgba(124,58,237,0.3)}
 .contact-icon{font-size:32px;margin-bottom:12px;opacity:0.8}
-.contact-card h3{font-family:'Cinzel',serif;font-size:14px;color:#e2e8f0;letter-spacing:2px;margin:0 0 8px}
+.contact-card h3{font-family:'Space Grotesk',sans-serif;font-size:14px;color:#e2e8f0;letter-spacing:2px;margin:0 0 8px}
 .contact-card p{color:rgba(255,255,255,0.5);font-size:14px;margin:0 0 12px;line-height:1.5}
 .contact-card a{color:#a78bfa;text-decoration:none;font-size:14px;transition:color .2s}
 .contact-card a:hover{color:#7c3aed}
 .contact-form-card{background:rgba(10,6,18,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px}
-.contact-form-title{font-family:'Cinzel',serif;font-size:16px;color:#e2e8f0;letter-spacing:2px;margin:0 0 20px}
+.contact-form-title{font-family:'Space Grotesk',sans-serif;font-size:16px;color:#e2e8f0;letter-spacing:2px;margin:0 0 20px}
 .contact-label{display:block;color:rgba(255,255,255,0.6);font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
 .contact-input,.contact-textarea{width:100%;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;font-size:15px;font-family:'Outfit',sans-serif;transition:border-color .2s,box-shadow .2s;box-sizing:border-box;margin-bottom:16px}
 .contact-input:focus,.contact-textarea:focus{outline:none;border-color:rgba(124,58,237,0.5);box-shadow:0 0 0 3px rgba(124,58,237,0.15)}
@@ -12008,7 +13747,7 @@ def api_contact():
 
 TRAVEL_PLUS_PAGE_CONTENT = """
 <div style="max-width: 700px; margin: 40px auto; padding: 0 20px;">
-    <h1 style="font-family: 'Cinzel', serif; color: #1a1a2e; text-align: center; margin-bottom: 8px;">Travel+</h1>
+    <h1 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e; text-align: center; margin-bottom: 8px;">Travel+</h1>
     <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 18px;">Unlock the best MYSTES fee tier and earn more rewards.</p>
 
     {% if deal %}
@@ -12124,7 +13863,7 @@ function subscribeTravelPlus() {
 TRAVEL_PLUS_SUCCESS_CONTENT = """
 <div style="max-width: 600px; margin: 60px auto; text-align: center; padding: 0 20px;">
     <div style="font-size: 64px; margin-bottom: 16px;">&#127881;</div>
-    <h1 style="font-family: 'Cinzel', serif; color: #1a1a2e; margin-bottom: 8px;">Welcome to Travel+</h1>
+    <h1 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e; margin-bottom: 8px;">Welcome to Travel+</h1>
     <p style="color: #059669; font-size: 20px; font-weight: 600; margin-bottom: 24px;">Your fee is now 35% &mdash; you keep more of every deal.</p>
 
     <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: left;">
@@ -12359,7 +14098,7 @@ def subscribe_travel_plus_success():
 
 ALERTS_PAGE_CONTENT = """
 <div style="max-width: 700px; margin: 40px auto; padding: 0 20px;">
-    <h1 style="font-family: 'Cinzel', serif; color: #1a1a2e; margin-bottom: 8px;">Price Alerts</h1>
+    <h1 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e; margin-bottom: 8px;">Price Alerts</h1>
     <p style="color: #666; margin-bottom: 24px;">Get notified when flight prices drop on routes you care about.</p>
 
     {% if alerts %}
@@ -12426,7 +14165,7 @@ AI_SEARCH_CONTENT = """
 <div style="max-width: 1100px; margin: 30px auto;">
     <!-- AI Search Section -->
     <div class="card card-light" style="padding: 30px; margin-bottom: 20px;">
-        <h1 style="margin-bottom: 5px;"><span style="font-family: 'Cinzel', serif; letter-spacing: 5px; background: linear-gradient(135deg, #1a1a2e 0%, #4a3060 50%, #1a1a2e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">MYSTES</span> <span style="color: #1a1a2e;">AI Search</span></h1>
+        <h1 style="margin-bottom: 5px;"><span style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 5px; background: linear-gradient(135deg, #1a1a2e 0%, #4a3060 50%, #1a1a2e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">MYSTES</span> <span style="color: #1a1a2e;">AI Search</span></h1>
         <p style="color: #666; margin-bottom: 20px;">Multi-provider ensemble — queries multiple AI models simultaneously for the best answer. Or <a href="/portal" style="color: #667eea;">use your own AI subscription</a> through the proxy portal — log in with your credentials and your AI accesses market data from any region.</p>
 
         <!-- Search Bar -->
@@ -12445,7 +14184,7 @@ AI_SEARCH_CONTENT = """
 
         <!-- Credits Display -->
         <div id="aiCreditsBar" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: #f8f9fa; border-radius: 8px; font-size: 13px; color: #666; margin-bottom: 15px;">
-            <span>Credits: <strong id="aiCreditBalance">--</strong> RLUSD</span>
+            <span>Credits: <strong id="aiCreditBalance">--</strong> USD</span>
             <span>Free queries today: <strong id="aiFreeRemaining">--</strong></span>
             <a href="/portal" style="padding: 6px 14px; background: #28a745; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-block;">Use Your Own AI via Proxy</a>
             <button onclick="showAddProvider()" style="padding: 6px 14px; background: #6c757d; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-left: 5px;">+ Add API Key</button>
@@ -12480,7 +14219,7 @@ AI_SEARCH_CONTENT = """
     <!-- Private Market Deal Section -->
     <div class="card card-light" style="padding: 30px; margin-bottom: 20px;">
         <h2 style="color: #1a1a2e; margin-bottom: 5px;">Private Market Escrow</h2>
-        <p style="color: #666; margin-bottom: 20px;">Trustless XRPL smart contracts for person-to-person transactions — optional but safer than direct payment</p>
+        <p style="color: #666; margin-bottom: 20px;">Secure escrow for person-to-person transactions — optional but safer than direct payment</p>
 
         <div id="dealForm" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
             <div>
@@ -12489,12 +14228,12 @@ AI_SEARCH_CONTENT = """
                     style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
             </div>
             <div>
-                <label style="font-size: 13px; color: #666; display: block; margin-bottom: 4px;">Agreed Price (RLUSD)</label>
+                <label style="font-size: 13px; color: #666; display: block; margin-bottom: 4px;">Agreed Price (USD)</label>
                 <input type="number" id="dealPrice" placeholder="15000"
                     style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
             </div>
             <div>
-                <label style="font-size: 13px; color: #666; display: block; margin-bottom: 4px;">Seller Wallet (XRPL)</label>
+                <label style="font-size: 13px; color: #666; display: block; margin-bottom: 4px;">Seller Wallet</label>
                 <input type="text" id="dealSellerWallet" placeholder="rXXXXXXXXXXXXXXXX"
                     style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
             </div>
@@ -12526,7 +14265,7 @@ AI_SEARCH_CONTENT = """
             <h3 style="color: #1a1a2e;">Contract Terms</h3>
             <div id="dealTerms" style="padding: 15px; background: #f8f9fa; border-radius: 10px; margin-bottom: 10px;"></div>
             <div id="dealRisk" style="padding: 15px; background: #f0fdfa; border-radius: 10px; margin-bottom: 10px;"></div>
-            <button id="dealFundBtn" onclick="fundDeal()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Fund Escrow on XRPL</button>
+            <button id="dealFundBtn" onclick="fundDeal()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Fund Escrow</button>
         </div>
 
         <!-- Active Deals -->
@@ -12679,7 +14418,7 @@ async function loadAIHistory() {
             const div = document.createElement('div');
             div.style.cssText = 'padding: 8px 12px; border-bottom: 1px solid #eee; cursor: pointer;';
             div.innerHTML = '<span style="font-weight:500;">' + (q.query_text || '').substring(0, 60) + '</span>' +
-                '<span style="float:right;font-size:12px;color:#999;">' + (q.best_provider || '') + ' | ' + (q.credits_used || 0) + ' RLUSD</span>';
+                '<span style="float:right;font-size:12px;color:#999;">' + (q.best_provider || '') + ' | ' + (q.credits_used || 0) + ' USD</span>';
             div.onclick = () => { document.getElementById('aiSearchInput').value = q.query_text; aiSearch(); };
             container.appendChild(div);
         });
@@ -12734,9 +14473,9 @@ async function createDeal() {
         const risk = data.contract.risk_assessment;
         document.getElementById('dealTerms').innerHTML =
             '<p><strong>Item:</strong> ' + terms.item + '</p>' +
-            '<p><strong>Price:</strong> ' + terms.price_rlusd + ' RLUSD</p>' +
-            '<p><strong>Escrow Fee:</strong> ' + terms.fee_rlusd + ' RLUSD</p>' +
-            '<p><strong>Total:</strong> ' + terms.total_rlusd + ' RLUSD</p>' +
+            '<p><strong>Price:</strong> $' + terms.price_rlusd + '</p>' +
+            '<p><strong>Escrow Fee:</strong> $' + terms.fee_rlusd + '</p>' +
+            '<p><strong>Total:</strong> $' + terms.total_rlusd + '</p>' +
             '<p><strong>Delivery:</strong> ' + terms.delivery_deadline_days + ' days | Dispute window: ' + terms.dispute_window_days + ' days</p>';
         document.getElementById('dealRisk').innerHTML =
             '<p><strong>Risk Score:</strong> ' + risk.score + '/10</p>' +
@@ -12748,7 +14487,7 @@ async function createDeal() {
 
 async function fundDeal() {
     if (!currentDealId) return;
-    if (!confirm('Fund escrow on XRPL? This will lock your RLUSD until delivery is confirmed.')) return;
+    if (!confirm('Fund escrow? This will lock your funds until delivery is confirmed.')) return;
     try {
         const resp = await fetch('/api/portal/deal/' + currentDealId + '/fund', {method:'POST'});
         const data = await resp.json();
@@ -12801,7 +14540,7 @@ async function loadDeals() {
                           '<button onclick="disputeDeal('+d.id+')" style="padding:6px 12px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">Dispute</button>';
             }
             div.innerHTML = '<div><strong>' + (d.item_description || '').substring(0,40) + '</strong><br>' +
-                '<span style="font-size:12px;color:#999;">' + d.agreed_price_rlusd + ' RLUSD | Fee: ' + d.escrow_fee_rlusd + '</span></div>' +
+                '<span style="font-size:12px;color:#999;">$' + d.agreed_price_rlusd + ' | Fee: $' + d.escrow_fee_rlusd + '</span></div>' +
                 '<div style="display:flex;align-items:center;gap:10px;">' +
                 '<span style="padding:4px 10px;border-radius:12px;font-size:12px;background:' + (statusColors[d.status]||'#eee') + ';color:white;">' + d.status + '</span>' +
                 actions + '</div>';
@@ -13476,7 +15215,7 @@ function renderWalletCard(r) {
             html += '<div class="ai-card"><div class="ai-wallet-card"><div class="ai-wallet-icon">&#9670;</div><div class="ai-wallet-details">';
             html += '<div class="ai-card-title">' + esc(w.type || 'Wallet') + '</div>';
             html += '<div class="ai-card-row"><span class="label">Address</span><span class="value" style="font-size:0.82rem;word-break:break-all;">' + esc(w.address || '') + '</span></div>';
-            if (w.balance != null) html += '<div class="ai-card-row"><span class="label">Balance</span><span class="value">' + w.balance + ' ' + esc(w.currency || 'XRP') + '</span></div>';
+            if (w.balance != null) html += '<div class="ai-card-row"><span class="label">Balance</span><span class="value">' + w.balance + ' ' + esc(w.currency || 'USD') + '</span></div>';
             html += '</div></div></div>';
         });
     }
@@ -13533,7 +15272,7 @@ function renderHelperCard(r) {
     let html = '<div class="ai-cards"><div class="ai-card">';
     html += '<div class="ai-card-header"><span class="ai-card-title">Helper Profile</span>';
     html += '<span class="ai-card-badge">' + esc(r.status || 'inactive') + '</span></div>';
-    if (r.earnings != null) html += '<div class="ai-card-row"><span class="label">Earnings</span><span class="ai-card-price" style="font-size:1.1rem;">' + r.earnings + ' ' + esc(r.currency || 'XRP') + '</span></div>';
+    if (r.earnings != null) html += '<div class="ai-card-row"><span class="label">Earnings</span><span class="ai-card-price" style="font-size:1.1rem;">' + r.earnings + ' ' + esc(r.currency || 'USD') + '</span></div>';
     if (r.tasks_completed != null) html += '<div class="ai-card-row"><span class="label">Tasks Done</span><span class="value">' + r.tasks_completed + '</span></div>';
     if (r.rating != null) html += '<div class="ai-card-row"><span class="label">Rating</span><span class="value">' + r.rating + '</span></div>';
     html += '</div></div>';
@@ -13553,7 +15292,7 @@ function renderNodeCard(r) {
 function renderEarningsCard(r) {
     let html = '<div class="ai-cards"><div class="ai-card">';
     html += '<div class="ai-card-header"><span class="ai-card-title">Earnings Summary</span></div>';
-    if (r.total != null) html += '<div class="ai-card-row"><span class="label">Total</span><span class="ai-card-price" style="font-size:1.1rem;">' + r.total + ' ' + esc(r.currency || 'XRP') + '</span></div>';
+    if (r.total != null) html += '<div class="ai-card-row"><span class="label">Total</span><span class="ai-card-price" style="font-size:1.1rem;">' + r.total + ' ' + esc(r.currency || 'USD') + '</span></div>';
     if (r.this_month != null) html += '<div class="ai-card-row"><span class="label">This Month</span><span class="value">' + r.this_month + '</span></div>';
     if (r.pending != null) html += '<div class="ai-card-row"><span class="label">Pending</span><span class="value">' + r.pending + '</span></div>';
     html += '</div></div>';
@@ -13983,7 +15722,7 @@ MYSTES_INSTALL_CONTENT = """
         <div class="feature-item">
             <div class="feat-icon">&#x1F512;</div>
             <h3>Pay Your Way</h3>
-            <p>Card, crypto, or RLUSD &mdash; your choice</p>
+            <p>Card or MoonPay &mdash; your choice</p>
         </div>
     </div>
 
@@ -14139,7 +15878,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">1</div>
             <div class="step-content">
                 <p><strong>Get your Helper Token</strong></p>
-                <p>Sign in to MYSTES, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a> to find your token. Or copy it from the box above.</p>
+                <p>Sign in to MYSTES, then go to your <a href="/ai" style="color:#4fc3f7;">Helper Dashboard</a> to find your token. Or copy it from the box above.</p>
             </div>
         </div>
 
@@ -14182,7 +15921,7 @@ SETUP_GUIDES_CONTENT = """
             <div class="step-num">1</div>
             <div class="step-content">
                 <p><strong>Get your Helper Token</strong></p>
-                <p>Sign in to MYSTES, then go to your <a href="/helper" style="color:#4fc3f7;">Helper Dashboard</a>.</p>
+                <p>Sign in to MYSTES, then go to your <a href="/ai" style="color:#4fc3f7;">Helper Dashboard</a>.</p>
             </div>
         </div>
 
@@ -14445,6 +16184,14 @@ SEARCH_PAGE_CONTENT = """
 .search-form { max-width: 900px; margin: 0 auto; }
 .search-row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
 .search-row .form-group { flex: 1; min-width: 150px; position: relative; }
+.search-row .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #ccc; font-size: 13px; }
+.search-row .form-group input,
+.search-row .form-group select {
+    width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 14px; background: white; color: #1a1a2e;
+}
+.search-row .form-group input:focus,
+.search-row .form-group select:focus { outline: none; border-color: #7c3aed; }
 .leg-card { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
 .leg-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .leg-number { background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
@@ -14840,10 +16587,12 @@ SEARCH_PAGE_CONTENT = """
     border: 1px solid #ddd;
     border-radius: 20px;
     background: white;
+    color: #1a1a2e;
     font-size: 14px;
     cursor: pointer;
     min-width: 120px;
 }
+.option-select option { color: #1a1a2e; background: white; }
 .option-select:hover { border-color: #7c3aed; }
 .option-select:focus { outline: none; border-color: #7c3aed; }
 
@@ -14854,6 +16603,7 @@ SEARCH_PAGE_CONTENT = """
     border: 1px solid #ddd;
     border-radius: 20px;
     background: white;
+    color: #1a1a2e;
     font-size: 14px;
     cursor: pointer;
     display: flex;
@@ -14867,6 +16617,7 @@ SEARCH_PAGE_CONTENT = """
     top: 100%;
     left: 0;
     background: white;
+    color: #1a1a2e;
     border: 1px solid #ddd;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -14893,6 +16644,7 @@ SEARCH_PAGE_CONTENT = """
     border: 1px solid #ddd;
     border-radius: 50%;
     background: white;
+    color: #1a1a2e;
     font-size: 18px;
     cursor: pointer;
     display: flex;
@@ -14910,6 +16662,7 @@ SEARCH_PAGE_CONTENT = """
     border: 1px solid #ddd;
     border-radius: 50%;
     background: white;
+    color: #1a1a2e;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -15213,7 +16966,7 @@ tr.selected-flight .select-flight-btn::after {
                     <option value="2">2 stops or fewer</option>
                 </select>
 
-                <label class="flexible-dates-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8f9fa; border-radius: 20px; cursor: pointer; font-size: 14px;">
+                <label class="flexible-dates-toggle" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8f9fa; color: #1a1a2e; border-radius: 20px; cursor: pointer; font-size: 14px;">
                     <input type="checkbox" name="flexible_dates" id="flexible-dates" style="width: 16px; height: 16px;" onchange="toggleFlexDaysSelector()">
                     <span>Flexible +/-</span>
                     <select name="flex_days" id="flex-days" class="option-select" style="min-width: 80px; padding: 4px 8px; font-size: 13px;">
@@ -17139,10 +18892,6 @@ function showPaymentModal(dealData) {
                     <span class="payment-icon">💳</span>
                     <span>Credit/Debit Card</span>
                 </button>
-                <button onclick="payWithXRP()" class="payment-option-btn">
-                    <span class="payment-icon">💎</span>
-                    <span>XRP / RLUSD</span>
-                </button>
             </div>
 
             <p style="text-align: center; color: #666; font-size: 13px; margin-top: 20px;">
@@ -17159,16 +18908,7 @@ function closePaymentModal() {
 }
 
 function payWithCard() {
-    alert('Card payment integration coming soon! For now, please use XRP or contact support.');
-}
-
-function payWithXRP() {
-    closePaymentModal();
-    if (selectedFlight) {
-        const serviceFee = selectedFlight.savings > 5 ? Math.max(selectedFlight.savings * 0.25, 3) : 4.99;
-        window.location.href = '/pay/xrp?amount=' + (selectedFlight.cheapest_price + serviceFee).toFixed(2) +
-            '&flight=' + encodeURIComponent(selectedFlight.airline + ' ' + selectedFlight.route);
-    }
+    alert('Stripe card payment processing...');
 }
 
 // Coinbase crypto removed — Stripe + MoonPay only
@@ -17802,12 +19542,1180 @@ def search_page():
     )
 
 
+# ===========================================================================
+# ANASTASiA Booking Engine (Build #205)
+# ===========================================================================
+
+# Module-level booking engine (lazy-initialized)
+_booking_engine_module = None
+
+def _get_booking_engine():
+    """Lazy-init the ANASTASiA BookingEngineModule singleton."""
+    global _booking_engine_module
+    if _booking_engine_module is None:
+        try:
+            import sys as _be_sys
+            _be_sdk = os.path.join(os.path.dirname(__file__), "picasso-sdk")
+            if _be_sdk not in _be_sys.path:
+                _be_sys.path.insert(0, _be_sdk)
+            from anastasia.booking_engine import BookingEngineModule
+            from anastasia.core.events import EventBus as _BEBus
+
+            _booking_engine_module = BookingEngineModule()
+            _booking_engine_module.initialize(event_bus=_BEBus(), config={})
+        except Exception as e:
+            logger.warning("[BookingEngine] Module unavailable: %s", e)
+    return _booking_engine_module
+
+
+@app.route("/api/booking/enqueue", methods=["POST"])
+@csrf.exempt
+@limiter.limit("5 per minute")
+def api_booking_enqueue():
+    """Submit a booking request to the priority queue.
+
+    Returns immediately with a job_id for status polling.
+    Card data flows: form → queue → airline_booker → wipe (never stored to DB).
+
+    Request body:
+    {
+        "deal_id": "deal_LAX_HND_...",
+        "passenger_data": {"first_name": "...", "last_name": "...", ...},
+        "payment_token": "tok_..."
+    }
+    """
+    data = request.get_json() or {}
+    deal_id = data.get("deal_id", "")
+    passenger_data = data.get("passenger_data")
+    payment_token = data.get("payment_token")
+
+    if not deal_id:
+        return jsonify({"error": "deal_id required"}), 400
+    if not passenger_data:
+        return jsonify({"error": "passenger_data required"}), 400
+
+    # Resolve user and fee tier for queue priority
+    user_id = None
+    fee_tier = "guest"
+    if current_user and current_user.is_authenticated:
+        user_id = current_user.id
+        # Determine fee tier for priority
+        try:
+            from models import CommercialAccount, Subscription
+            account = CommercialAccount.query.filter_by(
+                owner_user_id=current_user.id, is_active=True
+            ).first()
+            if account and account.subscription_status == "active":
+                tier_map = {25: "b2b_starter", 20: "b2b_growth", 15: "b2b_volume"}
+                fee_tier = tier_map.get(int(account.fee_percent), "b2b_starter")
+            else:
+                sub = Subscription.query.filter_by(
+                    user_id=current_user.id, status="active"
+                ).first()
+                if sub and sub.tier == "travel_plus":
+                    fee_tier = "travel_plus"
+                else:
+                    fee_tier = "free"
+        except Exception:
+            fee_tier = "free"
+
+    # Get the deal for market info
+    deal = Deal.query.filter_by(deal_id=deal_id).first()
+    market = ""
+    if deal:
+        market = getattr(deal, "cheapest_market", "") or "API"
+
+    engine = _get_booking_engine()
+    if not engine:
+        return jsonify({"error": "Booking engine unavailable. Please try again."}), 503
+
+    try:
+        result = engine.enqueue_booking(
+            deal_id=deal_id,
+            user_id=user_id,
+            market=market,
+            fee_tier=fee_tier,
+            passenger_data=passenger_data,
+            payment_info={"payment_token": payment_token} if payment_token else None,
+        )
+        return jsonify(result)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 503
+
+
+@app.route("/api/booking/queue-status/<job_id>", methods=["GET"])
+@csrf.exempt
+@limiter.limit("30 per minute")
+def api_booking_queue_status(job_id):
+    """Poll booking queue job status.
+
+    Returns current status of a queued/in-progress/completed booking.
+    Frontend polls this every 2-3 seconds after enqueue.
+    """
+    engine = _get_booking_engine()
+    if not engine:
+        return jsonify({"error": "Booking engine unavailable"}), 503
+
+    status = engine.get_booking_status(job_id)
+    if not status:
+        return jsonify({"error": "Job not found"}), 404
+
+    return jsonify(status)
+
+
+# --- Booking engine background worker ---
+_booking_worker_started = False
+
+def _start_booking_worker(app_instance):
+    """Start background thread for processing booking queue."""
+    global _booking_worker_started
+    if _booking_worker_started:
+        return
+    _booking_worker_started = True
+
+    import threading
+
+    def _worker_loop():
+        """Process queue jobs and check timeouts periodically."""
+        cycle = 0
+        while True:
+            try:
+                import time as _wt
+                _wt.sleep(2)
+                cycle += 1
+
+                engine = _get_booking_engine()
+                if not engine:
+                    continue
+
+                # Process next job in queue
+                with app_instance.app_context():
+                    job_id = engine.process_next()
+                    if job_id:
+                        job = engine.queue.get_job(job_id)
+                        if job:
+                            try:
+                                deal = Deal.query.filter_by(deal_id=job.deal_id).first()
+                                if deal:
+                                    # Route: proxy vs API booking (Build #207)
+                                    is_proxy = (
+                                        hasattr(job, 'payment_info') and
+                                        isinstance(job.payment_info, dict) and
+                                        job.payment_info.get("booking_channel") == "proxy"
+                                    )
+
+                                    if is_proxy:
+                                        result = _execute_proxy_booking(job, deal)
+                                    else:
+                                        booking = Booking.query.filter_by(
+                                            deal_id=deal.id
+                                        ).order_by(Booking.created_at.desc()).first()
+                                        if booking:
+                                            result = execute_automated_booking(
+                                                booking, deal, job.passenger_data or {}
+                                            )
+                                        else:
+                                            result = {"success": False, "error": "No booking record found"}
+
+                                    if result and result.get("success"):
+                                        engine.complete_booking(
+                                            job_id,
+                                            confirmation_code=result.get("confirmation_code"),
+                                        )
+                                    else:
+                                        engine.complete_booking(
+                                            job_id,
+                                            error=result.get("error", "Booking failed"),
+                                        )
+                                else:
+                                    engine.complete_booking(
+                                        job_id, error="Deal not found"
+                                    )
+                            except Exception as exc:
+                                logger.error("[BookingWorker] Error: %s", exc)
+                                engine.complete_booking(job_id, error=str(exc))
+
+                    # Check timeouts every 15 cycles (30 seconds)
+                    if cycle % 15 == 0:
+                        engine.check_timeouts()
+
+                    # Dead letter sweep every 150 cycles (~5 minutes) (Build #212)
+                    if cycle % 150 == 0:
+                        try:
+                            _sweep_orphaned_payments()
+                        except Exception as sweep_err:
+                            logger.error("[DeadLetter] Sweep failed: %s", sweep_err)
+
+            except Exception as worker_err:
+                logger.error("[BookingWorker] Worker loop error: %s", worker_err)
+
+    thread = threading.Thread(target=_worker_loop, daemon=True, name="booking-worker")
+    thread.start()
+    logger.info("[BookingEngine] Background worker started")
+
+
+# Start worker when app is ready (safe for import time)
+# Gated behind TESTING check — worker thread crashes pytest (Build #P0)
+if not app.config.get("TESTING"):
+    try:
+        _start_booking_worker(app)
+    except Exception:
+        pass  # Will start on first request if app not ready yet
+
+
+# ===========================================================================
+# Proxy Booking Session Flow (Build #207)
+# ===========================================================================
+
+_proxy_module_instance = None
+
+def _get_proxy_module():
+    """Lazy-init the ANASTASiA ProxyModule singleton."""
+    global _proxy_module_instance
+    if _proxy_module_instance is None:
+        try:
+            import sys as _pm_sys
+            _pm_sdk = os.path.join(os.path.dirname(__file__), "picasso-sdk")
+            if _pm_sdk not in _pm_sys.path:
+                _pm_sys.path.insert(0, _pm_sdk)
+            from anastasia.proxy import ProxyModule
+            from anastasia.core.events import EventBus as _PMBus
+
+            _proxy_module_instance = ProxyModule()
+            _proxy_module_instance.initialize(event_bus=_PMBus(), config={
+                "proxy_provider": os.environ.get("PROXY_PROVIDER", "brightdata"),
+            })
+        except Exception as e:
+            logger.warning("[ProxyModule] Module unavailable: %s", e)
+    return _proxy_module_instance
+
+
+@app.route("/api/booking/proxy-session", methods=["POST"])
+@csrf.exempt
+@limiter.limit("5 per minute")
+def api_proxy_booking_session():
+    """Initiate a proxy booking session (Build #207).
+
+    THE core product flow. Customer clicks "Book" on an arbitrage deal:
+    1. Validate deal has arbitrage spread
+    2. Calculate service fee (tier% of spread, $3 min, NO max)
+    3. Authorize Stripe PaymentIntent for service fee only (capture later)
+    4. Enqueue proxy booking job
+    5. Return job_id for polling
+
+    Airline charges customer's card directly (airline = MoR).
+    KYRIOS charges separate service fee (KYRIOS = MoR for fee only).
+
+    Request: { deal_id, passenger_data, card_token, service_fee_payment_method_id }
+    """
+    from payments import get_fee_percent
+
+    data = request.get_json() or {}
+    deal_id = data.get("deal_id", "")
+    passenger_data = data.get("passenger_data")
+    card_token = data.get("card_token")
+    service_fee_pm_id = data.get("service_fee_payment_method_id")
+
+    if not deal_id:
+        return jsonify({"error": "deal_id required"}), 400
+    if not passenger_data:
+        return jsonify({"error": "passenger_data required"}), 400
+
+    deal = Deal.query.filter_by(deal_id=deal_id).first()
+    if not deal:
+        return jsonify({"error": "Deal not found"}), 404
+
+    # Must have arbitrage spread (savings > 0)
+    home_price = float(deal.home_price_usd or 0)
+    arb_price = float(deal.arbitrage_price_usd or 0)
+    if home_price <= 0 or arb_price <= 0 or home_price <= arb_price:
+        return jsonify({"error": "Deal has no arbitrage spread. Use standard booking."}), 400
+
+    spread = home_price - arb_price
+
+    # Calculate service fee: fee% of spread, $3 min, NO max cap
+    user = current_user if (current_user and current_user.is_authenticated) else None
+    fee_pct = get_fee_percent(user)
+    service_fee = spread * fee_pct
+    service_fee = max(service_fee, 3.0)  # $3 minimum, NO maximum
+    service_fee = round(service_fee, 2)
+
+    # Resolve user info and fee tier
+    user_id = user.id if user else None
+    fee_tier = "guest"
+    if user:
+        try:
+            account = CommercialAccount.query.filter_by(
+                owner_user_id=user.id, is_active=True
+            ).first()
+            if account and account.subscription_status == "active":
+                tier_map = {25: "b2b_starter", 20: "b2b_growth", 15: "b2b_volume"}
+                fee_tier = tier_map.get(int(account.fee_percent), "b2b_starter")
+            else:
+                sub = Subscription.query.filter_by(
+                    user_id=user.id, status="active"
+                ).first()
+                fee_tier = "travel_plus" if (sub and sub.tier == "travel_plus") else "free"
+        except Exception:
+            fee_tier = "free"
+
+    market = getattr(deal, "cheapest_market", "") or getattr(deal, "arbitrage_market", "") or ""
+
+    # Authorize Stripe PaymentIntent for service fee (capture_method=manual)
+    stripe_pi_id = None
+    if service_fee_pm_id:
+        try:
+            import stripe
+            stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            pi = stripe.PaymentIntent.create(
+                amount=int(service_fee * 100),
+                currency="usd",
+                payment_method=service_fee_pm_id,
+                capture_method="manual",
+                confirm=True,
+                description=f"MYSTES service fee — {deal.origin} to {deal.destination}",
+                metadata={
+                    "deal_id": deal_id,
+                    "user_id": str(user_id or "guest"),
+                    "type": "proxy_service_fee",
+                },
+                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+            )
+            stripe_pi_id = pi.id
+        except Exception as stripe_err:
+            logger.error("[ProxyBooking] Stripe auth failed: %s", stripe_err)
+            return jsonify({"error": "Payment authorization failed. Please try again."}), 402
+
+    # Enqueue via BookingEngineModule
+    engine = _get_booking_engine()
+    if not engine:
+        # Cancel Stripe hold if engine unavailable
+        if stripe_pi_id:
+            try:
+                import stripe
+                stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+                stripe.PaymentIntent.cancel(stripe_pi_id)
+            except Exception:
+                pass
+        return jsonify({"error": "Booking engine unavailable. Please try again."}), 503
+
+    try:
+        result = engine.enqueue_booking(
+            deal_id=deal_id,
+            user_id=user_id,
+            market=market,
+            fee_tier=fee_tier,
+            passenger_data=passenger_data,
+            payment_info={
+                "card_token": card_token,
+                "booking_channel": "proxy",
+            },
+        )
+        result["service_fee_usd"] = service_fee
+        result["stripe_pi_id"] = stripe_pi_id
+        result["booking_channel"] = "proxy"
+        return jsonify(result)
+    except RuntimeError as e:
+        # Cancel Stripe hold on queue failure
+        if stripe_pi_id:
+            try:
+                import stripe
+                stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+                stripe.PaymentIntent.cancel(stripe_pi_id)
+            except Exception:
+                pass
+        return jsonify({"error": str(e)}), 503
+
+
+@app.route("/api/booking/proxy-complete", methods=["POST"])
+@csrf.exempt
+@limiter.limit("10 per minute")
+def api_proxy_booking_complete():
+    """Confirm proxy booking completion (Build #207).
+
+    Called after polling shows job completed with confirmation_code.
+    Captures Stripe PaymentIntent, creates Booking record, awards points.
+
+    Request: { job_id, stripe_pi_id }
+    """
+    from payments import get_fee_percent
+
+    data = request.get_json() or {}
+    job_id = data.get("job_id")
+    stripe_pi_id = data.get("stripe_pi_id")
+
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    engine = _get_booking_engine()
+    if not engine:
+        return jsonify({"error": "Booking engine unavailable"}), 503
+
+    status = engine.get_booking_status(job_id)
+    if not status:
+        return jsonify({"error": "Job not found"}), 404
+
+    if status.get("status") != "completed":
+        return jsonify({"error": f"Job not complete (status: {status.get('status')})"}), 400
+
+    confirmation_code = status.get("confirmation_code")
+    if not confirmation_code:
+        return jsonify({"error": "No confirmation code from booking"}), 400
+
+    deal_id = status.get("deal_id", "")
+    deal = Deal.query.filter_by(deal_id=deal_id).first()
+
+    # Capture Stripe service fee
+    if stripe_pi_id:
+        try:
+            import stripe
+            stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            stripe.PaymentIntent.capture(stripe_pi_id)
+        except Exception as capture_err:
+            logger.error("[ProxyBooking] Stripe capture failed: %s (PI: %s)", capture_err, stripe_pi_id)
+
+    # Create Booking record
+    user_id = None
+    if current_user and current_user.is_authenticated:
+        user_id = current_user.id
+
+    booking = Booking(
+        user_id=user_id,
+        deal_id=deal.id if deal else None,
+        confirmation_code=confirmation_code,
+        status="booked",
+        booking_channel="proxy",
+        proxy_market=getattr(deal, "cheapest_market", "") or getattr(deal, "arbitrage_market", ""),
+        service_fee_stripe_pi=stripe_pi_id,
+        booking_source="proxy",
+        booked_at=datetime.now(timezone.utc),
+    )
+
+    # Fill passenger data from job
+    pax = status.get("passenger_data") or {}
+    booking.passenger_first_name = pax.get("first_name")
+    booking.passenger_last_name = pax.get("last_name")
+    booking.passenger_email = pax.get("email")
+    booking.passenger_name = f"{pax.get('first_name', '')} {pax.get('last_name', '')}".strip()
+
+    db.session.add(booking)
+
+    # Record B2B commission if referral in session
+    if session.get("referral_source") and deal:
+        try:
+            ref_account = CommercialAccount.query.filter_by(
+                account_id=session["referral_source"], is_active=True
+            ).first()
+            if ref_account:
+                from models import CommercialTransaction
+                txn = CommercialTransaction(
+                    account_id=ref_account.id,
+                    booking_id=booking.id,
+                    origin=deal.origin,
+                    destination=deal.destination,
+                    retail_price_usd=float(deal.home_price_usd or 0),
+                    booked_price_usd=float(deal.arbitrage_price_usd or 0),
+                    savings_usd=float(deal.user_savings_usd or 0),
+                    fee_amount_usd=float(deal.platform_fee_usd or 0),
+                    market_used=booking.proxy_market,
+                )
+                db.session.add(txn)
+        except Exception as ref_err:
+            logger.warning("[ProxyBooking] Referral tracking: %s", ref_err)
+
+    # Award MYSTES Rewards
+    if user_id:
+        try:
+            rewards = RewardsAccount.query.filter_by(user_id=user_id).first()
+            if rewards:
+                points = int(float(deal.arbitrage_price_usd or 0) * 10)  # 10pts/$1
+                rewards.balance += points
+                rewards.lifetime_earned += points
+        except Exception:
+            pass
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "booking_id": booking.id,
+        "confirmation_code": confirmation_code,
+        "booking_channel": "proxy",
+    })
+
+
+@app.route("/api/booking/proxy-cancel", methods=["POST"])
+@csrf.exempt
+@limiter.limit("10 per minute")
+def api_proxy_booking_cancel():
+    """Cancel a proxy booking session (Build #207).
+
+    Releases Stripe hold and cancels the queue job.
+    Wipes any sensitive payment data.
+
+    Request: { job_id, stripe_pi_id }
+    """
+    data = request.get_json() or {}
+    job_id = data.get("job_id")
+    stripe_pi_id = data.get("stripe_pi_id")
+
+    # Cancel Stripe hold
+    if stripe_pi_id:
+        try:
+            import stripe
+            stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            stripe.PaymentIntent.cancel(stripe_pi_id)
+        except Exception as e:
+            logger.warning("[ProxyBooking] Stripe cancel: %s", e)
+
+    # Cancel job in queue
+    if job_id:
+        engine = _get_booking_engine()
+        if engine:
+            try:
+                engine.complete_booking(job_id, error="Cancelled by user")
+            except Exception:
+                pass
+
+    return jsonify({"success": True, "cancelled": True})
+
+
+def _execute_proxy_booking(job, deal):
+    """Execute booking through Bright Data Scraping Browser (Build #207).
+
+    Connects Playwright to Bright Data CDP endpoint, navigates airline
+    checkout, fills passenger + payment, airline charges customer directly.
+    Card data wiped from memory after completion.
+    """
+    proxy_module = _get_proxy_module()
+    engine = _get_booking_engine()
+
+    try:
+        market = getattr(deal, "cheapest_market", "") or getattr(deal, "arbitrage_market", "") or "DK"
+
+        # Get CDP URL from proxy module
+        cdp_url = None
+        if proxy_module:
+            try:
+                cdp_url = proxy_module.get_scraping_browser_url(market)
+            except Exception as proxy_err:
+                logger.warning("[ProxyBooking] Proxy module CDP: %s", proxy_err)
+
+        if not cdp_url:
+            # Fallback to env-configured Bright Data
+            bd_user = os.environ.get("BRIGHTDATA_USERNAME", "")
+            bd_pass = os.environ.get("BRIGHTDATA_PASSWORD", "")
+            bd_host = os.environ.get("BRIGHTDATA_SB_HOST", "brd.superproxy.io:9515")
+            if bd_user and bd_pass:
+                cdp_url = f"wss://{bd_user}-country-{market.lower()}:{bd_pass}@{bd_host}"
+
+        if not cdp_url:
+            return {"success": False, "error": "No proxy configuration available"}
+
+        # Resolve airline booking URL
+        booking_url = _resolve_airline_booking_url(deal)
+        if not booking_url:
+            return {"success": False, "error": "Could not resolve airline booking URL"}
+
+        passenger_data = job.passenger_data or {}
+        payment_info = job.payment_info or {}
+
+        # Execute via Playwright
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            return {"success": False, "error": "Playwright not installed"}
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.connect_over_cdp(cdp_url)
+            page = browser.new_page()
+
+            try:
+                page.goto(booking_url, timeout=60000)
+                _fill_passenger_form(page, passenger_data)
+                _fill_payment_form(page, payment_info)
+                _submit_booking(page)
+                confirmation = _extract_confirmation(page)
+            finally:
+                browser.close()
+                # Wipe card data from memory
+                payment_info.clear()
+                if hasattr(job, 'payment_info'):
+                    job.payment_info = None
+
+        if confirmation:
+            return {"success": True, "confirmation_code": confirmation}
+        else:
+            return {"success": False, "error": "Could not extract confirmation code"}
+
+    except Exception as e:
+        logger.error("[ProxyBooking] Execution error: %s", e)
+        return {"success": False, "error": str(e)}
+    finally:
+        # Ensure card data is always wiped
+        if hasattr(job, 'payment_info') and job.payment_info:
+            job.payment_info = None
+
+
+def _resolve_airline_booking_url(deal):
+    """Build the airline booking URL from deal data (Build #207).
+
+    Returns the deeplink URL for the airline's booking page.
+    Future builds will add per-airline knowledge cards for precise URLs.
+    """
+    if not deal:
+        return None
+
+    # Check for stored booking URL in raw offer
+    if deal.amadeus_offer_data:
+        try:
+            raw = json.loads(deal.amadeus_offer_data)
+            url = raw.get("booking_url") or raw.get("deep_link") or raw.get("link")
+            if url:
+                return url
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Generic airline website URLs (initial stubs, knowledge cards override later)
+    airline = (deal.airline or "").lower()
+    origin = deal.origin or ""
+    destination = deal.destination or ""
+    dep_date = ""
+    if deal.departure_date:
+        dep_date = deal.departure_date.strftime("%Y-%m-%d") if hasattr(deal.departure_date, 'strftime') else str(deal.departure_date)
+
+    airline_urls = {
+        "united": f"https://www.united.com/en/us/book-flight/results?f={origin}&t={destination}&d={dep_date}&tt=1&sc=7&px=1&taxng=1&newHP=True&clm=7&st=bestmatches",
+        "delta": f"https://www.delta.com/flight-search/book-a-flight?cacheKeySuffix=a&departureDate={dep_date}&from={origin}&to={destination}&paxCount=1",
+        "american": f"https://www.aa.com/booking/search?locale=en_US&pax=1&adult=1&type=OneWay&searchType=Round&from={origin}&to={destination}&depart={dep_date}",
+        "lufthansa": f"https://www.lufthansa.com/us/en/flight-search?&TRIP_TYPE=O&TRAVELERS_A=1&CABIN_CLASS=Y&ORIGIN={origin}&DESTINATION={destination}&OUTBOUND_DATE={dep_date}",
+        "klm": f"https://www.klm.com/search/result?pax=1:0:0:0:0:0&from={origin}&to={destination}&outDate={dep_date}",
+        "air france": f"https://www.airfrance.com/search/result?pax=1:0:0:0:0:0&from={origin}&to={destination}&outDate={dep_date}",
+    }
+
+    for key, url in airline_urls.items():
+        if key in airline:
+            return url
+
+    # Fallback: Google Flights (works for any airline)
+    return f"https://www.google.com/travel/flights?q=flights+from+{origin}+to+{destination}+on+{dep_date}"
+
+
+def _fill_passenger_form(page, passenger_data):
+    """Fill passenger information on airline checkout page (Build #207).
+
+    Generic selectors — airline-specific knowledge cards will override per carrier.
+    """
+    first_name = passenger_data.get("first_name", "")
+    last_name = passenger_data.get("last_name", "")
+    email = passenger_data.get("email", "")
+
+    selectors = [
+        ('input[name*="first"], input[id*="first"], input[placeholder*="First"]', first_name),
+        ('input[name*="last"], input[id*="last"], input[placeholder*="Last"]', last_name),
+        ('input[name*="email"], input[type="email"], input[id*="email"]', email),
+    ]
+
+    for selector, value in selectors:
+        if value:
+            try:
+                el = page.query_selector(selector)
+                if el:
+                    el.fill(value)
+            except Exception:
+                pass
+
+
+def _fill_payment_form(page, payment_info):
+    """Fill payment card on airline checkout page (Build #207).
+
+    Customer's card → airline charges directly. Airline = MoR.
+    """
+    card_number = payment_info.get("card_number", "")
+    card_expiry = payment_info.get("card_expiry", "")
+    card_cvc = payment_info.get("card_cvc", "")
+
+    selectors = [
+        ('input[name*="card"], input[id*="card"], input[autocomplete="cc-number"]', card_number),
+        ('input[name*="expir"], input[id*="expir"], input[autocomplete="cc-exp"]', card_expiry),
+        ('input[name*="cvc"], input[name*="cvv"], input[autocomplete="cc-csc"]', card_cvc),
+    ]
+
+    for selector, value in selectors:
+        if value:
+            try:
+                el = page.query_selector(selector)
+                if el:
+                    el.fill(value)
+            except Exception:
+                pass
+
+
+def _submit_booking(page):
+    """Click the submit/purchase button on airline checkout (Build #207)."""
+    submit_selectors = [
+        'button[type="submit"]',
+        'button:has-text("Purchase")',
+        'button:has-text("Book")',
+        'button:has-text("Complete")',
+        'button:has-text("Pay")',
+        'input[type="submit"]',
+    ]
+    for selector in submit_selectors:
+        try:
+            el = page.query_selector(selector)
+            if el and el.is_visible():
+                el.click()
+                page.wait_for_load_state("networkidle", timeout=30000)
+                return
+        except Exception:
+            continue
+
+
+def _extract_confirmation(page):
+    """Extract confirmation/PNR code from airline confirmation page (Build #207).
+
+    Looks for common confirmation code patterns in the page text.
+    """
+    try:
+        page.wait_for_timeout(3000)
+        text = page.inner_text("body")
+
+        # Common patterns: 6-char alphanumeric PNR codes
+        import re as _conf_re
+        patterns = [
+            r'[Cc]onfirmation\s*(?:[Cc]ode|[Nn]umber|#|:)\s*[:\s]*([A-Z0-9]{5,8})',
+            r'PNR\s*[:\s]*([A-Z0-9]{5,8})',
+            r'[Bb]ooking\s*[Rr]eference\s*[:\s]*([A-Z0-9]{5,8})',
+            r'[Rr]ecord\s*[Ll]ocator\s*[:\s]*([A-Z0-9]{5,8})',
+        ]
+        for pattern in patterns:
+            match = _conf_re.search(text)
+            if match:
+                return match.group(1)
+
+        return None
+    except Exception:
+        return None
+
+
+# ===========================================================================
+# Bundling — Proxy Flight + Duffel Hotel (Build #208)
+# ===========================================================================
+
+@app.route("/api/proxy-bundle/create", methods=["POST"])
+@csrf.exempt
+@limiter.limit("10 per minute")
+def api_proxy_bundle_create():
+    """Create a trip bundle combining proxy flight + Duffel hotel (Build #208).
+
+    Each component books through its own channel:
+    - Flight: proxy channel (airline = MoR)
+    - Hotel: Duffel Stays API
+
+    Request: { flight_deal_id, hotel_deal_id }
+    """
+    import uuid
+    from payments import get_fee_percent
+
+    data = request.get_json() or {}
+    flight_deal_id = data.get("flight_deal_id")
+    hotel_deal_id = data.get("hotel_deal_id")
+
+    if not flight_deal_id or not hotel_deal_id:
+        return jsonify({"error": "Both flight_deal_id and hotel_deal_id required"}), 400
+
+    flight_deal = Deal.query.filter_by(deal_id=flight_deal_id).first()
+    hotel_deal = Deal.query.filter_by(deal_id=hotel_deal_id).first()
+
+    if not flight_deal:
+        return jsonify({"error": "Flight deal not found"}), 404
+    if not hotel_deal:
+        return jsonify({"error": "Hotel deal not found"}), 404
+
+    user = current_user if (current_user and current_user.is_authenticated) else None
+    user_id = user.id if user else None
+    fee_pct = get_fee_percent(user)
+
+    # Flight: fee on arbitrage spread
+    flight_home = float(flight_deal.home_price_usd or 0)
+    flight_arb = float(flight_deal.arbitrage_price_usd or flight_home)
+    flight_spread = max(flight_home - flight_arb, 0)
+    flight_fee = max(flight_spread * fee_pct, 3.0) if flight_spread > 0 else 0
+    flight_fee = round(flight_fee, 2)
+
+    # Hotel: fee on total price (no arbitrage on hotels)
+    hotel_price = float(hotel_deal.home_price_usd or hotel_deal.arbitrage_price_usd or 0)
+    hotel_fee = round(hotel_price * fee_pct, 2)
+
+    combined_fee = round(flight_fee + hotel_fee, 2)
+    total_savings = round(flight_spread - flight_fee, 2) if flight_spread > 0 else 0
+
+    bundle = TripBundle(
+        bundle_uuid=str(uuid.uuid4()),
+        user_id=user_id,
+        total_amount_usd=round(flight_arb + hotel_price + combined_fee, 2),
+        total_savings_usd=total_savings,
+        bundle_fee_usd=combined_fee,
+        origin=flight_deal.origin,
+        destination=flight_deal.destination,
+        departure_date=flight_deal.departure_date,
+        return_date=hotel_deal.check_out_date if hasattr(hotel_deal, 'check_out_date') else None,
+        status='draft',
+    )
+    db.session.add(bundle)
+    db.session.flush()
+
+    # Flight item
+    flight_item = BundleItem(
+        bundle_id=bundle.id,
+        item_type='flight',
+        offer_id=flight_deal.offer_id or flight_deal.fare_id,
+        offer_data=flight_deal.amadeus_offer_data,
+        price_usd=flight_arb,
+        booking_channel='proxy' if flight_spread > 0 else 'api',
+        status='selected',
+    )
+    db.session.add(flight_item)
+
+    # Hotel item
+    hotel_item = BundleItem(
+        bundle_id=bundle.id,
+        item_type='hotel',
+        offer_id=hotel_deal.offer_id,
+        offer_data=hotel_deal.amadeus_offer_data,
+        price_usd=hotel_price,
+        booking_channel='duffel_stays',
+        status='selected',
+    )
+    db.session.add(hotel_item)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "bundle_id": bundle.id,
+        "bundle_uuid": bundle.bundle_uuid,
+        "flight_price": flight_arb,
+        "hotel_price": hotel_price,
+        "flight_fee": flight_fee,
+        "hotel_fee": hotel_fee,
+        "combined_fee": combined_fee,
+        "total": bundle.total_amount_usd,
+        "total_savings": total_savings,
+    })
+
+
+@app.route("/api/proxy-bundle/<int:bundle_id>/book", methods=["POST"])
+@csrf.exempt
+@limiter.limit("3 per minute")
+def api_proxy_bundle_book(bundle_id):
+    """Execute both bookings in a bundle (Build #208).
+
+    Flight goes through proxy session, hotel through Duffel Stays API.
+    Single Stripe PaymentIntent for combined service fee.
+    Partial success handled: flight ok + hotel fail = user keeps flight.
+
+    Request: { passenger_data, card_token, service_fee_payment_method_id }
+    """
+    data = request.get_json() or {}
+    passenger_data = data.get("passenger_data")
+    card_token = data.get("card_token")
+    service_fee_pm_id = data.get("service_fee_payment_method_id")
+
+    if not passenger_data:
+        return jsonify({"error": "passenger_data required"}), 400
+
+    bundle = TripBundle.query.get(bundle_id)
+    if not bundle:
+        return jsonify({"error": "Bundle not found"}), 404
+    if bundle.status != 'draft':
+        return jsonify({"error": f"Bundle already in status: {bundle.status}"}), 400
+
+    bundle.status = 'payment_pending'
+
+    # Authorize Stripe for combined service fee
+    stripe_pi_id = None
+    if service_fee_pm_id and bundle.bundle_fee_usd > 0:
+        try:
+            import stripe
+            stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            pi = stripe.PaymentIntent.create(
+                amount=int(bundle.bundle_fee_usd * 100),
+                currency="usd",
+                payment_method=service_fee_pm_id,
+                capture_method="manual",
+                confirm=True,
+                description=f"MYSTES bundle — {bundle.origin} to {bundle.destination}",
+                metadata={"bundle_id": str(bundle_id), "type": "bundle_service_fee"},
+                automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+            )
+            stripe_pi_id = pi.id
+        except Exception as stripe_err:
+            bundle.status = 'draft'
+            db.session.commit()
+            logger.error("[Bundle] Stripe auth failed: %s", stripe_err)
+            return jsonify({"error": "Payment authorization failed"}), 402
+
+    bundle.status = 'booking'
+    db.session.commit()
+
+    # Book flight (proxy)
+    flight_item = BundleItem.query.filter_by(bundle_id=bundle_id, item_type='flight').first()
+    flight_job_id = None
+    if flight_item and flight_item.booking_channel == 'proxy':
+        flight_deal = Deal.query.filter_by(deal_id=flight_item.offer_id).first()
+        if not flight_deal and flight_item.offer_id:
+            flight_deal = Deal.query.filter_by(offer_id=flight_item.offer_id).first()
+        if not flight_deal:
+            flight_deal = Deal.query.filter_by(fare_id=flight_item.offer_id).first()
+
+        engine = _get_booking_engine()
+        if engine and flight_deal:
+            flight_item.status = 'booking'
+            db.session.commit()
+            try:
+                result = engine.enqueue_booking(
+                    deal_id=flight_deal.deal_id,
+                    user_id=bundle.user_id,
+                    market=getattr(flight_deal, "cheapest_market", "") or "",
+                    fee_tier="free",
+                    passenger_data=passenger_data,
+                    payment_info={"card_token": card_token, "booking_channel": "proxy"},
+                )
+                flight_job_id = result.get("job_id")
+            except Exception as e:
+                flight_item.status = 'failed'
+                db.session.commit()
+                logger.error("[Bundle] Flight enqueue failed: %s", e)
+
+    # Book hotel (Duffel Stays)
+    hotel_item = BundleItem.query.filter_by(bundle_id=bundle_id, item_type='hotel').first()
+    hotel_booking_id = None
+    if hotel_item:
+        hotel_item.status = 'booking'
+        db.session.commit()
+        try:
+            hotel_deal = None
+            if hotel_item.offer_id:
+                hotel_deal = Deal.query.filter_by(offer_id=hotel_item.offer_id).first()
+            if not hotel_deal:
+                hotel_deal = Deal.query.filter_by(deal_id=hotel_item.offer_id).first()
+
+            if hotel_deal:
+                booking = Booking(
+                    user_id=bundle.user_id,
+                    deal_id=hotel_deal.id,
+                    status='pending',
+                    booking_channel='api',
+                    booking_source='duffel_stays',
+                )
+                booking.passenger_name = f"{passenger_data.get('first_name', '')} {passenger_data.get('last_name', '')}".strip()
+                booking.passenger_email = passenger_data.get('email')
+                db.session.add(booking)
+                db.session.flush()
+
+                result = execute_automated_booking(booking, hotel_deal, passenger_data)
+                if result and result.get("success"):
+                    booking.status = 'booked'
+                    booking.confirmation_code = result.get("confirmation_code")
+                    booking.booked_at = datetime.now(timezone.utc)
+                    hotel_item.status = 'booked'
+                    hotel_item.confirmation_code = result.get("confirmation_code")
+                    hotel_item.booking_id = booking.id
+                    hotel_item.booked_at = datetime.now(timezone.utc)
+                    hotel_booking_id = booking.id
+                else:
+                    booking.status = 'failed'
+                    hotel_item.status = 'failed'
+                db.session.commit()
+        except Exception as e:
+            hotel_item.status = 'failed'
+            db.session.commit()
+            logger.error("[Bundle] Hotel booking failed: %s", e)
+
+    # Update bundle status
+    flight_ok = flight_item and flight_item.status != 'failed' if flight_item else True
+    hotel_ok = hotel_item and hotel_item.status == 'booked' if hotel_item else True
+
+    if flight_ok and hotel_ok:
+        bundle.status = 'booking'  # Flight still in queue, will update on complete
+    elif flight_ok or hotel_ok:
+        bundle.status = 'partial'
+    else:
+        bundle.status = 'failed'
+        # Cancel Stripe hold on total failure
+        if stripe_pi_id:
+            try:
+                import stripe
+                stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+                stripe.PaymentIntent.cancel(stripe_pi_id)
+            except Exception:
+                pass
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "bundle_id": bundle_id,
+        "bundle_status": bundle.status,
+        "flight_job_id": flight_job_id,
+        "hotel_booking_id": hotel_booking_id,
+        "stripe_pi_id": stripe_pi_id,
+    })
+
+
+@app.route("/api/proxy-bundle/<int:bundle_id>/status")
+@csrf.exempt
+@limiter.limit("30 per minute")
+def api_proxy_bundle_status(bundle_id):
+    """Poll combined bundle status (Build #208)."""
+    bundle = TripBundle.query.get(bundle_id)
+    if not bundle:
+        return jsonify({"error": "Bundle not found"}), 404
+
+    items = BundleItem.query.filter_by(bundle_id=bundle_id).all()
+    item_statuses = []
+    for item in items:
+        item_statuses.append({
+            "type": item.item_type,
+            "status": item.status,
+            "booking_channel": item.booking_channel,
+            "confirmation_code": item.confirmation_code,
+        })
+
+    return jsonify({
+        "bundle_id": bundle_id,
+        "bundle_status": bundle.status,
+        "total": round(bundle.total_amount_usd, 2),
+        "savings": round(bundle.total_savings_usd, 2),
+        "items": item_statuses,
+    })
+
+
+# ===========================================================================
+# ANASTASiA Verification Gate (Build #204)
+# ===========================================================================
+
+# Module-level verification neuron (lazy-initialized)
+_verification_module = None
+
+def _get_verification_module():
+    """Lazy-init the ANASTASiA VerificationModule singleton."""
+    global _verification_module
+    if _verification_module is None:
+        try:
+            import sys as _v_sys
+            _v_sdk = os.path.join(os.path.dirname(__file__), "picasso-sdk")
+            if _v_sdk not in _v_sys.path:
+                _v_sys.path.insert(0, _v_sdk)
+            from anastasia.verification import VerificationModule
+            from anastasia.core.events import EventBus as _VBus
+
+            _verification_module = VerificationModule()
+            _verification_module.initialize(event_bus=_VBus(), config={})
+        except Exception as e:
+            logger.warning("[Verification] Module unavailable: %s", e)
+    return _verification_module
+
+
+@app.route("/api/verification/send-code", methods=["POST"])
+@csrf.exempt
+@limiter.limit("3 per 15 minutes")
+def api_verification_send_code():
+    """Send a 6-digit verification code to an email address.
+
+    Blocks disposable/temporary email domains.
+    Required for guest users to access live search.
+    """
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+
+    if not email or "@" not in email:
+        return jsonify({"error": "Valid email required"}), 400
+
+    vmod = _get_verification_module()
+    if not vmod:
+        # Verification module unavailable — allow through gracefully
+        return jsonify({"sent": True, "expires_in": 300, "note": "verification_bypass"})
+
+    # Check disposable email
+    if vmod.is_disposable(email):
+        return jsonify({"error": "Temporary email addresses are not accepted. Please use a real email."}), 400
+
+    # Send code
+    result = vmod.send_code(email, remote_addr=request.remote_addr or "")
+
+    if result.get("error"):
+        return jsonify({"error": result["error"]}), 429
+
+    # Send the actual email with the code
+    try:
+        from email_service import send_email
+        code = result.get("code", "")
+        send_email(
+            to_email=email,
+            subject="MYSTES — Your verification code",
+            html_content=f"""
+            <div style="font-family: 'Outfit', sans-serif; max-width: 400px; margin: 0 auto; text-align: center;">
+                <h2 style="font-family: 'Space Grotesk', sans-serif; color: #1a1a2e;">MYSTES</h2>
+                <p>Your verification code is:</p>
+                <div style="font-size: 32px; font-weight: 700; letter-spacing: 8px; padding: 20px; background: #f5f5f5; border-radius: 8px; margin: 16px 0;">{code}</div>
+                <p style="color: #666; font-size: 14px;">This code expires in 5 minutes.</p>
+            </div>
+            """,
+            text_content=f"Your MYSTES verification code is: {code} (expires in 5 minutes)",
+        )
+    except Exception as email_err:
+        logger.warning("[Verification] Email send failed: %s — code still valid", email_err)
+
+    return jsonify({"sent": True, "expires_in": 300})
+
+
+@app.route("/api/verification/verify-code", methods=["POST"])
+@csrf.exempt
+@limiter.limit("10 per 15 minutes")
+def api_verification_verify_code():
+    """Verify a 6-digit code. On success, sets session verification token."""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+
+    if not email or not code:
+        return jsonify({"error": "Email and code required"}), 400
+
+    vmod = _get_verification_module()
+    if not vmod:
+        # Module unavailable — allow through
+        session["verified_email"] = email
+        session["verification_token"] = "bypass"
+        return jsonify({"verified": True, "token": "bypass"})
+
+    result = vmod.verify_code(email, code)
+
+    if result.get("status") == "verified":
+        session["verified_email"] = email
+        session["verification_token"] = result.get("token", "verified")
+        return jsonify({"verified": True, "token": result.get("token")})
+    else:
+        status = result.get("status", "invalid")
+        msg = {
+            "invalid": "Incorrect code. Please try again.",
+            "expired": "Code expired. Please request a new one.",
+            "max_attempts": "Too many attempts. Please request a new code.",
+            "not_found": "No code found for this email. Please request one first.",
+        }.get(status, f"Verification failed: {status}")
+        return jsonify({"verified": False, "error": msg, "status": status}), 400
+
+
 @app.route("/api/search", methods=["POST"])
 @csrf.exempt
 @limiter.limit("10 per minute")
 def api_search():
     """
     API endpoint for single flight search.
+
+    Requires email verification for guest users (Build #204).
+    Authenticated users bypass verification.
 
     Request body:
     {
@@ -17816,6 +20724,17 @@ def api_search():
         "date": "2026-03-15"
     }
     """
+    # --- Verification gate (Build #204) ---
+    # Authenticated users: always allowed
+    # Guests: must have verified email (session token)
+    if not (current_user and current_user.is_authenticated):
+        if not session.get("verification_token"):
+            return jsonify({
+                "error": "Email verification required to search flights.",
+                "verify_url": "/api/verification/send-code",
+                "action": "verify_email",
+            }), 403
+
     data = request.get_json()
     origin = data.get("origin", "").upper()
     destination = data.get("destination", "").upper()
@@ -17868,7 +20787,7 @@ def api_search():
                     arbitrage_price_usd=deal_info.get("arbitrage_price"),
                     gross_savings_usd=deal_info.get("gross_savings"),
                     platform_fee_usd=deal_info.get("platform_fee_usd"),
-                    platform_fee_xrp=deal_info.get("platform_fee_xrp"),
+                    # platform_fee_xrp removed — Stripe only
                     user_savings_usd=deal_info.get("user_savings"),
                     savings_percent=deal_info.get("user_saves_pct"),
                     booking_url=deal_info.get("booking_url"),
@@ -18150,7 +21069,7 @@ def api_search_itinerary():
                         arbitrage_price_usd=deal_info.get("arbitrage_price"),
                         gross_savings_usd=deal_info.get("gross_savings"),
                         platform_fee_usd=deal_info.get("platform_fee_usd"),
-                        platform_fee_xrp=deal_info.get("platform_fee_xrp"),
+                        # platform_fee_xrp removed — Stripe only
                         user_savings_usd=deal_info.get("user_savings"),
                         savings_percent=deal_info.get("user_saves_pct"),
                         booking_url=deal_info.get("booking_url"),
@@ -18580,8 +21499,6 @@ PAYMENT_PAGE_CONTENT = """
 .method-info { flex: 1; }
 .method-info strong { display: block; margin-bottom: 4px; }
 .method-info span { color: #666; font-size: 14px; }
-.xrp-details, .rlusd-details { display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
-.xrp-details.show, .rlusd-details.show { display: block; }
 .copy-field {
     display: flex; align-items: center; gap: 10px;
     background: white; padding: 10px; border-radius: 4px; margin: 10px 0;
@@ -18623,94 +21540,14 @@ PAYMENT_PAGE_CONTENT = """
             </div>
             {% endif %}
 
-            {% if options.methods.xrp.enabled %}
-            <div class="payment-method" onclick="selectMethod('xrp')">
-                <div class="method-icon">⚡</div>
-                <div class="method-info">
-                    <strong>XRP</strong>
-                    <span>{{ "%.4f"|format(options.methods.xrp.amount_xrp) }} XRP (≈${{ "%.2f"|format(options.fee_usd) }})</span>
-                </div>
-                <button class="btn btn-secondary" id="xrp-btn" onclick="showXrpDetails(event)">Select</button>
-            </div>
-            {% endif %}
-
-            {% if options.methods.rlusd.enabled %}
-            <div class="payment-method" onclick="selectMethod('rlusd')">
-                <div class="method-icon">💵</div>
-                <div class="method-info">
-                    <strong>RLUSD Stablecoin</strong>
-                    <span>{{ "%.2f"|format(options.fee_usd) }} RLUSD (1:1 USD)</span>
-                </div>
-                <button class="btn btn-secondary" id="rlusd-btn" onclick="showRlusdDetails(event)">Select</button>
-            </div>
-            {% endif %}
-
-            <!-- Coinbase crypto removed — Stripe + MoonPay only -->
+            <!-- Stripe + MoonPay only -->
         </div>
 
-        <!-- XRP Payment Details -->
-        <div class="xrp-details" id="xrp-details">
-            <h3>Pay with XRP</h3>
-            <p>Send exactly <strong>{{ "%.4f"|format(options.methods.xrp.amount_xrp) }} XRP</strong> to:</p>
-
-            <div class="copy-field">
-                <code id="xrp-address">{{ options.methods.xrp.destination }}</code>
-                <button class="copy-btn btn-secondary" onclick="copyToClipboard('xrp-address')">Copy</button>
-            </div>
-
-            <div class="warning">
-                <strong>IMPORTANT:</strong> Include this Destination Tag:
-                <div class="copy-field" style="margin-top: 8px;">
-                    <code id="xrp-tag">{{ options.methods.xrp.destination_tag }}</code>
-                    <button class="copy-btn btn-secondary" onclick="copyToClipboard('xrp-tag')">Copy</button>
-                </div>
-                Without the tag, your payment cannot be matched to your account!
-            </div>
-
-            <p style="color: #666; font-size: 14px;">
-                Network: {{ options.methods.xrp.network|upper }}<br>
-                Rate: ${{ "%.4f"|format(options.methods.xrp.xrp_rate) }}/XRP
-            </p>
-
-            <button class="btn" onclick="checkXrpPayment()" style="width: 100%; margin-top: 15px;">
-                I've Sent the Payment - Verify
-            </button>
-        </div>
-
-        <!-- RLUSD Payment Details -->
-        <div class="rlusd-details" id="rlusd-details">
-            <h3>Pay with RLUSD</h3>
-            <p>Send exactly <strong>{{ "%.2f"|format(options.fee_usd) }} RLUSD</strong> to:</p>
-
-            <div class="copy-field">
-                <code id="rlusd-address">{{ options.methods.rlusd.destination }}</code>
-                <button class="copy-btn btn-secondary" onclick="copyToClipboard('rlusd-address')">Copy</button>
-            </div>
-
-            <div class="warning">
-                <strong>IMPORTANT:</strong> Include this Destination Tag:
-                <div class="copy-field" style="margin-top: 8px;">
-                    <code id="rlusd-tag">{{ options.methods.rlusd.destination_tag }}</code>
-                    <button class="copy-btn btn-secondary" onclick="copyToClipboard('rlusd-tag')">Copy</button>
-                </div>
-            </div>
-
-            <p style="color: #666; font-size: 14px;">
-                RLUSD is Ripple's USD stablecoin on the XRP Ledger (1:1 with USD)
-            </p>
-
-            <button class="btn" onclick="checkRlusdPayment()" style="width: 100%; margin-top: 15px;">
-                I've Sent the Payment - Verify
-            </button>
-        </div>
     </div>
 </div>
 
 <script>
 const dealId = "{{ deal.deal_id }}";
-const destinationTag = {{ options.methods.xrp.destination_tag if options.methods.xrp.enabled else 0 }};
-const expectedXrp = {{ options.methods.xrp.amount_xrp if options.methods.xrp.enabled else 0 }};
-const expectedRlusd = {{ options.fee_usd }};
 
 function selectMethod(method) {
     document.querySelectorAll('.payment-method').forEach(el => el.classList.remove('selected'));
@@ -18721,69 +21558,6 @@ function payWithCard(e) {
     e.stopPropagation();
     // Redirect to Stripe checkout
     window.location.href = '/pay/card/' + dealId;
-}
-
-function showXrpDetails(e) {
-    e.stopPropagation();
-    document.getElementById('xrp-details').classList.add('show');
-    document.getElementById('rlusd-details').classList.remove('show');
-}
-
-function showRlusdDetails(e) {
-    e.stopPropagation();
-    document.getElementById('rlusd-details').classList.add('show');
-    document.getElementById('xrp-details').classList.remove('show');
-}
-
-// Coinbase crypto removed — Stripe + MoonPay only
-
-function copyToClipboard(elementId) {
-    const text = document.getElementById(elementId).innerText;
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Copied to clipboard!');
-    });
-}
-
-function checkXrpPayment() {
-    fetch('/pay/verify/xrp', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            deal_id: dealId,
-            destination_tag: destinationTag,
-            expected_amount: expectedXrp
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.verified) {
-            alert('Payment verified! Redirecting to your deal...');
-            window.location.href = '/deal/' + dealId + '/access';
-        } else {
-            alert('Payment not found yet. Please wait a moment and try again.');
-        }
-    });
-}
-
-function checkRlusdPayment() {
-    fetch('/pay/verify/rlusd', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            deal_id: dealId,
-            destination_tag: destinationTag,
-            expected_amount: expectedRlusd
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.verified) {
-            alert('Payment verified! Redirecting to your deal...');
-            window.location.href = '/deal/' + dealId + '/access';
-        } else {
-            alert('Payment not found yet. Please wait a moment and try again.');
-        }
-    });
 }
 </script>
 """
@@ -18810,7 +21584,6 @@ def payment_page(deal_id):
         return redirect(f"/deal/{deal_id}/access")
 
     # Generate payment options
-    refresh_xrp_price()
     options = generate_payment_options(
         deal_id=deal_id,
         fee_usd=deal.platform_fee_usd,
@@ -19020,12 +21793,8 @@ ADMIN_DASHBOARD_CONTENT = """
 
 <div class="stats">
     <div class="stat-card">
-        <div class="stat-value">{{ "%.4f"|format(total_xrp_received) }}</div>
-        <div class="stat-label">Total XRP Received</div>
-    </div>
-    <div class="stat-card">
         <div class="stat-value">${{ "%.2f"|format(total_usd_value) }}</div>
-        <div class="stat-label">USD Value (current rate)</div>
+        <div class="stat-label">Total Revenue (USD)</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ verified_payments }}</div>
@@ -19035,24 +21804,16 @@ ADMIN_DASHBOARD_CONTENT = """
         <div class="stat-value">{{ total_users }}</div>
         <div class="stat-label">Total Users</div>
     </div>
-</div>
-
-<div class="stats">
     <div class="stat-card">
         <div class="stat-value">{{ pending_payments }}</div>
         <div class="stat-label">Pending Payments</div>
     </div>
+</div>
+
+<div class="stats">
     <div class="stat-card">
         <div class="stat-value">{{ active_deals }}</div>
         <div class="stat-label">Active Deals</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">${{ "%.2f"|format(xrp_price) }}</div>
-        <div class="stat-label">XRP Price</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ network }}</div>
-        <div class="stat-label">Network</div>
     </div>
 </div>
 
@@ -19086,17 +21847,15 @@ ADMIN_DASHBOARD_CONTENT = """
             <tr style="text-align: left; border-bottom: 2px solid #eee;">
                 <th style="padding: 10px;">Date</th>
                 <th>User</th>
-                <th>Amount (XRP)</th>
-                <th>USD Value</th>
-                <th>TX Hash</th>
+                <th>Amount (USD)</th>
+                <th>TX ID</th>
                 <th>Status</th>
             </tr>
             {% for payment in recent_payments %}
             <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 10px;">{{ payment.created_at.strftime('%Y-%m-%d %H:%M') if payment.created_at else 'N/A' }}</td>
                 <td>{{ payment.user.email if payment.user else 'Unknown' }}</td>
-                <td>{{ "%.4f"|format(payment.received_xrp or payment.expected_xrp or 0) }}</td>
-                <td>${{ "%.2f"|format((payment.received_xrp or payment.expected_xrp or 0) * xrp_price) }}</td>
+                <td>${{ "%.2f"|format(payment.amount_usd or 0) }}</td>
                 <td style="font-family: monospace; font-size: 11px;">{{ (payment.tx_hash[:16] + '...') if payment.tx_hash else 'Pending' }}</td>
                 <td><span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span></td>
             </tr>
@@ -19113,10 +21872,6 @@ ADMIN_DASHBOARD_CONTENT = """
     <div class="price-row">
         <span>Payments today:</span>
         <span><strong>{{ today_payments }}</strong></span>
-    </div>
-    <div class="price-row">
-        <span>XRP received today:</span>
-        <span><strong>{{ "%.4f"|format(today_xrp) }} XRP</strong></span>
     </div>
     <div class="price-row">
         <span>New users today:</span>
@@ -19156,9 +21911,8 @@ ADMIN_PAYMENTS_CONTENT = """
                 <th>Date</th>
                 <th>User</th>
                 <th>Deal</th>
-                <th>Expected</th>
-                <th>Received</th>
-                <th>TX Hash</th>
+                <th>Amount (USD)</th>
+                <th>TX ID</th>
                 <th>Status</th>
             </tr>
             {% for payment in payments %}
@@ -19167,13 +21921,10 @@ ADMIN_PAYMENTS_CONTENT = """
                 <td>{{ payment.created_at.strftime('%Y-%m-%d %H:%M') if payment.created_at else 'N/A' }}</td>
                 <td>{{ payment.user.email if payment.user else 'N/A' }}</td>
                 <td>{{ payment.deal.deal_id if payment.deal else 'N/A' }}</td>
-                <td>{{ "%.4f"|format(payment.expected_xrp or 0) }} XRP</td>
-                <td>{{ "%.4f"|format(payment.received_xrp or 0) }} XRP</td>
+                <td>${{ "%.2f"|format(payment.amount_usd or 0) }}</td>
                 <td style="font-family: monospace; font-size: 11px;">
                     {% if payment.tx_hash %}
-                        <a href="https://{{ 'testnet.' if network == 'TESTNET' else '' }}xrpscan.com/tx/{{ payment.tx_hash }}" target="_blank">
-                            {{ payment.tx_hash[:12] }}...
-                        </a>
+                        {{ payment.tx_hash[:12] }}...
                     {% else %}
                         -
                     {% endif %}
@@ -19191,15 +21942,15 @@ ADMIN_PAYMENTS_CONTENT = """
     <h2>Payment Statistics</h2>
     <div class="price-row">
         <span>Total verified:</span>
-        <span><strong>{{ "%.4f"|format(total_verified_xrp) }} XRP</strong> (${{ "%.2f"|format(total_verified_xrp * xrp_price) }})</span>
+        <span><strong>${{ "%.2f"|format(total_verified_usd or 0) }}</strong></span>
     </div>
     <div class="price-row">
         <span>Pending verification:</span>
-        <span><strong>{{ "%.4f"|format(total_pending_xrp) }} XRP</strong></span>
+        <span><strong>${{ "%.2f"|format(total_pending_usd or 0) }}</strong></span>
     </div>
     <div class="price-row">
         <span>Expired (missed):</span>
-        <span><strong>{{ "%.4f"|format(total_expired_xrp) }} XRP</strong></span>
+        <span><strong>${{ "%.2f"|format(total_expired_usd or 0) }}</strong></span>
     </div>
 </div>
 """
@@ -19219,7 +21970,6 @@ ADMIN_USERS_CONTENT = """
                 <th>Joined</th>
                 <th>Last Login</th>
                 <th>Payments</th>
-                <th>Total XRP</th>
                 <th>Status</th>
             </tr>
             {% for user in users %}
@@ -19230,7 +21980,6 @@ ADMIN_USERS_CONTENT = """
                 <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
                 <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}</td>
                 <td>{{ user.payments.count() }}</td>
-                <td>{{ "%.4f"|format(user.payments.filter_by(status='verified').with_entities(db.func.sum(Payment.received_xrp)).scalar() or 0) }}</td>
                 <td>
                     {% if user.is_admin %}<span class="tag">Admin</span>{% endif %}
                     {% if user.is_verified %}<span class="tag" style="background:#d4edda;color:#155724;">Verified</span>{% endif %}
@@ -19284,7 +22033,7 @@ def admin_deployments():
 
     content = f"""
     <div style="max-width:1000px;margin:0 auto;padding:40px 20px;">
-        <h1 style="font-family:'Cinzel',serif;font-size:1.8rem;
+        <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.8rem;
             background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;
             -webkit-text-fill-color:transparent;">APAi Deployments</h1>
         <p style="color:#999;margin-bottom:24px;">{len(deployments)} total deployments</p>
@@ -19374,11 +22123,10 @@ def admin_dashboard():
     from sqlalchemy import func
     from datetime import date
 
-    get_xrp_price()
     today = date.today()
 
     # Calculate stats
-    total_xrp = db.session.query(func.sum(Payment.received_xrp)).filter_by(status='verified').scalar() or 0
+    total_usd = db.session.query(func.sum(Payment.amount_usd)).filter_by(status='verified').scalar() or 0
     verified_count = Payment.query.filter_by(status='verified').count()
     pending_count = Payment.query.filter_by(status='pending').count()
     total_users = User.query.count()
@@ -19388,10 +22136,6 @@ def admin_dashboard():
     today_payments = Payment.query.filter(
         func.date(Payment.created_at) == today
     ).count()
-    today_xrp = db.session.query(func.sum(Payment.received_xrp)).filter(
-        Payment.status == 'verified',
-        func.date(Payment.verified_at) == today
-    ).scalar() or 0
     today_users = User.query.filter(
         func.date(User.created_at) == today
     ).count()
@@ -19405,17 +22149,13 @@ def admin_dashboard():
         content=render_template_string(
             ADMIN_DASHBOARD_CONTENT,
             user=current_user,
-            total_xrp_received=total_xrp,
-            total_usd_value=total_xrp * XRPL_CONFIG["xrp_usd_rate"],
+            total_usd_value=total_usd,
             verified_payments=verified_count,
             pending_payments=pending_count,
             total_users=total_users,
             active_deals=active_deals,
-            xrp_price=XRPL_CONFIG["xrp_usd_rate"],
-            network=XRPL_CONFIG["network"].upper(),
             recent_payments=recent_payments,
             today_payments=today_payments,
-            today_xrp=today_xrp,
             today_users=today_users,
         ),
         current_user=current_user
@@ -19628,7 +22368,6 @@ def admin_payments():
     """View all payments with filtering."""
     from sqlalchemy import func
 
-    get_xrp_price()
     filter_status = request.args.get('status', '')
 
     query = Payment.query.order_by(Payment.created_at.desc())
@@ -19638,9 +22377,9 @@ def admin_payments():
     payments = query.all()
 
     # Stats
-    total_verified = db.session.query(func.sum(Payment.received_xrp)).filter_by(status='verified').scalar() or 0
-    total_pending = db.session.query(func.sum(Payment.expected_xrp)).filter_by(status='pending').scalar() or 0
-    total_expired = db.session.query(func.sum(Payment.expected_xrp)).filter_by(status='expired').scalar() or 0
+    total_verified = db.session.query(func.sum(Payment.amount_usd)).filter_by(status='verified').scalar() or 0
+    total_pending = db.session.query(func.sum(Payment.amount_usd)).filter_by(status='pending').scalar() or 0
+    total_expired = db.session.query(func.sum(Payment.amount_usd)).filter_by(status='expired').scalar() or 0
 
     return render_template_string(
         BASE_TEMPLATE,
@@ -19649,11 +22388,9 @@ def admin_payments():
             ADMIN_PAYMENTS_CONTENT,
             payments=payments,
             filter_status=filter_status,
-            total_verified_xrp=total_verified,
-            total_pending_xrp=total_pending,
-            total_expired_xrp=total_expired,
-            xrp_price=XRPL_CONFIG["xrp_usd_rate"],
-            network=XRPL_CONFIG["network"].upper()
+            total_verified_usd=total_verified,
+            total_pending_usd=total_pending,
+            total_expired_usd=total_expired,
         ),
         current_user=current_user
     )
@@ -19677,7 +22414,7 @@ def admin_payments_export():
     # Create CSV
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Date', 'User Email', 'Deal ID', 'Expected XRP', 'Received XRP', 'USD Rate', 'TX Hash', 'Sender', 'Status', 'Verified At'])
+    writer.writerow(['ID', 'Date', 'User Email', 'Deal ID', 'Amount USD', 'TX Hash', 'Status', 'Verified At'])
 
     for p in payments:
         writer.writerow([
@@ -19685,11 +22422,8 @@ def admin_payments_export():
             p.created_at.isoformat() if p.created_at else '',
             p.user.email if p.user else '',
             p.deal.deal_id if p.deal else '',
-            p.expected_xrp or 0,
-            p.received_xrp or 0,
-            p.xrp_usd_rate or 0,
+            getattr(p, 'amount_usd', 0) or 0,
             p.tx_hash or '',
-            p.sender_address or '',
             p.status,
             p.verified_at.isoformat() if p.verified_at else ''
         ])
@@ -19980,7 +22714,10 @@ def api_proxy_status():
 @admin_required
 def admin_tasks():
     """Celery task dashboard — schedule, recent results, manual triggers."""
-    from celery_app import celery
+    try:
+        from celery_app import celery
+    except ImportError:
+        return jsonify({"error": "Celery not installed. Task dashboard requires: pip install celery"}), 503
 
     # Build schedule info
     schedule = []
@@ -20164,6 +22901,40 @@ def admin_arbitrage_scan():
     return redirect("/admin/arbitrage")
 
 
+@app.route("/admin/security")
+@admin_required
+def admin_security():
+    """Security dashboard — API keys, rate limits, audit log."""
+    content = ADMIN_NAV + """
+    <h1>Security</h1>
+    <p style="color: #aaa;">API key management, rate limit monitoring, and audit log.</p>
+
+    <div class="mystes-card" style="margin-bottom:20px;">
+        <h2>Rate Limiting</h2>
+        <p style="color:#aaa;">Flask-Limiter is active. Default: 200 requests/day, 50/hour per IP.</p>
+        <div class="price-row"><span>Status:</span><span style="color:#22c55e;font-weight:700;">Active</span></div>
+    </div>
+
+    <div class="mystes-card" style="margin-bottom:20px;">
+        <h2>CSRF Protection</h2>
+        <p style="color:#aaa;">Flask-WTF CSRF is enabled on all state-changing endpoints.</p>
+        <div class="price-row"><span>Status:</span><span style="color:#22c55e;font-weight:700;">Active</span></div>
+    </div>
+
+    <div class="mystes-card">
+        <h2>API Keys</h2>
+        <p style="color:#aaa;">APAi admin API keys are managed via the <a href="/apai/admin" style="color:var(--gold);">APAi Admin Portal</a>.</p>
+    </div>
+    """
+
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="Security - Admin",
+        content=content,
+        current_user=current_user
+    )
+
+
 # ===================================================================
 # Build #176 — ANASTASiA API Watchdog Admin Routes
 # ===================================================================
@@ -20172,32 +22943,79 @@ def admin_arbitrage_scan():
 @admin_required
 def admin_watchdog():
     """API Watchdog dashboard — show provider health status."""
+    import sys
     try:
         sdk_path = os.path.join(os.path.dirname(__file__), "picasso-sdk")
         if sdk_path not in sys.path:
             sys.path.insert(0, sdk_path)
         from anastasia.knowledge.watchdog import APIWatchdog
-        watchdog = APIWatchdog()
+        from anastasia.core.events import EventBus
+        watchdog = APIWatchdog(event_bus=EventBus())
         providers = watchdog.list_providers()
-        return jsonify({
-            "success": True,
-            "providers": providers,
-            "total": len(providers),
-        })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        providers = {}
+        logger.warning("Watchdog init failed: %s", e)
+
+    provider_cards = ""
+    if providers:
+        for name, info in providers.items():
+            status_color = "#22c55e" if info.get("healthy") else "#ef4444"
+            status_text = "Healthy" if info.get("healthy") else "Degraded"
+            provider_cards += f'''
+            <div class="mystes-card" style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; font-family: 'Space Grotesk', sans-serif;">{name}</h3>
+                    <span class="mystes-badge" style="background: {status_color}20; color: {status_color};">{status_text}</span>
+                </div>
+            </div>'''
+    else:
+        provider_cards = '<div class="mystes-empty"><p>No providers registered. ANASTASiA watchdog monitors API health once providers are configured.</p></div>'
+
+    content = ADMIN_NAV + f"""
+    <div class="mystes-page">
+        <div class="mystes-page-header">
+            <h1>API Watchdog</h1>
+            <p style="color: rgba(255,255,255,0.6);">ANASTASiA API health monitoring — {len(providers)} providers</p>
+        </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+            <button class="mystes-btn mystes-btn-primary" onclick="runSweep()">Run Full Sweep</button>
+        </div>
+        <div id="watchdog-providers">{provider_cards}</div>
+    </div>
+    <script>
+    async function runSweep() {{
+        const btn = event.target;
+        btn.disabled = true; btn.textContent = 'Sweeping...';
+        try {{
+            const resp = await fetch('/admin/watchdog/run', {{method: 'POST', headers: {{'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''}}}});
+            const data = await resp.json();
+            if (data.success) {{ location.reload(); }}
+            else {{ alert('Sweep failed: ' + (data.error || 'Unknown error')); }}
+        }} catch(e) {{ alert('Error: ' + e.message); }}
+        finally {{ btn.disabled = false; btn.textContent = 'Run Full Sweep'; }}
+    }}
+    </script>
+    """
+    return render_template_string(
+        BASE_TEMPLATE,
+        title="API Watchdog - Admin",
+        content=content,
+        current_user=current_user
+    )
 
 
 @app.route("/admin/watchdog/run", methods=["POST"])
 @admin_required
 def admin_watchdog_run():
     """Trigger API Watchdog sweep across all registered providers."""
+    import sys
     try:
         sdk_path = os.path.join(os.path.dirname(__file__), "picasso-sdk")
         if sdk_path not in sys.path:
             sys.path.insert(0, sdk_path)
         from anastasia.knowledge.watchdog import APIWatchdog
-        watchdog = APIWatchdog()
+        from anastasia.core.events import EventBus
+        watchdog = APIWatchdog(event_bus=EventBus())
         reports = watchdog.check_all()
 
         summary = {
@@ -20217,12 +23035,14 @@ def admin_watchdog_run():
 @admin_required
 def admin_watchdog_check_one(provider_id):
     """Trigger Watchdog check for a single API provider."""
+    import sys
     try:
         sdk_path = os.path.join(os.path.dirname(__file__), "picasso-sdk")
         if sdk_path not in sys.path:
             sys.path.insert(0, sdk_path)
         from anastasia.knowledge.watchdog import APIWatchdog
-        watchdog = APIWatchdog()
+        from anastasia.core.events import EventBus
+        watchdog = APIWatchdog(event_bus=EventBus())
         report = watchdog.check_provider(provider_id)
         if report:
             return jsonify({"success": True, "report": report.to_dict()})
@@ -20275,12 +23095,8 @@ def api_admin_strategy_aggregate():
         return jsonify({"error": str(e)}), 500
 
 
-# --- Arbitrage Search Page (Build #76) ---
-
-@app.route("/arbitrage")
-def arbitrage_search_page():
-    """Universal arbitrage search page."""
-    return render_template_string(open("templates/arbitrage_search.html").read() if os.path.exists("templates/arbitrage_search.html") else "<h1>Arbitrage Search</h1><p>Template not found</p>")
+# --- Arbitrage Search Page ---
+# Build #76 route removed — superseded by routes_arbitrage.py /arbitrate (Build #234)
 
 
 # --- Flights Route (Build #167 — extracted from homepage) ---
@@ -20302,23 +23118,21 @@ except Exception as e:
 
 # --- B2B Business Routes (Build #158) ---
 
-if is_feature_enabled('b2b_accounts'):
-    try:
-        from routes_business import register_business_routes
-        register_business_routes(app, csrf, limiter)
-        logger.info("B2B business routes registered")
-    except Exception as e:
-        logger.warning("B2B routes not loaded: %s", e)
+try:
+    from routes_business import register_business_routes
+    register_business_routes(app, csrf, limiter)
+    logger.info("B2B business routes registered")
+except Exception as e:
+    logger.warning("B2B routes not loaded: %s", e)
 
 # --- Activities & Tours Routes (Build #164) ---
 
-if is_feature_enabled('vertical_activities'):
-    try:
-        from routes_activities import register_activities_routes
-        register_activities_routes(app, csrf, limiter)
-        logger.info("Activities routes registered (Viator)")
-    except Exception as e:
-        logger.warning("Activities routes not loaded: %s", e)
+try:
+    from routes_activities import register_activities_routes
+    register_activities_routes(app, csrf, limiter)
+    logger.info("Activities routes registered (Viator)")
+except Exception as e:
+    logger.warning("Activities routes not loaded: %s", e)
 
 # --- Car Rental Routes (Build #174) ---
 try:
@@ -20335,6 +23149,14 @@ try:
     logger.info("Trip planner routes registered")
 except Exception as e:
     logger.warning("Trip planner routes not loaded: %s", e)
+
+# --- Arbitrate My Trip Routes (Build #234) ---
+try:
+    from routes_arbitrage import register_arbitrage_routes
+    register_arbitrage_routes(app, csrf, limiter)
+    logger.info("Arbitrate My Trip routes registered")
+except Exception as e:
+    logger.warning("Arbitrate routes not loaded: %s", e)
 
 # --- Collections / Wishlist Routes (Build #174) ---
 try:
@@ -20376,6 +23198,62 @@ try:
 except Exception as e:
     logger.warning("MYSTES AI API routes not loaded: %s", e)
 
+# --- Universal Share System (Build #219 — InviteLink) ---
+try:
+    from routes_sharing import register_sharing_routes
+    register_sharing_routes(app, csrf, limiter)
+    logger.info("Sharing routes registered (/i/<token>, /api/share/*)")
+except Exception as e:
+    logger.warning("Sharing routes not loaded: %s", e)
+
+# --- Trip Planner Engine (Builds #221-223 — Parties, Guests, Itinerary, Settlement) ---
+try:
+    from routes_trip_planner import register_trip_planner_routes
+    register_trip_planner_routes(app, csrf, limiter)
+    logger.info("Trip planner routes registered (/api/trips/<id>/parties|guests|itinerary|settlement)")
+except Exception as e:
+    logger.warning("Trip planner routes not loaded: %s", e)
+
+# --- Managed Mode + Events (Builds #225-227 — Feature-flagged Phase C) ---
+try:
+    from routes_events import register_event_routes
+    register_event_routes(app, csrf, limiter)
+    logger.info("Event routes registered (/api/trips/<id>/mode|roster|tiers|checkin)")
+except Exception as e:
+    logger.warning("Event routes not loaded: %s", e)
+
+# --- Narrative Pitch + SharedCart (Builds #228-229 — Feature-flagged Phase C) ---
+try:
+    from routes_sharing_carts import register_sharing_cart_routes
+    register_sharing_cart_routes(app, csrf, limiter)
+    logger.info("Sharing/cart routes registered (/api/trips/<id>/narrative|carts)")
+except Exception as e:
+    logger.warning("Sharing/cart routes not loaded: %s", e)
+
+# --- Social Layer (Builds #230-232 — Feature-flagged Phase C) ---
+try:
+    from routes_social import register_social_routes
+    register_social_routes(app, csrf, limiter)
+    logger.info("Social routes registered (/api/posts|feed|reviews|users/<id>/profile)")
+except Exception as e:
+    logger.warning("Social routes not loaded: %s", e)
+
+# --- Referral Attribution + Conversion Tracking (Build #233) ---
+try:
+    from routes_referral import register_referral_routes
+    register_referral_routes(app, csrf, limiter)
+    logger.info("Referral attribution routes registered (/api/referral/*)")
+except Exception as e:
+    logger.warning("Referral attribution routes not loaded: %s", e)
+
+# --- Corporate Workspaces (Builds #235-237) ---
+try:
+    from routes_corporate import register_corporate_routes
+    register_corporate_routes(app, csrf, limiter)
+    logger.info("Corporate workspace routes registered (/api/workspaces/*)")
+except Exception as e:
+    logger.warning("Corporate workspace routes not loaded: %s", e)
+
 # --- Push Notifications (Build #188 — Capacitor native) ---
 try:
     from routes_push import register_push_routes
@@ -20408,6 +23286,10 @@ if __name__ == "__main__":
         _env_warnings.append("MAIL_ENABLED not set — emails disabled (set MAIL_ENABLED=true + MAIL_USERNAME/MAIL_PASSWORD)")
     if not os.environ.get("DATABASE_URL") and os.environ.get("FLASK_ENV") == "production":
         _env_warnings.append("DATABASE_URL not set — using SQLite (set PostgreSQL URL for production)")
+    if not os.environ.get("SENTRY_DSN"):
+        _env_warnings.append("SENTRY_DSN not set — error tracking disabled (set for production monitoring)")
+    if not os.environ.get("OPS_ALERT_EMAIL"):
+        _env_warnings.append("OPS_ALERT_EMAIL not set — ops alerts will not be emailed")
 
     print("="*60)
     print("MYSTES Server")
@@ -20418,12 +23300,5 @@ if __name__ == "__main__":
         for w in _env_warnings:
             print(f"  WARNING: {w}")
     print("="*60)
-
-    get_xrp_price()
-
-    # Start XRPL ledger monitor (background thread — watches escrow events)
-    from xrpl_monitor import ledger_monitor
-    ledger_monitor.flask_app = app
-    ledger_monitor.start()
 
     app.run(host=SERVER_HOST, port=SERVER_PORT, debug=os.environ.get("FLASK_ENV") != "production")

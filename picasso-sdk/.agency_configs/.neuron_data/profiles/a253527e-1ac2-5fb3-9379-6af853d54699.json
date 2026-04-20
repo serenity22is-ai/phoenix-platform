@@ -1,0 +1,101 @@
+{
+  "id": "a253527e-1ac2-5fb3-9379-6af853d54699",
+  "name": "Sabre",
+  "vendor": "Sabre Corporation",
+  "version": "6.0",
+  "vertical": "flights",
+  "protocol": "rest",
+  "base_url": "api.sabre.com/v2",
+  "auth_method": "oauth2",
+  "auth_details": {
+    "token_endpoint": "/v2/auth/token",
+    "grant_type": "client_credentials",
+    "scopes": [],
+    "notes": "REST APIs available alongside legacy SOAP/XML. PCC (Pseudo City Code) required for agency identification."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/shop/flights",
+        "method": "POST"
+      },
+      {
+        "order": 2,
+        "name": "revalidate",
+        "endpoint": "/book/flights/revalidate",
+        "method": "POST"
+      },
+      {
+        "order": 3,
+        "name": "book",
+        "endpoint": "/book/flights",
+        "method": "POST"
+      }
+    ],
+    "total_steps": 3,
+    "estimated_time_seconds": 10.0,
+    "requires_auth": true,
+    "supports_guest": false
+  },
+  "endpoints": [
+    {
+      "path": "/shop/flights",
+      "method": "POST",
+      "purpose": "Bargain Finder Max (flight search)"
+    },
+    {
+      "path": "/book/flights/revalidate",
+      "method": "POST",
+      "purpose": "Price revalidation"
+    },
+    {
+      "path": "/book/flights",
+      "method": "POST",
+      "purpose": "Create PNR"
+    },
+    {
+      "path": "/lists/utilities/airlines",
+      "method": "GET",
+      "purpose": "Airline reference data"
+    }
+  ],
+  "data_schemas": {
+    "passenger": {
+      "type_codes": [
+        "ADT",
+        "CNN",
+        "INF"
+      ]
+    },
+    "note": "Sabre uses CNN (not CHD) for child passengers"
+  },
+  "quirks": [
+    {
+      "id": "f61e9d34",
+      "description": "Child passenger type is CNN (not CHD like Amadeus). Using CHD returns cryptic error.",
+      "category": "encoding",
+      "severity": "critical",
+      "workaround": "Map CHD -> CNN for Sabre requests.",
+      "discovered_at": 1776564133.562312,
+      "discovered_by": "industry_knowledge"
+    }
+  ],
+  "adapters": [],
+  "readiness": "documented",
+  "confidence": 0.6,
+  "installations": 0,
+  "first_learned": 1776564133.5623128,
+  "last_updated": 1776564133.5623128,
+  "learned_from": [
+    "public_docs"
+  ],
+  "tags": [
+    "flights",
+    "gds",
+    "enterprise",
+    "oauth2",
+    "north_america"
+  ]
+}

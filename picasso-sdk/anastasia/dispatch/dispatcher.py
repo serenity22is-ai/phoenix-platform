@@ -52,6 +52,7 @@ class BookingDispatcher:
         "discover_cars": "discover_cars",
         "viator": "viator_activities",
         "safetywing": "safetywing_insurance",
+        "duffel_stays": "duffel_stays",
     }
 
     def _load_cards(self, cards_dir: Optional[str] = None):
@@ -225,8 +226,8 @@ def _book_duffel_ndc(raw_offer, passengers, client, card, markup):
     """
     Duffel NDC booking.
 
-    Flow: refresh_offer → create_order
-    Client method: create_order(offer_id, passengers, payment_type)
+    Flow: refresh_offer → create_order (with optional services)
+    Client method: create_order(offer_id, passengers, payment_type, services, metadata)
     """
     offer_id = raw_offer.get("offer_id")
 
@@ -237,11 +238,22 @@ def _book_duffel_ndc(raw_offer, passengers, client, card, markup):
             "booking_source": "duffel",
         }
 
-    result = client.create_order(
-        offer_id=offer_id,
-        passengers=passengers,
-        payment_type="balance",
-    )
+    # Extract selected services from raw_offer (stored by MYSTES checkout)
+    services = raw_offer.get("selected_services")
+    metadata = raw_offer.get("metadata")
+
+    # Build create_order kwargs
+    kwargs = {
+        "offer_id": offer_id,
+        "passengers": passengers,
+        "payment_type": "balance",
+    }
+    if services:
+        kwargs["services"] = services
+    if metadata:
+        kwargs["metadata"] = metadata
+
+    result = client.create_order(**kwargs)
 
     if result and result.get("success"):
         return {
@@ -249,6 +261,8 @@ def _book_duffel_ndc(raw_offer, passengers, client, card, markup):
             "confirmation_code": result.get("booking_reference"),
             "order_id": result.get("order_id"),
             "booking_source": "duffel",
+            "documents": result.get("documents", []),
+            "services": result.get("services", []),
         }
 
     return {
@@ -504,6 +518,73 @@ def _book_safetywing(raw_offer, passengers, client, card, markup):
     }
 
 
+def _book_duffel_stays(raw_offer, passengers, client, card, markup):
+    """
+    Duffel Stays hotel booking.
+
+    Flow: create_quote(rate_id) → book_stay(quote_id, email, phone, guests)
+    Client is a DuffelStaysClient instance injected by MYSTES.
+    """
+    rate_id = raw_offer.get("rate_id")
+
+    if not rate_id:
+        return {
+            "success": False,
+            "error": "Missing rate_id for Duffel Stays booking",
+            "booking_source": "duffel_stays",
+        }
+
+    # Step 1: Create quote (lock the price)
+    quote_result = client.create_quote(rate_id)
+    if not quote_result or not quote_result.get("success"):
+        return {
+            "success": False,
+            "error": quote_result.get("error", "Duffel Stays quote creation failed")
+            if quote_result
+            else "Duffel Stays create_quote returned empty result",
+            "booking_source": "duffel_stays",
+        }
+
+    quote_id = quote_result.get("quote_id")
+
+    # Step 2: Build guest list from transformed passengers
+    lead = passengers[0] if passengers else {}
+    guests = [
+        {
+            "given_name": p.get("given_name", p.get("first_name", "")),
+            "family_name": p.get("family_name", p.get("last_name", "")),
+        }
+        for p in passengers
+    ]
+
+    # Step 3: Book the stay
+    result = client.book_stay(
+        quote_id=quote_id,
+        email=lead.get("email", ""),
+        phone_number=lead.get("phone", lead.get("phone_number", "")),
+        guests=guests,
+        loyalty_programme_account_number=raw_offer.get("loyalty_programme_account_number"),
+        accommodation_special_requests=raw_offer.get("accommodation_special_requests"),
+    )
+
+    if result and result.get("success"):
+        return {
+            "success": True,
+            "confirmation_code": result.get("confirmation_number")
+            or result.get("booking_id"),
+            "booking_id": result.get("booking_id"),
+            "booking_source": "duffel_stays",
+        }
+
+    return {
+        "success": False,
+        "error": result.get("error", "Duffel Stays booking failed")
+        if result
+        else "Duffel Stays book_stay returned empty result",
+        "booking_source": "duffel_stays",
+    }
+
+
 # Handler registry — maps source module_id to booking function
 _HANDLERS = {
     "picasso": _book_picasso,
@@ -513,4 +594,5 @@ _HANDLERS = {
     "discover_cars": _book_discover_cars,
     "viator": _book_viator,
     "safetywing": _book_safetywing,
+    "duffel_stays": _book_duffel_stays,
 }

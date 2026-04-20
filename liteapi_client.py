@@ -250,23 +250,20 @@ class LiteAPIHotelClient:
             if google_price > 0 and price_base >= google_price:
                 continue  # Inverted margin — skip this hotel
 
-            # Calculate savings vs Google benchmark
+            # Flat 8% hotel markup — all tiers, same price for everyone
+            from payments import get_hotel_fee_percent
+            hotel_fee_pct = get_hotel_fee_percent(user)
+            platform_fee = round(max(3.0, price_base * hotel_fee_pct), 2)
+            mystes_price = price_base + platform_fee
+            mystes_per_night = round(mystes_price / nights, 2) if nights > 0 else mystes_price
+
+            # Calculate savings vs Google benchmark (if available)
             if google_price > 0:
-                savings_raw = google_price - price_base
-                # MYSTES fee based on membership status
-                from payments import get_fee_percent
-                platform_fee = round(savings_raw * get_fee_percent(user), 2)
-                mystes_price = price_base + platform_fee
                 user_savings = google_price - mystes_price
                 savings_pct = round((user_savings / google_price * 100), 1) if google_price > 0 else 0
-                mystes_per_night = round(mystes_price / nights, 2) if nights > 0 else mystes_price
             else:
-                # No benchmark available — show at our price with flat fee
-                platform_fee = 15.00
-                mystes_price = price_total + platform_fee
                 user_savings = 0
                 savings_pct = 0
-                mystes_per_night = round(mystes_price / nights, 2) if nights > 0 else mystes_price
 
             # --- Room info ---
             room_name = rate.get("name", "Standard Room")

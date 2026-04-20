@@ -182,8 +182,10 @@ def build_duffel_card() -> KnowledgeCard:
         auth_notes="Static Bearer token. No expiry, no refresh. "
                    "Test tokens: duffel_test_*, Live: duffel_live_*.",
         capabilities={
-            "search": True, "book": True, "cancel": True, "change": True,
-            "seat_map": True, "ancillaries": True, "fare_rules": False,
+            "search": True, "book": True, "cancel": True,
+            "cancel_with_quote": True, "change": True, "change_offers": True,
+            "seat_map": True, "ancillaries": True, "post_booking_services": True,
+            "webhooks": True, "fare_rules": False,
             "multi_city": True, "pos_arbitrage": False, "virtual_interlining": False,
         },
         carrier_count=300,
@@ -211,12 +213,15 @@ def build_duffel_card() -> KnowledgeCard:
             {"issue": "Offers expire 15-30 min after search", "workaround": "Refresh via GET /air/offers/{id} before booking"},
             {"issue": "Gender: m/f (not Male/Female)", "workaround": "Map from common values"},
             {"issue": "Title: lowercase (mr/mrs, not MR/MRS)", "workaround": "Lowercase before sending"},
-            {"issue": "Cancellation is two-step (request → confirm)", "workaround": "Show refund amount before confirming"},
+            {"issue": "Cancellation is two-step (request then confirm)", "workaround": "Show refund amount before confirming"},
+            {"issue": "Order changes require change_request then change_offers then confirm", "workaround": "Three-step flow with fare difference display"},
+            {"issue": "Post-booking service addition depends on airline support", "workaround": "Check available services first, handle gracefully if unsupported"},
         ],
-        booking_steps=["search", "refresh_offer", "create_order"],
-        booking_notes="Single-step booking. Returns airline PNR (booking_reference).",
-        readiness="tested",
-        confidence=0.90,
+        booking_steps=["search", "refresh_offer", "get_services", "get_seat_map", "create_order"],
+        booking_notes="Single-step booking with optional services. Returns airline PNR (booking_reference). "
+                      "Two-step cancel with refund preview. Three-step change with fare difference.",
+        readiness="production",
+        confidence=0.95,
         learned_from=["mystes_internal", "duffel_docs"],
     )
 
@@ -538,6 +543,59 @@ def build_liteapi_card() -> KnowledgeCard:
     )
 
 
+def build_duffel_stays_card() -> KnowledgeCard:
+    """Duffel Stays — 1M+ hotel properties via Duffel (commission-share)."""
+    return KnowledgeCard(
+        module_id="duffel_stays",
+        name="Duffel Stays",
+        vendor="Duffel",
+        version="v2",
+        vertical=VerticalType.HOTELS.value,
+        source_type=SourceType.DIRECT.value,
+        auth_type=AuthType.BEARER_TOKEN.value,
+        credential_env_vars=["DUFFEL_ACCESS_TOKEN"],
+        auth_notes="Same Bearer token as Duffel Flights. Duffel-Version: v2.",
+        capabilities={
+            "search": True, "book": True, "cancel": True,
+            "change": True, "quote_lock": True,
+            "accommodation_suggestions": True, "property_details": True,
+            "loyalty_programme": True,
+        },
+        carrier_count=1000000,
+        coverage_notes="1M+ properties — Marriott, Hilton, Shangri-La, IHG, Westin.",
+        geographic_focus="global",
+        date_format="YYYY-MM-DD",
+        passenger_format={
+            "name_fields": ["given_name", "family_name"],
+            "phone_format": "E.164",
+            "requires_passport": False,
+            "requires_dob": False,
+        },
+        pricing_model="commission",
+        pricing_notes="Commission-share model — we earn from bookings, not pay.",
+        priority=75,
+        strengths=[
+            "major_chains", "commission_model", "quote_locking",
+            "loyalty_programmes", "cancellation_support", "change_support",
+        ],
+        weaknesses=["coordinates_only_search", "330_day_max_advance", "99_night_max"],
+        best_for=["chain_hotels", "loyalty_bookings", "flexible_rates"],
+        quirks=[
+            {"issue": "Requires coordinates not city codes", "workaround": "Use suggest_accommodation for geocoding"},
+            {"issue": "Quotes expire", "workaround": "Check expires_at, re-search if expired"},
+            {"issue": "Phone must be E.164", "workaround": "Format as +{country_code}{number}"},
+            {"issue": "Max 330 days advance", "workaround": "Inform user of limitation"},
+            {"issue": "Max 99 nights", "workaround": "Split into multiple bookings"},
+            {"issue": "Suggestions require min 3 chars", "workaround": "Enforce in UI"},
+        ],
+        booking_steps=["search", "fetch_rates", "create_quote", "book"],
+        booking_notes="No passport/DOB needed. E.164 phone required. Loyalty optional.",
+        readiness="tested",
+        confidence=0.85,
+        learned_from=["duffel_docs", "mystes_internal"],
+    )
+
+
 # =========================================================================
 # REGISTRY BUILDERS
 # =========================================================================
@@ -574,7 +632,10 @@ def build_all_hotel_modules(from_json: bool = True) -> list:
         if cards:
             return [APIModule(knowledge_card=card) for card in cards]
 
-    return [APIModule(knowledge_card=build_liteapi_card())]
+    return [
+        APIModule(knowledge_card=build_liteapi_card()),
+        APIModule(knowledge_card=build_duffel_stays_card()),
+    ]
 
 
 def build_all_modules(from_json: bool = True) -> list:

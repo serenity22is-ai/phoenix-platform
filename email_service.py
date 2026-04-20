@@ -15,6 +15,7 @@ Supports multiple backends:
 
 import os
 import re
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -53,65 +54,102 @@ def generate_token(length: int = 32) -> str:
     return secrets.token_urlsafe(length)
 
 
-def send_email_async(app, msg_data: dict):
-    """Send email in background thread."""
-    with app.app_context():
-        try:
-            send_email_smtp(
-                to=msg_data["to"],
-                subject=msg_data["subject"],
-                html_body=msg_data["html"],
-                text_body=msg_data.get("text")
-            )
-        except Exception as e:
-            print(f"Failed to send email: {e}")
+def send_email_async(to_email: str = None, subject: str = None, body: str = None,
+                     app=None, msg_data: dict = None):
+    """Send email in background thread (Build #214: hardened with retry).
 
-
-def send_email_smtp(to: str, subject: str, html_body: str, text_body: str = None) -> bool:
+    Supports two calling conventions:
+    - send_email_async(to_email="x", subject="y", body="z")  # simple
+    - send_email_async(app=flask_app, msg_data={...})          # legacy
     """
-    Send email via SMTP.
+    import threading
+
+    def _send():
+        try:
+            if msg_data:
+                send_email_smtp(
+                    to=msg_data["to"],
+                    subject=msg_data["subject"],
+                    html_body=msg_data["html"],
+                    text_body=msg_data.get("text"),
+                )
+            elif to_email and subject:
+                send_email_smtp(
+                    to=to_email,
+                    subject=subject,
+                    html_body=body or "",
+                )
+        except Exception as e:
+            _logger.error(f"[EMAIL ASYNC] Failed: {e}")
+
+    t = threading.Thread(target=_send, daemon=True)
+    t.start()
+
+
+# Email delivery logger (Build #214)
+_logger = logging.getLogger("mystes.email")
+
+
+def send_email_smtp(to: str, subject: str, html_body: str, text_body: str = None,
+                    max_retries: int = 3) -> bool:
+    """Send email via SMTP with retry logic (Build #214: hardened).
 
     Args:
         to: Recipient email address
         subject: Email subject
         html_body: HTML content
         text_body: Plain text content (optional)
+        max_retries: Number of retry attempts (default 3, exponential backoff)
 
     Returns:
         True if sent successfully
     """
     if not EMAIL_CONFIG["enabled"]:
-        print(f"[EMAIL DISABLED] Would send to {to}: {subject}")
+        _logger.debug(f"[EMAIL DISABLED] Would send to {to}: {subject}")
         return True
 
     if not EMAIL_CONFIG["username"] or not EMAIL_CONFIG["password"]:
-        print(f"[EMAIL NOT CONFIGURED] Would send to {to}: {subject}")
+        _logger.warning(f"[EMAIL NOT CONFIGURED] Credentials missing, skipping: {subject}")
         return False
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = EMAIL_CONFIG["sender"]
-        msg["To"] = to
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = EMAIL_CONFIG["sender"]
+            msg["To"] = to
 
-        if text_body:
-            msg.attach(MIMEText(text_body, "plain"))
-        msg.attach(MIMEText(html_body, "html"))
+            if text_body:
+                msg.attach(MIMEText(text_body, "plain"))
+            msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(EMAIL_CONFIG["server"], EMAIL_CONFIG["port"]) as server:
-            if EMAIL_CONFIG["use_tls"]:
-                server.starttls()
-            server.login(EMAIL_CONFIG["username"], EMAIL_CONFIG["password"])
-            # Use bare email for SMTP envelope (MAIL FROM) — not "Name <email>" format
-            envelope_sender = _extract_email(EMAIL_CONFIG["sender"])
-            server.sendmail(envelope_sender, to, msg.as_string())
+            with smtplib.SMTP(EMAIL_CONFIG["server"], EMAIL_CONFIG["port"], timeout=30) as server:
+                if EMAIL_CONFIG["use_tls"]:
+                    server.starttls()
+                server.login(EMAIL_CONFIG["username"], EMAIL_CONFIG["password"])
+                envelope_sender = _extract_email(EMAIL_CONFIG["sender"])
+                server.sendmail(envelope_sender, to, msg.as_string())
 
-        print(f"[EMAIL SENT] To: {to}, Subject: {subject}")
-        return True
+            _logger.info(f"[EMAIL SENT] To: {to}, Subject: {subject}")
+            return True
 
-    except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
-        return False
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError,
+                ConnectionError, TimeoutError) as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = 2 ** attempt  # 2s, 4s, 8s
+                _logger.warning(f"[EMAIL RETRY] Attempt {attempt}/{max_retries} failed for {to}: {e}. Retrying in {wait}s...")
+                import time
+                time.sleep(wait)
+            else:
+                _logger.error(f"[EMAIL FAILED] All {max_retries} attempts failed for {to}: {e}")
+
+        except Exception as e:
+            _logger.error(f"[EMAIL ERROR] Non-retryable error sending to {to}: {e}")
+            return False
+
+    return False
 
 
 def send_verification_email(to: str, token: str, name: str = None) -> bool:
@@ -584,7 +622,7 @@ def send_escrow_reminder(to: str, points_amount: int, booking_ref: str,
     html = f"""
     <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#f8f9fa;padding:30px;">
         <div style="text-align:center;margin-bottom:25px;">
-            <h1 style="font-family:'Cinzel',serif;color:#1a1a2e;margin:0;">MYSTES</h1>
+            <h1 style="font-family:'Space Grotesk',sans-serif;color:#1a1a2e;margin:0;">MYSTES</h1>
         </div>
         <div style="background:white;border-radius:12px;padding:30px;">
             <h2 style="color:#7c3aed;margin:0 0 15px;">You have {points_amount:,} points waiting!</h2>
@@ -617,7 +655,7 @@ def send_referral_notification(to: str, name: str, referee_action: str,
     html = f"""
     <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#f8f9fa;padding:30px;">
         <div style="text-align:center;margin-bottom:25px;">
-            <h1 style="font-family:'Cinzel',serif;color:#1a1a2e;margin:0;">MYSTES</h1>
+            <h1 style="font-family:'Space Grotesk',sans-serif;color:#1a1a2e;margin:0;">MYSTES</h1>
         </div>
         <div style="background:white;border-radius:12px;padding:30px;">
             <h2 style="color:#14b8a6;margin:0 0 15px;">You earned {points_earned:,} points!</h2>
@@ -646,7 +684,7 @@ def send_welcome_points_email(to: str, name: str, points: int) -> bool:
     html = f"""
     <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#f8f9fa;padding:30px;">
         <div style="text-align:center;margin-bottom:25px;">
-            <h1 style="font-family:'Cinzel',serif;color:#1a1a2e;margin:0;">MYSTES</h1>
+            <h1 style="font-family:'Space Grotesk',sans-serif;color:#1a1a2e;margin:0;">MYSTES</h1>
         </div>
         <div style="background:white;border-radius:12px;padding:30px;">
             <h2 style="color:#7c3aed;margin:0 0 15px;">{greeting} Welcome to MYSTES!</h2>
@@ -892,7 +930,7 @@ def send_devportal_welcome(to: str, name: str = None) -> bool:
     html = f"""
     <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#0d0d1a;padding:30px;">
         <div style="text-align:center;margin-bottom:25px;">
-            <h1 style="font-family:'Cinzel',serif;color:#b388ff;margin:0;font-size:28px;">ANASTASiA</h1>
+            <h1 style="font-family:'Space Grotesk',sans-serif;color:#b388ff;margin:0;font-size:28px;">ANASTASiA</h1>
             <p style="color:#8a8278;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:4px 0;">APAi Admin Portal</p>
         </div>
         <div style="background:#1a1a2e;border:1px solid rgba(179,136,255,0.2);border-radius:12px;padding:30px;">
@@ -935,7 +973,7 @@ def send_team_invitation_email(to: str, name: str = None, inviter_name: str = No
     html = f"""
     <div style="max-width:600px;margin:0 auto;font-family:'Outfit',Arial,sans-serif;background:#0d0d1a;padding:30px;">
         <div style="text-align:center;margin-bottom:25px;">
-            <h1 style="font-family:'Cinzel',serif;color:#b388ff;margin:0;font-size:28px;">ANASTASiA</h1>
+            <h1 style="font-family:'Space Grotesk',sans-serif;color:#b388ff;margin:0;font-size:28px;">ANASTASiA</h1>
             <p style="color:#8a8278;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin:4px 0;">APAi Admin Portal</p>
         </div>
         <div style="background:#1a1a2e;border:1px solid rgba(179,136,255,0.2);border-radius:12px;padding:30px;">
@@ -972,7 +1010,7 @@ def send_friend_request_email(to: str, from_name: str, to_name: str = None) -> b
     greeting = f"Hi {to_name}," if to_name else "Hi,"
     html = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:0 auto;background:#0f0a19;border-radius:12px;padding:40px;color:#e2e8f0;">
-        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
         <p>{greeting}</p>
         <p><strong>{from_name}</strong> sent you a friend request on MYSTES.</p>
         <p>Accept the request to start sharing trips, collections, and travel plans together.</p>
@@ -993,11 +1031,11 @@ def send_trip_invite_email(to: str, inviter_name: str, trip_name: str, trip_id: 
     greeting = f"Hi {to_name}," if to_name else "Hi,"
     html = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:0 auto;background:#0f0a19;border-radius:12px;padding:40px;color:#e2e8f0;">
-        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
         <p>{greeting}</p>
         <p><strong>{inviter_name}</strong> invited you to collaborate on a trip:</p>
         <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:20px;margin:16px 0;text-align:center;">
-            <div style="font-family:'Cinzel',serif;font-size:18px;color:#e2e8f0;letter-spacing:2px;">{trip_name}</div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;color:#e2e8f0;letter-spacing:2px;">{trip_name}</div>
         </div>
         <p>Join to add flights, hotels, activities, and more. Vote on options and plan together.</p>
         <div style="text-align:center;margin:24px 0;">
@@ -1017,11 +1055,11 @@ def send_collection_shared_email(to: str, sharer_name: str, collection_name: str
     greeting = f"Hi {to_name}," if to_name else "Hi,"
     html = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:0 auto;background:#0f0a19;border-radius:12px;padding:40px;color:#e2e8f0;">
-        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
         <p>{greeting}</p>
         <p><strong>{sharer_name}</strong> shared a travel collection with you:</p>
         <div style="background:rgba(20,184,166,0.08);border:1px solid rgba(20,184,166,0.2);border-radius:10px;padding:20px;margin:16px 0;text-align:center;">
-            <div style="font-family:'Cinzel',serif;font-size:18px;color:#e2e8f0;letter-spacing:2px;">{collection_name}</div>
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;color:#e2e8f0;letter-spacing:2px;">{collection_name}</div>
         </div>
         <div style="text-align:center;margin:24px 0;">
             <a href="{EMAIL_CONFIG['base_url']}/c/{share_slug}"
@@ -1042,7 +1080,7 @@ def send_cancellation_email(to: str, to_name: str = None, booking_ref: str = "",
     refund_line = f"<p>A refund of <strong>${refund_amount:.2f}</strong> will be returned to your original payment method within 5-10 business days.</p>" if refund_amount > 0 else ""
     html = f"""
     <div style="font-family:'Outfit',sans-serif;max-width:500px;margin:0 auto;background:#0a0612;color:#e2e8f0;padding:40px 30px;border-radius:16px;">
-        <div style="font-family:'Cinzel',serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;color:#7c3aed;margin-bottom:20px;letter-spacing:4px;">MYSTES</div>
         <p>{greeting}</p>
         <p>Your booking has been cancelled.</p>
         <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:20px;margin:16px 0;text-align:center;">

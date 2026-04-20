@@ -313,7 +313,7 @@ class TestHotelsNeuron:
 
         health = neuron.health_check()
         assert health["enabled"] is True
-        assert health["modules_total"] == 1  # liteAPI
+        assert health["modules_total"] == 2  # liteAPI + Duffel Stays
         assert health["modules_configured"] == 0  # No LITEAPI_KEY set
 
     def test_initialize_with_credentials(self, event_bus):

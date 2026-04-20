@@ -1,15 +1,15 @@
 """Build #184-186: Dev Portal tables + B2B consumer markup fields
 
-Revision ID: u1v2w3x4y5z6
-Revises: t0u1v2w3x4y5
+Revision ID: aa184186b2b1
+Revises: z6a7b8c9d0e1
 Create Date: 2026-03-17
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'u1v2w3x4y5z6'
-down_revision = 't0u1v2w3x4y5'
+revision = 'aa184186b2b1'
+down_revision = 'z6a7b8c9d0e1'
 branch_labels = None
 depends_on = None
 

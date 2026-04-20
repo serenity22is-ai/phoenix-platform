@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYSTES — Travel, Redefined</title>
+    <meta name="description" content="MYSTES is a next-generation online travel agency delivering wholesale airfare pricing directly to consumers. Powered by ANASTASiA intelligence.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0a0612;
+            color: #e2e0e7;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-glow {
+            position: fixed;
+            top: -40%;
+            left: -20%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(ellipse, rgba(124,58,237,0.12) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-glow-2 {
+            position: fixed;
+            bottom: -30%;
+            right: -20%;
+            width: 70%;
+            height: 70%;
+            background: radial-gradient(ellipse, rgba(168,85,247,0.08) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Nav */
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 28px 0;
+        }
+
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 0.25em;
+            background: linear-gradient(135deg, #c4b5fd, #a78bfa, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links a {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 400;
+            margin-left: 32px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: #a78bfa; }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 100px 0 80px;
+        }
+
+        .hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3.2rem;
+            font-weight: 600;
+            line-height: 1.2;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 30%, #c4b5fd 70%, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            font-weight: 300;
+            color: rgba(255,255,255,0.55);
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+        }
+
+        .hero-cta {
+            display: inline-block;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .hero-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(124,58,237,0.35);
+        }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            padding: 40px 0 80px;
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 36px 28px;
+            backdrop-filter: blur(12px);
+            transition: border-color 0.3s, transform 0.2s;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(167,139,250,0.3);
+            transform: translateY(-4px);
+        }
+
+        .feature-card h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #c4b5fd;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            font-weight: 300;
+            line-height: 1.7;
+            color: rgba(255,255,255,0.5);
+        }
+
+        /* Verticals */
+        .verticals {
+            text-align: center;
+            padding: 40px 0 80px;
+        }
+
+        .verticals h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #e2e0e7;
+        }
+
+        .verticals p {
+            color: rgba(255,255,255,0.45);
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+
+        .vertical-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .vertical-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 28px 20px;
+            text-align: center;
+        }
+
+        .vertical-item .icon { font-size: 2rem; margin-bottom: 12px; }
+        .vertical-item h4 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 500;
+            font-size: 1rem;
+            color: #c4b5fd;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid rgba(255,255,255,0.06);
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        footer .logo-footer {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 12px;
+        }
+
+        footer p {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.25);
+            font-weight: 300;
+        }
+
+        footer a {
+            color: rgba(167,139,250,0.6);
+            text-decoration: none;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.2rem; }
+            .hero { padding: 60px 0 50px; }
+            .nav-links { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="container">
+        <nav>
+            <div class="logo">MYSTES</div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#verticals">Verticals</a>
+                <a href="mailto:hello@mystes.app">Contact</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <h1>Travel, Redefined</h1>
+            <p>MYSTES delivers wholesale airfare pricing directly to consumers — no consolidator gatekeeping, no volume minimums, no IATA required. Powered by ANASTASiA intelligence.</p>
+            <a href="mailto:hello@mystes.app" class="hero-cta">Get in Touch</a>
+        </section>
+
+        <section class="features" id="features">
+            <div class="feature-card">
+                <h3>Wholesale Pricing</h3>
+                <p>Access consolidator-grade fares through our credential network. The same prices travel agents see — now available to everyone.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Multi-Source Search</h3>
+                <p>GDS, NDC, and aggregator results unified into a single feed. ANASTASiA deduplicates and surfaces the cheapest option per itinerary.</p>
+            </div>
+            <div class="feature-card">
+                <h3>ANASTASiA Intelligence</h3>
+                <p>Our AI platform compiles airline knowledge into reusable cards — handling fare rules, baggage policies, and booking quirks at zero marginal cost.</p>
+            </div>
+        </section>
+
+        <section class="verticals" id="verticals">
+            <h2>Every Vertical</h2>
+            <p>One platform for the entire trip</p>
+            <div class="vertical-grid">
+                <div class="vertical-item">
+                    <div class="icon">&#9992;</div>
+                    <h4>Flights</h4>
+                </div>
+                <div class="vertical-item">
+                    <div class="icon">&#127976;</div>
+                    <h4>Hotels</h4>
+                </div>
+                <div class="vertical-item">
+                    <div class="icon">&#128663;</div>
+                    <h4>Cars</h4>
+                </div>
+                <div class="vertical-item">
+                    <div class="icon">&#127915;</div>
+                    <h4>Activities</h4>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <div class="logo-footer">MYSTES</div>
+            <p>&copy; 2026 MYSTES KYRIOS LLC. All rights reserved. &nbsp;|&nbsp; <a href="mailto:hello@mystes.app">hello@mystes.app</a></p>
+        </footer>
+    </div>
+</body>
+</html>

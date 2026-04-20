@@ -1,0 +1,85 @@
+{
+  "id": "62b41c43-1066-504c-a2ae-4f876a783b63",
+  "name": "Travelport",
+  "vendor": "Travelport",
+  "version": "21.1",
+  "vertical": "flights",
+  "protocol": "soap",
+  "base_url": "americas.universal-api.travelport.com",
+  "auth_method": "basic",
+  "auth_details": {
+    "notes": "SOAP/XML based. Universal API covers flights, hotels, cars. Uses Galileo (EMEA/APAC), Apollo (Americas), Worldspan (legacy). Credentials: TargetBranch + username/password."
+  },
+  "booking_flow": {
+    "steps": [
+      {
+        "order": 1,
+        "name": "search",
+        "endpoint": "/LowFareSearchReq",
+        "method": "POST"
+      },
+      {
+        "order": 2,
+        "name": "price",
+        "endpoint": "/AirPriceReq",
+        "method": "POST"
+      },
+      {
+        "order": 3,
+        "name": "book",
+        "endpoint": "/AirCreateReservationReq",
+        "method": "POST"
+      }
+    ],
+    "total_steps": 3,
+    "estimated_time_seconds": 15.0,
+    "requires_auth": true,
+    "supports_guest": false
+  },
+  "endpoints": [
+    {
+      "path": "/LowFareSearchReq",
+      "method": "POST",
+      "purpose": "Low fare search"
+    },
+    {
+      "path": "/AirPriceReq",
+      "method": "POST",
+      "purpose": "Price quote"
+    },
+    {
+      "path": "/AirCreateReservationReq",
+      "method": "POST",
+      "purpose": "Create PNR"
+    }
+  ],
+  "data_schemas": {},
+  "quirks": [
+    {
+      "id": "8388ec4a",
+      "description": "SOAP/XML only — no REST API. Requires XML parsing.",
+      "category": "protocol",
+      "severity": "warning",
+      "workaround": "Use zeep or suds-community for SOAP client generation.",
+      "discovered_at": 1776564133.562338,
+      "discovered_by": "industry_knowledge"
+    }
+  ],
+  "adapters": [],
+  "readiness": "documented",
+  "confidence": 0.5,
+  "installations": 0,
+  "first_learned": 1776564133.562339,
+  "last_updated": 1776564133.562339,
+  "learned_from": [
+    "public_docs"
+  ],
+  "tags": [
+    "flights",
+    "hotels",
+    "cars",
+    "gds",
+    "soap",
+    "xml"
+  ]
+}

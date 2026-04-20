@@ -55,6 +55,10 @@ font_samples.html
 # Picasso auth token cache (contains session credentials)
 .picasso_token.json
 
+# Credential vault keys (NEVER commit)
+*.key
+picasso-sdk/.agency_configs/.neuron_data/credentials/
+
 # Build output
 build/
 session_archive_full.md

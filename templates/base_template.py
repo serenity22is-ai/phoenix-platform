@@ -48,11 +48,8 @@ BASE_TEMPLATE = '''
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- 3D Scene & Scroll Animations -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Animations handled by CSS + IntersectionObserver (no external JS libraries) -->
     <!-- Google Identity Services (One Tap + Sign-In button) -->
     {% if google_client_id %}
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -107,10 +104,36 @@ BASE_TEMPLATE = '''
             --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'SF Mono', 'Fira Code', monospace;
-            --font-brand: 'Cinzel', 'Trajan Pro', 'Palatino Linotype', 'Book Antiqua', serif;
+            --font-brand: 'Space Grotesk', 'Inter', 'Segoe UI', sans-serif;
 
             /* Transitions */
             --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+            /* Glass morphism tokens */
+            --glass-bg: rgba(10, 6, 18, 0.85);
+            --glass-bg-light: rgba(255, 255, 255, 0.04);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-hover: rgba(124, 58, 237, 0.3);
+            --glass-blur: blur(16px);
+
+            /* Accent aliases */
+            --accent: #C9A96E;
+            --accent-purple: #7c3aed;
+            --accent-teal: #14b8a6;
+
+            /* Font alias */
+            --font-body: var(--font-sans);
+
+            /* Semantic colors */
+            --danger-red: #ef4444;
+            --warning-amber: #f59e0b;
+
+            /* Border radius scale */
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            --radius-full: 100px;
         }
 
         /* Reset */
@@ -154,18 +177,94 @@ BASE_TEMPLATE = '''
         }
 
         /* ============================================
-           AURORA BACKGROUND - Cosmic Documentary Feel
+           AURORA BACKGROUND - CSS Only (replaces Three.js)
            ============================================ */
 
-        /* ============================================
-           DEEP SPACE BACKGROUND (Three.js renders behind)
-           body is transparent so fixed canvases show through
-           html element holds the dark fallback background
-           ============================================ */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            background: var(--deep-space);
+            overflow: hidden;
+        }
+
+        .aurora-bg::before,
+        .aurora-bg::after {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 60%;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.35;
+            will-change: transform;
+        }
+
+        .aurora-bg::before {
+            top: -10%;
+            left: -25%;
+            background: radial-gradient(ellipse, rgba(124,58,237,0.4) 0%, rgba(91,33,182,0.2) 40%, transparent 70%);
+            animation: auroraFlow 30s ease-in-out infinite alternate;
+        }
+
+        .aurora-bg::after {
+            top: 30%;
+            right: -25%;
+            background: radial-gradient(ellipse, rgba(20,184,166,0.15) 0%, rgba(8,145,178,0.1) 40%, transparent 70%);
+            animation: auroraFlow 25s ease-in-out infinite alternate-reverse;
+        }
+
+        .aurora-stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            background-image:
+                radial-gradient(2px 2px at 10% 15%, rgba(255,255,255,0.8), transparent),
+                radial-gradient(1.5px 1.5px at 25% 45%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(2px 2px at 50% 20%, rgba(255,255,255,0.9), transparent),
+                radial-gradient(1.5px 1.5px at 70% 65%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 85% 30%, rgba(255,255,255,0.7), transparent),
+                radial-gradient(1.5px 1.5px at 15% 80%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(2px 2px at 40% 90%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1.5px 1.5px at 60% 8%, rgba(255,255,255,0.8), transparent),
+                radial-gradient(1px 1px at 92% 75%, rgba(255,255,255,0.55), transparent),
+                radial-gradient(1px 1px at 5% 55%, rgba(255,255,255,0.65), transparent),
+                radial-gradient(1px 1px at 33% 72%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(2px 2px at 78% 12%, rgba(255,255,255,0.7), transparent),
+                radial-gradient(1.5px 1.5px at 55% 50%, rgba(255,255,255,0.45), transparent),
+                radial-gradient(1px 1px at 88% 88%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(1.5px 1.5px at 3% 35%, rgba(255,255,255,0.55), transparent),
+                radial-gradient(1px 1px at 45% 5%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(2px 2px at 68% 42%, rgba(255,255,255,0.65), transparent),
+                radial-gradient(1px 1px at 22% 95%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1.5px 1.5px at 95% 55%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 38% 28%, rgba(255,255,255,0.6), transparent);
+            animation: starTwinkle 6s ease-in-out infinite alternate;
+        }
+
+        @keyframes auroraFlow {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(3%, -2%) scale(1.03); }
+            66% { transform: translate(-2%, 1%) scale(0.98); }
+            100% { transform: translate(1%, -1%) scale(1.01); }
+        }
+
+        @keyframes starTwinkle {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
 
         /* Reduce animation on low-power devices */
         @media (prefers-reduced-motion: reduce) {
-            #aurora-canvas { opacity: 0.5; }
+            .aurora-bg::before, .aurora-bg::after, .aurora-stars { animation: none; }
         }
 
         /* ============================================
@@ -210,7 +309,6 @@ BASE_TEMPLATE = '''
             filter: drop-shadow(0 0 8px rgba(139, 45, 91, 0.5))
                     drop-shadow(0 0 16px rgba(100, 60, 180, 0.3));
             transition: all 0.4s var(--ease-out);
-            animation: navGeoSpin 60s linear infinite;
         }
 
         .nav-logo:hover {
@@ -219,11 +317,6 @@ BASE_TEMPLATE = '''
                     drop-shadow(0 0 24px rgba(100, 60, 180, 0.5))
                     drop-shadow(0 0 36px rgba(13, 79, 79, 0.3));
             transform: scale(1.1);
-        }
-
-        @keyframes navGeoSpin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
         }
 
         .nav-wordmark {
@@ -479,8 +572,8 @@ BASE_TEMPLATE = '''
 
         .card:hover {
             border-color: rgba(124, 58, 237, 0.3);
-            transform: translateY(-8px) rotateX(2deg);
-            box-shadow: 0 20px 60px rgba(124, 58, 237, 0.2), 0 0 40px rgba(124, 58, 237, 0.08);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(124, 58, 237, 0.15);
         }
 
         /* Light card variant - FIXED READABILITY */
@@ -678,17 +771,6 @@ BASE_TEMPLATE = '''
 
         .payment-box p, .payment-box span, .payment-box label {
             color: var(--text-secondary);
-        }
-
-        .xrp-address {
-            font-family: var(--font-mono);
-            font-size: 14px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: var(--space-md);
-            word-break: break-all;
-            color: var(--mystes-glow);
         }
 
         /* ============================================
@@ -1472,14 +1554,442 @@ BASE_TEMPLATE = '''
                 max-width: unset;
             }
         }
+
+        /* ============================================
+           MYSTES COMPONENT LIBRARY
+           Shared components — route files should use
+           these instead of defining their own.
+           ============================================ */
+
+        /* --- Page Layouts --- */
+        .mystes-page { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+        .mystes-page-wide { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+        .mystes-page-header {
+            text-align: center;
+            padding: 40px 0 10px;
+        }
+        .mystes-page-header h1 {
+            font-family: var(--font-brand);
+            font-size: clamp(28px, 6vw, 36px);
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: var(--text-bright);
+            margin: 0 0 8px;
+            text-transform: uppercase;
+        }
+        .mystes-page-header p {
+            color: var(--text-muted);
+            font-size: 15px;
+            margin: 0;
+        }
+
+        /* --- Glass Card --- */
+        .mystes-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            padding: 24px;
+            transition: border-color 0.3s var(--ease-out), transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+        }
+        .mystes-card:hover {
+            border-color: var(--glass-border-hover);
+        }
+        .mystes-card.interactive:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+        .mystes-card.compact { padding: 16px; }
+        .mystes-card.flush { padding: 0; }
+
+        /* --- Card Grid --- */
+        .mystes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .mystes-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .mystes-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .mystes-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+
+        @media (max-width: 768px) {
+            .mystes-grid-2, .mystes-grid-3, .mystes-grid-4 { grid-template-columns: 1fr; }
+        }
+
+        /* --- Form Elements --- */
+        .mystes-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-family: var(--font-sans);
+        }
+
+        .mystes-input,
+        .mystes-select,
+        .mystes-textarea {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-md);
+            color: var(--text-bright);
+            font-family: var(--font-sans);
+            font-size: 15px;
+            transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .mystes-input:focus,
+        .mystes-select:focus,
+        .mystes-textarea:focus {
+            background: rgba(255, 255, 255, 0.10);
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        }
+        .mystes-input::placeholder,
+        .mystes-textarea::placeholder { color: rgba(255, 255, 255, 0.3); }
+        .mystes-select option { background: #1a1a2e; color: #fff; }
+        .mystes-textarea { resize: vertical; min-height: 60px; }
+
+        .mystes-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .mystes-form-grid .full-width { grid-column: 1 / -1; }
+
+        @media (max-width: 640px) {
+            .mystes-form-grid { grid-template-columns: 1fr; }
+        }
+
+        /* --- Buttons --- */
+        .mystes-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s var(--ease-out);
+            text-decoration: none;
+            white-space: nowrap;
+            line-height: 1.4;
+        }
+        .mystes-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+        .mystes-btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3);
+        }
+        .mystes-btn-primary:hover:not(:disabled) {
+            box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .mystes-btn-gold {
+            background: var(--accent);
+            color: #000;
+        }
+        .mystes-btn-gold:hover:not(:disabled) {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+
+        .mystes-btn-ghost {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-muted);
+        }
+        .mystes-btn-ghost:hover:not(:disabled) {
+            border-color: rgba(255, 255, 255, 0.3);
+            color: var(--text-bright);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .mystes-btn-danger {
+            background: transparent;
+            color: var(--danger-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .mystes-btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .mystes-btn-success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+        }
+        .mystes-btn-success:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 30px rgba(34, 197, 94, 0.3);
+        }
+
+        .mystes-btn-lg { padding: 14px 32px; font-size: 15px; }
+        .mystes-btn-sm { padding: 8px 16px; font-size: 13px; }
+        .mystes-btn-full { width: 100%; }
+
+        /* --- Badges --- */
+        .mystes-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .mystes-badge-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }
+        .mystes-badge-purple { background: rgba(124, 58, 237, 0.15); color: #a78bfa; border: 1px solid rgba(124, 58, 237, 0.2); }
+        .mystes-badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .mystes-badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .mystes-badge-teal { background: rgba(20, 184, 166, 0.15); color: #14b8a6; border: 1px solid rgba(20, 184, 166, 0.2); }
+        .mystes-badge-neutral { background: rgba(255, 255, 255, 0.1); color: var(--text-muted); }
+        .mystes-badge-gold { background: rgba(201, 169, 110, 0.15); color: #C9A96E; border: 1px solid rgba(201, 169, 110, 0.2); }
+
+        /* --- Spinner (replaces 15 duplicate @keyframes spin) --- */
+        .mystes-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(124, 58, 237, 0.2);
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: mystes-spin 0.8s linear infinite;
+        }
+        .mystes-spinner-sm { width: 16px; height: 16px; border-width: 2px; }
+        .mystes-spinner-white { border-color: rgba(255,255,255,0.3); border-top-color: #fff; }
+
+        @keyframes mystes-spin { to { transform: rotate(360deg); } }
+
+        /* --- Skeleton Loading --- */
+        .mystes-skeleton {
+            background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+            background-size: 200% 100%;
+            animation: mystes-shimmer 1.5s infinite;
+            border-radius: var(--radius-md);
+        }
+        @keyframes mystes-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* --- Empty State --- */
+        .mystes-empty {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+        .mystes-empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+        .mystes-empty p { font-size: 14px; margin: 4px 0; }
+        .mystes-empty a { color: var(--accent-purple); text-decoration: none; }
+
+        /* --- Divider --- */
+        .mystes-divider {
+            border: none;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 24px 0;
+        }
+
+        /* --- Modal --- */
+        .mystes-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 5000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .mystes-modal-overlay.open { display: flex; }
+        .mystes-modal {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            max-width: 480px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* --- Table --- */
+        .mystes-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .mystes-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .mystes-table th {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .mystes-table td {
+            padding: 12px 16px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 14px;
+        }
+        .mystes-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+        /* --- Scroll Reveal (replaces GSAP ScrollTrigger) --- */
+        .reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s var(--ease-out), transform 0.6s var(--ease-out);
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .reveal-stagger > .reveal:nth-child(1) { transition-delay: 0s; }
+        .reveal-stagger > .reveal:nth-child(2) { transition-delay: 0.08s; }
+        .reveal-stagger > .reveal:nth-child(3) { transition-delay: 0.16s; }
+        .reveal-stagger > .reveal:nth-child(4) { transition-delay: 0.24s; }
+        .reveal-stagger > .reveal:nth-child(5) { transition-delay: 0.32s; }
+        .reveal-stagger > .reveal:nth-child(6) { transition-delay: 0.40s; }
+
+        /* Hero entrance animation */
+        .hero-entrance {
+            opacity: 0;
+            animation: heroIn 0.8s var(--ease-out) forwards;
+        }
+        .hero-entrance:nth-child(2) { animation-delay: 0.15s; }
+        .hero-entrance:nth-child(3) { animation-delay: 0.3s; }
+
+        @keyframes heroIn {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Concierge Chat Widget --- */
+        .concierge-bubble {
+            position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px;
+            background: var(--gold, #C9A96E); border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 20px rgba(201,169,110,0.4); z-index: 9999;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .concierge-bubble:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 28px rgba(201,169,110,0.6);
+        }
+        .concierge-panel {
+            display: none; position: fixed; bottom: 90px; right: 24px; width: 340px; max-height: 480px;
+            background: #16213e; border: 1px solid rgba(201,169,110,0.3); border-radius: var(--radius-xl);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 9999; overflow: hidden;
+            font-family: var(--font-body);
+        }
+        .concierge-panel.open { display: block; }
+        .concierge-header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 16px 20px;
+            border-bottom: 1px solid rgba(201,169,110,0.2); display: flex;
+            align-items: center; justify-content: space-between;
+        }
+        .concierge-title {
+            font-family: var(--font-brand); font-size: 14px; color: var(--gold, #C9A96E); letter-spacing: 1px;
+        }
+        .concierge-close { cursor: pointer; color: #888; font-size: 18px; background: none; border: none; padding: 4px; }
+        .concierge-body { padding: 20px; max-height: 340px; overflow-y: auto; }
+        .concierge-msg { color: #e0e0e0; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0; }
+        .concierge-options { display: flex; flex-direction: column; gap: 8px; }
+        .concierge-cross-sell {
+            display: none; margin-top: 16px; padding: 12px;
+            background: rgba(128,90,213,0.15); border: 1px solid rgba(128,90,213,0.3); border-radius: var(--radius-md);
+        }
+        .concierge-cross-sell-msg { color: #b8a0d8; font-size: 12px; margin: 0; cursor: pointer; }
+        .concierge-input-bar { padding: 12px 16px; border-top: 1px solid rgba(201,169,110,0.15); }
+        .concierge-input-row { display: flex; gap: 8px; }
+        .concierge-text-input {
+            flex: 1; background: #0f1729; border: 1px solid rgba(201,169,110,0.2); border-radius: var(--radius-md);
+            padding: 8px 12px; color: #e0e0e0; font-size: 13px; outline: none; font-family: var(--font-body);
+        }
+        .concierge-send {
+            background: var(--gold, #C9A96E); border: none; border-radius: var(--radius-md);
+            padding: 8px 14px; cursor: pointer; color: #1a1a2e; font-weight: 600; font-size: 13px;
+        }
+        .concierge-option-btn {
+            background: rgba(201,169,110,0.15); border: 1px solid rgba(201,169,110,0.3); border-radius: var(--radius-md);
+            padding: 10px 16px; color: #C9A96E; cursor: pointer; font-size: 13px; text-align: left;
+            transition: background 0.2s; font-family: var(--font-body);
+        }
+        .concierge-option-btn:hover { background: rgba(201,169,110,0.25); }
+
+        /* --- Cookie Consent Banner --- */
+        .cookie-banner {
+            display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 10000;
+            background: rgba(26,24,20,0.95); backdrop-filter: blur(12px); padding: 16px 24px;
+            font-family: var(--font-body); color: #f5f1eb; font-size: 0.85rem;
+            border-top: 1px solid rgba(67,97,238,0.3);
+            align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
+        }
+        .cookie-banner.open { display: flex; }
+        .cookie-banner a { color: #4361ee; text-decoration: underline; }
+        .cookie-accept {
+            padding: 8px 20px; background: #4361ee; color: white; border: none;
+            border-radius: 6px; cursor: pointer; font-family: var(--font-body);
+            font-size: 0.85rem; font-weight: 500; white-space: nowrap;
+        }
+
+        /* --- Utility Classes --- */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .mt-0 { margin-top: 0; }
+        .mt-sm { margin-top: 8px; }
+        .mt-md { margin-top: 16px; }
+        .mt-lg { margin-top: 24px; }
+        .mt-xl { margin-top: 32px; }
+        .mb-0 { margin-bottom: 0; }
+        .mb-sm { margin-bottom: 8px; }
+        .mb-md { margin-bottom: 16px; }
+        .mb-lg { margin-bottom: 24px; }
+        .gap-sm { gap: 8px; }
+        .gap-md { gap: 16px; }
+        .gap-lg { gap: 24px; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .flex-center { display: flex; align-items: center; }
+        .flex-wrap { flex-wrap: wrap; }
+        .inline-flex { display: inline-flex; align-items: center; gap: 8px; }
     </style>
 </head>
 <body>
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <!-- 3D Aurora Background — Three.js WebGL -->
-    <canvas id="aurora-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;"></canvas>
+    <!-- Aurora Background — Pure CSS (replaced Three.js WebGL) -->
+    <div class="aurora-bg"></div>
+    <div class="aurora-stars"></div>
 
     <!-- Loading Screen -->
     <div class="loading-screen" id="loadingScreen">
@@ -1680,10 +2190,12 @@ BASE_TEMPLATE = '''
             }
         })();
 
-        // Hide loading screen — runs immediately (script is at bottom of body, DOM is ready)
-        setTimeout(function() {
-            document.getElementById('loadingScreen').classList.add('hidden');
-        }, 1200);
+        // Hide loading screen — flash sacred geometry briefly then fade out
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                document.getElementById('loadingScreen').classList.add('hidden');
+            });
+        });
 
         // Loading screen controls
         window.showLoadingScreen = function(message) {
@@ -1798,92 +2310,49 @@ BASE_TEMPLATE = '''
     </script>
     {% endif %}
 
-    <!-- Three.js 3D Aurora Scene -->
-    <script src="/static/js/aurora-scene.js?v=4" defer></script>
-
-    <!-- GSAP Scroll Animations -->
+    <!-- Scroll Reveal — IntersectionObserver (replaces GSAP + Three.js) -->
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
-        gsap.registerPlugin(ScrollTrigger);
-
-        // Hero section — cinematic staggered entrance
-        var hero = document.querySelector('.hero');
-        if (hero) {
-            gsap.from('.hero h1', { y: 60, opacity: 0, duration: 1.4, ease: 'power3.out', delay: 0.3 });
-            gsap.from('.hero-subtitle', { y: 40, opacity: 0, duration: 1.2, ease: 'power3.out', delay: 0.6 });
-            gsap.from('.hero-search', { y: 30, opacity: 0, duration: 1, ease: 'power3.out', delay: 0.85 });
-        }
-
-        // Cards — slide up + fade on scroll into view
-        gsap.utils.toArray('.card').forEach(function(card) {
-            gsap.from(card, {
-                scrollTrigger: { trigger: card, start: 'top 88%', toggleActions: 'play none none none' },
-                y: 50, opacity: 0, duration: 0.7, ease: 'power2.out'
+    (function() {
+        if (!('IntersectionObserver' in window)) return;
+        var observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
             });
+        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+        document.querySelectorAll('.reveal, .card, .deal, .stat-card, .mystes-card').forEach(function(el) {
+            if (!el.classList.contains('reveal')) el.classList.add('reveal');
+            observer.observe(el);
         });
-
-        // Section headings — fade in on scroll
-        gsap.utils.toArray('.container h2, .container h3').forEach(function(el) {
-            gsap.from(el, {
-                scrollTrigger: { trigger: el, start: 'top 92%' },
-                y: 25, opacity: 0, duration: 0.6, ease: 'power2.out'
-            });
-        });
-
-        // Buttons — subtle entrance
-        gsap.utils.toArray('.btn, .nav-cta').forEach(function(btn) {
-            btn.addEventListener('mouseenter', function() {
-                gsap.to(btn, { scale: 1.05, duration: 0.2, ease: 'power2.out' });
-            });
-            btn.addEventListener('mouseleave', function() {
-                gsap.to(btn, { scale: 1, duration: 0.3, ease: 'power2.out' });
-            });
-        });
-    });
+    })();
     </script>
 
     <!-- MYSTES Concierge Chat Bubble (Build #181) — Zero AI cost -->
-    <div id="concierge-bubble" onclick="toggleConcierge()" style="
-        position:fixed; bottom:24px; right:24px; width:56px; height:56px;
-        background:var(--gold, #C9A96E); border-radius:50%; cursor:pointer;
-        display:flex; align-items:center; justify-content:center;
-        box-shadow:0 4px 20px rgba(201,169,110,0.4); z-index:9999;
-        transition:transform 0.3s ease, box-shadow 0.3s ease;
-    " onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 28px rgba(201,169,110,0.6)'"
-       onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 20px rgba(201,169,110,0.4)'">
+    <div id="concierge-bubble" class="concierge-bubble" onclick="toggleConcierge()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
     </div>
 
-    <div id="concierge-panel" style="
-        display:none; position:fixed; bottom:90px; right:24px; width:340px; max-height:480px;
-        background:#16213e; border:1px solid rgba(201,169,110,0.3); border-radius:16px;
-        box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:9999; overflow:hidden;
-        font-family:'Outfit',sans-serif;
-    ">
-        <div style="
-            background:linear-gradient(135deg,#1a1a2e,#16213e); padding:16px 20px;
-            border-bottom:1px solid rgba(201,169,110,0.2); display:flex;
-            align-items:center; justify-content:space-between;
-        ">
-            <span style="font-family:'Cinzel',serif; font-size:14px; color:var(--gold,#C9A96E); letter-spacing:1px;">MYSTES CONCIERGE</span>
-            <span onclick="toggleConcierge()" style="cursor:pointer; color:#888; font-size:18px;">&times;</span>
+    <div id="concierge-panel" class="concierge-panel">
+        <div class="concierge-header">
+            <span class="concierge-title">MYSTES CONCIERGE</span>
+            <button class="concierge-close" onclick="toggleConcierge()">&times;</button>
         </div>
-        <div id="concierge-body" style="padding:20px; max-height:340px; overflow-y:auto;">
-            <p id="concierge-msg" style="color:#e0e0e0; font-size:14px; line-height:1.6; margin:0 0 16px 0;"></p>
-            <div id="concierge-options" style="display:flex; flex-direction:column; gap:8px;"></div>
-            <div id="concierge-cross-sell" style="display:none; margin-top:16px; padding:12px; background:rgba(128,90,213,0.15); border:1px solid rgba(128,90,213,0.3); border-radius:8px;">
-                <p id="cross-sell-msg" style="color:#b8a0d8; font-size:12px; margin:0; cursor:pointer;"></p>
+        <div id="concierge-body" class="concierge-body">
+            <p id="concierge-msg" class="concierge-msg"></p>
+            <div id="concierge-options" class="concierge-options"></div>
+            <div id="concierge-cross-sell" class="concierge-cross-sell">
+                <p id="cross-sell-msg" class="concierge-cross-sell-msg"></p>
             </div>
         </div>
-        <div style="padding:12px 16px; border-top:1px solid rgba(201,169,110,0.15);">
-            <div style="display:flex; gap:8px;">
-                <input id="concierge-input" type="text" placeholder="Type a question..."
-                    onkeydown="if(event.key==='Enter')sendConciergeText()"
-                    style="flex:1; background:#0f1729; border:1px solid rgba(201,169,110,0.2); border-radius:8px; padding:8px 12px; color:#e0e0e0; font-size:13px; outline:none; font-family:'Outfit',sans-serif;">
-                <button onclick="sendConciergeText()" style="background:var(--gold,#C9A96E); border:none; border-radius:8px; padding:8px 14px; cursor:pointer; color:#1a1a2e; font-weight:600; font-size:13px;">Send</button>
+        <div class="concierge-input-bar">
+            <div class="concierge-input-row">
+                <input id="concierge-input" class="concierge-text-input" type="text" placeholder="Type a question..."
+                    onkeydown="if(event.key==='Enter')sendConciergeText()">
+                <button class="concierge-send" onclick="sendConciergeText()">Send</button>
             </div>
         </div>
     </div>
@@ -1920,12 +2389,12 @@ BASE_TEMPLATE = '''
     let _conciergeFlow = 'welcome';
     function toggleConcierge() {
         const p = document.getElementById('concierge-panel');
-        if (p.style.display === 'none') {
-            p.style.display = 'block';
+        if (!p.classList.contains('open')) {
+            p.classList.add('open');
             const flowMap = {flight:'flight_search', hotel:'hotel_search', car:'car_search', activity:'activity_search'};
             const autoFlow = flowMap[_pageContext.vertical] || 'welcome';
             fetchConcierge(autoFlow);
-        } else { p.style.display = 'none'; }
+        } else { p.classList.remove('open'); }
     }
     function fetchConcierge(flowId, option, freetext) {
         _conciergeFlow = flowId;
@@ -1956,9 +2425,7 @@ BASE_TEMPLATE = '''
         (data.options || []).forEach(o => {
             const btn = document.createElement('button');
             btn.textContent = o.label;
-            btn.style.cssText = 'background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); border-radius:8px; padding:10px 16px; color:#C9A96E; cursor:pointer; font-size:13px; text-align:left; transition:background 0.2s; font-family:Outfit,sans-serif;';
-            btn.onmouseover = () => btn.style.background = 'rgba(201,169,110,0.25)';
-            btn.onmouseout = () => btn.style.background = 'rgba(201,169,110,0.15)';
+            btn.className = 'concierge-option-btn';
             btn.onclick = () => {
                 if (o.redirect_url) {
                     if (o.redirect_url === '/ai') {
@@ -2000,6 +2467,25 @@ BASE_TEMPLATE = '''
     }
     </script>
     <script src="/static/js/mystes-native.js"></script>
+
+    <!-- Build #217: Cookie Consent Banner (GDPR/CCPA) -->
+    <div id="cookie-consent" class="cookie-banner">
+        <span>We use essential cookies for site functionality. No advertising or tracking cookies.
+            <a href="/cookies">Cookie Policy</a>
+        </span>
+        <button class="cookie-accept" onclick="acceptCookies()">Accept</button>
+    </div>
+    <script>
+    (function(){
+        if(!localStorage.getItem('mystes_cookie_consent')){
+            document.getElementById('cookie-consent').classList.add('open');
+        }
+    })();
+    function acceptCookies(){
+        localStorage.setItem('mystes_cookie_consent','accepted');
+        document.getElementById('cookie-consent').classList.remove('open');
+    }
+    </script>
 </body>
 </html>
 '''
@@ -2010,34 +2496,32 @@ HOME_HERO = '''
 <style>
     .home-page { min-height: calc(100vh - 80px); padding: 60px 20px 80px; }
 
-    /* Brand header */
-    .home-brand { text-align: center; margin-bottom: 48px; opacity: 0; animation: fadeInUp 0.6s var(--ease-out) 0.1s forwards; }
+    .home-brand { text-align: center; margin-bottom: 48px; }
     .home-brand h1 {
         font-family: var(--font-display); font-size: clamp(48px, 10vw, 96px); font-weight: 600;
         letter-spacing: 12px; text-transform: uppercase; color: var(--text-bright); margin: 0 0 12px;
         text-shadow: 0 4px 60px rgba(124, 58, 237, 0.3);
     }
     .home-brand .tagline {
-        font-family: var(--font-sans); font-size: 18px; color: var(--text-secondary);
+        font-family: var(--font-sans); font-size: 18px; color: var(--text-muted);
         letter-spacing: 4px; text-transform: uppercase; font-weight: 300; margin: 0;
     }
 
-    /* Vertical cards grid */
     .verticals-grid {
         max-width: 900px; margin: 0 auto 48px;
         display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
-        opacity: 0; animation: fadeInUp 0.6s var(--ease-out) 0.25s forwards;
     }
     .vertical-card {
-        position: relative; padding: 36px 28px; border-radius: 16px;
-        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-        backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        position: relative; padding: 36px 28px;
+        background: var(--glass-bg-light); border: 1px solid var(--glass-border);
+        border-radius: var(--radius-xl);
+        backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
         text-decoration: none; color: inherit; display: flex; flex-direction: column;
         align-items: center; text-align: center; gap: 14px;
         transition: border-color 0.3s, background 0.3s, transform 0.3s;
     }
     .vertical-card:hover {
-        border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.08);
+        border-color: var(--glass-border-hover); background: rgba(124,58,237,0.08);
         transform: translateY(-4px);
     }
     .vertical-card.coming-soon { opacity: 0.5; pointer-events: none; }
@@ -2046,26 +2530,15 @@ HOME_HERO = '''
         font-family: var(--font-display); font-size: 20px; font-weight: 600;
         letter-spacing: 4px; text-transform: uppercase; color: var(--text-bright);
     }
-    .vc-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
-    .vc-badge {
-        position: absolute; top: 12px; right: 12px;
-        padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700;
-        letter-spacing: 1px; text-transform: uppercase;
-    }
-    .vc-badge.live { background: rgba(52, 211, 153, 0.2); color: #34d399; }
-    .vc-badge.soon { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
+    .vc-desc { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
 
-    /* Powered by badge */
     .home-powered {
         text-align: center; margin-top: 32px;
-        opacity: 0; animation: fadeInUp 0.6s var(--ease-out) 0.4s forwards;
     }
     .home-powered span {
         font-size: 12px; color: rgba(255,255,255,0.25); letter-spacing: 2px;
         text-transform: uppercase; font-family: var(--font-sans);
     }
-
-    @keyframes fadeInUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
 
     @media (max-width: 600px) {
         .verticals-grid { grid-template-columns: 1fr; gap: 14px; }
@@ -2074,35 +2547,35 @@ HOME_HERO = '''
 </style>
 
 <section class="home-page">
-    <div class="home-brand">
+    <div class="home-brand hero-entrance">
         <h1>MYSTES</h1>
         <p class="tagline">Travel Intelligence</p>
     </div>
 
-    <div class="verticals-grid">
-        <a href="/flights" class="vertical-card">
-            <span class="vc-badge live">Live</span>
+    <div class="verticals-grid reveal-stagger">
+        <a href="/flights" class="vertical-card reveal">
+            <span class="mystes-badge mystes-badge-green" style="position:absolute;top:12px;right:12px;">Live</span>
             <div class="vc-icon">&#9992;</div>
             <div class="vc-name">Flights</div>
             <div class="vc-desc">Search 102 markets for the cheapest fares</div>
         </a>
 
-        <a href="/hotels" class="vertical-card">
-            <span class="vc-badge live">Live</span>
+        <a href="/hotels" class="vertical-card reveal">
+            <span class="mystes-badge mystes-badge-green" style="position:absolute;top:12px;right:12px;">Live</span>
             <div class="vc-icon">&#127976;</div>
             <div class="vc-name">Hotels</div>
             <div class="vc-desc">Best rates from 2M+ properties worldwide</div>
         </a>
 
-        <a href="/activities" class="vertical-card coming-soon">
-            <span class="vc-badge soon">Coming Soon</span>
+        <a href="/activities" class="vertical-card coming-soon reveal">
+            <span class="mystes-badge mystes-badge-neutral" style="position:absolute;top:12px;right:12px;">Coming Soon</span>
             <div class="vc-icon">&#127947;</div>
             <div class="vc-name">Activities</div>
             <div class="vc-desc">Tours, experiences, and things to do</div>
         </a>
 
-        <a href="/cars" class="vertical-card coming-soon">
-            <span class="vc-badge soon">Coming Soon</span>
+        <a href="/cars" class="vertical-card coming-soon reveal">
+            <span class="mystes-badge mystes-badge-neutral" style="position:absolute;top:12px;right:12px;">Coming Soon</span>
             <div class="vc-icon">&#128663;</div>
             <div class="vc-name">Cars</div>
             <div class="vc-desc">Rental cars and airport transfers</div>

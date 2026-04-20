@@ -1,7 +1,7 @@
 """
 ANASTASiA Platform — Bootstrap and lifecycle management for the neuron network.
 
-This is the ignition system. It creates the EventBus, registers all 18 neurons
+This is the ignition system. It creates the EventBus, registers all 27 neurons
 in dependency order, initializes them, and provides health/shutdown lifecycle.
 
 Usage:
@@ -91,12 +91,38 @@ DEFAULT_CONFIG = {
     "credentials_master_key": None,
     "network_dir": None,
     "revenue_dir": None,
+
+    # Proxy (POS arbitrage infrastructure)
+    "proxy_provider": os.environ.get("PROXY_PROVIDER", "brightdata"),
+    "proxy_priority_markets": ["DK", "DE", "NL", "PL", "SE", "NO", "FI"],
+
+    # GeoIP (customer location + arbitrage routing)
+    "geoip_mode": os.environ.get("GEOIP_MODE", "cloudflare"),
+    "geoip_db_path": None,  # MaxMind GeoLite2 .mmdb path (maxmind mode only)
+    "geoip_arbitrage_countries": ["US"],  # Phase 1: US customers only
+
+    # Arbitrage (spread calculation + US baseline)
+    "serpapi_key": os.environ.get("SERPAPI_KEY", ""),
+
+    # Verification (email codes + bot protection)
+    "verification_code_ttl": 300,  # 5 minutes
+    "verification_max_attempts": 5,
+    "verification_rate_limit_per_email": 3,  # per hour
+    "verification_rate_limit_per_ip": 10,  # per hour
+
+    # Booking Engine (queue + Scraping Browser orchestration)
+    "booking_max_queue_size": 100,
+    "booking_max_concurrent_sessions": 10,
+    "booking_session_timeout": 300,  # 5 minutes per booking attempt
+
+    # Google Search (Playwright scraping via proxy)
+    "google_search_max_concurrent": 3,
 }
 
 
 class AnastasiaPlatform:
     """
-    ANASTASiA Platform — Orchestrates the 18-neuron intelligent integration network.
+    ANASTASiA Platform — Orchestrates the 27-neuron intelligent integration network.
 
     Lifecycle:
         1. __init__() — Creates EventBus, prepares config
@@ -232,6 +258,13 @@ class AnastasiaPlatform:
             ("credentials", "anastasia.credentials", "CredentialModule"),
             ("saas", "anastasia.saas", "SaaSModule"),
             ("devterminal", "anastasia.devterminal", "DevTerminalModule"),
+            # POS arbitrage + booking infrastructure:
+            ("proxy", "anastasia.proxy", "ProxyModule"),
+            ("geoip", "anastasia.geoip", "GeoIPModule"),
+            ("verification", "anastasia.verification", "VerificationModule"),
+            ("arbitrage", "anastasia.arbitrage", "ArbitrageModule"),
+            ("booking_engine", "anastasia.booking_engine", "BookingEngineModule"),
+            ("google_search", "anastasia.google_search", "GoogleSearchModule"),
             # Cross-vertical orchestration:
             ("search", "anastasia.search", "SearchModule"),
             # Vertical neurons (travel verticals — each manages its own API modules):

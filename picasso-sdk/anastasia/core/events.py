@@ -148,6 +148,33 @@ class EventType(Enum):
     MARKETPLACE_SEARCH = "marketplace.search"
     MARKETPLACE_DOWNLOAD = "marketplace.download"
 
+    # --- Proxy network (POS arbitrage infrastructure) ---
+    PROXY_SESSION_STARTED = "proxy.session_started"
+    PROXY_SESSION_COMPLETED = "proxy.session_completed"
+    PROXY_SESSION_FAILED = "proxy.session_failed"
+    PROXY_PROVIDER_SWITCHED = "proxy.provider_switched"
+
+    # --- POS Arbitrage (spread-based pricing engine) ---
+    ARBITRAGE_SPREAD_FOUND = "arbitrage.spread_found"
+    ARBITRAGE_NO_SPREAD = "arbitrage.no_spread"
+    ARBITRAGE_BASELINE_FETCHED = "arbitrage.baseline_fetched"
+
+    # --- GeoIP (customer location + routing) ---
+    GEOIP_COUNTRY_DETECTED = "geoip.country_detected"
+    GEOIP_ARBITRAGE_ELIGIBLE = "geoip.arbitrage_eligible"
+
+    # --- Verification (bot protection gate) ---
+    VERIFICATION_CODE_SENT = "verification.code_sent"
+    VERIFICATION_CODE_VERIFIED = "verification.code_verified"
+    VERIFICATION_CODE_FAILED = "verification.code_failed"
+    VERIFICATION_DISPOSABLE_BLOCKED = "verification.disposable_blocked"
+
+    # --- Booking engine (queue + Scraping Browser orchestration) ---
+    BOOKING_QUEUED = "booking.queued"
+    BOOKING_PROCESSING = "booking.processing"
+    BOOKING_RETRY = "booking.retry"
+    BOOKING_TIMEOUT = "booking.timeout"
+
     # --- Generic ---
     CUSTOM = "custom"
 

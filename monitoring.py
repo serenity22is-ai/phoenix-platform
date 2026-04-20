@@ -43,7 +43,7 @@ def init_sentry(app):
                 SqlalchemyIntegration(),
             ],
             environment=os.environ.get("FLASK_ENV", "production"),
-            release=os.environ.get("APP_VERSION", "0.1.0"),
+            release=os.environ.get("APP_VERSION", "2.0.0"),
             traces_sample_rate=float(os.environ.get("SENTRY_TRACES_RATE", "0.1")),
             profiles_sample_rate=float(os.environ.get("SENTRY_PROFILES_RATE", "0.1")),
             send_default_pii=False,
@@ -156,12 +156,15 @@ metrics = PrometheusMetrics()
 # ============================================================
 
 def init_request_tracking(app):
-    """Add before/after request hooks for metrics collection."""
+    """Add before/after request hooks for metrics collection (Build #216: + request_id)."""
+    import uuid
     from flask import request, g
 
     @app.before_request
     def _before_request():
         g.request_start_time = time.time()
+        # Build #216: unique request ID for log correlation
+        g.request_id = request.headers.get('X-Request-ID', uuid.uuid4().hex[:12])
 
     @app.after_request
     def _after_request(response):
@@ -228,6 +231,38 @@ def track_escrow(action, amount_rlusd):
     metrics.inc("mystes_escrow_volume_rlusd_total", value=amount_rlusd, labels={
         "action": action,
     })
+
+
+def track_booking(status, channel="api"):
+    """Track booking outcome (Build #215)."""
+    metrics.inc("mystes_bookings_total", labels={"status": status, "channel": channel})
+
+
+def track_booking_failure(failure_type, channel="unknown", auto_refunded=False):
+    """Track booking failure with detail (Build #215)."""
+    metrics.inc("mystes_booking_failures_total", labels={
+        "type": failure_type, "channel": channel,
+        "auto_refunded": str(auto_refunded).lower(),
+    })
+
+
+def track_email(status, email_type="generic"):
+    """Track email delivery outcome (Build #215)."""
+    metrics.inc("mystes_emails_total", labels={"status": status, "type": email_type})
+
+
+def set_sentry_booking_context(booking_id=None, deal_id=None, user_id=None, channel=None):
+    """Set Sentry context for booking operations (Build #215)."""
+    try:
+        import sentry_sdk
+        sentry_sdk.set_context("booking", {
+            "booking_id": booking_id,
+            "deal_id": deal_id,
+            "user_id": user_id,
+            "channel": channel,
+        })
+    except (ImportError, Exception):
+        pass
 
 
 # ============================================================

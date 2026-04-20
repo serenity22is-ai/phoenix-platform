@@ -468,11 +468,11 @@ class TestMarketingPages:
         html = resp.data.decode()
         assert '$3 minimum' in html
 
-    def test_pricing_has_cinzel(self, client):
-        """Pricing page uses Cinzel font."""
+    def test_pricing_has_space_grotesk(self, client):
+        """Pricing page uses Space Grotesk font."""
         resp = client.get('/pricing')
         html = resp.data.decode()
-        assert 'Cinzel' in html
+        assert 'Space Grotesk' in html
 
     def test_faq_page_loads(self, client):
         """GET /faq returns 200."""

@@ -1,14 +1,20 @@
 """
 Revenue Calculator — Split calculations for the federated credential network.
 
+LOCKED REVENUE MODEL (Build #203 — corrected from Build #201):
 When a booking routes through a credential host's API credentials, revenue
 is split between three parties:
-  - Credential host (85% default): They execute the sale, bear the risk,
-    hold the IATA number / accreditation.
-  - Platform (10% default): MYSTES routing/technology fee.
-  - Routing agency (5% default): The agency/OTA that found the customer.
+  - Platform (APAi): PERCENTAGE fee by APAi tier — 5%/3%/2% of transaction.
+  - Router (business owner): 70% of remaining spread — acquired the customer.
+  - Credential host: 30% of remaining spread — lent API access, passive income.
 
-Custom splits can be negotiated per credential or per network member.
+APAi tier routing fees (comes off margin FIRST):
+  - Pro ($299/mo):        5% of transaction
+  - Enterprise ($599/mo): 3% of transaction
+  - Scale ($999/mo):      2% of transaction
+  $3 minimum fee. NO MAXIMUM CAP.
+
+Own credentials = 100% to owner, zero routing fee, zero split.
 
 MYSTES KYRIOS LLC — Confidential.
 """
@@ -25,16 +31,30 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------
-# Default revenue split ratios
+# LOCKED revenue model — percentage fee + 70/30 split (Build #203)
 # ---------------------------------------------------------------
-DEFAULT_SPLIT = {
-    "credential_host": 0.85,  # Executes sale, bears risk
-    "platform": 0.10,         # MYSTES routing/technology fee
-    "routing_agency": 0.05,   # Agency that sourced the customer
+# APAi tier routing fees: percentage of transaction, NOT flat.
+# Corrected from Build #201 flat $2.50 error.
+APAI_TIER_ROUTING_FEE = {
+    "pro": 0.05,           # 5% — Pro tier ($299/mo)
+    "enterprise": 0.03,    # 3% — Enterprise tier ($599/mo)
+    "scale": 0.02,         # 2% — Scale tier ($999/mo)
 }
+DEFAULT_APAI_TIER = "pro"  # Default if tier not specified
 
-MIN_PLATFORM_FEE_USD = 1.00   # Floor per transaction
-MAX_PLATFORM_FEE_USD = 100.00  # Cap per transaction
+ROUTER_PCT = 0.70               # Business owner (acquired the customer)
+HOST_PCT = 0.30                 # Credential host (lent API access)
+MIN_PLATFORM_FEE_USD = 3.00    # $3 minimum fee. NO maximum cap.
+
+# Legacy compatibility: expose the old name pointing to Pro tier default
+FLAT_PLATFORM_FEE_USD = None    # REMOVED — use APAI_TIER_ROUTING_FEE instead
+
+# Legacy compatibility alias (used by existing code)
+DEFAULT_SPLIT = {
+    "credential_host": HOST_PCT,
+    "platform_fee_pct": APAI_TIER_ROUTING_FEE[DEFAULT_APAI_TIER],
+    "routing_agency": ROUTER_PCT,
+}
 
 
 @dataclass
@@ -48,7 +68,12 @@ class RevenueRecord:
     router_tenant_id: str = ""   # Agency that sourced customer
     provider_id: str = ""
     transaction_amount_usd: float = 0.0
-    split_ratios: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_SPLIT))
+    apai_tier: str = DEFAULT_APAI_TIER
+    split_ratios: Dict[str, float] = field(default_factory=lambda: {
+        "credential_host": HOST_PCT,
+        "platform_fee_pct": APAI_TIER_ROUTING_FEE[DEFAULT_APAI_TIER],
+        "routing_agency": ROUTER_PCT,
+    })
     owner_amount_usd: float = 0.0
     platform_amount_usd: float = 0.0
     router_amount_usd: float = 0.0
@@ -69,9 +94,10 @@ class RevenueCalculator:
     """
     Calculates and tracks revenue splits for the credential network.
 
-    Each routed booking creates a RevenueRecord that splits the transaction
-    amount between credential host, platform, and routing agency. Records
-    are persisted for monthly settlement and reporting.
+    LOCKED MODEL (Build #203): Platform takes PERCENTAGE fee by APAi tier.
+    5% (Pro) / 3% (Enterprise) / 2% (Scale) of transaction. $3 minimum.
+    NO maximum cap. Remaining splits 70/30 (router/host).
+    Own credentials = 100% to owner, zero fee.
     """
 
     def __init__(self, storage_dir: Optional[str] = None):
@@ -90,45 +116,69 @@ class RevenueCalculator:
         self,
         transaction_amount: float,
         custom_split: Optional[Dict[str, float]] = None,
+        apai_tier: str = DEFAULT_APAI_TIER,
+        is_own_credentials: bool = False,
     ) -> Dict[str, float]:
         """
         Calculate revenue split amounts for a transaction.
 
         Args:
             transaction_amount: Total transaction in USD.
-            custom_split: Optional override ratios. Must sum to ~1.0.
+            custom_split: Optional override ratios (router/host percentages).
+            apai_tier: APAi tier ("pro"/"enterprise"/"scale") — determines fee %.
+            is_own_credentials: If True, 100% to owner, zero fee.
 
         Returns:
             Dict with owner_amount, platform_amount, router_amount, ratios.
         """
-        ratios = custom_split or dict(DEFAULT_SPLIT)
+        # Own credentials = 100% to owner, zero routing
+        if is_own_credentials:
+            return {
+                "transaction_amount": transaction_amount,
+                "owner_amount": round(transaction_amount, 2),
+                "platform_amount": 0.0,
+                "router_amount": 0.0,
+                "apai_tier": apai_tier,
+                "ratios": {"credential_host": 1.0, "platform": 0.0, "routing_agency": 0.0},
+            }
 
-        # Validate ratios sum to ~1.0
-        total = sum(ratios.values())
-        if abs(total - 1.0) > 0.01:
-            logger.warning(
-                "Split ratios sum to %.3f (expected 1.0), normalizing", total
-            )
-            ratios = {k: v / total for k, v in ratios.items()}
+        # Platform fee: percentage of transaction by APAi tier
+        tier_key = apai_tier.lower() if apai_tier else DEFAULT_APAI_TIER
+        fee_pct = APAI_TIER_ROUTING_FEE.get(tier_key, APAI_TIER_ROUTING_FEE[DEFAULT_APAI_TIER])
+        raw_fee = transaction_amount * fee_pct
 
-        owner = round(transaction_amount * ratios.get("credential_host", 0.85), 2)
-        platform = round(transaction_amount * ratios.get("platform", 0.10), 2)
-        router = round(transaction_amount * ratios.get("routing_agency", 0.05), 2)
+        # $3 minimum fee, NO maximum cap (corrected 4+ times — NEVER add a cap)
+        platform_fee = max(raw_fee, MIN_PLATFORM_FEE_USD)
 
-        # Enforce platform fee floor/cap
-        platform = max(platform, MIN_PLATFORM_FEE_USD)
-        platform = min(platform, MAX_PLATFORM_FEE_USD)
+        # Remaining amount splits between router and host
+        remaining = max(transaction_amount - platform_fee, 0.0)
 
-        # Adjust owner amount if platform floor/cap changed things
-        remainder = transaction_amount - platform - router
-        owner = max(round(remainder, 2), 0.0)
+        if custom_split:
+            router_pct = custom_split.get("routing_agency", ROUTER_PCT)
+            host_pct = custom_split.get("credential_host", HOST_PCT)
+            # Normalize if they don't sum to 1.0
+            total_pct = router_pct + host_pct
+            if total_pct > 0 and abs(total_pct - 1.0) > 0.01:
+                router_pct = router_pct / total_pct
+                host_pct = host_pct / total_pct
+        else:
+            router_pct = ROUTER_PCT
+            host_pct = HOST_PCT
+
+        router = round(remaining * router_pct, 2)
+        owner = round(remaining * host_pct, 2)
 
         return {
             "transaction_amount": transaction_amount,
             "owner_amount": owner,
-            "platform_amount": platform,
+            "platform_amount": round(platform_fee, 2),
             "router_amount": router,
-            "ratios": ratios,
+            "apai_tier": tier_key,
+            "ratios": {
+                "credential_host": host_pct,
+                "platform_fee_pct": fee_pct,
+                "routing_agency": router_pct,
+            },
         }
 
     def record_revenue(
@@ -140,13 +190,19 @@ class RevenueCalculator:
         provider_id: str,
         transaction_amount: float,
         custom_split: Optional[Dict[str, float]] = None,
+        apai_tier: str = DEFAULT_APAI_TIER,
+        is_own_credentials: bool = False,
     ) -> RevenueRecord:
         """
         Record a revenue event from a routed booking.
 
         Calculates split, creates RevenueRecord, persists to disk.
         """
-        split = self.calculate_split(transaction_amount, custom_split)
+        split = self.calculate_split(
+            transaction_amount, custom_split,
+            apai_tier=apai_tier,
+            is_own_credentials=is_own_credentials,
+        )
         now = time.time()
         period = time.strftime("%Y-%m", time.localtime(now))
 
@@ -157,6 +213,7 @@ class RevenueCalculator:
             router_tenant_id=router_tenant_id,
             provider_id=provider_id,
             transaction_amount_usd=transaction_amount,
+            apai_tier=split.get("apai_tier", apai_tier),
             split_ratios=split["ratios"],
             owner_amount_usd=split["owner_amount"],
             platform_amount_usd=split["platform_amount"],
