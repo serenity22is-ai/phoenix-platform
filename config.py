@@ -155,16 +155,22 @@ class ProductionConfig(Config):
 
     # PostgreSQL (falls back to SQLite if DATABASE_URL not set — e.g. expired Render DB)
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///mystes.db'
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'pool_size': 10,
-        'max_overflow': 20,
-        'connect_args': {
-            'connect_timeout': 5,        # Fail fast if DB unreachable (5s, not 30s)
-            'options': '-c statement_timeout=30000',  # Kill queries after 30s
-        },
-    }
+
+    # Engine options — only use PostgreSQL-specific connect_args when DATABASE_URL is set
+    _db_url = os.environ.get('DATABASE_URL', '')
+    if _db_url and ('postgres' in _db_url):
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+            'pool_size': 10,
+            'max_overflow': 20,
+            'connect_args': {
+                'connect_timeout': 5,
+                'options': '-c statement_timeout=30000',
+            },
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {}
 
     # Redis-backed rate limiting (falls back to memory:// if REDIS not configured)
     RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
