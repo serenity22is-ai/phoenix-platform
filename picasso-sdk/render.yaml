@@ -29,7 +29,7 @@ services:
       - key: LOG_LEVEL
         value: "INFO"
     healthCheckPath: /api/v1/health
-    autoDeploy: false
+    autoDeploy: true
     disk:
       name: anastasia-data
       mountPath: /app/.agency_configs
