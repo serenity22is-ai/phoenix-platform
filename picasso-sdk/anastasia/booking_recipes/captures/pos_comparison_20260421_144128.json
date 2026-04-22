@@ -1,0 +1,411 @@
+{
+  "comparison_date": "2026-04-21T14:41:28.338317",
+  "routes": [
+    {
+      "origin": "JFK",
+      "dest": "MUC",
+      "dep": "2026-05-21",
+      "ret": "2026-05-28"
+    },
+    {
+      "origin": "LAX",
+      "dest": "FRA",
+      "dep": "2026-06-10",
+      "ret": "2026-06-17"
+    },
+    {
+      "origin": "ORD",
+      "dest": "ZRH",
+      "dep": "2026-06-15",
+      "ret": "2026-06-22"
+    }
+  ],
+  "pos_configs": [
+    "US",
+    "DK",
+    "DE",
+    "IN"
+  ],
+  "fx_rates_to_usd": {
+    "USD": 1.0,
+    "EUR": 1.08,
+    "DKK": 0.145,
+    "GBP": 1.27,
+    "INR": 0.012,
+    "CHF": 1.13,
+    "SEK": 0.096,
+    "NOK": 0.093
+  },
+  "results": {
+    "US": {
+      "JFK-MUC": {
+        "ECONOMY": {
+          "total_cents": 80712,
+          "base_cents": 49800,
+          "taxes_cents": 30912,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LH411-JFKMUC-2026-05-21-1730",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 871.69,
+          "base_usd": 537.84,
+          "taxes_usd": 333.85
+        },
+        "BUSINESS": {
+          "total_cents": 336174,
+          "base_cents": 216400,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 2,
+          "flight_id": "SEG-LH401-JFKFRA-2026-05-21-1540",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 3630.68,
+          "base_usd": 2337.12,
+          "taxes_usd": 1293.56
+        }
+      },
+      "LAX-FRA": {
+        "ECONOMY": {
+          "total_cents": 38045,
+          "base_cents": 100,
+          "taxes_cents": 37945,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "L",
+          "quota": 4,
+          "flight_id": "SEG-OS52-LAXVIE-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 410.89,
+          "base_usd": 1.08,
+          "taxes_usd": 409.81
+        },
+        "BUSINESS": {
+          "total_cents": 354974,
+          "base_cents": 235200,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 9,
+          "flight_id": "SEG-LH457-LAXFRA-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 3833.72,
+          "base_usd": 2540.16,
+          "taxes_usd": 1293.56
+        }
+      },
+      "ORD-ZRH": {
+        "ECONOMY": {
+          "total_cents": 83689,
+          "base_cents": 48100,
+          "taxes_cents": 35589,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LX9-ORDZRH-2026-06-15-1905",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 903.84,
+          "base_usd": 519.48,
+          "taxes_usd": 384.36
+        },
+        "BUSINESS": {
+          "total_cents": 371974,
+          "base_cents": 252200,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 9,
+          "flight_id": "SEG-LX9-ORDZRH-2026-06-15-1905",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 4017.32,
+          "base_usd": 2723.76,
+          "taxes_usd": 1293.56
+        }
+      }
+    },
+    "DK": {
+      "JFK-MUC": {
+        "ECONOMY": {
+          "total_cents": 80712,
+          "base_cents": 49800,
+          "taxes_cents": 30912,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LH411-JFKMUC-2026-05-21-1730",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 871.69,
+          "base_usd": 537.84,
+          "taxes_usd": 333.85
+        },
+        "BUSINESS": {
+          "total_cents": 336174,
+          "base_cents": 216400,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 2,
+          "flight_id": "SEG-LH401-JFKFRA-2026-05-21-1540",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 3630.68,
+          "base_usd": 2337.12,
+          "taxes_usd": 1293.56
+        }
+      },
+      "LAX-FRA": {
+        "ECONOMY": {
+          "total_cents": 38045,
+          "base_cents": 100,
+          "taxes_cents": 37945,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "L",
+          "quota": 4,
+          "flight_id": "SEG-OS52-LAXVIE-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 410.89,
+          "base_usd": 1.08,
+          "taxes_usd": 409.81
+        },
+        "BUSINESS": {
+          "total_cents": 354974,
+          "base_cents": 235200,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 9,
+          "flight_id": "SEG-LH457-LAXFRA-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 3833.72,
+          "base_usd": 2540.16,
+          "taxes_usd": 1293.56
+        }
+      },
+      "ORD-ZRH": {
+        "ECONOMY": {
+          "total_cents": 83689,
+          "base_cents": 48100,
+          "taxes_cents": 35589,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LX9-ORDZRH-2026-06-15-1905",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 903.84,
+          "base_usd": 519.48,
+          "taxes_usd": 384.36
+        },
+        "BUSINESS": {
+          "error": "Failed to fetch"
+        }
+      }
+    },
+    "DE": {
+      "JFK-MUC": {
+        "ECONOMY": {
+          "total_cents": 80712,
+          "base_cents": 49800,
+          "taxes_cents": 30912,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LH411-JFKMUC-2026-05-21-1730",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 871.69,
+          "base_usd": 537.84,
+          "taxes_usd": 333.85
+        },
+        "BUSINESS": {
+          "error": "Failed to fetch"
+        }
+      },
+      "LAX-FRA": {
+        "ECONOMY": {
+          "total_cents": 38045,
+          "base_cents": 100,
+          "taxes_cents": 37945,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "L",
+          "quota": 4,
+          "flight_id": "SEG-OS52-LAXVIE-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 410.89,
+          "base_usd": 1.08,
+          "taxes_usd": 409.81
+        },
+        "BUSINESS": {
+          "total_cents": 354974,
+          "base_cents": 235200,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 9,
+          "flight_id": "SEG-LH457-LAXFRA-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 3833.72,
+          "base_usd": 2540.16,
+          "taxes_usd": 1293.56
+        }
+      },
+      "ORD-ZRH": {
+        "ECONOMY": {
+          "total_cents": 83689,
+          "base_cents": 48100,
+          "taxes_cents": 35589,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LX9-ORDZRH-2026-06-15-1905",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 903.84,
+          "base_usd": 519.48,
+          "taxes_usd": 384.36
+        },
+        "BUSINESS": {
+          "total_cents": 371974,
+          "base_cents": 252200,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 9,
+          "flight_id": "SEG-LX9-ORDZRH-2026-06-15-1905",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 4017.32,
+          "base_usd": 2723.76,
+          "taxes_usd": 1293.56
+        }
+      }
+    },
+    "IN": {
+      "JFK-MUC": {
+        "ECONOMY": {
+          "total_cents": 80712,
+          "base_cents": 49800,
+          "taxes_cents": 30912,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "Q",
+          "quota": 9,
+          "flight_id": "SEG-LH411-JFKMUC-2026-05-21-1730",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 871.69,
+          "base_usd": 537.84,
+          "taxes_usd": 333.85
+        },
+        "BUSINESS": {
+          "total_cents": 336174,
+          "base_cents": 216400,
+          "taxes_cents": 119774,
+          "currency": "EUR",
+          "fare_family": "JVAPC2NC0E",
+          "cabin": "business",
+          "booking_class": "D",
+          "quota": 2,
+          "flight_id": "SEG-LH401-JFKFRA-2026-05-21-1540",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 3630.68,
+          "base_usd": 2337.12,
+          "taxes_usd": 1293.56
+        }
+      },
+      "LAX-FRA": {
+        "ECONOMY": {
+          "total_cents": 38045,
+          "base_cents": 100,
+          "taxes_cents": 37945,
+          "currency": "EUR",
+          "fare_family": "JVAPM1NNLG",
+          "cabin": "eco",
+          "booking_class": "L",
+          "quota": 4,
+          "flight_id": "SEG-OS52-LAXVIE-2026-06-10-1505",
+          "is_cheapest_flag": true,
+          "num_groups": 20,
+          "num_bounds": 1,
+          "total_usd": 410.89,
+          "base_usd": 1.08,
+          "taxes_usd": 409.81
+        },
+        "BUSINESS": {
+          "error": "Failed to fetch"
+        }
+      },
+      "ORD-ZRH": {
+        "ECONOMY": {
+          "error": "Failed to fetch"
+        },
+        "BUSINESS": {
+          "error": "Failed to fetch"
+        }
+      }
+    }
+  }
+}

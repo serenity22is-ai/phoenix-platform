@@ -1,0 +1,80 @@
+{
+  "version": "v49",
+  "bounds_url": "https://api-shop.lufthansa.com/v1/one-booking/search/air-bounds",
+  "bounds_info": {
+    "airBoundsShopping": [
+      "e-air-offer-conditions\",regexp:new RegExp(\"^/v2/search/raw-exchange-air-offer-conditions(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"rawExchangeAirOfferConditions\"}]},{path:\"/search/air-bounds\",regexp:new RegExp(\"^/v2/search/air-bounds(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"airBoundsShopping\"}]},{path:\"/search/air-calendars\",regexp:new RegExp(\"^/v2/search/air-calendars(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airCalendar\"},{method:\"post\",operationId:\"advancedAirCalendar\"}]},{path:\"/search/air-offers\",regexp:new RegExp(\"^/v2/search/air-offers(?:/(?=$))?$\"),o"
+    ],
+    "isRequestedBound": [],
+    "airBoundsSearch": [
+      "ndsSearchId:Ye.id})),(0,t.on)(N,(Te,Ye)=>{const H=W(Ye);return re.addOne(H,{...Te,selectedAirBoundsSearchId:H.id})}),(0,t.on)(w,Te=>({...Te,selectedAirBoundsSearchId:null}))],ge=(0,t.vy)(Ee,...ce),G=\"airBoundsSearch\",J=new i.nKC(\"Feature AirBoundsSearch Reducer\");function z(){return ge}let $=(()=>{class Te{static forRoot(H){return{ngModule:Te,providers:[{provide:J,useFactory:H}]}}static#e=this.\\u0275fac=function(Y){return new(Y||Te)};static#t=this.\\u0275mod=i.$C({type:Te});static#n=this.\\u0275inj=i.G2t({providers:[{provide:J,useFactory:z}],imports:[t.md.forFeature(G,J)]})}return Te})();const{s",
+      "I.forRoot(lP,{scrollPositionRestoration:\"enabled\",canceledNavigationResolution:\"computed\"}),Ta.G,bo.iI]})}return U})();const py={router:Ue.C_},hy=[...Ho.c.ENABLE_WEBSTORAGE?[function bf(U){const ee=[{airBoundsSearch:We.Oi},{cart:Q.Ly},{checkTasks:ie.VL},{configuration:or.configurationStorageSync},{order:{deserialize:Ve.f2}},{insuranceOffers:X.gE},{servicesCatalogueItems:we.sT},{catalogServices:_a.mb},{baggagePolicies:_t.fq},{airBoundExchanges:Y.hw},{airBoundExchangesSearch:le.zb},{airOfferConditions:ct.pG},{orderChange:it.LY},{airOffers:{...ot.a$,replacer:(ue,Rt)=>\"conversionRates\"===ue?void 0",
+      "})()},65508:(Fe,R,e)=>{\"use strict\";e.d(R,{R:()=>x});var t=e(14667),i=e(22873),n=e(65985),d=e(41483),l=e(66645),h=e(48986),p=e(2415),m=e(76627),E=e(47947);const y=F=>b=>{const _=b.pipe((0,d.p)(A=>!!A.airBoundsSearch),(0,n.Lt)(i.$G),(0,E.T)(A=>{const S=A?.itineraries;if(!S||0===S.length||S.length<2&&\"inbound\"===F)return;const N=S[\"outbound\"===F?0:S.length-1].departureDateTime;return N&&new p.Wp.Date(N)}),(0,l.F)((A,S)=>A?.getTime()===S?.getTime())),L=b.pipe((0,d.p)(A=>!!A.airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,E.T)(A=>{const S=A?.itineraries;if(!S||0===S.length||S.length<2&&\"inbound\"===F)re",
+      "==F?0:S.length-1].departureDateTime;return N&&new p.Wp.Date(N)}),(0,l.F)((A,S)=>A?.getTime()===S?.getTime()));return(0,m.z)([_,L]).pipe((0,E.T)(([A,S])=>A||S))},P=F=>b=>{const _=b.pipe((0,d.p)(A=>!!A.airBoundsSearch),(0,n.Lt)(i.$G),(0,E.T)(A=>(A?.itineraries||[]).map(S=>S[F]).filter(S=>void 0!==S)),(0,l.F)()),L=b.pipe((0,d.p)(A=>!!A.airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,E.T)(A=>(A?.itineraries||[]).map(S=>S[F]).filter(S=>void 0!==S)),(0,l.F)());return(0,m.z)([_,L]).pipe((0,E.T)(([A,S])=>A.length>0?A:S))};var k=e(64971);let x=(()=>{class F extends t.FactsService{constructor(_,L){super(_),t",
+      ",l.F)());return(0,m.z)([_,L]).pipe((0,E.T)(([A,S])=>A.length>0?A:S))};var k=e(64971);let x=(()=>{class F extends t.FactsService{constructor(_,L){super(_),this.store=L,this.isRegistered=!1,this.facts={airBoundsSearch:this.store.pipe(F=>F.pipe((0,d.p)(b=>!!b.airBoundsSearch),(0,n.Lt)(i.$G),(0,l.F)((b,_)=>b?.id===_?.id))),airOffersAdvancedSearch:this.store.pipe(F=>F.pipe((0,d.p)(b=>!!b.airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,l.F)((b,_)=>JSON.stringify(b)===JSON.stringify(_)))),searchOutboundDate:this.store.pipe(y(\"outbound\")),searchInboundDate:this.store.pipe(y(\"inbound\")),searchNumberOfPassen"
+    ],
+    "constructionMode": []
+  },
+  "bounds_results": [
+    {
+      "name": "req_bound_first",
+      "status": 400,
+      "ct": "application/json",
+      "length": 149,
+      "response": "{\"errors\":[{\"code\":\"39236\",\"title\":\"MISSING COMMERCIAL FARE FAMILY\",\"detail\":\"Commercial fare families are mandatory to be provided in the input.\"}]}",
+      "is_success": false
+    },
+    {
+      "name": "req_bound_all",
+      "status": 400,
+      "ct": "application/json",
+      "length": 182,
+      "response": "{\"errors\":[{\"code\":\"38411\",\"title\":\"INVALID REQUESTED BOUND\",\"detail\":\"Invalid itinerary request for construction mode search.\",\"source\":{\"parameter\":\"itinerary.isRequestedBound\"}}]}",
+      "is_success": false
+    },
+    {
+      "name": "req_bound_mixed",
+      "status": 400,
+      "ct": "application/json",
+      "length": 149,
+      "response": "{\"errors\":[{\"code\":\"39236\",\"title\":\"MISSING COMMERCIAL FARE FAMILY\",\"detail\":\"Commercial fare families are mandatory to be provided in the input.\"}]}",
+      "is_success": false
+    },
+    {
+      "name": "with_cff",
+      "status": 400,
+      "ct": "application/json",
+      "length": 182,
+      "response": "{\"errors\":[{\"code\":\"38411\",\"title\":\"INVALID REQUESTED BOUND\",\"detail\":\"Invalid itinerary request for construction mode search.\",\"source\":{\"parameter\":\"itinerary.isRequestedBound\"}}]}",
+      "is_success": false
+    },
+    {
+      "name": "full_search",
+      "status": 400,
+      "ct": "application/json",
+      "length": 182,
+      "response": "{\"errors\":[{\"code\":\"38411\",\"title\":\"INVALID REQUESTED BOUND\",\"detail\":\"Invalid itinerary request for construction mode search.\",\"source\":{\"parameter\":\"itinerary.isRequestedBound\"}}]}",
+      "is_success": false
+    },
+    {
+      "name": "one_way",
+      "status": 400,
+      "ct": "application/json",
+      "length": 149,
+      "response": "{\"errors\":[{\"code\":\"39236\",\"title\":\"MISSING COMMERCIAL FARE FAMILY\",\"detail\":\"Commercial fare families are mandatory to be provided in the input.\"}]}",
+      "is_success": false
+    },
+    {
+      "name": "with_ids",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "ngrx_shape",
+      "status": 400,
+      "ct": "application/json",
+      "length": 149,
+      "response": "{\"errors\":[{\"code\":\"39236\",\"title\":\"MISSING COMMERCIAL FARE FAMILY\",\"detail\":\"Commercial fare families are mandatory to be provided in the input.\"}]}",
+      "is_success": false
+    }
+  ]
+}

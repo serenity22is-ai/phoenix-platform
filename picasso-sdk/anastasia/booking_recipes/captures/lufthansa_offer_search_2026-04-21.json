@@ -1,0 +1,56 @@
+{
+  "requests": [
+    {
+      "t": 12.89,
+      "m": "POST",
+      "u": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "b": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "auth": "",
+      "ct": "application/x-www-form-urlencoded",
+      "s": 200,
+      "r": "{\"access_token\":\"eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNmsycWJycjR4aHJ6cWE3eW4iLCJsc3MtdXNlcklkIjoiV1NMSERBUExIRCIsIm9mZmljZUlkIjoiRlJBTEgwOEJDIiwidGVuYW50SWQiOiJMSCIsImFwcGxpY2F0aW9uSWQiOiJMSF9PTkVCS0dVSSIsImtleSI6Ims3enBqNHM2azJxYnJyNHhocnpxYTd5biIsImlzcyI6IkNOPVNDLVBST0QsT1U9TEhNRFciLCJleHAiOjE3NzY3OTEzNjQsImlhdCI6MTc3Njc5MDQ2NCwianRpIjoiODA0MDBmNzctYTMyYS00MjM3LTk2ODYtNjZhODVjZjI4NjE2In0.jbwy1guU0XbiUsBBA7a5ZpJBp1rBdqT5IfLzTxd0oZo0ftW3dtfsukesWI9dHLB-4bc_WKzS1hp_rt5sopU33YMnFjvbKr-virawVpwPQPeDVvJ0hk6d8IPATTTmtgFosn2tG3UxkH6xYZ14EXpI25mgSakhKz4Y3Ffr1jDpfsFM4GKuxggokG6rgGTAAoSXvEeK42pZJtV62L0gQKBNPf3rFASL7zP0vV8zat976N2ugHGyJwfjuZWuwM3BPOAHJ6AB4mm2jftDhp9ZvF3yOuhGSCx8t7sNgkda-CsfKNyQu_nz6Hm6Icm45vN3gkOkTZCwhcEX4DaOxL1OersYTQ\",\"token_type\":\"bearer\",\"expires_in\":899}"
+    },
+    {
+      "t": 12.9,
+      "m": "GET",
+      "u": "https://api-shop.lufthansa.com/v1/one-booking/reference-data/public-facts",
+      "b": null,
+      "auth": "Bearer eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNm",
+      "ct": "application/json",
+      "s": 200,
+      "r": "{\"publicFacts\":{\"feature.MainAPI_Backend\":\"STABLE\",\"contextRef\":\"false\",\"isLoggedIn\":\"false\",\"feature.Insurance_AIG\":\"STABLE\",\"feature.Refund_Reporting\":\"STABLE\",\"feature.CheckinData_Retrieval\":\"STABLE\",\"feature.login\":\"STABLE\",\"feature.Rail_And_Fly\":\"STABLE\",\"feature.CorporateLoyalty_Validation\":\"UNSTABLE\",\"TSC_DISCOUNT\":\"AT,CH,ES\",\"feature.VAT_Cancellation_Notification\":\"STABLE\",\"feature.Payment_Rates\":\"STABLE\",\"feature.Ancillary_Recommendations\":\"STABLE\",\"feature.PNR_OTP\":\"STABLE\",\"flowType\":\"STANDARD\",\"feature.Ehhanced_Seat_Map\":\"STABLE\",\"feature.Ancillary_Market_Place\":\"STABLE\"}}"
+    },
+    {
+      "t": 21.35,
+      "m": "POST",
+      "u": "https://api-shop.lufthansa.com/v2/digital-touchpoints/RefX/analytics/user-experience-logs",
+      "b": "{\"data\":{\"eventGenerator\":\"RefX\",\"session\":\"8fe7cce0-4f39-4f5f-81cd-a22e9d1baad5\",\"logData\":{\"users\":[{\"profiles\":[{\"userAgent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36\",\"app\":{\"appType\":\"browser\"}}]}],\"digitalTouchpointDetails\":{\"flow\":\"Booking\",\"name\":\"RefX_editable\",\"clientPhase\":\"PRD\",\"language\":\"EN\",\"clientVersion\":\"12.1\"},\"experiments\":[],\"page\":{\"pageId\":\"RECOVERY\",\"pageName\":\"recovery\",\"pageInstanceId\":\"1776790466561\",\"category\":{\"primaryCategory\":\"Booking\"}},\"events\":[{\"category\":{\"primaryCategory\":\"PageView\"},\"key\":\"PageView\",\"eventName\":\"PageView\",\"pageId\":\"RECOVERY\",\"timestamp\":\"2026-04-21T16:54:26.564Z\",\"pageInstanceId\":\"1776790466561\"}]}}}",
+      "auth": "Bearer eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNm",
+      "ct": "application/json"
+    },
+    {
+      "t": 67.61,
+      "m": "POST",
+      "u": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "b": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "auth": "",
+      "ct": "application/x-www-form-urlencoded",
+      "s": 200
+    },
+    {
+      "t": 67.63,
+      "m": "GET",
+      "u": "https://api-shop.lufthansa.com/v1/one-booking/reference-data/public-facts",
+      "b": null,
+      "auth": "Bearer eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNm",
+      "ct": "application/json",
+      "s": 200
+    }
+  ],
+  "search": {
+    "dep": "2026-05-21",
+    "ret": "2026-05-28",
+    "origin": "JFK",
+    "dest": "MUC"
+  }
+}

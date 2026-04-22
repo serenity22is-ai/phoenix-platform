@@ -35,6 +35,10 @@ android/local.properties
 # Logs and test output
 *.log
 *_test_results_*.json
+*_comparison_*.json
+duffel_vs_google_*.json
+pos_*.json
+price_comparison_*.json
 
 # Generated PDFs
 *.pdf

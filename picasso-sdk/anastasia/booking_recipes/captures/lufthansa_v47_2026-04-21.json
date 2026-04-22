@@ -1,0 +1,128 @@
+{
+  "version": "v47",
+  "get_results": [
+    {
+      "name": "minimal",
+      "status": 400,
+      "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'departureDateTime' of style 'QUERY'\"\n}"
+    },
+    {
+      "name": "with_locations",
+      "status": 400,
+      "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'departureDateTime' of style 'QUERY'\"\n}"
+    },
+    {
+      "name": "no_suffix",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "name": "array_style",
+      "status": 400,
+      "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'departureDateTime' of style 'QUERY'\"\n}"
+    },
+    {
+      "name": "full",
+      "status": 400,
+      "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'departureDateTime' of style 'QUERY'\"\n}"
+    }
+  ],
+  "post_results": [
+    {
+      "name": "pure_datetime",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "name": "with_ptc",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "name": "with_id",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "with_cff",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "iso_datetime",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "nb_style",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "metasearch",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "empty_travelers",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "name": "ptc_travelers",
+      "status": 400,
+      "ct": "application/json",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    }
+  ],
+  "progressive_get": [
+    {
+      "params": "departureDateTime",
+      "status": 400,
+      "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'originLocationCode' of style 'QUERY'\"\n}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode",
+      "status": 400,
+      "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'destinationLocationCode' of style 'QUERY'\"\n}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode,destinationLocationCode",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode,destinationLocationCode,returnDateTime",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode,destinationLocationCode,returnDateTime,nbAdt",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode,destinationLocationCode,returnDateTime,nbAdt,cabin,tripType,airline",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode,destinationLocationCode,returnDateTime,nbAdt,cabin,tripType",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "params": "departureDateTime,originLocationCode,destinationLocationCode,nbAdt",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "version": "v45",
+  "endpoint": "https://api-shop.lufthansa.com/v1/one-booking/search/air-offers",
+  "body_search_results": {
+    "advancedAirShopping_context": " RegExp(\"^/v2/search/air-offer-conditions(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airOfferConditions\"}]},{path:\"/search/raw-air-offer-conditions\",regexp:new RegExp(\"^/v2/search/raw-air-offer-conditions(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"rawAirOfferConditions\"}]},{path:\"/search/raw-exchange-air-offer-conditions\",regexp:new RegExp(\"^/v2/search/raw-exchange-air-offer-conditions(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"rawExchangeAirOfferConditions\"}]},{path:\"/search/air-bounds\",regexp:new RegExp(\"^/v2/search/air-bounds(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"airBoundsShopping\"}]},{path:\"/search/air-calendars\",regexp:new RegExp(\"^/v2/search/air-calendars(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airCalendar\"},{method:\"post\",operationId:\"advancedAirCalendar\"}]},{path:\"/search/air-offers\",regexp:new RegExp(\"^/v2/search/air-offers(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airShopping\"},{method:\"post\",operationId:\"advancedAirShopping\"}]},{path:\"/search/air-offers/by-offer\",regexp:new RegExp(\"^/v2/search/air-offers/by-offer(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingByOffer\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/more-flights\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/more-flights(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirShoppingMoreFlights\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/upsells\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/upsells(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingUpsell\"}]},{path:\"/shopping/carts/{cartId}/services\",regexp:new RegExp(\"^/v2/shopping/carts/((?:[^/]+?))/services(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"retrieveServicesFromCart\"},{method:\"post\",operationId:\"addServicesToCart\"},{method:\"patch\",operationId:\"patchServicesInCart\"},{method:\"delete\",operationId:\"deleteServicesFromCart\"}]},{path:\"/shopping/carts/{cartId}/services/{serviceId}\",regexp:new RegExp(\"^/v2/shopping/carts/((?:[^/]+?))/services/((?:[^/]+?))(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"retrieveServiceFromCart\"},{method:\"patch\",operationId:\"patchServiceFromCart\"},{method:\"delete\",operationId:\"deleteServiceFromCart\"}]},{path:\"/purchase/orders/{orderId}/services\",regexp:new RegExp(\"^/v2/purchase/orders/((?:[^/]+?))/services(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"retrieveServicesFromOrder\"},{method:\"post\",operationId:\"addServicesToOrder\"},{method:\"delete\",operationId:\"deleteServicesFromOrder\"}]},{path:\"/purchase/orders/{orderId}/services/{serviceId}\",regexp:new RegExp(\"^/v2/purchase/orders/((?:[^/]+?))/services/((?:[^/]+?))(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"retrieveServiceFromOrder\"},{method:\"delete\",operationId:\"deleteServiceFromOrder\"}]},{path:\"/shopping/carts/{cartId}/seats\",regexp:new RegExp(\"^/v2/shopping/carts/((?:[^/]+?))/seats(?:/(?=$))?$\"),operations:[{method:\"get\",op",
+    "all_advancedAirShopping": [
+      "perationId:\"advancedAirCalendar\"}]},{path:\"/search/air-offers\",regexp:new RegExp(\"^/v2/search/air-offers(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airShopping\"},{method:\"post\",operationId:\"advancedAirShopping\"}]},{path:\"/search/air-offers/by-offer\",regexp:new RegExp(\"^/v2/search/air-offers/by-offer(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingByOffer\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/more-flights\",regexp:new RegExp(\"^/v2/search/air-offer",
+      "]},{path:\"/search/air-offers/from-offer/{airOfferId}/more-flights\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/more-flights(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirShoppingMoreFlights\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/upsells\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/upsells(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingUpsell\"}]},{path:\"/shopping/carts/{cartId}/services\",regexp"
+    ],
+    "airShopping_context": "onId:\"rawExchangeAirOfferConditions\"}]},{path:\"/search/air-bounds\",regexp:new RegExp(\"^/v2/search/air-bounds(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"airBoundsShopping\"}]},{path:\"/search/air-calendars\",regexp:new RegExp(\"^/v2/search/air-calendars(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airCalendar\"},{method:\"post\",operationId:\"advancedAirCalendar\"}]},{path:\"/search/air-offers\",regexp:new RegExp(\"^/v2/search/air-offers(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"airShopping\"},{method:\"post\",operationId:\"advancedAirShopping\"}]},{path:\"/search/air-offers/by-offer\",regexp:new RegExp(\"^/v2/search/air-offers/by-offer(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingByOffer\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/more-flights\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/more-flights(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirShoppingMoreFlights\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/upsells\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/upsells(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingUpsell\"}]},{path:\"/shopping/carts/{cartId}/services\",regexp:new RegExp(\"^/v2/shopping/carts/((?:[^/]+?))/services(?:/(?=$))?$\"),operations:[{method:\"get\",operationId:\"retrieveServicesFromCart\"},{method:\"post\",operationId:\"addServicesToCart\"},{method:\"patch\",operationId:\"patchServicesInCart\"},{method:\"delete\",operationId:\"",
+    "field_contexts": {
+      "originLocationCode": "(b=>!!b.airBoundsSearch),(0,n.Lt)(i.$G),(0,d.p)(b=>!!b?.itineraries&&b.itineraries.length>0),(0,E.T)(b=>b?.itineraries?.[0].originLocationCode),(0,l.F)())),searchOriginLocationCodes:this.store.pipe(P(\"originLocationCode\")),searchDestinationLocationCode:this.store.pipe(F=>F.pipe((0,d.p)(b=>!!b.airBoundsSearch),(0,n.Lt)(i.$G),(0,d.p)(b=>!!b?.itineraries&&b.itineraries.length>0),(0,E.T)(b=>b?.itinera",
+      "destinationLocationCode": "rBoundsSearch),(0,n.Lt)(i.$G),(0,d.p)(b=>!!b?.itineraries&&b.itineraries.length>0),(0,E.T)(b=>b?.itineraries?.[0].destinationLocationCode),(0,l.F)())),searchDestinationLocationCodes:this.store.pipe(P(\"destinationLocationCode\")),searchCommercialFareFamilies:this.store.pipe(F=>{const b=F.pipe((0,d.p)(L=>!!L.airBoundsSearch),(0,n.Lt)(i.$G),(0,E.T)(L=>L?.commercialFareFamilies||[])),_=F.pipe((0,d.p)(L",
+      "cabin": "tion:ae,departure:Te,arrival:Ye,arrivalTimeOfDay:H,stops:Y,tooCloseToDeparture:le,operatingAirlines:We,cabin:De,cabinPrice:se};function q(Q,ie){const X=ie.find(it=>\"price\"===it.method),he=ie.find(it=>\"cabin\"===it.method),Ne=[...ie];return X&&he&&Ne.push({method:\"cabinPrice\",parameters:(0,t._)({},X.parameters,he.parameters)}),function Ce(Q,ie){return 0===Q.length||0===ie.length?Q:Q.slice().filter(X"
+    },
+    "search_triggers": [
+      "airOffersAdvancedSearch:Qe.yy},{breadcrumb:gp.WL},{paymentMethods:xe.Xn},{uiStatus:Ao.fJ},{datalake:Rr},{travelerDetailsUI:fs.kj},{discounts:Ja.VT},{cookies:Ma.AY},{timeToThink:bc.H4},{uiServicesCatalogueItems:_c.CB},{metaSearch:Mc.Em},{modifySearch:Ni.fg},{airOffersUpsell:tt.bz},{configOverrides:or.configOverrideStorageS",
+      "airOffersAdvancedSearch\",J=new i.nKC(\"Feature AirOffersAdvancedSearch Reducer\")",
+      "airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,E.T)(A=>{const S=A?.itineraries",
+      "airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,E.T)(A=>(A?.itineraries||[]).map(S=>S[F]).filter(S=>void 0!==S)),(0,l.F)())",
+      "airOffersAdvancedSearch:this.store.pipe(F=>F.pipe((0,d.p)(b=>!!b.airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,l.F)((b,_)=>JSON.stringify(b)===JSON.stringify(_)))),searchOutboundDate:this.store.pipe(y(\"outbound\")),searchInboundDate:this.store.pipe(y(\"inbound\")),searchNumberOfPassengers:this.store.pipe(F=>{const b=F.pipe((0,d",
+      "airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,E.T)(L=>L?.travelers?.length||0),(0,l.F)())",
+      "airOffersAdvancedSearch),(0,n.Lt)(h.h9),(0,E.T)(L=>L?.commercialFareFamilies||[]))",
+      "airOffersAdvancedSearch),(0,d.Lt)(n.h9),(0,P.T)(ke=>ke?.itineraries||[])),me=z.pipe((0,I.p)(ke=>!!ke.cart||!!ke.order),(0,v.n)(()=>J?.bounds$||(0,E.of)([])),(0,D.Z)([]))",
+      "airOffersAdvancedSearch),(0,d.Lt)(n.h9),(0,P.T)(me=>me?.itineraries||[]),(0,D.Z)([])),ne=J.pipe((0,I.p)(me=>!!me.cart||!!me.order),(0,v.n)(()=>G?.bounds$||(0,E.of)([])),(0,D.Z)([]))",
+      "airOffersAdvancedSearch),(0,d.Lt)(n.h9),(0,P.T)(me=>me?.itineraries?.filter(ke=>(0,j._C)(ke))||[]),(0,D.Z)([])),ne=J.pipe((0,I.p)(me=>!!me.cart||!!me.order),(0,v.n)(()=>G?.bounds$||(0,E.of)([])),(0,D.Z)([]),(0,C.F)((me,ke)=>me.length===ke.length&&me.every((Je,Be)=>Je.id===ke[Be].id)))"
+    ],
+    "ngrx_search_actions": [],
+    "search_services": []
+  },
+  "body_format_tests": [
+    {
+      "name": "empty",
+      "status": 400,
+      "ct": "application/json",
+      "length": 281,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Invalid data received\",\"source\":{\"parameter\":\"/itineraries\"}},{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}"
+    },
+    {
+      "name": "minimal",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "connections_v1",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "connections_v2",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "ndc_standard",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "segments",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "flightSegments",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "travelers_only",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "hash_params",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "amadeus_self",
+      "error": "Failed to fetch"
+    }
+  ]
+}

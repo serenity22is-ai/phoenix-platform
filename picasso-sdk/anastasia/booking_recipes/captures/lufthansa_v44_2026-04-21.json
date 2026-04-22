@@ -1,0 +1,261 @@
+{
+  "version": "v44",
+  "context_path_results": [
+    {
+      "url": "https://api-shop.lufthansa.com/oip/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/vas/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/oip/v2/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/vas/v2/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/lh/us/en/v2/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/booking/v2/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/one-booking/v2/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/v1/one-booking/search/air-offers",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "isHtml": false,
+      "preview": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/v2/search/air-offers",
+      "status": 596,
+      "ct": "text/xml",
+      "length": 30,
+      "isHtml": false,
+      "preview": "<h1>596 Service Not Found</h1>"
+    }
+  ],
+  "js_deep_analysis": {
+    "E_baseUrl_usages": [
+      "E.baseUrl,gatewayClientId:E.clientId,gatewayClientSecret:E.clientSecret,tokenBasePath:E.baseUrl+E.tokenPath,c",
+      "E.baseUrl}/v2`:`${E.baseUrl}/${y}`,dapiAnalyticsBasePath:f&&!h?`${E.baseUrl}/order-mgt-amadeus-digital-analyt",
+      "E.baseUrl}${n.S.analytics}`}}},89802:(Fe,R,e)=>{\"use strict\""
+    ],
+    "E_clientId_usages": [
+      "E.clientId,gatewayClientSecret:E.clientSecret,tokenBasePath:E.baseUrl+E.tokenPath,contextPath:y,dapiPremiumBas"
+    ],
+    "E_tokenPath_usages": [
+      "E.tokenPath,contextPath:y,dapiPremiumBasePath:p||h?`${E.baseUrl}/v2`:`${E.baseUrl}/${y}`,dapiAnalyticsBasePath:"
+    ],
+    "prod_config_block": "={production:!0,DEBUG_MODE:!1,APP_BASE_HREF:\".\",APP_VERSION:\"28.4.0\",DEFAULT_LOC_BUNDLE_NAME:\"\",DEVTOOL_HISTORY_SIZE:20,DEVTOOL_LOG_ONLY:!0,ENABLE_GHOSTING:!1,ENABLE_WEBSTORAGE:!0,ENVIRONMENT:\"prod\",LOCALIZATION_BUNDLES_OUTPUT:\"localizations/\",USE_MOCKS:window.location.search.includes(\"useMocks\"),supportedLocales:t.VL.supportedLocales,fallbackLanguage:t.VL.fallbackLanguage,rtlLanguages:t.VL.rtlLanguages},n={}},81623:(Fe,R,e)=>{\"use strict\";e.d(R,{A:()=>d});var t=e(14710),i=e(65972),n=e(59007);function d(l,c,h){return(0,n.A)(2,arguments),(0,i.A)((0,t.A)(l,c,new Date,h))}},82040:(Fe,R,e)=>{\"use strict\";e.d(R,{M:()=>l});var t=e(91126),i=e(15351),n=e(42483),d=e(49220);function l(c,h,f){const p=(0,t.T)(c)||h||f?{next:c,error:h,complete:f}:c;return p?(0,i.N)((m,E)=>{var y;null===(y=p.subscribe)||void 0===y||y.call(p);let I=!0;m.subscribe((0,n._)(E,v=>{var P;null===(P=p.next)||void 0===P||P.call(p,v),E.next(v)},()=>{var v;I=!1,null===(v=p.complete)||void 0===v||v.call(p),E.complete()},v=>{var P;I=!1,null===(P=p.error)||void 0===P||P.call(p,v),E.error(v)},()=>{var v,P;I&&(null===(v=p.unsubscribe)||void 0===v||v.call(p)),null===(P=p.finalize)||void 0===P||P.call(p)}))}):d.D}},82284:(Fe,R,e)=>{\"use strict\";function t(i){return(t=\"function\"==typeof Symbol&&\"symbol\"==typeof Symbol.iterator?function(n){return typeof n}:function(n){return n&&\"function\"==typeof Symbol&&n.constructor===Symbol&&n!==Symbol.prototype?\"symbol\":typeof n})(i)}e.d(R,{A:()=>t})},82336:(Fe,R,e)=>{\"use strict\";e.d(R,{o:()=>t});const t=(...i)=>(n,d)=>i.reduce((l,c)=>c(l,d),n)},82479:(Fe,R,e)=>{\"use strict\";e.d(R,{H:()=>I});var t=e(8142),E=e(18150);function y(v,P,C){if(v)return v.payload=(0,E.DV)(v.payload,P,t.M),v.targetSchema=function m(v){if(v){if(v.schemaType){if(v.schemaType[0].toUpperCase()+v.schemaType.slice(1)===\"TaskRegulatoryAddressSchema\")return function n(v){if(v)return v.type=function i(v){if(v)return v}(v.type),v}(v);if(v.schemaType[0].toUpperCase()+v.schemaType.slice(1)===\"TaskRegulatoryDocument",
+    "env_assignments": [],
+    "api_shop_context": [],
+    "oip_context": [
+      "andler=Wt}load(){return{transform:Wt=>{this.basePath=Wt.basePath;const Ct=Wt.headers.get(\"content-type\")?.includes(\"application/x-www-form-urlencoded\");if(re(Wt.basePath)&&Ct){const zt=W(Wt.basePath)?\"oip\":\"vas\";Wt.body=this.transformBody(Wt.body,zt)}return Wt}}}getRefreshTokenFromSession(){return typeof sessionStorage>\"u\"?null:sessionStorage.getItem(this.refreshTokenStorageKey)??null}transformToR",
+      "enFromSession(){return typeof sessionStorage>\"u\"?null:sessionStorage.getItem(this.refreshTokenStorageKey)??null}transformToRefreshRequest(Wt,Ct){const zt=this.getRefreshTokenFromSession();zt&&(Wt.set(\"oip\"===Ct?\"refresh_token\":\"refreshToken\",zt),\"oip\"===Ct&&Wt.set(\"grant_type\",ge.REFRESH))}transformBody(Wt,Ct){const zt=this.parseTokenBody(Wt);if(!zt)return;const Pn=zt.get(\"fact\");return Pn?.includ",
+      "u\"?null:sessionStorage.getItem(this.refreshTokenStorageKey)??null}transformToRefreshRequest(Wt,Ct){const zt=this.getRefreshTokenFromSession();zt&&(Wt.set(\"oip\"===Ct?\"refresh_token\":\"refreshToken\",zt),\"oip\"===Ct&&Wt.set(\"grant_type\",ge.REFRESH))}transformBody(Wt,Ct){const zt=this.parseTokenBody(Wt);if(!zt)return;const Pn=zt.get(\"fact\");return Pn?.includes(\"authenticationCode\")?(this.convertBodyToCo",
+      "66645),pi=e(52535);const Ei=[];var kn=e(68124),Ue=e(8350),nt=e(89783),Yt=e(28274),_n=e(22118),$n=e(36405);function pr(Cn,Wt,Ct,zt,Pn,Xn,sr,Ar,Dr,ii,Ti,yi,Bi,no,Wo,Ns,ps,Ho,fa,pa,Ll,vs,gi,hs){const ys=\"oip\"===Ce.D.tokenFormat||(0,Ue.U)(),Di=\"vas\"===Ce.D.tokenFormat||ys,Ys=pa.isActivated(),Do=sr.shouldUseMocks(),Nl=sr.getPortalFacts(),rd=sr.getPrivateFacts(),{gatewayClientId:id,gatewayClientSecret:o"
+    ],
+    "vas_context": [
+      "=Wt}load(){return{transform:Wt=>{this.basePath=Wt.basePath;const Ct=Wt.headers.get(\"content-type\")?.includes(\"application/x-www-form-urlencoded\");if(re(Wt.basePath)&&Ct){const zt=W(Wt.basePath)?\"oip\":\"vas\";Wt.body=this.transformBody(Wt.body,zt)}return Wt}}}getRefreshTokenFromSession(){return typeof sessionStorage>\"u\"?null:sessionStorage.getItem(this.refreshTokenStorageKey)??null}transformToRefresh",
+      "yToContextData(Wt,Ct){const zt={};this.transferFactToContextData(Wt,zt),this.transferOfficeIdToContextData(Wt,zt),this.transferContextInitTokenToContextData(Wt,zt),Object.keys(zt).length>0&&Wt.append(\"vas\"===Ct?\"contextData\":\"context\",JSON.stringify(zt))}transferFactToContextData(Wt,Ct){const zt=Wt.get(\"fact\");if(null!==zt){try{const Pn=JSON.parse(zt);Array.isArray(Pn?.keyValuePairs)&&Pn.keyValueP",
+      "68124),Ue=e(8350),nt=e(89783),Yt=e(28274),_n=e(22118),$n=e(36405);function pr(Cn,Wt,Ct,zt,Pn,Xn,sr,Ar,Dr,ii,Ti,yi,Bi,no,Wo,Ns,ps,Ho,fa,pa,Ll,vs,gi,hs){const ys=\"oip\"===Ce.D.tokenFormat||(0,Ue.U)(),Di=\"vas\"===Ce.D.tokenFormat||ys,Ys=pa.isActivated(),Do=sr.shouldUseMocks(),Nl=sr.getPortalFacts(),rd=sr.getPrivateFacts(),{gatewayClientId:id,gatewayClientSecret:od,tokenBasePath:el,dapiPremiumBasePath:X"
+    ]
+  },
+  "form_result": {
+    "origin": null,
+    "dest": null,
+    "calendar": null,
+    "submit": {
+      "error": "No Find flights button found"
+    }
+  },
+  "all_api_calls": [
+    {
+      "url": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "status": 200,
+      "method": "POST",
+      "post_data": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "response": "{\"access_token\":\"eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNmsycWJycjR4aHJ6cWE3eW4iLCJsc3MtdXNlcklkIjoiV1NMSERBUExIRCIsIm9mZmljZUlkIjoiRlJBTEgwOEJDIiwidGVuYW50SWQiOiJMSCIsImFwcGxpY2F0aW9uSWQiOiJMSF9PTkVCS0dVSSIsImtleSI6Ims3enBqNHM2azJxYnJyNHhocnpxYTd5biIsImlzcyI6IkNOPVNDLVBST0QsT1U9TEhNRFciLCJleHAiOjE3NzY3OTU2OTAsImlhdCI6MTc3Njc5NDc5MCwianRpIjoiM2ZlZGQyZmItZmJjZC00ODRlLThiMTQtZGY2OTA3NGQ5ZGU3In0.Ra7Y_9F1L_5_blSJD4URY81azdoT1T-jUTdY6cmQ5LGqE8oftOYFpgcAUiTAVTVGLBZYh14G95luX8hxZBLULJ_OHGUIBZ4q-oFggLrL78kS8UNdSC7YbTzD5Dwj_crp9C-8NRRs-1L0OkAJC7e8WwrsT4MbWgXASn6g5xQ2vRv6rEpZHVSWBlaNFk19Jfz995LGfbjAIREF6RHekYA0mcj4ewVFEuQD0CovfRDB9EMa39lrZ9ozKDeI_XJpG7puo2ReLM7ztDcAiwoCbjKZizSkRekmV4TbQ-svjLndmYsQoOr1z54FWOsa3hidKS3I_zmL6Tr-2ZU4a7N9KktFbg\",\"token_type\":\"bearer\",\"expires_in\":899}"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/v1/one-booking/reference-data/public-facts",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": "{\"publicFacts\":{\"isLoggedIn\":\"false\",\"contextRef\":\"false\",\"feature.MainAPI_Backend\":\"STABLE\",\"feature.Ancillary_Market_Place\":\"STABLE\",\"feature.Ehhanced_Seat_Map\":\"STABLE\",\"flowType\":\"STANDARD\",\"feature.PNR_OTP\":\"STABLE\",\"feature.Ancillary_Recommendations\":\"STABLE\",\"feature.Payment_Rates\":\"STABLE\",\"feature.VAT_Cancellation_Notification\":\"STABLE\",\"TSC_DISCOUNT\":\"AT,CH,ES\",\"feature.CorporateLoyalty_Validation\":\"UNSTABLE\",\"feature.Rail_And_Fly\":\"STABLE\",\"feature.login\":\"STABLE\",\"feature.CheckinData_Retrieval\":\"STABLE\",\"feature.Refund_Reporting\":\"STABLE\",\"feature.Insurance_AIG\":\"STABLE\"}}"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/oip/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/vas/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/oip/v2/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/vas/v2/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/lh/us/en/v2/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/booking/v2/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/one-booking/v2/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/v1/one-booking/search/air-offers",
+      "status": 400,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/v2/search/air-offers",
+      "status": 596,
+      "method": "POST",
+      "post_data": "{\"commercialFareFamilies\": [], \"itinerary\": {\"type\": \"ROUND_TRIP\", \"connections\": [{\"departure\": {\"airportCode\": \"JFK\"}, \"arrival\": {\"airportCode\": \"MUC\"}, \"departureDate\": \"2026-05-21\"}, {\"departure\": {\"airportCode\": \"MUC\"}, \"arrival\": {\"airportCode\": \"JFK\"}, \"departureDate\": \"2026-05-28\"}]}, \"cabin\": \"ECONOMY\", \"travelers\": [{\"id\": \"ADT1\", \"ptc\": \"ADT\"}]}",
+      "response": "<h1>596 Service Not Found</h1>"
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/fareteaserdynamic/DestinationFinderCard-square.png",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/service/api/lhg-fare-teaser/fareteaser/offers/NYC",
+      "status": 200,
+      "method": "POST",
+      "post_data": "{\"touchPointId\":\"200\",\"decisionTypeId\":\"52\",\"timestamp\":\"2026-04-21T20:07:30\",\"timezone\":120,\"tripType\":\"R\",\"airlineDestWhitelist\":false}",
+      "response": "{\"currency\":\"USD\",\"currencySymbol\":\"$\",\"currencySymbolPrefixed\":true,\"decisionId\":\"31ebb108-98ed-4105-b79a-432dba5a0f3c\",\"fareTeaserOffers\":[{\"topDeal\":false,\"city\":\"ZRH\",\"cityName\":\"Zurich\",\"cityNameUrl\":\"zurich\",\"price\":850.0},{\"topDeal\":false,\"city\":\"MUC\",\"cityName\":\"Munich\",\"cityNameUrl\":\"munich\",\"price\":856.0},{\"topDeal\":false,\"city\":\"TIA\",\"cityName\":\"Tirana\",\"cityNameUrl\":\"tirana\",\"price\":605.0},{\"topDeal\":false,\"city\":\"FRA\",\"cityName\":\"Frankfurt\",\"cityNameUrl\":\"frankfurt\",\"price\":847.0},{\"topDeal\":false,\"city\":\"VIE\",\"cityName\":\"Vienna\",\"cityNameUrl\":\"vienna\",\"price\":779.0},{\"topDeal\":false,\"city\":\"BUD\",\"cityName\":\"Budapest\",\"cityNameUrl\":\"budapest\",\"price\":630.0},{\"topDeal\":false,\"city\":\"ATH\",\"cityName\":\"Athens\",\"cityNameUrl\":\"athens\",\"price\":719.0},{\"topDeal\":false,\"city\":\"ROM\",\"cityName\":\"Rome\",\"cityNameUrl\":\"rome\",\"price\":626.0},{\"topDeal\":false,\"city\":\"GVA\",\"cityName\":\"Geneva\",\"cityNameUrl\":\"geneva\",\"price\":848.0},{\"topDeal\":false,\"city\":\"SKP\",\"cityName\":\"Skopje\",\"cityNameUrl\":\"skopje\",\"price\":614.0},{\"topDeal\":false,\"city\":\"BOM\",\"cityName\":\"Mumbai\",\"cityNameUrl\":\"mumbai\",\"price\":1016.0},{\"topDeal\":false,\"city\":\"WAW\",\"cityName\":\"Warsaw\",\"cityNameUrl\":\"warsaw\",\"price\":612.0},{\"topDeal\":false,\"city\":\"KRK\",\"cityName\":\"Krakow\",\"cityNameUrl\":\"krakow\",\"price\":604.0},{\"topDeal\":false,\"city\":\"SKG\",\"cityName\":\"Thessaloniki\",\"cityNameUrl\":\"thessaloniki\",\"price\":713.0},{\"topDeal\":false,\"city\":\"SPU\",\"cityName\":\"Split\",\"cityNameUrl\":\"split\",\"price\":878.0},{\"topDeal\":false,\"city\":\"SOF\",\"cityName\":\"Sofia\",\"cityNameUrl\":\"sofia\",\"price\":609.0},{\"topDeal\":false,\"city\":\"IST\",\"cityName\":\"Istanbul\",\"cityNameUrl\":\"istanbul\",\"price\":755.0},{\"topDeal\":false,\"city\":\"MIL\",\"cityName\":\"Milan\",\"cityNameUrl\":\"milan\",\"price\":634.0},{\"topDeal\":false,\"city\":\"BRU\",\"cityName\":\"Brussels\",\"cityNameUrl\":\"brussels\",\"price\":843.0},{\"topDeal\":false,\"city\":\"BLR\",\"cityName\":\"Bengaluru\",\"cityNameUrl\":\"bengaluru\",\"price\":991.0},{\"topDeal\":false,\"city\":\"SJJ\",\"cityName\":\"Sarajevo\",\"cityNameUrl\":\"sarajevo\",\"price\":610.0},{\"topDeal\":false,\"city\":\"TLV\",\"cityName\":\"Tel Aviv\",\"cityNameUrl\":\"tel+aviv\",\"price\":1070.0},{\"topDeal\":false,\"city\":\"NBO\",\"cityName\":\"Nairobi\",\"cityNameUrl\":\"nairobi\",\"price\":1141.0},{\"topDeal\":false,\"city\":\"ZAD\",\"cityName\":\"Zadar\",\"cityNameUrl\":\"zadar\",\"price\":807.0},{\"topDeal\":false,\"city\":\"DEL\",\"cityName\":\"Delhi\",\"cityNameUrl\":\"delhi\",\"price\":963.0},{\"topDeal\":false,\"city\":\"ZAG\",\"cityName\":\"Zagreb\",\"cityNameUrl\":\"zagreb\",\"price\":633.0},{\"topDeal\":false,\"city\":\"PRG\",\"cityName\":\"Prague\",\"cityNameUrl\":\"prague\",\"price\":940.0}]}"
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/muc-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/zrh-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/tia-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/fra-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/vie-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/bud-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/ath-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/rom-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response": null
+    }
+  ]
+}

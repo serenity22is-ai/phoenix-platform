@@ -1,0 +1,138 @@
+{
+  "captured_at": "2026-04-21T16:21:05.114023+00:00",
+  "search_url": "https://www.lufthansa.com/us/en/select-flights?cbm=bas&flightQuery.flightSegments[0].originCode=JFK&flightQuery.flightSegments[0].destinationCode=MUC&flightQuery.flightSegments[0].travelDatetime=2026-05-21&flightQuery.flightSegments[1].originCode=MUC&flightQuery.flightSegments[1].destinationCode=JFK&flightQuery.flightSegments[1].travelDatetime=2026-05-28&flightQuery.adultCount=1&flightQuery.childCount=0&flightQuery.infantCount=0&flightQuery.tripType=R&flightQuery.cabinClass=economy",
+  "requests": [
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/catalogs/calendar",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"longDateFormat\":{\"LT\":\"h:mm A\",\"LTS\":\"h:mm A\",\"L\":\"MM/DD/YYYY\",\"lx\":\"M/D/YYYY\",\"LL\":\"MMMM D, YYYY\",\"ll\":\"MMM D, YYYY\",\"LLL\":\"MMMM D, YYYY h:mm A\",\"lll\":\"MMM D, YYYY h:m A\",\"LLLL\":\"dddd, MMMM D, YYYY h:mm A\",\"llll\":\"dd, MMM D, YYYY h:m A\"},\"week\":{\"dow\":0.0}}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/catalogs/localeData",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"locale\":\"en\",\"number\":{\"nu\":[\"numberingSystem\"],\"options\":{\"currency\":{\"currencyoptionsDefault\":{\"minimumIntegerDigits\":1,\"minimumFractionDigits\":2,\"maximumFractionDigits\":2,\"minimumSignificantDigits\":1,\"maximumSignificantDigits\":15}}},\"patterns\":{\"currency\":{\"currencypatternsDefault\":{\"positivePattern\":\"{currency} {rest}{shortcut}\",\"negativePattern\":\"{currency} -{rest}{shortcut}\",\"shortcuts\":[{\"applyFromExp\":4,\"exponent\":3,\"replacement\":\"K\"},{\"applyFromExp\":6,\"exponent\":6,\"replacement\":\"M\"}]}}},\"symbols\":{\"numberingSystem\":{\"decimal\":\".\",\"group\":\" \",\"nan\":\"NaN\",\"plusSign\":\"+\",\"minusSign\":\"-\",\"percentSign\":\"%\",\"infinity\":\"\u221e\"}},\"currencies\":{\"ARS\":\"ARS\",\"AUD\":\"AUD\",\"BAM\":\"KM\",\"BRL\":\"R$\",\"CAD\":\"$\",\"CLP\":\"CLP\",\"CNY\":\"\u00a5\",\"COP\":\"COP\",\"EUR\":\"\u20ac\",\"GBP\":\"\u00a3\",\"GEL\":\"\u20be\",\"HKD\":\"HK$\",\"IDR\":\"IDR\",\"INR\":\"\u20b9\",\"JPY\":\"\u00a5\",\"KRW\":\"\uffe6\",\"MYR\":\"MYR\",\"NZD\":\"NZ$\",\"PHP\":\"$\",\"RSD\":\"\u0420\u0421\u0414\",\"SGD\":\"SGD\",\"THB\":\"\u0e3f\",\"TWD\":\"TWD\",\"USD\":\"$\",\"VND\":\"VND\",\"ZAR\":\"R\"}}}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/catalogs/conditions",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"conditions\":\"<p>The prices displayed may vary and should serve as a guide for your selected journey. The prices apply to round or one way trips according to your selection. The end price is subject to change depending on the selected payment option. Seats are limited and may not be available on all days/flights. The fare might only be available during a special travel time and might not be available during holidays or other peak seasons. Fares include applicable fees, taxes and airport charges. Baggage might not be included in the end price. Additional baggage fees may apply. The fare might not be refundable or changeable. Minimum stay/maximum stay and/or advanced purchase might apply.</p>\\n\",\"conditionsHeadline\":\"General Conditions\",\"footerText\":\"*The prices incl. all taxes, fees, carrier surcharges may vary and serve as a guide for your selection.\"}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/core/feature/list/lh/US",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"enabledFeatures\":[\"ISB-ISBTVI-1055-fa-in-df\",\"PPL-CART-13060-OIPIntegration\",\"ISB-ISBTVI-4077-ArticleTags\",\"ISBTVI-8236-dfimport-public-key-auth\",\"ISB-ISBTVI-4956-WorkaroundDomainDiscover\",\"ISB-ISBTVI-6860-ftd-to-sod\",\"TEX-AYP-DHTE-8526-new-lounge-finder\",\"FIS-DHTE-1035-decommission-cfi\",\"ISB-ISBTVI-1917-full-width-layout\",\"ISB-FSD-444-direct-flights-choice\",\"ISB-ISBTVI-7397-fa-unsubscribe\",\"ISB-ISBTVI-4714-promotion-teaser-enabled\",\"FIS-DHTE-1948-cti-enable\",\"ISB-FSD-10240-new-bps-calendar\",\"PPL-CART-14626-additional-documents\",\"FIS-DHTE-1744-ppfi-checkin\",\"ISB-ISBTVI-7773-uplift-teaser-enabled\",\"PPL-CART-21235-extended-permissions\",\"ISB-ISBTVI-10548-Seatmap-Video-Support\",\"ISB-FSD-187-deeplink-from-microservice\",\"ISB-FSD-7141-onebooking-bps\",\"ISB-ISBTVI-6697-fa-trip-type\",\"ISB-ISBTVI-6085\",\"FIS-DHTE-5942-connect-fis-to-ois\",\"ISB-ISBTVI-8235-oip-currency-converter\",\"ISB-ISBTVI-6860-fts-to-sod\",\"ISBTVI-8886-Seatmap\",\"ISB-ISBTVI-9381-fts-new-service\",\"FIS-DHTE-1762-fis-service-enabled\",\"FIS-DHTE-2113-reason-code\",\"ISB-ISBTVI-8736-pt-df-history-enabled\",\"ISB-FSD-10-enable\",\"ISB-ISBTVI-9542-citymetad-update-auth\",\"ISB-FSD-680-sort-by-popularity\",\"ISB-ISBTVI-7436-ftd-new-service\",\"ISB-ISBTVI-3634-fa-shortcut\",\"ISB-ISBTVI-3780\",\"ISB-ISBTVI-7197-pt-fallback\",\"ISBTVI-9253-UseOIPService\",\"B2B-B2B-5761-status-card-order-person\",\"ISB-ISBTVI-4353\",\"ISB-ISBTVI-11239-HomePageEvolution\",\"PPL-CART-26202-further-CKI-options\",\"ISB-FSD-188-logged-in-user-cug-choice\",\"ISB-TVI-5657-personalized-recommendation\",\"PPL-CART-6927-transactions\",\"ISB-ISBTVI-5685-Enabled-animation-PT\",\"ISB-FSD-1740-typeahead-area-dropdowns\",\"ISB-FSD-1182-new-typeahead\",\"ISB-ISBTVI-2322-Pagination\",\"PPL-CART-12906-LoginPushOnCheckIn\",\"ISB-FSD-6755-award-flow-toggle\",\"ISB-ISBTVI-5057\",\"ISB-FSD-86-concur-from-profile\",\"ISB-ISBTVI-7753-show-exact-city-match\",\"ISBTVI-9776-USE-OIP-BPS-DATA\",\"ISB-ISBTVI-8391-login-for-fal\",\"ISB-FSD-10499-new-df-offers\",\"ISB-ISBTVI-4738-SaveHeartDestination\",\"ISB-FSD-8558-contextinitfailflag\",\"ISB-ISBTVI-1611\",\"TEX-APEX-14997-new-baggage-calculator\",\"ISB-ISBTVI-8594-terms-and-cond-enabled\",\"ISB-FSD-5909-allegris-info-message\",\"ISB-ISBTVI-3803-blog-search-enabled\",\"ISB-ISBTVI-7955-fal-on-sod\",\"ISB-FSD-12663-onebooking-oip\",\"PPL-CART-6927-status\",\"FIS-DHTE-1966-FSP-redesign\",\"ISBTVI-10538-OIP-for-currency-conversion\",\"csi-dhlhg-2061\",\"ISBT-ISBTVI-6897-dfi-data-import\",\"ISB-FSD-9096-stopover\",\"ISB-ISBTVI-1213-PriceChangeAlertOptions\",\"ISB-ISBTVI-9665-pt-change-user-flow\"]}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/secured/api/core/booking/defaultairport",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"globalDefaultAirport\":{\"iataCode\":\"JFK\",\"name\":\"New York\"},\"marketDefaultAirport\":{\"iataCode\":\"JFK\",\"name\":\"New York\"}}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/catalogs/airportnames",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"airports\":[{\"code\":\"JFK\",\"airport\":\"New York - JFK International, NY\"}]}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/labels/countrylanguageselection/lh/en",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"countrylanguageselection.selection.default.currentLanguage\":\"{LANGUAGE_SHORT}\",\"countrylanguageselection.selection.default.currentCountryLanguage\":\"{COUNTRY_SHORT}\",\"countrylanguageselection.selection.default.country\":\"Location\",\"countrylanguageselection.selection.default.button\":\"Continue\",\"countrylanguageselection.selection.default.header\":\"Location and Language\",\"countrylanguageselection.selection.default.wcagLabel\":\"Country and language selection which opens a new modal; currently:\",\"countrylanguageselection.selection.default.wcagLanguageLabel\":\"language selection; currently:\",\"countrylanguageselection.selection.default.language\":\"My language\"}"
+    },
+    {
+      "t": 44.75,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/catalogs/countryselector",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"countries\":[{\"code\":\"AL\",\"name\":\"Albania\"},{\"code\":\"DZ\",\"name\":\"Algeria\"},{\"code\":\"AO\",\"name\":\"Angola\"},{\"code\":\"AR\",\"name\":\"Argentina\"},{\"code\":\"AM\",\"name\":\"Armenia\"},{\"code\":\"AU\",\"name\":\"Australia\"},{\"code\":\"AT\",\"name\":\"Austria\"},{\"code\":\"AZ\",\"name\":\"Azerbaijan\"},{\"code\":\"BH\",\"name\":\"Bahrain\"},{\"code\":\"BY\",\"name\":\"Belarus\"},{\"code\":\"BE\",\"name\":\"Belgium\"},{\"code\":\"BA\",\"name\":\"Bosnia-Herzegovina\"},{\"code\":\"BR\",\"name\":\"Brazil\"},{\"code\":\"BG\",\"name\":\"Bulgaria\"},{\"code\":\"CA\",\"name\":\"Canada\"},{\"code\":\"CL\",\"name\":\"Chile\"},{\"code\":\"CN\",\"name\":\"China (Mainland)\"},{\"code\":\"CO\",\"name\":\"Colombia\"},{\"code\":\"CR\",\"name\":\"Costa Rica\"},{\"code\":\"HR\",\"name\":\"Croatia\"},{\"code\":\"CY\",\"name\":\"Cyprus\"},{\"code\":\"CZ\",\"name\":\"Czech Republic\"},{\"code\":\"CD\",\"name\":\"Democratic Republic of Congo\"},{\"code\":\"DK\",\"name\":\"Denmark\"},{\"code\":\"EC\",\"name\":\"Ecuador\"},{\"code\":\"EG\",\"name\":\"Egypt\"},{\"code\":\"GQ\",\"name\":\"Equatorial Guinea\"},{\"code\":\"ER\",\"name\":\"Eritrea\"},{\"code\":\"EE\",\"name\":\"Estonia\"},{\"code\":\"ET\",\"name\":\"Ethiopia\"},{\"code\":\"FI\",\"name\":\"Finland\"},{\"code\":\"FR\",\"name\":\"France\"},{\"code\":\"GE\",\"name\":\"Georgia\"},{\"code\":\"DE\",\"name\":\"Germany\"},{\"code\":\"GR\",\"name\":\"Greece\"},{\"code\":\"HK\",\"name\":\"Hong Kong, China\"},{\"code\":\"HU\",\"name\":\"Hungary\"},{\"code\":\"IS\",\"name\":\"Iceland\"},{\"code\":\"IN\",\"name\":\"India\"},{\"code\":\"ID\",\"name\":\"Indonesia\"},{\"code\":\"IR\",\"name\":\"Iran\"},{\"code\":\"IQ\",\"name\":\"Iraq\"},{\"code\":\"IE\",\"name\":\"Ireland\"},{\"code\":\"IL\",\"name\":\"Israel\"},{\"code\":\"IT\",\"name\":\"Italy\"},{\"code\":\"JP\",\"name\":\"Japan\"},{\"code\":\"JO\",\"name\":\"Jordan\"},{\"code\":\"KZ\",\"name\":\"Kazakhstan\"},{\"code\":\"KE\",\"name\":\"Kenya\"},{\"code\":\"KR\",\"name\":\"Korea, Republic of\"},{\"code\":\"KW\",\"name\":\"Kuwait\"},{\"code\":\"LV\",\"name\":\"Latvia\"},{\"code\":\"LB\",\"name\":\"Lebanon\"},{\"code\":\"LY\",\"name\":\"Libya\"},{\"code\":\"LT\",\"name\":\"Lithuania\"},{\"code\":\"LU\",\"name\":\"Luxembourg\"},{\"code\":\"MY\",\"name\":\"Malaysia\"},{\"code\":\"MV\",\"name\":\"Maldives\"},{\"code\":\"MT\",\"name\":\"Malta\"},{\"code\":\"MU\",\"name\":\"Mauritius\"},{\"code\":\"MX\",\"name\":\"Mexico\"},{\"code\":\"MD\",\"name\":\"Moldova\"},{\"code\":\"MA\",\"name\":\"Morocco\"},{\"code\":\"NL\",\"name\":\"Netherlands\"},{\"code\":\"NZ\",\"name\":\"New Zealand\"},{\"code\":\"NG\",\"name\":\"Nigeria\"},{\"code\":\"MK\",\"name\":\"North Macedonia\"},{\"code\":\"NO\",\"name\":\"Norway\"},{\"code\":\"OM\",\"name\":\"Oman\"},{\"code\":\"PA\",\"name\":\"Panama\"},{\"code\":\"PE\",\"name\":\"Peru\"},{\"code\":\"PH\",\"name\":\"Philippines\"},{\"code\":\"PL\",\"name\":\"Poland\"},{\"code\":\"PT\",\"name\":\"Portugal\"},{\"code\":\"QA\",\"name\":\"Qatar\"},{\"code\":\"RO\",\"name\":\"Romania\"},{\"code\":\"RU\",\"name\":\"Russian Federation\"},{\"code\":\"SA\",\"name\":\"Saudi Arabia\"},{\"code\":\"RS\",\"name\":\"Serbia\"},{\"code\":\"SG\",\"name\":\"Singapore\"},{\"code\":\"SK\",\"name\":\"Slovakia\"},{\"code\":\"SI\",\"name\":\"Slovenia\"},{\"code\":\"ZA\",\"name\":\"South Africa\"},{\"code\":\"ES\",\"name\":\"Spain\"},{\"code\":\"SD\",\"name\":\"Sudan\"},{\"code\":\"SE\",\"name\":\"Sweden\"},{\"code\":\"CH\",\"name\":\"Switzerland\"},{\"code\":\"TW\",\"name\":\"Taiwan, China\"},{\"code\":\"TH\",\"name\":\"Thailand\"},{\"code\":\"TN\",\"name\":\"Tunisia\"},{\"code\":\"TR\",\"name\":\"Turkey\"},{\"code\":\"UA\",\"name\":\"Ukraine\"},{\"code\":\"AE\",\"name\":\"United Arab Emirates\"},{\"code\":\"GB\",\"name\":\"United Kingdom\"},{\"code\":\"US\",\"name\":\"USA\"},{\"code\":\"VE\",\"name\":\"Venezuela\"},{\"code\":\"VN\",\"name\":\"Vietnam\"},{\"code\":\"XX\",\"name\":\"Other countries\"}],\"languages\":[{\"code\":\"de\",\"name\":\"Deutsch\",\"isDefault\":false},{\"code\":\"en\",\"name\":\"English\",\"isDefault\":true},{\"code\":\"es\",\"name\":\"Espa\u00f1ol\",\"isDefault\":false},{\"code\":\"fr\",\"name\":\"Fran\u00e7ais\",\"isDefault\":false}]}"
+    },
+    {
+      "t": 44.82,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/labels/common/lh/en",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"common.user.birthday.year.errorPatternInline\":\"Please enter a valid year of birth in the YYYY format.\",\"common.misc.dropdownautosuggest.UNKNOWN\":\"Unknown\",\"common.booking.children.label\":\"Children\",\"common.misc.co2emissions.label\":\"From {EMISSIONS}kg CO2\",\"common.user.birthday.day.errorDateValidationInline\":\"Please enter a valid date of birth. \",\"common.sr.buttons.lastPage\":\"Go to last page: Page {P}\",\"common.user.birthday.year.errorPatternEbox\":\"Please enter a valid year of birth in the YYYY format.\",\"common.booking.cabinClasses.PremiumEconomy\":\"Premium Economy\",\"common.booking.cabinClasses.label\":\"Travel class\",\"common.booking.adults.singular\":\"Adult\",\"common.user.academicTitle.label\":\"Academic title\",\"common.datepicker.default.dateIsSelectedAsEndDate\":\"Selected as end date. {dddd}, {DD} {MMMM} {YYYY} {PRICE} {CURRENCY}\",\"common.user.avatar.maleAltText\":\"Male\",\"common.user.middleName.hint\":\"\",\"common.sr.buttons.showNewPassword\":\"Show new password\",\"common.user.academicTitle.hint\":\"\",\"common.config.featureFlag.restructureProfileDataIsEnabled\":\"Y\",\"common.fileupload.default.uploadFailed\":\"The file {NAME} {FILESIZE} {UNIT} could not be uploaded due to an error {ERROR}\",\"common.destinationFinderCard.offer.srTileFocusRegionMode\":\"Click to display all destinations available for {REGION}.\",\"common.user.bloom.status.SEN\":\"Senator\",\"common.misc.movingimage.videoStoppedLabel\":\"Video stopped\",\"common.seatmap.seatDescription.seatDetails.seat\":\"Seat {NUMBER}\",\"common.calendar.footer.monthformat\":\"MMMM\",\"common.booking.infants.hint\":\"(0-23 months)\",\"common.skiplinks.default.section\":\"Skiplinks section\",\"common.flightdisplay.international.airport\":\"International Airport\",\"common.fileupload.default.bytes\":\"Bytes\",\"common.datepicker.default.selectedReturnAndDepartureDate\":\"{START_LABEL}: {START_DATE}, {END_LABEL}: {END_DATE}\",\"common.calendar.monthpriceshistogram.instruction\":\"Use arrows to select a month. Upon selection, focus will switch to Calendar for day selection, histogram will collapse. You can later switch month by either using Calendar controls or navigating back to this point and expanding the month select view. Unavailable months are skipped in arrow navigation\",\"common.sr.symbols.underscore\":\"Underscore\",\"common.user.birthday.default\":\"Date of Birth\",\"common.skiplinks.default.footer\":\"Go to footer\",\"common.calendar.paxCounter.childrenErrorMinimum\":\"Not enough children\",\"common.fileupload.default.attachmentSectionAdditionInformation\":\"Additional attachment section was added\",\"common.user.lhidemail.hint\":\"\",\"common.sr.page.footernav\":\"Menu\",\"common.sr.page.headernav\":\"Menu\",\"common.misc.dropdownautosuggest.resultLabelSR\":\"{RESULTCOUNT} {RESULTCOUNT, select, 1 {result is} other {results are}} available, use up and down arrow keys to navigate\",\"common.calendar.monthpriceshistogram.scrollArrowLeft\":\"Scroll to previous months\",\"common.seatmap.seatDescription.sectionTitles.locationsTitle\":\"Location\",\"common.config.featureFlag.destinationFinderAirlineFilter\":\"Y\",\"common.user.privacyStatement.3.content\":\"Your stored data remains exclusively with Lufthansa and is not passed on to third parties.\",\"common.config.default.udhEnabled\":\"N\",\"common.seatmap.legend.others.bassinett\":\"Bassinet\",\"common.fileupload.default.enableDeletingSRText\":\"The delete buttons are enabled again\",\"common.amadeus.default.b2Cluster1\":\"\",\"common.amadeus.default.b2Cluster2\":\"\",\"common.amadeus.default.b2Cluster3\":\"\",\"common.sr.od.geolocationSuccessLog\":\"{LABEL} {AIRPORT}\",\"common.calendar.paxCounter.additionalPaxTypesSrNoticeHide\":\"Additional passenger types hidden\",\"common.sr.calendar.departureDateSR\":\"You are selecting departure date\",\"common.user.privacyStatement.2.headline\":\"Transparency\",\"common.user.birthday.day.hint\":\"\",\"common.seatmap.legend.seats.selectedSeat\":\"Selected Seat\",\"common.servicing.default.pages\":\"BKGD,APIS,CPIT,SMAP,EBPP,CARL,EBFB,UPCH,EBRF,CKPT,APIT\",\"common.calendar.footer.fareAlertButton\":\"Best price alert\",\"common.calendar.monthpriceshistogram.scrollArrowRight\":\"Scroll to next months\",\"common.datepicker.error.errorMessageMax\":\"Travel date is too distant in the future\",\"common.flightdisplay.default.originSRLabel\":\"Origin\",\"common.fileupload.default.megabytes\":\"MB\",\"common.sr.swiper.prevSlideMessage\":\"Previous slide\",\"common.checkin.error.bookingNotFound\":\"Your booking could not be found. Please verify your booking code, the name entered for your booking and try again.\\r\\n\",\"common.datepicker.header.from\":\"From\",\"common.flightdisplay.default.dateFormat\":\"{L}\",\"common.booking.cabinClasses.Economy\":\"Economy\",\"common.fileupload.default.maxNumberAttachments\":\"No more than {MAX_ATTACHMENTS} can be uploaded\",\"common.destinationFinderCard.topDeal.label\":\"Recommended\",\"common.weather.default.fahrenheit\":\"\u00b0F\",\"common.user.birthday.day.errorPatternEbox\":\"Please enter a valid day of birth in the DD format.\",\"common.sr.buttons.showCurrentPassword\":\"Show current password\",\"common.seatmap.legend.others.exitRow\":\"Exit row\",\"common.datepic"
+    },
+    {
+      "t": 44.84,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/labels/searchBar/lh/en",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"searchBar.fullApp.quickLinks.link[00].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[01].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[10].url\":\"/\",\"searchBar.fullApp.quickLinks.link[12].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[02].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[03].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[04].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[05].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[10].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[14].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[01].url\":\"/\",\"searchBar.fullApp.quickLinks.link[11].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[13].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[04].url\":\"/\",\"searchBar.fullApp.quickLinks.link[12].url\":\"/\",\"searchBar.fullApp.quickLinks.link[07].url\":\"/\",\"searchBar.fullApp.quickLinks.link[11].url\":\"/\",\"searchBar.fullApp.default.flightStatus\":\"Flight status\",\"searchBar.fullApp.default.searchBarWithMagnifierButtonAriaText\":\"Open Search bar\",\"searchBar.fullApp.quickLinks.link[00].url\":\"/\",\"searchBar.fullApp.quickLinks.link[09].url\":\"/\",\"searchBar.fullApp.quickLinks.link[06].url\":\"/\",\"searchBar.fullApp.quickLinks.link[03].url\":\"/\",\"searchBar.fullApp.quickLinks.link[14].url\":\"/\",\"searchBar.fullApp.quickLinks.link[09].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.groupLabel\":\"Quick links\",\"searchBar.fullApp.quickLinks.link[07].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[08].label\":\"{EMPTY}\",\"searchBar.fullApp.default.searchLabel\":\"Enter search term\",\"searchBar.fullApp.quickLinks.link[06].label\":\"{EMPTY}\",\"searchBar.fullApp.quickLinks.link[08].url\":\"/\",\"searchBar.fullApp.quickLinks.link[02].url\":\"/\",\"searchBar.fullApp.quickLinks.link[13].url\":\"/\",\"searchBar.fullApp.quickLinks.link[05].url\":\"/\"}"
+    },
+    {
+      "t": 45.0,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/api/labels/loginForm/lh/en",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"loginForm.lid.password.label\":\"Password\",\"loginForm.oneId.success.loadingText\":\"Loading...\",\"loginForm.modal.userInfoBox.subheadline\":\"You will be re-directed to another page.\",\"loginForm.loginFlag.config.loginModalFeatureFlag\":\"Y\",\"loginForm.loginFlag.modal.loginModalSecondBenefit\":\"Your bookings at a glance\",\"loginForm.loginFlag.config.loginFlagPopoverEnabled\":\"N\",\"loginForm.modal.userInfoBox.accountStatementLinkText\":\"Miles & More\",\"loginForm.modal.userInfoBox.profileLinkDescription\":\"Personal settings for my preferences, payment methods, travel documents and much more.\",\"loginForm.lid.userName.hint\":\"\",\"loginForm.default.lastName.required\":\"Please enter a surname.\",\"loginForm.error.labels.NoResendsLeft\":\"Your account is locked and you can't request any more activation mails. Please contact the service center.\",\"loginForm.modal.userInfoBox.accountStatementLinkDescription\":\"My Miles & More account overview, account statement and information about the Miles & More programme.\",\"loginForm.mam.form.mamForgotPassword\":\"Forgot password\",\"loginForm.modal.userInfoBox.srHeadline\":\"My Travel ID\",\"loginForm.bookings.lastName.hint\":\"\",\"loginForm.loginFlag.default.closeSRLabel\":\"Close modal with login and registration links\",\"loginForm.config.modal.userInfoBox.travelCockpitUrl\":\"/{MARKET}/{LANGUAGE}/profile/travel-cockpit\",\"loginForm.config.modal.userInfoBox.profileLink\":\"/{MARKET}/{LANGUAGE}/profile/my-account\",\"loginForm.modal.additionalContentTeaser.linkText\":\"Register now\",\"loginForm.modal.default.buttonLoggedIn\":\"My Profile\",\"loginForm.modal.userInfoBox.mamSectionHeadline\":\"My Miles & More account\",\"loginForm.config.modal.userInfoBox.accountStatementLink\":\"/{MARKET}/{LANGUAGE}/profile/account-statement\",\"loginForm.modal.userInfoBox.pastBookingsLink\":\"Travel Insights\",\"loginForm.bookings.bookingCode.label\":\"Booking code\",\"loginForm.modal.additionalContentTeaser.headline\":\"You haven\u2019t registered yet?\",\"loginForm.modal.userInfoBox.loginText\":\"You are now logged in.\",\"loginForm.modal.additionalContentTeaser.benefit2\":\"Your flights and personal details at a glance\",\"loginForm.modal.userInfoBox.allBookingsLinkText\":\"My bookings\",\"loginForm.modal.additionalContentTeaser.benefit1\":\"Easy login with your email address\",\"loginForm.modal.userInfoBox.accountStatementLink\":\"My Miles & More account\",\"loginForm.modal.additionalContentTeaser.benefit3\":\"Book faster thanks to pre-filled forms\",\"loginForm.error.labels.accountNotFound\":\"The login you entered does not exist. Please register a new account. \",\"loginForm.reauthenticationModal.default.logoutButton\":\"Logout\",\"loginForm.error.labels.passwordExpired\":\"Your password is expired. Please reset your password and try again. \",\"loginForm.modal.userInfoBox.srTitle\":\"Account information\",\"loginForm.error.labels.invalidLogin\":\"The user ID and password or the Miles & More card number and PIN you have entered are not valid. Please check your entry and try again.\",\"loginForm.modal.userInfoBox.travelCockpitDescription\":\"Account overview and helpful information for my trips.\",\"loginForm.default.lastName.pattern\":\"Please enter a valid surname.\",\"loginForm.modal.default.url\":\"https://api.travelid.lufthansa.com/oauth2/authorize?client_id=yA8iz2C5BnAIf2GKKdkAlgPPW9y6wjLO&response_type=code&redirect_uri=https://www.lufthansa.com&scope=AUTHENTICATED%20IDENTIFIED%20urn:milesandmore:tech:background:v1:active&state=/de/en/homepage&principal_type=EMAIL&reduced_state=NONE&country=DE&lang=en\",\"loginForm.config.modal.userInfoBox.allBookingsLink\":\"/{MARKET}/{LANGUAGE}/bookinglist\",\"loginForm.modal.default.button\":\"Login\",\"loginForm.loginFlag.default.showPopoverSRLabel\":\"A modal with Login and registration links has been displayed now.\",\"loginForm.oneId.error.loginErrorHeadlineText\":\"Login failed\",\"loginForm.modal.userInfoBox.profileLink\":\"My profile\",\"loginForm.mam.password.hint\":\"\",\"loginForm.oneId.success.loginSuccessHeadlineText\":\"You\u2019re being logged in\",\"loginForm.reauthenticationModal.default.loginOneId\":\"Login\",\"loginForm.mam.form.submitText\":\"Login\",\"loginForm.lid.form.forgottenPassword\":\"Forgot your password?\",\"loginForm.modal.userInfoBox.allBookingsLink\":\"My bookings\",\"loginForm.loginFlag.default.hidePopoverSRLabel\":\"A modal with Login and registration links has been hidden now.\",\"loginForm.loginFlag.default.loginPopoverBody\":\"Login to synchronise your bookings or register and enjoy the benefits from having the TravelID.\",\"loginForm.modal.userInfoBox.allBookingsLinkDescription\":\"List of my upcoming and past bookings.\",\"loginForm.lid.form.submitText\":\"Login\",\"loginForm.loginFlag.default.popoverFooterText\":\"Here for the first time?\",\"loginForm.error.labels.unknown\":\"An unexpected error occured. Please try again.\",\"loginForm.default.bookingCode.required\":\"Please enter a booking code.\",\"loginForm.default.bookingCode.pattern\":\"Please enter a valid booking code.\",\"loginForm.mam.userName.hint\":\"\",\"loginForm.oneId.default.loginModalButton\":\"Login\",\"loginForm.mam.keepLogin.label\":\"Stay logged-in\",\"log"
+    },
+    {
+      "t": 45.0,
+      "method": "GET",
+      "url": "https://www.lufthansa.com/service/secured/api/core/authenticate/loginPageUrl?state=%2Fus%2Fen%2Fselect-flights",
+      "body": null,
+      "headers": {
+        "accept": "application/json, text/plain, */*"
+      },
+      "status": 200,
+      "resp": "{\"loginPageUrl\":\"https://api.travelid.lufthansa.com/oauth2/authorize?client_id=yA8iz2C5BnAIf2GKKdkAlgPPW9y6wjLO&response_type=code&redirect_uri=https://www.lufthansa.com&scope=AUTHENTICATED%20IDENTIFIED%20urn:milesandmore:tech:background:v1:active%20urn:milesandmore:oauth:multifactorauthentication&state=/us/en/select-flights&principal_type=EMAIL&reduced_state=NONE&view=login&prompt=login&country=US&lang=en\"}"
+    }
+  ]
+}

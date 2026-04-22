@@ -1,0 +1,22 @@
+{
+  "requests": [
+    {
+      "t": 11.03,
+      "m": "POST",
+      "u": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "b": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "auth": "",
+      "s": 200,
+      "r": "{\"access_token\":\"eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNmsycWJycjR4aHJ6cWE3eW4iLCJsc3MtdXNlcklkIjoiV1NMSERBUExIRCIsIm9mZmljZUlkIjoiRlJBTEgwOEJDIiwidGVuYW50SWQiOiJMSCIsImFwcGxpY2F0aW9uSWQiOiJMSF9PTkVCS0dVSSIsImtleSI6Ims3enBqNHM2azJxYnJyNHhocnpxYTd5biIsImlzcyI6IkNOPVNDLVBST0QsT1U9TEhNRFciLCJleHAiOjE3NzY3OTEyODEsImlhdCI6MTc3Njc5MDM4MSwianRpIjoiZDM1NjU4YmYtODUxMS00YTQ3LWI4YjMtMDVlZmYyMDRjY2Q5In0.oNxMX2l4jBaKhqMkYrCXJ4im-03QUYFYxiO4SiIgPyh-ct4ZrEYLD6sChRibYP1V7wl4sGtNxAPPuW25I98LZ8zKwNXYjHTgbQ996lGpZvYXdNaJyHJK6r7kwWdFYxCeGeyM1d7IV76FoI5kV67CN4V3xMin9mpJdyXzD5djbnjkTkuXlxHCDn_ieKl1E8lDmK3oPUS9uNxm2ltDkeesyH9_cO9adL-sJYmdQwGGzbUvFnSMy56IM9EXJu_dRFjt4P0zOFdUfYfSxPi-IMHovccKXVn6DugCqPZH3URe0uGWm6YGv4xelc9Pca8__x6kaei7mC09yCQ5NDwp3Z6NRA\",\"token_type\":\"bearer\",\"expires_in\":899}"
+    },
+    {
+      "t": 11.04,
+      "m": "GET",
+      "u": "https://api-shop.lufthansa.com/v1/one-booking/reference-data/public-facts",
+      "b": null,
+      "auth": "Bearer eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNm",
+      "s": 200,
+      "r": "{\"publicFacts\":{\"feature.MainAPI_Backend\":\"STABLE\",\"contextRef\":\"false\",\"isLoggedIn\":\"false\",\"feature.Insurance_AIG\":\"STABLE\",\"feature.Refund_Reporting\":\"STABLE\",\"feature.CheckinData_Retrieval\":\"STABLE\",\"feature.login\":\"STABLE\",\"feature.Rail_And_Fly\":\"STABLE\",\"feature.CorporateLoyalty_Validation\":\"UNSTABLE\",\"TSC_DISCOUNT\":\"AT,CH,ES\",\"feature.VAT_Cancellation_Notification\":\"STABLE\",\"feature.Payment_Rates\":\"STABLE\",\"feature.Ancillary_Recommendations\":\"STABLE\",\"feature.PNR_OTP\":\"STABLE\",\"flowType\":\"STANDARD\",\"feature.Ehhanced_Seat_Map\":\"STABLE\",\"feature.Ancillary_Market_Place\":\"STABLE\"}}"
+    }
+  ]
+}

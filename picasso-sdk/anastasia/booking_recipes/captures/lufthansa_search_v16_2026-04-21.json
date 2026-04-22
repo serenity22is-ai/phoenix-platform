@@ -1,0 +1,27 @@
+{
+  "search_url": "https://shop.lufthansa.com/lh/us/en/homepage#/search;type=rt;from=JFK;to=MUC;dep=2026-05-21;ret=2026-05-28;pax=a1;cabin=economy;li=en;co=us",
+  "final_url": "https://shop.lufthansa.com/recovery",
+  "api_calls": [
+    {
+      "method": "POST",
+      "url": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "status": null,
+      "post_data": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "response": null
+    },
+    {
+      "method": "POST",
+      "url": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "status": 200,
+      "post_data": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "response": "{\"access_token\":\"eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNmsycWJycjR4aHJ6cWE3eW4iLCJsc3MtdXNlcklkIjoiV1NMSERBUExIRCIsIm9mZmljZUlkIjoiRlJBTEgwOEJDIiwidGVuYW50SWQiOiJMSCIsImFwcGxpY2F0aW9uSWQiOiJMSF9PTkVCS0dVSSIsImtleSI6Ims3enBqNHM2azJxYnJyNHhocnpxYTd5biIsImlzcyI6IkNOPVNDLVBST0QsT1U9TEhNRFciLCJleHAiOjE3NzY3OTE5MzUsImlhdCI6MTc3Njc5MTAzNSwianRpIjoiMDU0MTg3YmQtNjYzMS00ZjkxLWIxMzctZjdlMDNkZjVkZTg3In0.NDp3elnnx3fjXoQ4PMhi3CyNQMMbr2ZpSo-6bUwFom9ft-L20CB1UypAIn8gx0tDRaCulEoCYVrt4YRS0D0bpSjxpzE5uF7oVULrSb3DtF7_qrtWazDIfKa17M8f-I4C4TI0CdFBPbvgwLfgxHUr8ooAR9pUqxtLk7_IC-gglw0OZ_lfOAtlLreRHlnn-ZWENboArsi4NNum4qRSNO3ugtK1aBIW8QOgTo86nZfyjutU_Z92iXA1MT4j9DTg2ZCm4_6LzLCqKJmj8fEVmosN1RmJfOYFk6bTnhyFqeW-MoriDFt1H6YZ6wEelezpjC1uQaEHeGlxIIPtqTHyleTwPA\",\"token_type\":\"bearer\",\"expires_in\":899}"
+    },
+    {
+      "method": "GET",
+      "url": "https://api-shop.lufthansa.com/v1/one-booking/reference-data/public-facts",
+      "status": null,
+      "post_data": null,
+      "response": null
+    }
+  ]
+}

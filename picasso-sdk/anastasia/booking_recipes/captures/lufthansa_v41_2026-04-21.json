@@ -1,0 +1,366 @@
+{
+  "version": "v41",
+  "js_analysis": {
+    "scriptUrl": "https://s.pinimg.com/ct/lib/main.10d2511a.js",
+    "size": 111435,
+    "findings": {
+      "all_https_urls": [],
+      "baseUrl_values": [],
+      "air_offers_occurrences": []
+    }
+  },
+  "proxy_probe_results": [
+    {
+      "name": "json/json",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "6",
+        "x-edgeconnect-origin-mex-latency": "43",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "xml/xml",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "6",
+        "x-edgeconnect-origin-mex-latency": "23",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "xml/json",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "6",
+        "x-edgeconnect-origin-mex-latency": "19",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "text-xml/json",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:40 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "7",
+        "x-edgeconnect-origin-mex-latency": "29",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "json-charset",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:41 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:41 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "6",
+        "x-edgeconnect-origin-mex-latency": "56",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "xhr",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 103,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported</body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-length": "103",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:41 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:41 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "7",
+        "x-edgeconnect-origin-mex-latency": "28",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "ama-ref",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:41 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:41 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "7",
+        "x-edgeconnect-origin-mex-latency": "19",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "api-key",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:42 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:42 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "7",
+        "x-edgeconnect-origin-mex-latency": "43",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "hal-json",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:42 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:42 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "8",
+        "x-edgeconnect-origin-mex-latency": "41",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "with-origin",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>",
+      "respHeaders": {
+        "cache-control": "max-age=0, no-cache, no-store",
+        "content-type": "text/html;charset=UTF-8",
+        "date": "Tue, 21 Apr 2026 17:55:42 GMT",
+        "expires": "Tue, 21 Apr 2026 17:55:42 GMT",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000 ; includeSubDomains ; preload",
+        "vary": "Accept-Encoding",
+        "x-akamai-transformed": "0 - 0 -",
+        "x-content-type-options": "nosniff",
+        "x-edgeconnect-midmile-rtt": "8",
+        "x-edgeconnect-origin-mex-latency": "37",
+        "x-xss-protection": "1; mode=block"
+      }
+    },
+    {
+      "name": "no-auth",
+      "status": 406,
+      "ct": "text/html;charset=UTF-8",
+      "length": 215,
+      "isHtml": true,
+      "preview": "<html><head><title>Error</title></head><body>Media type passed in accept is not supported<script type=\"text/javascript\"  src=\"/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC\"></script></body></html>"
+    }
+  ],
+  "form_info": {
+    "inputs": [
+      {
+        "type": "checkbox",
+        "placeholder": "",
+        "value": "false",
+        "id": "dcep-a84dbeefb-8172-465c-803d-82d5bc5dc904-flm-flight-flightQuery.nonStopOnly",
+        "name": "flightQuery.nonStopOnly"
+      },
+      {
+        "type": "text",
+        "placeholder": "",
+        "value": "",
+        "id": "",
+        "name": "hidden"
+      },
+      {
+        "type": "text",
+        "placeholder": "From",
+        "value": "New York",
+        "id": "dcep-a84dbeefb-8172-465c-803d-82d5bc5dc904-flm-flight-flightQuery.flightSegments",
+        "name": "flightQuery.flightSegments[0].originCode"
+      },
+      {
+        "type": "text",
+        "placeholder": "To",
+        "value": "",
+        "id": "dcep-a84dbeefb-8172-465c-803d-82d5bc5dc904-flm-flight-flightQuery.flightSegments",
+        "name": "flightQuery.flightSegments[0].destinationCode"
+      },
+      {
+        "type": "hidden",
+        "placeholder": "",
+        "value": "",
+        "id": "dcep-a84dbeefb-8172-465c-803d-82d5bc5dc904-flm-flight-flightQuery.flightSegments",
+        "name": "flightQuery.flightSegments[1].travelDatetime"
+      }
+    ],
+    "buttons": [
+      {
+        "tag": "BUTTON",
+        "text": "Round trip",
+        "class": "btn btn-secondary dropdown-button dropdown-button-secondary mb-0 is-selected"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "",
+        "class": "show-on-focus"
+      },
+      {
+        "tag": "MAUI-BUTTON",
+        "text": "Find flights",
+        "class": "d-block"
+      }
+    ],
+    "dcepConfig": null,
+    "dcepFound": true,
+    "dcepHTML": 9841,
+    "dateElements": [
+      {
+        "tag": "DIV",
+        "class": "input-maui input mb-0 date-input",
+        "text": ""
+      },
+      {
+        "tag": "DIV",
+        "class": "date-picker-with-prices",
+        "text": ""
+      }
+    ]
+  },
+  "spa_intercepted_calls": [],
+  "current_state": {
+    "url": "https://shop.lufthansa.com/recovery",
+    "hash": "",
+    "title": "Recovery",
+    "bodyText": "Skip to the main content\nLink to go to home page\nEnglish\nWe sincerely apologize, but something went wrong with your booking\n\nWe invite you to try again, or to contact the help center to help you\n\nBack to search\nDo you need help with booking online?\nOur Service Center is here to assist you with your booking. Contact Lufthansa\nThis link will be opened in a new tab\nHow can I pay?\nWe offer various payment options. Show payment options\nThis link will be opened in a new tab\nFor corporate customers\nThi",
+    "sessionKeys": [
+      "qmd",
+      "onboardCatering",
+      "baggagePolicies",
+      "analytics",
+      "cashUpgrade",
+      "travelerDetailsUI",
+      "qm_last_period",
+      "ak_bm_tab_id",
+      "originalFlightDateTime",
+      "gateway-auth-tokens",
+      "discounts",
+      "messages",
+      "uiStatus",
+      "creditCardEnrollment",
+      "multiCurrencyProposal",
+      "Ama-Client-Ref-Request-Count",
+      "airBoundExchangesSearch",
+      "qm_last_page",
+      "insurance",
+      "leaveTime",
+      "airOffersAdvancedSearch",
+      "configuration",
+      "mileages",
+      "pageID",
+      "entryPointURL",
+      "servicesCatalogueItems",
+      "uiServicesCatalogueItems",
+      "orderChange",
+      "cart",
+      "order",
+      "publicFacts",
+      "paymentMethods",
+      "splitRebook",
+      "ascSeat",
+      "contextData",
+      "_query",
+      "modifySearch",
+      "is_eu",
+      "Ama-Client-Ref",
+      "_post",
+      "catalogServices",
+      "airBoundsSearch",
+      "cookies",
+      "closedUserGroup"
+    ]
+  }
+}

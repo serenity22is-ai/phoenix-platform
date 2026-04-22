@@ -1,0 +1,191 @@
+{
+  "version": "v43",
+  "js_resources": [
+    {
+      "name": "https://shop.lufthansa.com/RZlS/VECa/RB/P65j/SLBw/ND5SQwSY9m7V/PFRnSAE/EhFd/UyJfKT0PAg?v=79d7dca1-0d76-d6ee-5a06-71386f630211",
+      "size": 164807,
+      "duration": 382.2000000178814
+    },
+    {
+      "name": "https://shop.lufthansa.com/dvc/cc.js?sid=c30ea1aa-ee50-4d31-87e6-40d0a1a74598&ts=1776794463015&namespace=advc",
+      "size": 33135,
+      "duration": 301.5
+    },
+    {
+      "name": "https://connect.facebook.net/signals/config/1042700560359777?v=2.9.303&r=stable&domain=shop.lufthansa.com&hme=97937018cefade17726f0472876fc101316b2ce9008a35a6a5a7977d7436151a&ex_m=104%2C205%2C154%2C22%2C72%2C73%2C145%2C68%2C67%2C11%2C162%2C90%2C16%2C138%2C127%2C39%2C75%2C78%2C134%2C159%2C164%2C8%2C4%2C5%2C7%2C6%2C3%2C91%2C101%2C165%2C170%2C219%2C62%2C186%2C187%2C55%2C276%2C30%2C74%2C231%2C230%2C229%2C23%2C33%2C103%2C61%2C10%2C63%2C97%2C98%2C99%2C105%2C130%2C31%2C29%2C132%2C133%2C129%2C128%2C155%2C76%2C158%2C156%2C157%2C50%2C60%2C123%2C15%2C161%2C45%2C263%2C264%2C262%2C26%2C27%2C28%2C48%2C146%2C77%2C112%2C18%2C20%2C44%2C40%2C42%2C41%2C83%2C92%2C96%2C110%2C144%2C147%2C46%2C111%2C24%2C21%2C119%2C69%2C36%2C149%2C148%2C150%2C141%2C139%2C25%2C35%2C59%2C109%2C160%2C70%2C17%2C152%2C114%2C81%2C66%2C19%2C85%2C86%2C116%2C84%2C136%2C135%2C34%2C278%2C293%2C212%2C201%2C202%2C200%2C296%2C288%2C52%2C213%2C107%2C131%2C80%2C121%2C54%2C47%2C49%2C113%2C120%2C126%2C58%2C64%2C151%2C115%2C37%2C32%2C53%2C56%2C100%2C163%2C1%2C124%2C14%2C122%2C12%2C2%2C57%2C93%2C65%2C118%2C89%2C88%2C166%2C167%2C94%2C95%2C9%2C125%2C102%2C51%2C142%2C87%2C79%2C71%2C117%2C106%2C43%2C143%2C0%2C82%2C137%2C140%2C153%2C38%2C108%2C13%2C168",
+      "size": 28021,
+      "duration": 327.80000001192093
+    },
+    {
+      "name": "https://shop.lufthansa.com/akam/13/26eeb432",
+      "size": 9075,
+      "duration": 215.7000000178814
+    },
+    {
+      "name": "https://shop.lufthansa.com/adc/cdn/cs/W1rv63MepqUCQBIvy3q5eAw9W3k.js",
+      "size": 9048,
+      "duration": 209
+    },
+    {
+      "name": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1038824596/?random=1776794468893&cv=11&fst=1776794468893&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be64h1v893473185za200zb9181465525zd9181465525xec&gcd=13r3rPr2r5l1&dma_cps=a&dma=1&tag_exp=0~115938465~115938468~117266400&u_w=1920&u_h=1080&url=https%3A%2F%2Fshop.lufthansa.com%2Frecovery&rcb=16&frm=0&tiba=Recovery&did=dYmQxMT&gdid=dYmQxMT&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1446948549.1776794469&uaa=x86&uab=64&uafvl=Google%2520Chrome%3B147.0.7727.101%7CNot.A%252FBrand%3B8.0.0.0%7CChromium%3B147.0.7727.101&uamb=0&uam=&uap=Windows&uapv=19.0.0&uaw=0&_tu=KA&data=event%3Dgtag.config&rfmt=3&fmt=4",
+      "size": 2400,
+      "duration": 560.8000000119209
+    },
+    {
+      "name": "https://shop.lufthansa.com/statics/applications/booking/dist/28.4.0/runtime.eebdcdb8060d02f2.js",
+      "size": 0,
+      "duration": 47.70000001788139
+    },
+    {
+      "name": "https://shop.lufthansa.com/statics/applications/booking/dist/28.4.0/polyfills.2dd698fc3bab3dfc.js",
+      "size": 0,
+      "duration": 67.40000000596046
+    },
+    {
+      "name": "https://shop.lufthansa.com/statics/applications/booking/dist/28.4.0/scripts.e39436eab9e2e30a.js",
+      "size": 0,
+      "duration": 67.10000002384186
+    },
+    {
+      "name": "https://shop.lufthansa.com/statics/applications/booking/dist/28.4.0/main.4ade5f225e73e2b4.js",
+      "size": 0,
+      "duration": 103.40000000596046
+    },
+    {
+      "name": "https://shop.lufthansa.com/RZlS/VECa/RB/P65j/SLBw/zO5SQw8Q9mwJ8St7ip/DVxdSAE/ME8Q/SwRrTwgC",
+      "size": 0,
+      "duration": 88.59999999403954
+    },
+    {
+      "name": "https://shop.lufthansa.com/statics/applications/booking/dist/28.4.0/2509.fa43be7749df2db4.js",
+      "size": 0,
+      "duration": 62.30000001192093
+    }
+  ],
+  "gateway_search": {
+    "size": 449483,
+    "has_air_offers": false,
+    "gateway_matches": [],
+    "base_url_matches": [],
+    "lh_urls": [],
+    "api_shop_refs": []
+  },
+  "form_state": {
+    "formValues": [
+      {
+        "name": "flightQuery.nonStopOnly",
+        "value": "false",
+        "placeholder": ""
+      },
+      {
+        "name": "hidden",
+        "value": "",
+        "placeholder": ""
+      },
+      {
+        "name": "flightQuery.flightSegments[0].originCode",
+        "value": "New York",
+        "placeholder": "From"
+      },
+      {
+        "name": "flightQuery.flightSegments[0].destinationCode",
+        "value": "",
+        "placeholder": "To"
+      },
+      {
+        "name": "flightQuery.flightSegments[1].travelDatetime",
+        "value": "",
+        "placeholder": ""
+      }
+    ],
+    "findBtnFound": true,
+    "findBtnText": "Find flights"
+  },
+  "api_calls_intercepted": [],
+  "api_calls_response_listener": [
+    {
+      "url": "https://api-shop.lufthansa.com/v1/oauth2/token",
+      "status": 200,
+      "method": "POST",
+      "post_data": "client_id=k7zpj4s6k2qbrr4xhrzqa7yn&client_secret=rVXq%2305&fact=%7B%7D&grant_type=client_credentials",
+      "response_preview": "{\"access_token\":\"eyJLaWQiOiJMSE1EVy1Qcml2YXRlS2lkIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiJrN3pwajRzNmsycWJycjR4aHJ6cWE3eW4iLCJsc3MtdXNlcklkIjoiV1NMSERBUExIRCIsIm9mZmljZUlkIjoiRlJBTEgwOEJDIiwidGVuYW50SWQiOiJMSCIsImFwcGxpY2F0aW9uSWQiOiJMSF9PTkVCS0dVSSIsImtleSI6Ims3enBqNHM2azJxYnJyNHhocnpxYTd5biIsImlzcyI6IkNOPVNDLVBST0QsT1U9TEhNRFciLCJleHAiOjE3NzY3OTUzNjMsImlhdCI6MTc3Njc5NDQ2MywianRpIjoiYmQ2YWY4ODctN2NjZC00NzFmLThiMGItZjc0YTUzMGEyNTdkIn0.bVxXgZVXPWZ-4C-54q5FpM4Dbf3Dv_9QlzhyZiDIGRjEM7MAhceq5l-25VOk1MExhkjVgNg_3sA9eA3et9D7ewGs-Mwl9VYVqOMrrDeVYIiLG_trC9F1u5MmL0bMUlmhP8XXZXfDqCNsugO2PFOEIh2RlgIrvR72wqs4sPwfPAZ8Ee5dNdkbyX-h7j0hXevF-ZU0iGWyUUp4fXY0UVjhs7Zwbtfc-ouiIJjxqSoWNoGXxVD4RMP-_soicDvrQxR-JBSq-MzKuYW-Fx0YqDK1Jxzi8QS8QzpRIVJpzAIuKsdr7HMPRyAwj7cv83q1vNdsN0nd6QuAbRpgM-kCkJbLGA\",\"token_type\":\"bearer\",\"expires_in\":899}"
+    },
+    {
+      "url": "https://api-shop.lufthansa.com/v1/one-booking/reference-data/public-facts",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": "{\"publicFacts\":{\"feature.MainAPI_Backend\":\"STABLE\",\"contextRef\":\"false\",\"isLoggedIn\":\"false\",\"feature.Insurance_AIG\":\"STABLE\",\"feature.Refund_Reporting\":\"STABLE\",\"feature.CheckinData_Retrieval\":\"STABLE\",\"feature.login\":\"STABLE\",\"feature.Rail_And_Fly\":\"STABLE\",\"feature.CorporateLoyalty_Validation\":\"UNSTABLE\",\"TSC_DISCOUNT\":\"AT,CH,ES\",\"feature.VAT_Cancellation_Notification\":\"STABLE\",\"feature.Payment_Rates\":\"STABLE\",\"feature.Ancillary_Recommendations\":\"STABLE\",\"feature.PNR_OTP\":\"STABLE\",\"flowType\":\"STANDARD\",\"feature.Ehhanced_Seat_Map\":\"STABLE\",\"feature.Ancillary_Market_Place\":\"STABLE\"}}"
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/fareteaserdynamic/DestinationFinderCard-square.png",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/service/api/lhg-fare-teaser/fareteaser/offers/NYC",
+      "status": 200,
+      "method": "POST",
+      "post_data": "{\"touchPointId\":\"200\",\"decisionTypeId\":\"52\",\"timestamp\":\"2026-04-21T20:01:30\",\"timezone\":120,\"tripType\":\"R\",\"airlineDestWhitelist\":false}",
+      "response_preview": "{\"currency\":\"USD\",\"currencySymbol\":\"$\",\"currencySymbolPrefixed\":true,\"decisionId\":\"286e16c7-0e59-468c-b747-db46c4cacab6\",\"fareTeaserOffers\":[{\"topDeal\":false,\"city\":\"ZRH\",\"cityName\":\"Zurich\",\"cityNameUrl\":\"zurich\",\"price\":850.0},{\"topDeal\":false,\"city\":\"MUC\",\"cityName\":\"Munich\",\"cityNameUrl\":\"munich\",\"price\":856.0},{\"topDeal\":false,\"city\":\"TIA\",\"cityName\":\"Tirana\",\"cityNameUrl\":\"tirana\",\"price\":605.0},{\"topDeal\":false,\"city\":\"FRA\",\"cityName\":\"Frankfurt\",\"cityNameUrl\":\"frankfurt\",\"price\":847.0},{\"topDeal\":false,\"city\":\"VIE\",\"cityName\":\"Vienna\",\"cityNameUrl\":\"vienna\",\"price\":779.0},{\"topDeal\":false,\"city\":\"BUD\",\"cityName\":\"Budapest\",\"cityNameUrl\":\"budapest\",\"price\":630.0},{\"topDeal\":false,\"city\":\"ATH\",\"cityName\":\"Athens\",\"cityNameUrl\":\"athens\",\"price\":719.0},{\"topDeal\":false,\"city\":\"ROM\",\"cityName\":\"Rome\",\"cityNameUrl\":\"rome\",\"price\":626.0},{\"topDeal\":false,\"city\":\"GVA\",\"cityName\":\"Geneva\",\"cityNameUrl\":\"geneva\",\"price\":848.0},{\"topDeal\":false,\"city\":\"SKP\",\"cityName\":\"Skopje\",\"cityNameUrl\":\"skopje\",\"price\":614.0},{\"topDeal\":false,\"city\":\"BOM\",\"cityName\":\"Mumbai\",\"cityNameUrl\":\"mumbai\",\"price\":1016.0},{\"topDeal\":false,\"city\":\"WAW\",\"cityName\":\"Warsaw\",\"cityNameUrl\":\"warsaw\",\"price\":612.0},{\"topDeal\":false,\"city\":\"KRK\",\"cityName\":\"Krakow\",\"cityNameUrl\":\"krakow\",\"price\":604.0},{\"topDeal\":false,\"city\":\"SKG\",\"cityName\":\"Thessaloniki\",\"cityNameUrl\":\"thessaloniki\",\"price\":713.0},{\"topDeal\":false,\"city\":\"SPU\",\"cityName\":\"Split\",\"cityNameUrl\":\"split\",\"price\":878.0},{\"topDeal\":false,\"city\":\"SOF\",\"cityName\":\"Sofia\",\"cityNameUrl\":\"sofia\",\"price\":609.0},{\"topDeal\":false,\"city\":\"IST\",\"cityName\":\"Istanbul\",\"cityNameUrl\":\"istanbul\",\"price\":755.0},{\"topDeal\":false,\"city\":\"MIL\",\"cityName\":\"Milan\",\"cityNameUrl\":\"milan\",\"price\":634.0},{\"topDeal\":false,\"city\":\"BRU\",\"cityName\":\"Brussels\",\"cityNameUrl\":\"brussels\",\"price\":843.0},{\"topDeal\":false,\"city\":\"BLR\",\"cityName\":\"Bengaluru\",\"cityNameUrl\":\"bengaluru\",\"price\":991.0},{\"topDeal\":false,\"city\":\"SJJ\",\"cityName\":\"Sarajevo\",\"cityNameUrl\":\"sarajevo\",\"price\":610.0},{\"topDeal\":false,\"city\":\"TLV\",\"cityName\":\"Tel Aviv\",\"cityNameUrl\":\"tel+aviv\",\"price\":1070.0},{\"topDeal\":false,\"city\":\"NBO\",\"cityName\":\"Nairobi\",\"cityNameUrl\":\"nairobi\",\"price\":1141.0},{\"topDeal\":false,\"city\":\"ZAD\",\"cityName\":\"Zadar\",\"cityNameUrl\":\"zadar\",\"price\":807.0},{\"topDeal\":false,\"city\":\"DEL\",\"cityName\":\"Delhi\",\"cityNameUrl\":\"delhi\",\"price\":963.0},{\"topDeal\":false,\"city\":\"ZAG\",\"cityName\":\"Zagreb\",\"cityNameUrl\":\"zagreb\",\"price\":633.0},{\"topDeal\":false,\"city\":\"PRG\",\"cityName\":\"Prague\",\"cityNameUrl\":\"prague\",\"price\":940.0}]}"
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/zrh-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/tia-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/muc-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/fra-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/vie-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/ath-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/rom-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    },
+    {
+      "url": "https://www.lufthansa.com/content/dam/lh/images/offers/destination/bud-square.jpg.transform/lh-dcep-transform-width-360/img.jpg",
+      "status": 200,
+      "method": "GET",
+      "post_data": null,
+      "response_preview": null
+    }
+  ]
+}

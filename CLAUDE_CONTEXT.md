@@ -123,8 +123,11 @@ Last updated: 2026-04-16
 - Template core immutable — customer modules on TOP, never inside
 
 ### API Providers (Current)
-- **Flights**: Picasso/Redbox (GDS, 102-country POS) + Duffel (NDC, 300+ airlines)
-- **Hotels**: liteAPI (2M+ hotels, self-serve)
+- **Flights**: Duffel NDC (LIVE, 300+ airlines) — ONLY active flight source
+- **Picasso/Redbox**: ON ICE (Anir dragging feet, not paying)
+- **AirGateway**: TALKED, WENT SIDEWAYS — multi-POS requires IATA per country. SDK built but dormant.
+- **AERTiCKET direct**: Only real path to multi-POS (Pierre Mahdschabi, via Alvaro forward from AirGateway)
+- **Hotels**: liteAPI (2M+ hotels, self-serve) + Duffel Stays (commission-share, primary)
 - **Cars**: DiscoverCars client built
 - **Activities**: Viator client built
 - **Insurance**: SafetyWing client built

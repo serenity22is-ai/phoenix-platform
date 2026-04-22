@@ -1,0 +1,135 @@
+{
+  "version": "v48",
+  "fact_info": {
+    "fact_refs": [
+      "{I}|both)$`))&&(0,c.mk)([l.Y1])}},28431:(Fe,R,e)=>{\"use strict\";e.d(R,{v:()=>l});var t=e(73014),i=e(54154);class l{constructor(h){this.jwtEncoder=function d(){const c=(0,i.m3)();return h=>c((c=>({sub:\"fact\",...c}))(h))}(),this.headerName=h.headerName||\"ama-client-facts\",this.globalFacts=h.initialGlobalFacts,this.privateFacts=h.privateFacts,this.factsFactory=h.factsFactory}setGlobalFacts(h){this.globalFacts=h}setPrivateFacts(h){this.privateFacts=h}load(){var f,h=this;return{transform:(f=(0,t.A)(f",
+      "this.setPlaceholderRequestEntityFromUrl$=(0,Gn.EH)(()=>this.actions$.pipe((0,Gn.gp)($n.setPlaceholderRequestEntityFromUrl),(0,be.MH)((lr,Cr)=>{const Br=lr.vars?Object.entries(lr.vars).filter(([,Gi])=>\"fact\"===Gi.type):[],fi=this.rulesEngineService?Br.map(([Gi,Mi])=>this.rulesEngineService.engine.retrieveOrCreateFactStream(Mi.value).pipe((0,z.T)(co=>({varName:Gi,factName:Mi.value,factValue:Mi.path&&co?(0,At.E)({wrap:!1,json:co,path:Mi.path}):co})),(0,gt.F)((co,Mo)=>co.factValue===Mo.factValue))):",
+      "Service?.getMediaPathStream(ue[Cr].value).pipe((0,G.s)(1),(0,z.T)(fi=>({ejsVar:Br,value:fi})))||(0,Ft.of)({ejsVar:Br,value:ue[Cr].value}));break;case\"fullUrl\":ee=ee.replace(Br,ue[Cr].value);break;case\"fact\":ee=ee.replace(Br,Un[Cr]??\"\");break;case\"localisation\":{const fi=Object.entries(ue[Cr].parameters||{}).reduce((Vi,[Gi,Mi])=>(Vi[Gi]=Un[Mi],Vi),{});lr.push(this.translationService?this.translationService.translate(ue[Cr].value,fi).pipe((0,z.T)(Vi=>Vi?{ejsVar:Br,value:Vi}:null)):(0,Ft.of)(null))",
+      "urn new Response(JSON.stringify(Ee),Xn)}if(Pn.ok&&re(Pn.url)&&Wt.gatewayTokenService){const sr=yield Pn.clone().json();Wt.gatewayTokenService.setToken(sr.access_token);const Ar=sessionStorage.getItem(\"fact\"),Dr=(W(Pn.url)?sr.refresh_token:null)||(j(Pn.url)?sr.access_token:null);Ar&&Dr&&Wt.setRefreshTokenInSession(Dr)}return Pn}),function(Pn){return Ct.apply(this,arguments)})}}setRefreshTokenInSession(Wt){typeof sessionStorage<\"u\"&&sessionStorage.setItem(this.refreshTokenStorageKey,Wt)}}var ge=fu",
+      "romSession();zt&&(Wt.set(\"oip\"===Ct?\"refresh_token\":\"refreshToken\",zt),\"oip\"===Ct&&Wt.set(\"grant_type\",ge.REFRESH))}transformBody(Wt,Ct){const zt=this.parseTokenBody(Wt);if(!zt)return;const Pn=zt.get(\"fact\");return Pn?.includes(\"authenticationCode\")?(this.convertBodyToContextData(zt,Ct),this.transformToRefreshRequest(zt,Ct)):this.isRefreshCall(Pn)?(zt.delete(\"fact\"),this.transformToRefreshRequest(zt,Ct)):this.convertBodyToContextData(zt,Ct),zt.toString()}isRefreshCall(Wt){if(typeof sessionStorag",
+      "Body(Wt);if(!zt)return;const Pn=zt.get(\"fact\");return Pn?.includes(\"authenticationCode\")?(this.convertBodyToContextData(zt,Ct),this.transformToRefreshRequest(zt,Ct)):this.isRefreshCall(Pn)?(zt.delete(\"fact\"),this.transformToRefreshRequest(zt,Ct)):this.convertBodyToContextData(zt,Ct),zt.toString()}isRefreshCall(Wt){if(typeof sessionStorage>\"u\")return!1;const Ct=sessionStorage.getItem(\"fact\");return Wt&&\"{}\"!==Wt&&Wt!==Ct?(sessionStorage.setItem(\"fact\",Wt),!1):!!this.getRefreshTokenFromSession()}p",
+      "n)?(zt.delete(\"fact\"),this.transformToRefreshRequest(zt,Ct)):this.convertBodyToContextData(zt,Ct),zt.toString()}isRefreshCall(Wt){if(typeof sessionStorage>\"u\")return!1;const Ct=sessionStorage.getItem(\"fact\");return Wt&&\"{}\"!==Wt&&Wt!==Ct?(sessionStorage.setItem(\"fact\",Wt),!1):!!this.getRefreshTokenFromSession()}parseTokenBody(Wt){if(typeof Wt>\"u\")return Wt;if(Wt instanceof FormData){const Ct=new URLSearchParams;return Wt.forEach((zt,Pn)=>{Ct.append(Pn,\"object\"==typeof zt?JSON.stringify(zt):zt.to",
+      "his.convertBodyToContextData(zt,Ct),zt.toString()}isRefreshCall(Wt){if(typeof sessionStorage>\"u\")return!1;const Ct=sessionStorage.getItem(\"fact\");return Wt&&\"{}\"!==Wt&&Wt!==Ct?(sessionStorage.setItem(\"fact\",Wt),!1):!!this.getRefreshTokenFromSession()}parseTokenBody(Wt){if(typeof Wt>\"u\")return Wt;if(Wt instanceof FormData){const Ct=new URLSearchParams;return Wt.forEach((zt,Pn)=>{Ct.append(Pn,\"object\"==typeof zt?JSON.stringify(zt):zt.toString())}),Ct}return new URLSearchParams(Wt)}convertBodyToCon",
+      "ta(Wt,zt),this.transferContextInitTokenToContextData(Wt,zt),Object.keys(zt).length>0&&Wt.append(\"vas\"===Ct?\"contextData\":\"context\",JSON.stringify(zt))}transferFactToContextData(Wt,Ct){const zt=Wt.get(\"fact\");if(null!==zt){try{const Pn=JSON.parse(zt);Array.isArray(Pn?.keyValuePairs)&&Pn.keyValuePairs.forEach(Xn=>{\"string\"==typeof Xn?.key&&\"string\"==typeof Xn?.value&&null!==Xn.value&&(Ct[Xn.key]=Xn.value)})}catch{this.errorHandler?.(this.basePath,Wt.toString(),new Error(\"Failed to process fact for",
+      "peof Xn?.key&&\"string\"==typeof Xn?.value&&null!==Xn.value&&(Ct[Xn.key]=Xn.value)})}catch{this.errorHandler?.(this.basePath,Wt.toString(),new Error(\"Failed to process fact for contextData\"))}Wt.delete(\"fact\")}}transferOfficeIdToContextData(Wt,Ct){const zt=Wt.get(\"officeId\");null!==zt&&(Wt.delete(\"officeId\"),Ct.officeId=zt)}transferContextInitTokenToContextData(Wt,Ct){const zt=Wt.get(\"contextInitToken\");zt&&(Wt.delete(\"contextInitToken\"),Ct.contextInitToken=zt)}}var J=e(27184),z=e(76627),$=e(37610"
+    ],
+    "kvp_refs": [
+      "lBookingFlow:p})=>({...f,upsellBookingFlow:p}))),h=(0,t.o)(n.H,c)},22118:(Fe,R,e)=>{\"use strict\";e.d(R,{c:()=>n,gv:()=>t});const t=\"gateway-auth-tokens\";function n(d,l){return d?l.authenticationCode?{keyValuePairs:[{key:\"authenticationCode\",value:l.authenticationCode},{key:\"userRedirectUri\",value:l.userRedirectUri}]}:{keyValuePairs:[{key:\"country\",value:d}]}:{}}},22285:(Fe,R,e)=>{\"use strict\";e.d(R,{T:()=>i});var t=e(56381);function i(n,d,l){return(0,t.v)(()=>n()?d:l)}},22470:(Fe,R,e)=>{\"use str",
+      "});const t=\"gateway-auth-tokens\";function n(d,l){return d?l.authenticationCode?{keyValuePairs:[{key:\"authenticationCode\",value:l.authenticationCode},{key:\"userRedirectUri\",value:l.userRedirectUri}]}:{keyValuePairs:[{key:\"country\",value:d}]}:{}}},22285:(Fe,R,e)=>{\"use strict\";e.d(R,{T:()=>i});var t=e(56381);function i(n,d,l){return(0,t.v)(()=>n()?d:l)}},22470:(Fe,R,e)=>{\"use strict\";e.d(R,{i:()=>n});var t=e(64864),i=e(48208);class n{constructor(l){this.callback=l}load(l){return{transform:c=>{if(l",
+      "getFactsForTokenCall(ee,ue,Rt){const gn=this.store;return()=>gn.pipe((0,D.Lt)(Ni.cH),(0,z.T)(Un=>{const lr=Zi(Un?.modifySearchItineraries||ee,Un?.modifySearchPortalFacts||ue,Rt);if(lr.length>0)return{keyValuePairs:lr}}),(0,G.s)(1)).toPromise()}static#e=this.\\u0275fac=function(ue){return new(ue||U)(n.KVO(D.il))};static#t=this.\\u0275prov=n.jDH({token:U,factory:U.\\u0275fac})}return U})(),qn=(()=>{class U{static#e=this.\\u0275fac=function(ue){return new(ue||U)};static#t=this.\\u0275mod=n.$C({type:U});",
+      "i.h({adapter:$o}))}return function xi(U,Ht,ee,ue,Rt,gn=[],Un=[],lr=[],Cr,Br,fi,Vi={},Gi,Mi){const co=ue.getSearchDetails(),Mo=ue.getMetaSearchData(),yo=ue.getPortalFacts(),Uo=ue.getPrivateFacts(),$o={keyValuePairs:Zi(co,yo,Mo)},bs=Io(yo),Tl=new eo.v({initialGlobalFacts:{...bs},privateFacts:Uo,factsFactory:_s=>function Qi(U,Ht){let ee={};return Ht?.isSessionReinitializedFromToken()&&(ee={...Li(Ht)}),U.basePath.includes(\"/contacts\")&&\"POST\"===U.method&&\"true\"===(0,li.Co)(\"isRedirectedFromHopper\")&",
+      "getBotProtectionProviders(U),aa=!!io&&new sn.$(io),Ka=(0,fr.J)({gatewayUrl:U.gatewayBaseUrl+U.gatewayEndPoint,gatewayClientId:U.gatewayClientId,gatewayClientPrivate:U.gatewayClientSecret,fact:Gi??($o.keyValuePairs.length>0?$o:void 0),guestOfficeId:Vo,officeIdCallBack:fi,customApiClientOptions:ts.length>0||aa?{requestPlugins:[...ts.length>0?[...ts]:[],...aa?[aa]:[]],logger:Mi}:{logger:Mi},extraOptions:{forceTokenInit:!0}}),Il=new Or(Ka,{maxRetryAttempts:U.gatewayTokenRetryAttempts,retryDelayMs:U."
+    ],
+    "office_refs": [
+      "ewayClientPrivate,y.fact,y.guestOfficeId,y.accessToken,y.storageTokenKey,y.customApiClientOptions,y.officeIdCallBack,y.extraOptions)}class E{get tokenKey(){return this.currentOfficeId?`${this.resolvedGatewayClientId}-${this.currentOfficeId}`:this.resolvedGatewayClientId}constructor(I,v,P,C,D,k,x=\"ga",
+      " L=sessionStorage.getItem(x);this.tokenMemory=L?JSON.parse(L):{}}this.customApiClientOptions=F,this.officeIdCallBack=b,this.extraOptions.forceTokenInit&&this.addGatewayToken()}initPlugin(){var I=this;return(0,t.A)(function*(){I.gatewayApi=new p(new i.A({basePath:yield I.gatewayUrl,requestPlugins:[ne",
+      "Token(_)}if(typeof k<\"u\"){const _=yield k;_.guest_office_id&&(I.currentOfficeId=_.guest_office_id,I.officeIdCallBack&&I.officeIdCallBack(I.currentOfficeId));const L=I.getTokenFromResponse(_);return I.tokenMemory[I.tokenKey]=L,I.persistTokenMemory(),L}})()}processQueuedUpdate(){var I=this;return(0,t.",
+      "<\"u\"){const _=yield k;_.guest_office_id&&(I.currentOfficeId=_.guest_office_id,I.officeIdCallBack&&I.officeIdCallBack(I.currentOfficeId));const L=I.getTokenFromResponse(_);return I.tokenMemory[I.tokenKey]=L,I.persistTokenMemory(),L}})()}processQueuedUpdate(){var I=this;return(0,t.A)(function*(){retur",
+      "unction\"==typeof I.guestOfficeId?I.guestOfficeId():I.guestOfficeId;return v&&(I.currentOfficeId=v,I.officeIdCallBack&&I.officeIdCallBack(I.currentOfficeId)),I.processQueuedUpdate()})()}setFacts(I){return\"function\"!=typeof this.fact?(this.currentFact=I,Promise.resolve()):Promise.reject(new Error('Ama"
+    ],
+    "context_refs": [
+      "ta(Wt,Ct){const zt={};this.transferFactToContextData(Wt,zt),this.transferOfficeIdToContextData(Wt,zt),this.transferContextInitTokenToContextData(Wt,zt),Object.keys(zt).length>0&&Wt.append(\"vas\"===Ct?\"contextData\":\"context\",JSON.stringify(zt))}transferFactToContextData(Wt,Ct){const zt=Wt.get(\"fact\");if(null!==zt){try{const Pn=JSON.parse(zt);Array.isArray(Pn?.keyValuePairs)&&Pn.keyValuePairs.forEach(Xn=>{\"string\"==typeof Xn?.key&&\"string\"==typeof Xn?.value&&null!==Xn.value&&(Ct[Xn.key]=Xn.value)})",
+      "forEach(Xn=>{\"string\"==typeof Xn?.key&&\"string\"==typeof Xn?.value&&null!==Xn.value&&(Ct[Xn.key]=Xn.value)})}catch{this.errorHandler?.(this.basePath,Wt.toString(),new Error(\"Failed to process fact for contextData\"))}Wt.delete(\"fact\")}}transferOfficeIdToContextData(Wt,Ct){const zt=Wt.get(\"officeId\");null!==zt&&(Wt.delete(\"officeId\"),Ct.officeId=zt)}transferContextInitTokenToContextData(Wt,Ct){const zt=Wt.get(\"contextInitToken\");zt&&(Wt.delete(\"contextInitToken\"),Ct.contextInitToken=zt)}}var J=e(27",
+      "{if(this.resilientUiService.isActivated())this.digitalTouchPointService.initDigitalTouchPointOfficeId(Ct.guest_office_id);else{const zt=er(Ct.access_token),Pn=zt?.officeId||zt?.context?.officeId||zt?.contextData?.officeId;Pn&&\"string\"==typeof Pn&&this.digitalTouchPointService.initDigitalTouchPointOfficeId(Pn)}this.digitalTouchPointService.initDigitalTouchPointMarket()}return Ct}}}}class Gt{constructor(Wt){this.officeId=Wt}load(){return{transform:Wt=>qe(Wt,ht.j.officeId,this.officeId)}}}class rr{",
+      ".getItem(this.itemKey)}setItem(L){sessionStorage.setItem(this.itemKey,L)}getItemValue(){const L=sessionStorage.getItem(this.itemKey);return\"null\"===L?null:L}}const y=new E(\"fact\"),I=new E(i),v=new E(\"contextData\"),P=new E(\"custNo\"),C=new E(\"temporaryProfile\"),D=new E(\"shareItineraryTooltipDisplayedPerSession\"),k=new E(\"fareUpsellOverlayDialogWasShown\"),x=new E(\"euBrandedFareFamiliesInfoOverlayWasShown\"),F=new E(\"retargetingDialogWasShown\"),b=new E(\"advancedOrderAccessToken\")},77898:(Fe,R,e)=>{\"u"
+    ],
+    "search_effects": [
+      "advancedAirShopping\"}]},{path:\"/search/air-offers/by-offer\",regexp:new RegExp(\"^/v2/search/air-offers/by-offer(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirshoppingByOffer\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/more-flights\",regexp:new RegExp(\"^/v2/search/air-offers/from-offer/((?:[^/]+?))/more-flights(?:/(?=$))?$\"),operations:[{method:\"post\",operationId:\"advancedAirShoppingMoreFlights\"}]},{path:\"/search/air-offers/from-offer/{airOfferId}/upsells\",regexp:new RegExp(\"^/v2/search/a"
+    ]
+  },
+  "token_results": [
+    {
+      "name": "no_fact",
+      "token_status": 200,
+      "search_status": 400,
+      "search_response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}",
+      "is_success": false
+    },
+    {
+      "name": "empty_fact",
+      "token_status": 200,
+      "search_status": 400,
+      "search_response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}",
+      "is_success": false
+    },
+    {
+      "name": "market_fact",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "country_fact",
+      "token_status": 200,
+      "search_status": 400,
+      "search_response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}",
+      "is_success": false
+    },
+    {
+      "name": "full_fact",
+      "token_status": 200,
+      "search_status": 400,
+      "search_response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}",
+      "is_success": false
+    },
+    {
+      "name": "with_context",
+      "token_status": 200,
+      "search_status": 400,
+      "search_response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}",
+      "is_success": false
+    },
+    {
+      "name": "with_contextData",
+      "token_status": 200,
+      "search_status": 400,
+      "search_response": "{\"errors\":[{\"code\":\"38601\",\"title\":\"AIR-OFFERS RESOURCE NOT SUPPORTED\",\"detail\":\"/air-offers resource is not supported for current configuration.\",\"source\":{}}]}",
+      "is_success": false
+    }
+  ],
+  "header_results": [
+    {
+      "name": "contextData",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "x_context",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "officeId",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "x_office",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "flowType",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "tenantId",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "combined",
+      "error": "Failed to fetch"
+    }
+  ],
+  "alt_endpoints": [
+    {
+      "path": "/v1/one-booking/search/air-bounds",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"38411\",\"title\":\"INVALID REQUESTED BOUND\",\"detail\":\"Invalid itinerary request for construction mode search.\",\"source\":{\"parameter\":\"itinerary.isRequestedBound\"}}]}"
+    },
+    {
+      "path": "/v1/one-booking/search/air-calendars",
+      "status": 400,
+      "response": "{\"errors\":[{\"code\":\"39236\",\"title\":\"MISSING COMMERCIAL FARE FAMILY\",\"detail\":\"Commercial fare families are mandatory to be provided in the input.\"}]}"
+    },
+    {
+      "path": "/v1/one-booking/search/air-offer-conditions",
+      "status": 596,
+      "response": "<h1>596 Service Not Found</h1>"
+    }
+  ]
+}

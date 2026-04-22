@@ -1,0 +1,114 @@
+{
+  "version": "v46",
+  "endpoint": "https://api-shop.lufthansa.com/v1/one-booking/search/air-offers",
+  "itinerary_fields": {
+    "itinerary_contexts": [
+      "r in reward flow\",\"mam_rtw\"],[\"ACF-55375\",\"Enable the Search button and show an error message if no itinerary is selected in rebooking search page\",\"mam_rtw\"],[\"ACF-55432\",\"Apply fixes for DAPI responses in the reward rebooking context\",\"mam_rtw\"],[\"ACF-53193\",\"Add loggedInFFN fact to retrieveOrder\"",
+      "\"FlightTicket_1\",productDetails:{flightTicket:{journeyLength:(0,Ee.Eg)(we||[]),bound:yt,tripType:dt,itineraryPrice:Dt&&Qe(Dt,he||[])}}}}}function Be(Q,ie,X){const he=Q.air?.bounds,Ne=(0,Ee.EM)((0,t.Wu)(Q)),Ve=Q.air?.fareInfos||[],it=he?.map((xe,we)=>H(xe,we,Q.travelers||[],ie,Ve,X,Q.travelDocuments|",
+      ",Ee.EM)((0,n.es)(Ve.offerItems[0].air.bounds)),journeyLength:(0,Ee.Eg)(Ve.offerItems[0].air.bounds),itineraryPrice:ct(Ve.offerItems[0].prices,it)}}}}}return{}}catch{return{}}}function De(Q,ie,X,he){const Ne=ie.segments.map(we=>{const dt=Q.availabilityDetails?.find(Ft=>Ft.flightId===we.flightId);retu",
+      "ch\")||this.requestParametersService.getParameter(\"search\");try{const $=z&&JSON.parse(z);return $&&$.itineraries}catch{return void console.log(\"Unable to retrieve search data due to un-parseable search data JSON\")}}getMetaSearchRequest(){const z=this.requestParametersService.getParameter(\"metasearch\"",
+      "(P.travelers,C,d.b),P.promotion=(0,y.P)(P.promotion,C),P.frequentFlyer=(0,l.I)(P.frequentFlyer,C),P.itineraries=(0,I.DV)(P.itineraries,C,E),P.searchPreferences=function n(P,C){if(P)return P.showMoreFlights=function i(P){if(P)return P}(P.showMoreFlights),P.shoppingProfile=(0,t.X)(P.shoppingProfile,C)",
+      "romotion=(0,y.P)(P.promotion,C),P.frequentFlyer=(0,l.I)(P.frequentFlyer,C),P.itineraries=(0,I.DV)(P.itineraries,C,E),P.searchPreferences=function n(P,C){if(P)return P.showMoreFlights=function i(P){if(P)return P}(P.showMoreFlights),P.shoppingProfile=(0,t.X)(P.shoppingProfile,C),P}(P.searchPreferences",
+      "oundsSearchId)return Te;const H=Te.entities[Te.selectedAirBoundsSearchId];if(!H)return Te;const Y=H.itineraries?H.itineraries.map((le,We)=>({...le,departureDateTime:We<Ye.dates.length?Ye.dates[We]:le.departureDateTime})):void 0;return re.updateOne({id:H.id,changes:{itineraries:Y}},Te)}),(0,t.on)(S,(",
+      "return Te;const H=Te.entities[Te.selectedAirBoundsSearchId];if(!H)return Te;const Y=H.itineraries?H.itineraries.map((le,We)=>({...le,departureDateTime:We<Ye.dates.length?Ye.dates[We]:le.departureDateTime})):void 0;return re.updateOne({id:H.id,changes:{itineraries:Y}},Te)}),(0,t.on)(S,(Te,Ye)=>({...T",
+      "e<Ye.dates.length?Ye.dates[We]:le.departureDateTime})):void 0;return re.updateOne({id:H.id,changes:{itineraries:Y}},Te)}),(0,t.on)(S,(Te,Ye)=>({...Te,selectedAirBoundsSearchId:Ye.id})),(0,t.on)(N,(Te,Ye)=>{const H=W(Ye);return re.addOne(H,{...Te,selectedAirBoundsSearchId:H.id})}),(0,t.on)(w,Te=>({..",
+      "g$.pipe((0,c.p)(P=>!!P.globalShowStopOver),(0,h.n)(()=>this.store.pipe((0,n.Lt)(i.$G),(0,f.T)(P=>P?.itineraries),(0,c.p)(P=>!!P),(0,p.t)({bufferSize:1,refCount:!0}))))}getStopoverData(I){return this.airBoundsItineraries$.pipe((0,f.T)(v=>v.find(P=>P.stopOver?.locationCodes?.includes(I))?.stopOver))}g",
+      "alue:gn.destinationLocationCode},{key:`departureDateTime${Un+1}`,value:gn.departureDateTime})}):ee?.itineraries&&ee.itineraries.forEach((gn,Un)=>{const lr={key:`originLocationCode${Un+1}`,value:gn.originLocationCode},Cr={key:`destinationLocationCode${Un+1}`,value:gn.destinationLocationCode},Br={key:",
+      "ionLocationCode},{key:`departureDateTime${Un+1}`,value:gn.departureDateTime})}):ee?.itineraries&&ee.itineraries.forEach((gn,Un)=>{const lr={key:`originLocationCode${Un+1}`,value:gn.originLocationCode},Cr={key:`destinationLocationCode${Un+1}`,value:gn.destinationLocationCode},Br={key:`departureDateTi",
+      "\"STANDARD\"}getCommercialFareFamilyByCabin(ee,ue,Rt){if(!ee)return;const gn=\"cabin\"in ee?ee.cabin:ee.itineraries?.[0]?.flights?.[0]?.cabin?.toString();if(!gn)return;const Un=(0,sd._W)(!(0,Qs.c$)(ee));return(0,Qs.c$)(ee)?Rt[gn]?.[0]:ue[gn]?.[Un]?.[0]}constructor(ee,ue,Rt,gn){this.actions$=ee,this.clos",
+      "Cr,Br,fi,Vi])=>{const Gi=Cr?.isMetaSearchFlow,Mi=Gi?Cr:lr,{...co}=Un,Mo=this.getFlowType(),yo=!!Mi?.itineraries?.length,Uo={...co,searchInputInfo:{...co.searchInputInfo,...!Vi&&{flowType:Mo}}};if(!yo&&!Gi)return(0,kr.Sb)(Uo);const $o=this.getCommercialFareFamilyByCabin(Mi,Br,fi);return(0,kr.Sb)({...",
+      "iv\",13),n.j41(3,\"div\",14),n.DNE(4,QC,1,0,\"refx-flight-confirmation-skeleton-pres\",15),n.nrm(5,\"refx-itinerary-card-skeleton-pres\",16),n.DNE(6,ZC,3,6,\"ng-container\",15),n.k0s(),n.j41(7,\"div\",17),n.nrm(8,\"refx-price-information-skeleton-pres\"),n.DNE(9,zh,2,0,\"div\",18),n.k0s()()),2&U){const ee=Ht.isCon"
+    ],
+    "departure_fields": [
+      "departure:Te,arrival:Ye,arrivalTimeOfDay:H,stops:Y,tooCloseToDeparture:le,operatingAirlines:We,cabin:De,cabinP",
+      "departure\",\"arrival\",\"stops\",\"operatingAirlines\"],fareFamiliesWithRecommendedTag:[\"BFEUM4NFGR\",\"BFEUC3NFGR\",\"B",
+      "departure:G(ie[0].flight.departure),arrival:G(ie.at(-1)?.flight.arrival??{}),segment:X,price:he,fareFamilyCode",
+      "departure:G(Q.flight.departure),arrival:G(Q.flight.arrival),aircraftCode:Q.flight.aircraftCode||\"\",marketingAi",
+      "departure:G(he.departure),arrival:G(he.arrival),aircraftCode:he.aircraftCode||\"\",bookingClass:Q.bookingClass||",
+      "departure:G(St),arrival:G(Mt),fareFamilyCode:(0,Ee.y9)(Q),fareFamilyName:(0,Ee.Ks)((0,Ee.y9)(Q),he),price:rt?c",
+      "departureDate:A.departureDate,tripType:S,nbAdt:N.nbAdt,nbChd:N.nbChd,nbInf:N.nbInf,cabin:w,airline:\"LH\"}}updateLoc",
+      "departureDateTime:We<Ye.dates.length?Ye.dates[We]:le.departureDateTime})):void 0",
+      "departureDate:\"DepartureDate\",returnDate:\"ReturnDate\",numberOfAdults:\"PaxAdults\",numberOfChildren:\"PaxChildren\",nu",
+      "departureDate:\"\"})}function m(v){return v?.commercialFareFamilies?{DEMALLFPP:\"E\",DEPALLFPP:\"N\",DECALLFPP:\"B\",DEFAL"
+    ],
+    "itineraries_assignments": [
+      "archId];if(!H)return Te;const Y=H.itineraries?H.itineraries.map((le,We)=>({...le,departureDateTime:We<Ye.dates.length?Ye.dates[We]:le.departureDateTime})):void 0;return re.updateOne({id:H.id,changes:{itineraries:Y}},Te)}),(0,t.on)(S,(Te,Ye)=>({...Te,selectedAirBoundsSearchId:Ye.id})),(0,t.on)(N,(Te,Ye)=>{const H=W(Ye);return re.addOne(H,{...Te,selectedAirBoundsSearchId:H.id})}),(0,t.on)(w,Te=>({...Te,selectedAirBoundsSearchId:null}))],ge=(0,t.vy)(Ee,...ce),G=\"airBoundsSearch\",J=new i.nKC(\"Feature AirBoundsSearch Reducer\");function z(){return ge}let $=(()=>{class Te{static forRoot(H){return{ngModule:Te,providers:[{provide:J,useFactory:H}]}}static#e=this.\\u0275fac=function(Y){return new(Y||Te)",
+      "archId];if(!H)return Te;const Y=H.itineraries?H.itineraries.map((le,We)=>({...le,departureDateTime:We<Ye.dates.length?Ye.dates[We]:le.departureDateTime})):void 0;return re.updateOne({id:H.id,changes:{itineraries:Y}},Te)}),(0,t.on)(S,(Te,Ye)=>({...Te,selectedAirOffersAdvancedSearchId:Ye.id})),(0,t.on)(N,(Te,Ye)=>{const H=W(Ye);return re.addOne(H,{...Te,selectedAirOffersAdvancedSearchId:H.id})}),(0,t.on)(w,Te=>({...Te,selectedAirOffersAdvancedSearchId:null}))],ge=(0,t.vy)(Ee,...ce),G=\"airOffersAdvancedSearch\",J=new i.nKC(\"Feature AirOffersAdvancedSearch Reducer\");function z(){return ge}let $=(()=>{class Te{static forRoot(H){return{ngModule:Te,providers:[{provide:J,useFactory:H}]}}static#e=this",
+      "n,LV:()=>f,OA:()=>c}),e(60871)},63717:(Fe,R,e)=>{\"use strict\";e.d(R,{G:()=>n,S:()=>l});var t=e(52309),i=e(1433);function n(f,p,m,E,y){const I=function c(f){return{searchItineraries:f&&f.itineraries?f.itineraries:[],totalTravelers:f&&f.travelers?f.travelers.length:0}}(f),v=function h(f,p,m){if(p){const E=(p.travelers||[]).filter(v=>(0,i.xA)(v,p,f,!0,m)).length,y=(p.travelers||[]).findIndex(v=>!(0,i.xA)(v,p,f,!0,m));let I=[];return p.airOffers&&p.airOffers[0]&&p.airOffers[0].offerItems&&p.airOffers[0].offerItems[0]&&(I=p.airOffers[0].offerItems[0].air.bounds),{bounds:I,totalTravelers:E,firstInvalidPaxIndex:y}}}(p,m,y),P=l(E);let C=I.searchItineraries[0].originLocationCode,D=I.searchItineraries",
+      "SearchId];if(!Q)return tt;const ie=Q.itineraries?Q.itineraries.map((X,he)=>({...X,departureDateTime:he<_t.dates.length?_t.dates[he]:X.departureDateTime})):void 0;return me.updateOne({id:Q.id,changes:{itineraries:ie}},tt)}),(0,t.on)(G,(tt,_t)=>({...tt,selectedAirBoundExchangesSearchId:_t.id})),(0,t.on)(J,(tt,_t)=>{const Q=ne(_t);return me.addOne(Q,{...tt,selectedAirBoundExchangesSearchId:Q.id})}),(0,t.on)(z,tt=>({...tt,selectedAirBoundExchangesSearchId:null}))],Be=(0,t.vy)(ke,...Je),ye=\"airBoundExchangesSearch\",q=new i.nKC(\"Feature AirBoundExchangesSearch Reducer\");function Ce(){return Be}let Le=(()=>{class tt{static forRoot(Q){return{ngModule:tt,providers:[{provide:q,useFactory:Q}]}}static#e",
+      ">h,jT:()=>C,l8:()=>D,to:()=>m});var t=e(65985),i=e(64971);const h=(0,t.VP)(\"[MetaSearch] set\",(0,t.xk)()),f=(0,t.VP)(\"[MetaSearch] update\",(0,t.xk)()),p=(0,t.VP)(\"[MetaSearch] reset\"),m={travelers:[],itineraries:[],offerPrice:{value:0,currencyCode:\"\",currency:{name:\"\",decimalPlaces:0}},source:{owner:{name:\"\"}},isMetaSearchFlow:!1},E=(0,t.vy)(m,(0,t.on)(h,(x,{type:F,...b})=>({...b})),(0,t.on)(f,(x,{type:F,...b})=>({...x,...b})),(0,t.on)(p,()=>m)),y=\"metaSearch\";function I(x){return x||E}const v=new i.nKC(\"Feature MetaSearch Reducer factory\"),P=new i.nKC(\"Feature MetaSearch Reducer\");let C=(()=>{class x{static forRoot(b){return{ngModule:x,providers:[{provide:P,useFactory:b}]}}static#e=this.\\u0"
+    ],
+    "travelers_assignments": [
+      "?kt(Vn):{[be]:Vn},status:Gn};return ot.updateOne({id:yn,changes:Qn},Mt)}(Mt,rt,\"travelers\",[],be=>({travelers:be.map(bt=>bt.id===rt.travelerId?{...bt,regulatoryDetails:[]}:bt)}))),(0,t.on)(Y,(Mt,rt)=>{const be=rt.id||Mt.selectedOrderChangeId,bt=be&&Mt.entities[be]&&Mt.entities[be].travelers;if(!bt||0===bt.length)return Mt;const kt=bt.map(yn=>yn.id===rt.travelerId?{...yn,regulatoryDetails:rt.regula",
+      "[bt].status||{},be,rt.requestId),[be]:rt[be]};return ot.updateOne({id:bt,changes:Tn},Mt)}(Mt,{...rt,travelers:kt},\"travelers\")}),(0,t.on)(le,Ye,(Mt,rt)=>_t(Mt,rt,\"travelers\")),(0,t.on)(We,(Mt,rt)=>ie(Mt,rt,\"travelers\")),(0,t.on)(J,ne,(Mt,rt)=>_t(Mt,rt,\"paymentRecords\")),(0,t.on)($,(Mt,rt)=>ie(Mt,rt,\"paymentRecords\"))],he=(0,t.vy)(Qe,...X),Ne=\"orderChange\",Ve=new n.nKC(\"Feature OrderChange Reducer\"",
+      "equentFlyerCards=[],$.frequentFlyerCards.push($.frequentFlyerCard))}),this.store.dispatch((0,h.xs)({travelers:this.lightLogin}))),this.flags&&this.featureFlagsService.setFlags(this.flags),this.devFlagsActivated!==this.featureFlagsService.areDevFlagsActived()&&this.featureFlagsService.toggleDevFlagsActived(),this.getDynamicConfig(this.configurationBaseService),this.updateLocalStorageWithUniqueUserI",
+      "ybrid\",ne.uiSessionData.paymentFlowType),ne.uiSessionData.loginProfile&&ne.store.dispatch((0,h.xs)({travelers:[ne.uiSessionData.loginProfile]})),ne.uiSessionData.airlineReturnUrl){const ke=decodeURIComponent(ne.uiSessionData.airlineReturnUrl);ne.store.dispatch((0,l.OK)({enterByDeepLink:!0,returnURL:ke}))}if(ne.uiSessionData.selectedMilesData&&ne.store.dispatch((0,l.xe)({payload:ne.uiSessionData.se",
+      ".dP)}handleNoneSelectionOnTitle(L){this.store.pipe((0,c.Lt)(i.cA),(0,P.p)(A=>!!A),(0,C.T)(A=>({...A,travelers:A.travelers?.map(S=>\"ADT\"===S.passengerTypeCode?{...S,names:S.names?.map(N=>({...N,title:\"NONE\"===N.title||void 0===N.title?L:N.title}))}:S)})),(0,D.s)(1)).subscribe(A=>this.store.dispatch((0,i.s6)({entities:[A],selectFirstOrder:!0})))}get isEnabledInstantTraveler$(){return(0,v.z)([this.fe"
+    ]
+  },
+  "body_results": [
+    {
+      "name": "itin_location_codes",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "itin_datetime",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "itin_only",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "itin_objects",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "itin_date_obj",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "itin_with_type",
+      "error": "Failed to fetch"
+    },
+    {
+      "name": "itin_travelDate",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "itin_minimal",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "itin_airport",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    },
+    {
+      "name": "itin_store_shape",
+      "status": 400,
+      "ct": "application/json",
+      "length": 93,
+      "response": "{\"errors\":[{\"code\":\"04926\",\"title\":\"INVALID DATA RECEIVED\",\"detail\":\"Unexpected attribute\"}]}"
+    }
+  ],
+  "get_result": {
+    "status": 400,
+    "ct": "application/json;charset=utf-8",
+    "response": "{\n  \"category\": \"Client\",\n  \"text\": \"RUNTIME0079: Missing required parameter 'departureDateTime' of style 'QUERY'\"\n}"
+  }
+}
