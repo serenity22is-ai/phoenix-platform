@@ -1154,7 +1154,7 @@ class TestFeatureFlagRegistration:
         flag = FeatureFlag.query.filter_by(flag_key='narrative_pitch').first()
         assert flag is not None
         assert flag.layer == 3
-        assert flag.is_enabled is False
+        assert flag.is_enabled is True
 
     def test_shared_cart_flag_exists(self):
         from models import FeatureFlag
@@ -1162,4 +1162,4 @@ class TestFeatureFlagRegistration:
         flag = FeatureFlag.query.filter_by(flag_key='shared_cart').first()
         assert flag is not None
         assert flag.layer == 3
-        assert flag.is_enabled is False
+        assert flag.is_enabled is True

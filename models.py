@@ -2200,20 +2200,20 @@ class FeatureFlag(db.Model):
             ('vertical_rentals', 'Rentals Vertical', 'Car and vacation rentals', 2, True),
             ('vertical_cruises', 'Cruises Vertical', 'Cruise booking and comparison', 2, False),
 
-            # Layer 3 - Phase C (gated behind 500 active trip planners)
-            ('managed_mode', 'Managed Trip Mode', 'Lock itinerary, roster dashboard, announcements (#225)', 3, False),
-            ('event_system', 'Event System', 'Event hosting, ticket tiers, Stripe Connect payouts (#226)', 3, False),
-            ('guest_info_collection', 'Guest Info Collection', 'Collect dietary, passport, emergency info (#227)', 3, False),
-            ('qr_checkin', 'QR Check-In', 'Organizer scans guest QR at event (#227)', 3, False),
-            ('narrative_pitch', 'Narrative Pitch', 'Per-guest personalized trip narrative (#228)', 3, False),
-            ('shared_cart', 'Shared Cart', 'Pay-for-someone cart with guest Stripe payment (#229)', 3, False),
-            ('trip_posts', 'Trip Posts', 'Shareable trip stories with photos and tips (#230)', 3, False),
-            ('social_profiles', 'Social Profiles', 'Public profiles, travel map, follows (#231)', 3, False),
-            ('verified_reviews', 'Verified Reviews', 'Booking-verified user and B2B reviews (#232)', 3, False),
-            ('referral_attribution', 'Referral Attribution', '2-level referral chain + conversion tracking (#233)', 3, False),
-            ('corporate_workspaces', 'Corporate Workspaces', 'Workspace model + admin + roles + invite (#235)', 3, False),
-            ('travel_policies', 'Travel Policies', 'Policies + approval workflows + expense tags (#236)', 3, False),
-            ('corporate_dashboard', 'Corporate Dashboard', 'Dashboard + book-on-behalf + reporting + export (#237)', 3, False),
+            # Layer 3 - Phase C (all built, all enabled)
+            ('managed_mode', 'Managed Trip Mode', 'Lock itinerary, roster dashboard, announcements (#225)', 3, True),
+            ('event_system', 'Event System', 'Event hosting, ticket tiers, Stripe Connect payouts (#226)', 3, True),
+            ('guest_info_collection', 'Guest Info Collection', 'Collect dietary, passport, emergency info (#227)', 3, True),
+            ('qr_checkin', 'QR Check-In', 'Organizer scans guest QR at event (#227)', 3, True),
+            ('narrative_pitch', 'Narrative Pitch', 'Per-guest personalized trip narrative (#228)', 3, True),
+            ('shared_cart', 'Shared Cart', 'Pay-for-someone cart with guest Stripe payment (#229)', 3, True),
+            ('trip_posts', 'Trip Posts', 'Shareable trip stories with photos and tips (#230)', 3, True),
+            ('social_profiles', 'Social Profiles', 'Public profiles, travel map, follows (#231)', 3, True),
+            ('verified_reviews', 'Verified Reviews', 'Booking-verified user and B2B reviews (#232)', 3, True),
+            ('referral_attribution', 'Referral Attribution', '2-level referral chain + conversion tracking (#233)', 3, True),
+            ('corporate_workspaces', 'Corporate Workspaces', 'Workspace model + admin + roles + invite (#235)', 3, True),
+            ('travel_policies', 'Travel Policies', 'Policies + approval workflows + expense tags (#236)', 3, True),
+            ('corporate_dashboard', 'Corporate Dashboard', 'Dashboard + book-on-behalf + reporting + export (#237)', 3, True),
         ]
 
         for flag_key, name, desc, layer, enabled in default_flags:

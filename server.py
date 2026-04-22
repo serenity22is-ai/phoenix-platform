@@ -255,6 +255,14 @@ def _inject_feature_flags():
 # Initialize database (resilient — app starts even if DB is unreachable)
 try:
     init_db(app)
+    # Ensure all feature flags exist and are enabled in production
+    with app.app_context():
+        try:
+            FeatureFlag.init_default_flags()
+            db.session.commit()
+        except Exception as _flag_err:
+            logging.warning(f"Feature flag init: {_flag_err}")
+            db.session.rollback()
 except Exception as _db_err:
     logging.error(f"Database init failed (app will start without DB): {_db_err}")
     # Only register db with app if init_db didn't get that far
@@ -20854,16 +20862,9 @@ def api_search():
         "date": "2026-03-15"
     }
     """
-    # --- Verification gate (Build #204) ---
-    # Authenticated users: always allowed
-    # Guests: must have verified email (session token)
-    if not (current_user and current_user.is_authenticated):
-        if not session.get("verification_token"):
-            return jsonify({
-                "error": "Email verification required to search flights.",
-                "verify_url": "/api/verification/send-code",
-                "action": "verify_email",
-            }), 403
+    # --- Verification gate (Build #204, relaxed Build #235) ---
+    # Search is open to all users. Booking requires authentication.
+    # Rate limiter (10/min) protects against abuse.
 
     data = request.get_json()
     origin = data.get("origin", "").upper()

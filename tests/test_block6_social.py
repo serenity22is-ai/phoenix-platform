@@ -274,7 +274,7 @@ class TestFeatureFlagGating:
             flag = FeatureFlag.query.filter_by(flag_key=key).first()
             assert flag is not None
             assert flag.layer == 3
-            assert flag.is_enabled is False
+            assert flag.is_enabled is True
 
 
 # ================================================================

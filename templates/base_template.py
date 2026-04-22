@@ -2057,39 +2057,38 @@ BASE_TEMPLATE = '''
         </button>
 
         <div class="nav-links" id="navLinks">
-            {% if current_user.is_authenticated %}
-                <a href="/flights" class="nav-link">Flights</a>
-                <a href="/hotels" class="nav-link">Hotels</a>
-                <a href="/dashboard" class="nav-link">Dashboard</a>
-                <a href="/rewards" class="nav-link" style="color: var(--mystes-glow);">Rewards</a>
-                <div class="nav-more-wrapper">
-                    <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
-                    <div class="nav-more-menu" id="navMoreMenu">
-                        <a href="/bookings" class="nav-more-link">My Bookings</a>
-                        {% if feature_rentals %}<a href="/cars" class="nav-more-link">Cars</a>{% endif %}
-                        {% if feature_activities %}<a href="/activities" class="nav-more-link">Activities</a>{% endif %}
-                        <a href="/insurance" class="nav-more-link">Insurance</a>
-                        <a href="/deals" class="nav-more-link">Deals</a>
-                        <a href="/ai" class="nav-more-link">AI Search</a>
-                        {% if feature_trip_planner %}<a href="/trips" class="nav-more-link">My Trips</a>{% endif %}
-                        {% if feature_wishlist %}<a href="/collections" class="nav-more-link">Collections</a>{% endif %}
-                        {% if feature_friends %}<a href="/friends" class="nav-more-link">Friends</a>{% endif %}
-                        <a href="/travelers" class="nav-more-link">Travelers</a>
-                        <a href="/social" class="nav-more-link">Social</a>
-                        <a href="/referral" class="nav-more-link" style="color: #4ade80;">Referrals</a>
-                        <a href="/corporate" class="nav-more-link">Corporate</a>
-                        <a href="/carts" class="nav-more-link">Shared Carts</a>
-                        <a href="/arbitrate" class="nav-more-link" style="color: #f59e0b;">Arbitrate</a>
-                        <a href="/business" class="nav-more-link" style="color: var(--mystes-silver);">Business</a>
-                        <a href="/apai" class="nav-more-link" style="color: #a78bfa;">APAi</a>
-                        {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--mystes-glow);">Admin</a>{% endif %}
-                    </div>
+            <a href="/flights" class="nav-link">Flights</a>
+            <a href="/hotels" class="nav-link">Hotels</a>
+            <a href="/trips" class="nav-link">Trips</a>
+            <div class="nav-more-wrapper">
+                <button class="nav-link nav-more-btn" id="navMoreBtn">More &#9662;</button>
+                <div class="nav-more-menu" id="navMoreMenu">
+                    <a href="/deals" class="nav-more-link">Deals</a>
+                    <a href="/cars" class="nav-more-link">Cars</a>
+                    <a href="/activities" class="nav-more-link">Activities</a>
+                    <a href="/insurance" class="nav-more-link">Insurance</a>
+                    <a href="/social" class="nav-more-link">Social</a>
+                    <a href="/arbitrate" class="nav-more-link" style="color: #f59e0b;">Arbitrate My Trip</a>
+                    {% if current_user.is_authenticated %}
+                    <a href="/bookings" class="nav-more-link">My Bookings</a>
+                    <a href="/collections" class="nav-more-link">Collections</a>
+                    <a href="/friends" class="nav-more-link">Friends</a>
+                    <a href="/travelers" class="nav-more-link">Travelers</a>
+                    <a href="/ai" class="nav-more-link">AI Search</a>
+                    <a href="/referral" class="nav-more-link" style="color: #4ade80;">Referrals</a>
+                    <a href="/corporate" class="nav-more-link">Corporate</a>
+                    <a href="/carts" class="nav-more-link">Shared Carts</a>
+                    <a href="/rewards" class="nav-more-link" style="color: var(--mystes-glow);">Rewards</a>
+                    <a href="/dashboard" class="nav-more-link">Dashboard</a>
+                    {% endif %}
+                    <a href="/business" class="nav-more-link" style="color: var(--mystes-silver);">Business</a>
+                    <a href="/apai" class="nav-more-link" style="color: #a78bfa;">APAi</a>
+                    {% if current_user.is_authenticated and current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--mystes-glow);">Admin</a>{% endif %}
                 </div>
+            </div>
+            {% if current_user.is_authenticated %}
                 <a href="/logout" class="nav-link nav-cta">Logout</a>
             {% else %}
-                <a href="/flights" class="nav-link">Flights</a>
-                <a href="/hotels" class="nav-link">Hotels</a>
-                <a href="/deals" class="nav-link">Deals</a>
                 <a href="/login" class="nav-link">Login</a>
                 <a href="/register" class="nav-link nav-cta">Get Started</a>
             {% endif %}
