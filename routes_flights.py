@@ -5,11 +5,16 @@ Extracted from homepage HOME_HERO to /flights.
 Search UI with glass morphism design, trip type toggle, passenger selectors.
 API backend stays in server.py (/api/search).
 
+Includes:
+- /flights — search page
+- /flight-card/<deal_id> — shareable flight card (public, no login)
+- /flight-card/<deal_id>/image — OG image card (for social previews)
+
 Registration: register_flight_routes(app, csrf, limiter)
 """
 
 import logging
-from flask import render_template_string
+from flask import render_template_string, request, abort
 from flask_login import current_user
 
 logger = logging.getLogger(__name__)
@@ -548,7 +553,7 @@ function comparePrices(btn, flightData) {
     var container = btn.parentElement;
     btn.textContent = "Loading...";
     btn.disabled = true;
-    fetch('/api/flights/booking-options', {
+    fetch('/api/flight/competitors', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         credentials: 'same-origin',
@@ -649,6 +654,973 @@ function closeFareRules() { document.getElementById('fareRulesModal').style.disp
 '''
 
 
+# ============================================================
+# Common airport-to-city lookup (top 80 airports)
+# ============================================================
+AIRPORT_CITIES = {
+    'JFK': 'New York', 'LGA': 'New York', 'EWR': 'Newark',
+    'LAX': 'Los Angeles', 'SFO': 'San Francisco', 'ORD': 'Chicago',
+    'MIA': 'Miami', 'ATL': 'Atlanta', 'DFW': 'Dallas', 'IAH': 'Houston',
+    'SEA': 'Seattle', 'DEN': 'Denver', 'BOS': 'Boston', 'PHL': 'Philadelphia',
+    'IAD': 'Washington DC', 'DCA': 'Washington DC', 'MSP': 'Minneapolis',
+    'DTW': 'Detroit', 'CLT': 'Charlotte', 'LAS': 'Las Vegas',
+    'PHX': 'Phoenix', 'MCO': 'Orlando', 'TPA': 'Tampa', 'SAN': 'San Diego',
+    'PDX': 'Portland', 'SLC': 'Salt Lake City', 'BWI': 'Baltimore',
+    'AUS': 'Austin', 'RDU': 'Raleigh', 'BNA': 'Nashville',
+    'LHR': 'London', 'LGW': 'London', 'STN': 'London',
+    'CDG': 'Paris', 'ORY': 'Paris',
+    'FRA': 'Frankfurt', 'MUC': 'Munich', 'AMS': 'Amsterdam',
+    'MAD': 'Madrid', 'BCN': 'Barcelona', 'FCO': 'Rome', 'MXP': 'Milan',
+    'ZRH': 'Zurich', 'VIE': 'Vienna', 'CPH': 'Copenhagen',
+    'OSL': 'Oslo', 'ARN': 'Stockholm', 'HEL': 'Helsinki',
+    'IST': 'Istanbul', 'ATH': 'Athens', 'LIS': 'Lisbon',
+    'DUB': 'Dublin', 'EDI': 'Edinburgh', 'BRU': 'Brussels',
+    'NRT': 'Tokyo', 'HND': 'Tokyo', 'KIX': 'Osaka',
+    'ICN': 'Seoul', 'GMP': 'Seoul',
+    'PEK': 'Beijing', 'PVG': 'Shanghai', 'HKG': 'Hong Kong',
+    'SIN': 'Singapore', 'BKK': 'Bangkok', 'KUL': 'Kuala Lumpur',
+    'DEL': 'Delhi', 'BOM': 'Mumbai', 'SYD': 'Sydney', 'MEL': 'Melbourne',
+    'AKL': 'Auckland', 'DXB': 'Dubai', 'DOH': 'Doha', 'AUH': 'Abu Dhabi',
+    'JNB': 'Johannesburg', 'CPT': 'Cape Town', 'CAI': 'Cairo',
+    'GRU': 'Sao Paulo', 'EZE': 'Buenos Aires', 'MEX': 'Mexico City',
+    'BOG': 'Bogota', 'LIM': 'Lima', 'SCL': 'Santiago',
+    'YYZ': 'Toronto', 'YVR': 'Vancouver', 'YUL': 'Montreal',
+    'CUN': 'Cancun', 'SJU': 'San Juan', 'HNL': 'Honolulu',
+}
+
+
+# ============================================================
+# Shareable Flight Card Page (PUBLIC — no login required)
+# ============================================================
+
+FLIGHT_CARD_PAGE = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ og_title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{{ og_description }}">
+
+    <!-- OpenGraph — deal-specific for social sharing -->
+    <meta property="og:title" content="{{ og_title }}">
+    <meta property="og:description" content="{{ og_description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ og_url }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta property="og:site_name" content="MYSTES">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ og_title }}">
+    <meta name="twitter:description" content="{{ og_description }}">
+    <meta name="twitter:image" content="{{ og_image }}">
+
+    <meta name="theme-color" content="#7c3aed">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon-eyes.svg?v=3">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --deep-space: #0a0612;
+            --text-bright: #ffffff;
+            --text-muted: #cccccc;
+            --accent-teal: #14b8a6;
+            --accent-gold: #C9A96E;
+            --accent-purple: #7c3aed;
+            --glass-bg: rgba(255,255,255,0.04);
+            --glass-border: rgba(255,255,255,0.08);
+            --font-brand: 'Space Grotesk', sans-serif;
+            --font-body: 'Outfit', sans-serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html {
+            -webkit-font-smoothing: antialiased;
+            background: var(--deep-space);
+        }
+
+        body {
+            font-family: var(--font-body);
+            color: var(--text-bright);
+            min-height: 100vh;
+            background: var(--deep-space);
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(20,184,166,0.06) 0%, transparent 50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ---- Minimal Nav ---- */
+        .card-nav {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+        }
+        .card-nav-brand {
+            font-family: var(--font-brand);
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            text-decoration: none;
+            background: linear-gradient(135deg, #fff 0%, #e8d5b7 40%, #fff 60%, #c9a96e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card-nav-link {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            transition: color 0.2s;
+        }
+        .card-nav-link:hover { color: var(--text-bright); }
+
+        /* ---- Card Container ---- */
+        .share-card-wrap {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 16px 60px;
+            width: 100%;
+        }
+
+        .share-card {
+            width: 100%;
+            max-width: 520px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            overflow: hidden;
+        }
+
+        /* ---- Airline Header ---- */
+        .sc-airline-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 24px 28px 0;
+        }
+        .sc-airline-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-brand);
+            font-weight: 700;
+            font-size: 16px;
+            color: #fff;
+            letter-spacing: 1px;
+            flex-shrink: 0;
+        }
+        .sc-airline-name {
+            font-family: var(--font-brand);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-bright);
+            letter-spacing: 0.5px;
+        }
+        .sc-flight-num {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ---- Route Display ---- */
+        .sc-route {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 28px 8px;
+            gap: 20px;
+        }
+        .sc-endpoint {
+            text-align: center;
+            flex: 0 0 auto;
+        }
+        .sc-iata {
+            font-family: var(--font-brand);
+            font-size: 38px;
+            font-weight: 700;
+            color: var(--text-bright);
+            letter-spacing: 2px;
+            line-height: 1;
+        }
+        .sc-city {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            letter-spacing: 0.3px;
+        }
+        .sc-arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 80px;
+            max-width: 140px;
+        }
+        .sc-arrow-line {
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 20%, rgba(255,255,255,0.2) 80%, transparent 100%);
+            position: relative;
+        }
+        .sc-arrow-line::after {
+            content: '';
+            position: absolute;
+            right: -2px;
+            top: -4px;
+            width: 8px;
+            height: 8px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+            border-right: 1px solid rgba(255,255,255,0.3);
+            transform: rotate(45deg);
+        }
+        .sc-plane-icon {
+            font-size: 18px;
+            color: rgba(255,255,255,0.3);
+            line-height: 1;
+        }
+
+        /* ---- Date Row ---- */
+        .sc-dates {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            padding: 16px 28px;
+        }
+        .sc-date-item {
+            text-align: center;
+        }
+        .sc-date-label {
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .sc-date-value {
+            font-size: 14px;
+            color: var(--text-bright);
+            font-weight: 500;
+        }
+
+        /* ---- Price Display ---- */
+        .sc-price-section {
+            text-align: center;
+            padding: 20px 28px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.015);
+        }
+        .sc-price-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 8px;
+        }
+        .sc-price {
+            font-family: var(--font-brand);
+            font-size: 44px;
+            font-weight: 700;
+            color: var(--accent-teal);
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+        .sc-price-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .sc-original-price {
+            font-size: 16px;
+            color: rgba(255,255,255,0.35);
+            text-decoration: line-through;
+            margin-top: 8px;
+        }
+        .sc-savings-badge {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 5px 14px;
+            background: rgba(201,169,110,0.12);
+            border: 1px solid rgba(201,169,110,0.25);
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-gold);
+            letter-spacing: 0.5px;
+        }
+
+        /* ---- Flight Details ---- */
+        .sc-details {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            padding: 18px 28px;
+            flex-wrap: wrap;
+        }
+        .sc-detail-item {
+            text-align: center;
+        }
+        .sc-detail-label {
+            font-size: 10px;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .sc-detail-value {
+            font-size: 14px;
+            color: var(--text-bright);
+            font-weight: 500;
+        }
+
+        /* ---- CTA Button ---- */
+        .sc-cta {
+            padding: 0 28px 24px;
+        }
+        .sc-book-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent-teal) 0%, #0d9488 100%);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-family: var(--font-brand);
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .sc-book-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(20,184,166,0.25);
+        }
+
+        /* ---- Share Row ---- */
+        .sc-share-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 0 28px 24px;
+            flex-wrap: wrap;
+        }
+        .sc-share-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            font-family: var(--font-body);
+        }
+        .sc-share-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-bright);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .sc-share-btn.copied {
+            background: rgba(20,184,166,0.15);
+            border-color: rgba(20,184,166,0.3);
+            color: var(--accent-teal);
+        }
+
+        /* ---- Footer ---- */
+        .card-footer {
+            text-align: center;
+            padding: 20px 24px 32px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.25);
+            letter-spacing: 0.3px;
+        }
+        .card-footer a {
+            color: rgba(255,255,255,0.4);
+            text-decoration: none;
+        }
+        .card-footer a:hover { color: var(--text-bright); }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 560px) {
+            .sc-iata { font-size: 30px; }
+            .sc-price { font-size: 36px; }
+            .sc-route { gap: 14px; padding: 24px 20px 8px; }
+            .sc-airline-header, .sc-dates, .sc-details, .sc-cta, .sc-share-row { padding-left: 20px; padding-right: 20px; }
+            .sc-price-section { padding: 18px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Minimal nav -->
+    <nav class="card-nav">
+        <a href="/" class="card-nav-brand">MYSTES</a>
+        <a href="/flights" class="card-nav-link">Search Flights</a>
+    </nav>
+
+    <div class="share-card-wrap">
+        <div class="share-card">
+
+            <!-- Airline header -->
+            <div class="sc-airline-header">
+                <div class="sc-airline-logo" style="background: {{ airline_color }};">{{ airline_initials }}</div>
+                <div>
+                    <div class="sc-airline-name">{{ airline }}</div>
+                    {% if flight_number %}<div class="sc-flight-num">{{ flight_number }}</div>{% endif %}
+                </div>
+            </div>
+
+            <!-- Route -->
+            <div class="sc-route">
+                <div class="sc-endpoint">
+                    <div class="sc-iata">{{ origin }}</div>
+                    <div class="sc-city">{{ origin_city }}</div>
+                </div>
+                <div class="sc-arrow">
+                    <div class="sc-plane-icon">&#9992;</div>
+                    <div class="sc-arrow-line"></div>
+                </div>
+                <div class="sc-endpoint">
+                    <div class="sc-iata">{{ destination }}</div>
+                    <div class="sc-city">{{ destination_city }}</div>
+                </div>
+            </div>
+
+            <!-- Dates -->
+            <div class="sc-dates">
+                <div class="sc-date-item">
+                    <div class="sc-date-label">Departure</div>
+                    <div class="sc-date-value">{{ departure_date_display }}</div>
+                </div>
+                {% if departure_time %}
+                <div class="sc-date-item">
+                    <div class="sc-date-label">Time</div>
+                    <div class="sc-date-value">{{ departure_time }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Price -->
+            <div class="sc-price-section">
+                <div class="sc-price-row">
+                    <div class="sc-price">${{ price_display }}</div>
+                    <div class="sc-price-label">per person</div>
+                </div>
+                {% if has_savings %}
+                <div class="sc-original-price">${{ original_price_display }}</div>
+                <div class="sc-savings-badge">Save ${{ savings_display }} ({{ savings_pct_display }}%)</div>
+                {% endif %}
+            </div>
+
+            <!-- Flight details -->
+            <div class="sc-details">
+                {% if cabin_display %}
+                <div class="sc-detail-item">
+                    <div class="sc-detail-label">Cabin</div>
+                    <div class="sc-detail-value">{{ cabin_display }}</div>
+                </div>
+                {% endif %}
+                <div class="sc-detail-item">
+                    <div class="sc-detail-label">Stops</div>
+                    <div class="sc-detail-value">{{ stops_display }}</div>
+                </div>
+                {% if duration %}
+                <div class="sc-detail-item">
+                    <div class="sc-detail-label">Duration</div>
+                    <div class="sc-detail-value">{{ duration }}</div>
+                </div>
+                {% endif %}
+                {% if baggage_info %}
+                <div class="sc-detail-item">
+                    <div class="sc-detail-label">Baggage</div>
+                    <div class="sc-detail-value">{{ baggage_info }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- CTA -->
+            <div class="sc-cta">
+                <a href="/book/{{ deal_id }}" class="sc-book-btn" id="bookBtn">Book This Flight</a>
+            </div>
+
+            <!-- Share row -->
+            <div class="sc-share-row">
+                <button class="sc-share-btn" id="copyLinkBtn" onclick="copyCardLink()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    Copy Link
+                </button>
+                <a class="sc-share-btn" href="https://twitter.com/intent/tweet?text={{ share_text_encoded }}&url={{ share_url_encoded }}" target="_blank" rel="noopener">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    Share on X
+                </a>
+                <a class="sc-share-btn" href="https://wa.me/?text={{ share_text_encoded }}%20{{ share_url_encoded }}" target="_blank" rel="noopener">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    WhatsApp
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <footer class="card-footer">
+        Found on <a href="/">MYSTES</a> &mdash; AI-powered travel intelligence across 102 markets
+    </footer>
+
+    <script>
+    function copyCardLink() {
+        var url = window.location.href;
+        var btn = document.getElementById("copyLinkBtn");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function() {
+                btn.classList.add("copied");
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+                setTimeout(function() {
+                    btn.classList.remove("copied");
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copy Link';
+                }, 2000);
+            });
+        } else {
+            // Fallback for older browsers
+            var input = document.createElement("input");
+            input.value = url;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+            setTimeout(function() {
+                btn.classList.remove("copied");
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Copy Link';
+            }, 2000);
+        }
+    }
+
+    // Track share event
+    (function() {
+        var dealId = {{ deal_db_id }};
+        if (dealId) {
+            fetch("/api/flights/" + dealId + "/share", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                credentials: "same-origin",
+                body: JSON.stringify({action: "view"})
+            }).catch(function() {});
+        }
+    })();
+    </script>
+
+</body>
+</html>
+'''
+
+
+# ============================================================
+# Flight Card Image — OG preview (minimal, no actions)
+# ============================================================
+
+FLIGHT_CARD_IMAGE = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1200, initial-scale=1.0">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #0a0612;
+            background-image:
+                radial-gradient(ellipse at 25% 50%, rgba(124,58,237,0.12) 0%, transparent 50%),
+                radial-gradient(ellipse at 75% 30%, rgba(20,184,166,0.08) 0%, transparent 50%);
+            width: 1200px;
+            height: 630px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .og-card {
+            width: 1040px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 28px;
+            padding: 48px 56px;
+            backdrop-filter: blur(12px);
+        }
+
+        /* Brand */
+        .og-brand {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: #C9A96E;
+            margin-bottom: 32px;
+        }
+
+        /* Airline */
+        .og-airline-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .og-airline-logo {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 17px;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        .og-airline-name {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        .og-flight-num {
+            font-size: 14px;
+            color: #cccccc;
+            margin-top: 2px;
+        }
+
+        /* Route */
+        .og-route {
+            display: flex;
+            align-items: center;
+            gap: 36px;
+            margin-bottom: 28px;
+        }
+        .og-iata {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 64px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 3px;
+            line-height: 1;
+        }
+        .og-city {
+            font-size: 16px;
+            color: #cccccc;
+            margin-top: 6px;
+        }
+        .og-arrow-block {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .og-plane {
+            font-size: 24px;
+            color: rgba(255,255,255,0.3);
+        }
+        .og-arrow-line {
+            width: 100%;
+            max-width: 200px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+        }
+
+        /* Bottom row: price + details */
+        .og-bottom {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+
+        /* Price */
+        .og-price-block {}
+        .og-price {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 56px;
+            font-weight: 700;
+            color: #14b8a6;
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+        .og-price-label {
+            font-size: 16px;
+            color: #cccccc;
+            margin-top: 6px;
+        }
+        .og-original-price {
+            font-size: 18px;
+            color: rgba(255,255,255,0.3);
+            text-decoration: line-through;
+            margin-top: 8px;
+        }
+        .og-savings-badge {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 6px 16px;
+            background: rgba(201,169,110,0.12);
+            border: 1px solid rgba(201,169,110,0.3);
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #C9A96E;
+            letter-spacing: 0.5px;
+        }
+
+        /* Details */
+        .og-details {
+            display: flex;
+            gap: 36px;
+            text-align: center;
+        }
+        .og-detail-label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .og-detail-value {
+            font-size: 16px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="og-card">
+        <div class="og-brand">MYSTES</div>
+
+        <div class="og-airline-row">
+            <div class="og-airline-logo" style="background: {{ airline_color }};">{{ airline_initials }}</div>
+            <div>
+                <div class="og-airline-name">{{ airline }}</div>
+                {% if flight_number %}<div class="og-flight-num">{{ flight_number }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="og-route">
+            <div>
+                <div class="og-iata">{{ origin }}</div>
+                <div class="og-city">{{ origin_city }}</div>
+            </div>
+            <div class="og-arrow-block">
+                <div class="og-plane">&#9992;</div>
+                <div class="og-arrow-line"></div>
+            </div>
+            <div>
+                <div class="og-iata">{{ destination }}</div>
+                <div class="og-city">{{ destination_city }}</div>
+            </div>
+        </div>
+
+        <div class="og-bottom">
+            <div class="og-price-block">
+                <div class="og-price">${{ price_display }}</div>
+                <div class="og-price-label">per person &middot; {{ departure_date_display }}</div>
+                {% if has_savings %}
+                <div class="og-original-price">${{ original_price_display }}</div>
+                <div class="og-savings-badge">Save ${{ savings_display }} ({{ savings_pct_display }}%)</div>
+                {% endif %}
+            </div>
+            <div class="og-details">
+                {% if cabin_display %}
+                <div>
+                    <div class="og-detail-label">Cabin</div>
+                    <div class="og-detail-value">{{ cabin_display }}</div>
+                </div>
+                {% endif %}
+                <div>
+                    <div class="og-detail-label">Stops</div>
+                    <div class="og-detail-value">{{ stops_display }}</div>
+                </div>
+                {% if duration %}
+                <div>
+                    <div class="og-detail-label">Duration</div>
+                    <div class="og-detail-value">{{ duration }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+'''
+
+
+def _airline_color(airline_name):
+    """Generate a consistent color for an airline based on its name hash."""
+    colors = [
+        '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+        '#ec4899', '#f43f5e', '#ef4444', '#f97316',
+        '#eab308', '#84cc16', '#22c55e', '#14b8a6',
+        '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
+    ]
+    h = 0
+    for c in (airline_name or 'XX'):
+        h = (h * 31 + ord(c)) & 0xFFFFFFFF
+    return colors[h % len(colors)]
+
+
+def _airline_initials(airline_name):
+    """Extract 2-letter initials from airline name."""
+    if not airline_name:
+        return '??'
+    parts = airline_name.strip().split()
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[1][0]).upper()
+    return airline_name[:2].upper()
+
+
+def _format_cabin(cabin_class):
+    """Format cabin class for display (ECONOMY -> Economy)."""
+    if not cabin_class:
+        return None
+    mapping = {
+        'ECONOMY': 'Economy', 'economy': 'Economy',
+        'PREMIUM_ECONOMY': 'Premium Economy', 'premium_economy': 'Premium Economy',
+        'BUSINESS': 'Business', 'business': 'Business',
+        'FIRST': 'First Class', 'first': 'First Class',
+    }
+    return mapping.get(cabin_class, cabin_class.replace('_', ' ').title())
+
+
+def _format_date(d):
+    """Format a date object for display."""
+    if not d:
+        return 'TBD'
+    try:
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        return f"{months[d.month - 1]} {d.day}, {d.year}"
+    except Exception:
+        return str(d)
+
+
+def _build_card_context(deal):
+    """Build template context dict from a Deal model instance."""
+    from urllib.parse import quote
+
+    origin = deal.origin or '???'
+    destination = deal.destination or '???'
+    airline = deal.airline or 'Unknown Airline'
+    origin_city = AIRPORT_CITIES.get(origin.upper(), origin)
+    destination_city = AIRPORT_CITIES.get(destination.upper(), destination)
+
+    # Price: use arbitrage_price_usd (our selling price) or home_price_usd
+    price = deal.arbitrage_price_usd or deal.home_price_usd or 0
+    home_price = deal.home_price_usd or 0
+    savings = deal.user_savings_usd or 0
+    savings_pct = deal.savings_percent or 0
+    has_savings = savings > 0 and home_price > price
+
+    # Stops display
+    stops = deal.stops or 0
+    if stops == 0:
+        stops_display = 'Nonstop'
+    elif stops == 1:
+        stops_display = '1 stop'
+    else:
+        stops_display = f'{stops} stops'
+
+    cabin_display = _format_cabin(deal.cabin_class)
+    departure_date_display = _format_date(deal.departure_date)
+
+    # OG meta values
+    price_str = f'${price:,.0f}' if price else 'See Price'
+    og_title = f'{origin} to {destination} from {price_str} | MYSTES'
+
+    desc_parts = []
+    if cabin_display:
+        desc_parts.append(cabin_display)
+    desc_parts.append(stops_display)
+    if deal.duration:
+        desc_parts.append(deal.duration)
+    og_description = ', '.join(desc_parts) + '. Book now on MYSTES.'
+
+    # Share text for social
+    share_text = f'Check out this flight: {origin} to {destination} from {price_str}'
+    if has_savings:
+        share_text += f' (save ${savings:,.0f}!)'
+
+    base_url = request.url_root.rstrip('/')
+    card_url = f'{base_url}/flight-card/{deal.id}'
+    image_url = f'{base_url}/flight-card/{deal.id}/image'
+
+    return {
+        'deal_id': deal.deal_id,
+        'deal_db_id': deal.id,
+        'airline': airline,
+        'airline_initials': _airline_initials(airline),
+        'airline_color': _airline_color(airline),
+        'flight_number': deal.flight_number or '',
+        'origin': origin,
+        'destination': destination,
+        'origin_city': origin_city,
+        'destination_city': destination_city,
+        'departure_date_display': departure_date_display,
+        'departure_time': deal.departure_time or '',
+        'price_display': f'{price:,.0f}' if price else '0',
+        'original_price_display': f'{home_price:,.0f}' if home_price else '',
+        'has_savings': has_savings,
+        'savings_display': f'{savings:,.0f}' if savings else '0',
+        'savings_pct_display': f'{savings_pct:.0f}' if savings_pct else '0',
+        'cabin_display': cabin_display,
+        'stops_display': stops_display,
+        'duration': deal.duration or '',
+        'baggage_info': deal.baggage_info or '',
+        'og_title': og_title,
+        'og_description': og_description,
+        'og_url': card_url,
+        'og_image': image_url,
+        'share_text_encoded': quote(share_text),
+        'share_url_encoded': quote(card_url),
+    }
+
+
 def register_flight_routes(app, csrf, limiter):
     """Register flights vertical routes."""
     from templates.base_template import BASE_TEMPLATE
@@ -675,4 +1647,32 @@ def register_flight_routes(app, csrf, limiter):
             current_user=current_user
         )
 
-    logger.info("Flights routes registered at /flights")
+    # ----------------------------------------------------------
+    # Shareable Flight Card (PUBLIC — no login)
+    # ----------------------------------------------------------
+    @app.route("/flight-card/<int:deal_id>")
+    def flight_card_page(deal_id):
+        """Public shareable flight card with OG meta tags for social sharing."""
+        from models import Deal
+        deal = Deal.query.get(deal_id)
+        if not deal or deal.deal_type != 'flight':
+            abort(404)
+
+        ctx = _build_card_context(deal)
+        return render_template_string(FLIGHT_CARD_PAGE, **ctx)
+
+    # ----------------------------------------------------------
+    # Flight Card OG Image (PUBLIC — for social preview)
+    # ----------------------------------------------------------
+    @app.route("/flight-card/<int:deal_id>/image")
+    def flight_card_image(deal_id):
+        """Minimal card page for social platform OG image preview."""
+        from models import Deal
+        deal = Deal.query.get(deal_id)
+        if not deal or deal.deal_type != 'flight':
+            abort(404)
+
+        ctx = _build_card_context(deal)
+        return render_template_string(FLIGHT_CARD_IMAGE, **ctx)
+
+    logger.info("Flights routes registered at /flights, /flight-card/<id>, /flight-card/<id>/image")

@@ -20081,14 +20081,17 @@ def api_proxy_booking_cancel():
 
 
 def _execute_proxy_booking(job, deal):
-    """Execute booking through Bright Data Scraping Browser (Build #207).
+    """Execute booking through Bright Data Scraping Browser (Build #207, #238 Recipe Engine).
 
-    Connects Playwright to Bright Data CDP endpoint, navigates airline
-    checkout, fills passenger + payment, airline charges customer directly.
-    Card data wiped from memory after completion.
+    Three-tier execution:
+      Tier 1: Compiled recipe card (zero AI cost) — if recipe exists for airline
+      Tier 3: AI live executor (per-booking AI cost) — fallback for unknown airlines
+      Legacy: Generic form filler — final fallback if both above unavailable
+
+    Card data wiped from memory after completion regardless of outcome.
+    Architecture: company_docs/direct_booking_architecture.md
     """
     proxy_module = _get_proxy_module()
-    engine = _get_booking_engine()
 
     try:
         market = getattr(deal, "cheapest_market", "") or getattr(deal, "arbitrage_market", "") or "DK"
@@ -20105,22 +20108,113 @@ def _execute_proxy_booking(job, deal):
             # Fallback to env-configured Bright Data
             bd_user = os.environ.get("BRIGHTDATA_USERNAME", "")
             bd_pass = os.environ.get("BRIGHTDATA_PASSWORD", "")
-            bd_host = os.environ.get("BRIGHTDATA_SB_HOST", "brd.superproxy.io:9515")
+            bd_host = os.environ.get("BRIGHTDATA_SB_HOST", "brd.superproxy.io:9222")
             if bd_user and bd_pass:
                 cdp_url = f"wss://{bd_user}-country-{market.lower()}:{bd_pass}@{bd_host}"
 
         if not cdp_url:
             return {"success": False, "error": "No proxy configuration available"}
 
-        # Resolve airline booking URL
+        passenger_data = job.passenger_data or {}
+        payment_info = job.payment_info or {}
+        airline_iata = (deal.airline_code or deal.airline or "")[:2].upper()
+
+        # ── Tier 1: Compiled Recipe (zero AI cost) ──
+        try:
+            from picasso_sdk.anastasia.booking_recipes import BookingRecipeModule
+            from picasso_sdk.anastasia.booking_recipes.engine import RecipeEngine
+
+            recipe_module = BookingRecipeModule()
+            recipe_module.registry.load_from_directory()
+
+            recipe = recipe_module.get_recipe_for(airline_iata)
+            if recipe:
+                logger.info(
+                    "[ProxyBooking] Tier 1: Using recipe '%s' for %s",
+                    recipe.recipe_id, airline_iata,
+                )
+                engine = RecipeEngine()
+                # Build variables from passenger + payment + search data
+                variables = _build_recipe_variables(deal, passenger_data, payment_info)
+                result = engine.execute(recipe, variables, cdp_url)
+
+                recipe_module.record_execution(result.success)
+
+                if result.success:
+                    return {"success": True, "confirmation_code": result.confirmation_code, "tier": "tier1"}
+                else:
+                    logger.warning(
+                        "[ProxyBooking] Tier 1 failed for %s: %s — falling through to Tier 3",
+                        airline_iata, result.error,
+                    )
+        except ImportError:
+            logger.debug("[ProxyBooking] Recipe module not available, skipping Tier 1")
+        except Exception as tier1_err:
+            logger.warning("[ProxyBooking] Tier 1 error: %s — falling through", tier1_err)
+
+        # ── Tier 3: AI Live Executor (per-booking AI cost) ──
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        if anthropic_key:
+            try:
+                from picasso_sdk.anastasia.booking_recipes.live_executor import AILiveExecutor
+
+                booking_url = _resolve_airline_booking_url(deal)
+                if booking_url:
+                    logger.info("[ProxyBooking] Tier 3: AI live executor for %s", airline_iata)
+                    executor = AILiveExecutor(anthropic_key)
+
+                    search_params = {
+                        "origin_iata": deal.origin or "",
+                        "destination_iata": deal.destination or "",
+                        "departure_date": str(deal.departure_date) if deal.departure_date else "",
+                        "cabin_class": getattr(deal, "cabin_class", "ECONOMY") or "ECONOMY",
+                        "adult_count": 1,
+                    }
+
+                    result = executor.execute(
+                        cdp_url=cdp_url,
+                        airline_url=booking_url,
+                        passenger_data=passenger_data,
+                        payment_data=payment_info,
+                        search_params=search_params,
+                    )
+
+                    if result.success:
+                        # Auto-generate recipe for next time (Tier 3 → Tier 1 flywheel)
+                        try:
+                            recipe_data = executor.generate_recipe_from_execution(
+                                step_results=result.step_results,
+                                airline_url=booking_url,
+                                airline_group=airline_iata.lower(),
+                                airlines=[airline_iata],
+                            )
+                            if recipe_data:
+                                from picasso_sdk.anastasia.booking_recipes import CARDS_DIR
+                                CARDS_DIR.mkdir(parents=True, exist_ok=True)
+                                card_path = CARDS_DIR / f"{airline_iata.lower()}_autogen.json"
+                                card_path.write_text(json.dumps(recipe_data, indent=2))
+                                logger.info("[ProxyBooking] Auto-generated recipe → %s", card_path)
+                        except Exception as gen_err:
+                            logger.warning("[ProxyBooking] Recipe auto-gen failed: %s", gen_err)
+
+                        return {"success": True, "confirmation_code": result.confirmation_code, "tier": "tier3"}
+                    else:
+                        logger.warning(
+                            "[ProxyBooking] Tier 3 failed: %s — falling through to legacy",
+                            result.error,
+                        )
+            except ImportError:
+                logger.debug("[ProxyBooking] Live executor not available, skipping Tier 3")
+            except Exception as tier3_err:
+                logger.warning("[ProxyBooking] Tier 3 error: %s — falling through", tier3_err)
+
+        # ── Legacy: Generic form filler (Build #207 original) ──
         booking_url = _resolve_airline_booking_url(deal)
         if not booking_url:
             return {"success": False, "error": "Could not resolve airline booking URL"}
 
-        passenger_data = job.passenger_data or {}
-        payment_info = job.payment_info or {}
+        logger.info("[ProxyBooking] Legacy: Generic form filler for %s", airline_iata)
 
-        # Execute via Playwright
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
@@ -20138,13 +20232,12 @@ def _execute_proxy_booking(job, deal):
                 confirmation = _extract_confirmation(page)
             finally:
                 browser.close()
-                # Wipe card data from memory
                 payment_info.clear()
                 if hasattr(job, 'payment_info'):
                     job.payment_info = None
 
         if confirmation:
-            return {"success": True, "confirmation_code": confirmation}
+            return {"success": True, "confirmation_code": confirmation, "tier": "legacy"}
         else:
             return {"success": False, "error": "Could not extract confirmation code"}
 
@@ -20155,6 +20248,43 @@ def _execute_proxy_booking(job, deal):
         # Ensure card data is always wiped
         if hasattr(job, 'payment_info') and job.payment_info:
             job.payment_info = None
+
+
+def _build_recipe_variables(deal, passenger_data, payment_info):
+    """Build the variables dict for recipe execution from deal + passenger + payment."""
+    dep_date = ""
+    if deal.departure_date:
+        dep_date = deal.departure_date.strftime("%Y-%m-%d") if hasattr(deal.departure_date, 'strftime') else str(deal.departure_date)
+
+    return {
+        # Search params
+        "origin_iata": deal.origin or "",
+        "destination_iata": deal.destination or "",
+        "departure_date": dep_date,
+        "cabin_class": getattr(deal, "cabin_class", "ECONOMY") or "ECONOMY",
+        "adult_count": 1,
+        # Passenger
+        "pax_first_name": passenger_data.get("first_name", ""),
+        "pax_last_name": passenger_data.get("last_name", ""),
+        "pax_email": passenger_data.get("email", ""),
+        "pax_phone": passenger_data.get("phone", ""),
+        "pax_dob": passenger_data.get("date_of_birth", ""),
+        "pax_gender": passenger_data.get("gender", ""),
+        "pax_passport_number": passenger_data.get("passport_number", ""),
+        "pax_nationality": passenger_data.get("nationality", ""),
+        "pax_passport_expiry": passenger_data.get("passport_expiry", ""),
+        # Payment
+        "card_number": payment_info.get("card_number", ""),
+        "card_exp_month": payment_info.get("card_exp_month", ""),
+        "card_exp_year": payment_info.get("card_exp_year", ""),
+        "card_cvv": payment_info.get("card_cvv", ""),
+        "card_holder_name": payment_info.get("card_holder_name", ""),
+        # Billing
+        "billing_address_line1": payment_info.get("billing_address", ""),
+        "billing_city": payment_info.get("billing_city", ""),
+        "billing_postal_code": payment_info.get("billing_postal_code", ""),
+        "billing_country": payment_info.get("billing_country", ""),
+    }
 
 
 def _resolve_airline_booking_url(deal):

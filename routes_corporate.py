@@ -40,7 +40,7 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
-from flask import request, jsonify, Response
+from flask import request, jsonify, Response, render_template_string, redirect, url_for
 from flask_login import current_user, login_required
 
 from models import (
@@ -126,8 +126,1284 @@ def _generate_slug(name):
     return slug
 
 
+# ══════════════════════════════════════════════════════════════
+# PAGE TEMPLATES — Corporate Workspace UI (Build #238)
+# ══════════════════════════════════════════════════════════════
+
+CORPORATE_LIST_TEMPLATE = """
+<style>
+/* ============================================
+   CORPORATE WORKSPACES — /corporate
+   ============================================ */
+.corporate-page { max-width: 1060px; margin: 0 auto; padding: 0 16px; }
+
+.corporate-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.corporate-header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px; font-weight: 700; color: #f5f5f5; margin: 0;
+}
+
+/* Workspace grid */
+.ws-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px; margin-bottom: 32px;
+}
+.ws-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 24px;
+    backdrop-filter: blur(12px);
+    cursor: pointer; transition: border-color 0.2s, transform 0.15s;
+    text-decoration: none; display: block; color: inherit;
+}
+.ws-card:hover { border-color: rgba(20,184,166,0.4); transform: translateY(-2px); }
+.ws-card-top { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.ws-logo {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700;
+    color: #fff; flex-shrink: 0;
+}
+.ws-logo.teal { background: linear-gradient(135deg, #0d9488, #14b8a6); }
+.ws-logo.purple { background: linear-gradient(135deg, #6d28d9, #7c3aed); }
+.ws-logo.gold { background: linear-gradient(135deg, #b8941f, #C9A96E); }
+.ws-card-name {
+    font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: #f5f5f5;
+}
+.ws-card-domain { font-size: 13px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+.ws-card-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.ws-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+}
+.ws-badge.role-admin { background: rgba(124,58,237,0.2); color: #a78bfa; }
+.ws-badge.role-travel_manager { background: rgba(20,184,166,0.2); color: #5eead4; }
+.ws-badge.role-member { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+.ws-badge.tier { background: rgba(201,169,110,0.15); color: #C9A96E; }
+.ws-badge.members { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55); }
+.ws-badge .badge-icon { font-size: 13px; }
+
+/* Action bar */
+.ws-actions {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px;
+}
+.ws-action-btn {
+    background: linear-gradient(135deg, #14b8a6, #0d9488); color: #fff;
+    border: none; border-radius: 10px; padding: 10px 20px;
+    font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.2s;
+}
+.ws-action-btn:hover { opacity: 0.85; }
+.ws-action-btn.secondary {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+}
+.ws-action-btn.secondary:hover { border-color: rgba(255,255,255,0.25); }
+
+/* Forms */
+.ws-form-panel {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; padding: 24px; margin-bottom: 24px;
+    display: none; backdrop-filter: blur(12px);
+}
+.ws-form-panel.visible { display: block; }
+.ws-form-panel h3 {
+    font-family: 'Space Grotesk', sans-serif; font-size: 18px; color: #f5f5f5; margin: 0 0 16px;
+}
+.ws-form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.ws-input {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; padding: 10px 14px; color: #f5f5f5; font-size: 14px;
+    font-family: 'Outfit', sans-serif; flex: 1; min-width: 180px;
+}
+.ws-input:focus { outline: none; border-color: #14b8a6; }
+.ws-input::placeholder { color: rgba(255,255,255,0.3); }
+select.ws-input { cursor: pointer; }
+select.ws-input option { background: #1a1028; color: #f5f5f5; }
+
+/* Join bar */
+.ws-join-bar { display: flex; gap: 10px; align-items: center; }
+
+/* Empty state */
+.ws-empty {
+    text-align: center; padding: 60px 20px;
+    color: rgba(255,255,255,0.4); font-size: 15px;
+}
+.ws-empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.3; }
+
+/* Toast */
+.ws-toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: rgba(20,184,166,0.95); color: #fff; padding: 12px 20px;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
+    z-index: 9999; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+}
+.ws-toast.error { background: rgba(239,68,68,0.95); }
+.ws-toast.show { opacity: 1; }
+</style>
+
+<div class="corporate-page">
+    <div class="corporate-header">
+        <h1>Corporate Workspaces</h1>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="ws-actions">
+        <button class="ws-action-btn" onclick="togglePanel('createPanel')">+ Create Workspace</button>
+        <button class="ws-action-btn secondary" onclick="togglePanel('joinPanel')">Join with Code</button>
+    </div>
+
+    <!-- Create workspace form -->
+    <div id="createPanel" class="ws-form-panel">
+        <h3>Create a New Workspace</h3>
+        <div class="ws-form-row">
+            <input type="text" id="createName" class="ws-input" placeholder="Workspace name" maxlength="200">
+            <input type="text" id="createDomain" class="ws-input" placeholder="Company domain (optional)" maxlength="255">
+        </div>
+        <div class="ws-form-row">
+            <select id="createTier" class="ws-input" style="max-width:220px;">
+                <option value="starter">Starter ($4.99/seat)</option>
+                <option value="pro">Pro ($3.99/seat)</option>
+                <option value="enterprise">Enterprise ($2.99/seat)</option>
+            </select>
+            <button class="ws-action-btn" onclick="createWorkspace()" id="createBtn">Create</button>
+        </div>
+    </div>
+
+    <!-- Join workspace form -->
+    <div id="joinPanel" class="ws-form-panel">
+        <h3>Join a Workspace</h3>
+        <div class="ws-join-bar">
+            <input type="text" id="joinCode" class="ws-input" placeholder="Enter invite code (e.g. WS-A1B2C3D4)" style="max-width:320px;">
+            <button class="ws-action-btn" onclick="joinWorkspace()" id="joinBtn">Join</button>
+        </div>
+    </div>
+
+    <!-- Workspaces grid -->
+    <div id="wsGrid" class="ws-grid"></div>
+    <div id="wsEmpty" class="ws-empty" style="display:none;">
+        <div class="ws-empty-icon">&#9965;</div>
+        <div>No workspaces yet. Create one or join with an invite code.</div>
+    </div>
+</div>
+
+<div id="wsToast" class="ws-toast"></div>
+
+<script>
+(function() {
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+    var workspaces = [];
+
+    function toast(msg, isError) {
+        var el = document.getElementById('wsToast');
+        el.textContent = msg;
+        el.className = 'ws-toast show' + (isError ? ' error' : '');
+        setTimeout(function() { el.className = 'ws-toast'; }, 3000);
+    }
+
+    function togglePanel(id) {
+        var panel = document.getElementById(id);
+        var isVis = panel.classList.contains('visible');
+        document.querySelectorAll('.ws-form-panel').forEach(function(p) { p.classList.remove('visible'); });
+        if (!isVis) panel.classList.add('visible');
+    }
+    window.togglePanel = togglePanel;
+
+    function tierColors(tier) {
+        if (tier === 'enterprise') return 'gold';
+        if (tier === 'pro') return 'purple';
+        return 'teal';
+    }
+
+    function roleLabel(role) {
+        if (role === 'admin') return 'Admin';
+        if (role === 'travel_manager') return 'Manager';
+        return 'Member';
+    }
+
+    function renderWorkspaces() {
+        var grid = document.getElementById('wsGrid');
+        var empty = document.getElementById('wsEmpty');
+        if (!workspaces.length) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        var html = '';
+        for (var i = 0; i < workspaces.length; i++) {
+            var ws = workspaces[i];
+            var initial = (ws.name || '?').charAt(0).toUpperCase();
+            var colorClass = tierColors(ws.tier);
+            html += '<a class="ws-card" href="/corporate/' + encodeURIComponent(ws.slug) + '">';
+            html += '<div class="ws-card-top">';
+            html += '<div class="ws-logo ' + colorClass + '">' + initial + '</div>';
+            html += '<div>';
+            html += '<div class="ws-card-name">' + (ws.name || 'Workspace') + '</div>';
+            if (ws.company_domain) {
+                html += '<div class="ws-card-domain">' + ws.company_domain + '</div>';
+            }
+            html += '</div></div>';
+            html += '<div class="ws-card-meta">';
+            html += '<span class="ws-badge role-' + (ws.my_role || 'member') + '">' + roleLabel(ws.my_role) + '</span>';
+            html += '<span class="ws-badge tier">' + (ws.tier || 'starter').charAt(0).toUpperCase() + (ws.tier || 'starter').slice(1) + '</span>';
+            html += '<span class="ws-badge members"><span class="badge-icon">&#9679;</span> ' + (ws.seat_count || 0) + ' member' + ((ws.seat_count || 0) !== 1 ? 's' : '') + '</span>';
+            html += '</div></a>';
+        }
+        grid.innerHTML = html;
+    }
+
+    function loadWorkspaces() {
+        fetch('/api/workspaces', {
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                workspaces = data.workspaces || [];
+                renderWorkspaces();
+            }
+        })
+        .catch(function() { toast('Failed to load workspaces', true); });
+    }
+
+    function createWorkspace() {
+        var name = document.getElementById('createName').value.trim();
+        if (!name) { toast('Workspace name is required', true); return; }
+        var btn = document.getElementById('createBtn');
+        btn.disabled = true; btn.textContent = 'Creating...';
+        fetch('/api/workspaces', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({
+                name: name,
+                company_domain: document.getElementById('createDomain').value.trim(),
+                tier: document.getElementById('createTier').value
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false; btn.textContent = 'Create';
+            if (data.status === 'ok') {
+                toast('Workspace created');
+                document.getElementById('createName').value = '';
+                document.getElementById('createDomain').value = '';
+                document.getElementById('createPanel').classList.remove('visible');
+                loadWorkspaces();
+            } else {
+                toast(data.error || 'Failed to create', true);
+            }
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Create'; toast('Network error', true); });
+    }
+    window.createWorkspace = createWorkspace;
+
+    function joinWorkspace() {
+        var code = document.getElementById('joinCode').value.trim();
+        if (!code) { toast('Enter an invite code', true); return; }
+        var btn = document.getElementById('joinBtn');
+        btn.disabled = true; btn.textContent = 'Joining...';
+        fetch('/api/workspaces/join/' + encodeURIComponent(code), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false; btn.textContent = 'Join';
+            if (data.status === 'ok') {
+                toast('Joined workspace');
+                document.getElementById('joinCode').value = '';
+                document.getElementById('joinPanel').classList.remove('visible');
+                loadWorkspaces();
+            } else {
+                toast(data.error || 'Failed to join', true);
+            }
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Join'; toast('Network error', true); });
+    }
+    window.joinWorkspace = joinWorkspace;
+
+    loadWorkspaces();
+})();
+</script>
+"""
+
+
+CORPORATE_DETAIL_TEMPLATE = """
+<style>
+/* ============================================
+   CORPORATE WORKSPACE DETAIL — /corporate/<slug>
+   5-tab layout: Dashboard, Members, Policies, Approvals, Bookings
+   ============================================ */
+.corp-detail { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+/* Workspace header */
+.corp-ws-header {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.corp-ws-logo {
+    width: 56px; height: 56px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; color: #fff;
+}
+.corp-ws-logo.teal { background: linear-gradient(135deg, #0d9488, #14b8a6); }
+.corp-ws-logo.purple { background: linear-gradient(135deg, #6d28d9, #7c3aed); }
+.corp-ws-logo.gold { background: linear-gradient(135deg, #b8941f, #C9A96E); }
+.corp-ws-title {
+    font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; color: #f5f5f5; margin: 0;
+}
+.corp-ws-subtitle { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+.corp-back-link {
+    color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px;
+    margin-bottom: 16px; display: inline-block;
+}
+.corp-back-link:hover { color: #14b8a6; }
+
+/* Tabs */
+.corp-tabs {
+    display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 24px; overflow-x: auto;
+}
+.corp-tab {
+    padding: 10px 20px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600;
+    color: rgba(255,255,255,0.45); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s; white-space: nowrap; background: none; border-top: none; border-left: none; border-right: none;
+}
+.corp-tab:hover { color: rgba(255,255,255,0.7); }
+.corp-tab.active { color: #14b8a6; border-bottom-color: #14b8a6; }
+.corp-tab-panel { display: none; }
+.corp-tab-panel.active { display: block; }
+
+/* Stat cards */
+.corp-stats {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 28px;
+}
+.corp-stat-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 20px; backdrop-filter: blur(12px); text-align: center;
+}
+.corp-stat-value {
+    font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: #14b8a6;
+}
+.corp-stat-value.gold { color: #C9A96E; }
+.corp-stat-value.purple { color: #a78bfa; }
+.corp-stat-label {
+    font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* Bar chart (dept spend) */
+.corp-chart { margin-bottom: 28px; }
+.corp-chart-title {
+    font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;
+    color: #f5f5f5; margin-bottom: 12px;
+}
+.corp-bar-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.corp-bar-label {
+    width: 120px; font-size: 13px; color: rgba(255,255,255,0.6); text-align: right;
+    flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.corp-bar-track {
+    flex: 1; height: 24px; background: rgba(255,255,255,0.04); border-radius: 6px; overflow: hidden;
+}
+.corp-bar-fill {
+    height: 100%; background: linear-gradient(90deg, #14b8a6, #0d9488); border-radius: 6px;
+    display: flex; align-items: center; padding-left: 8px;
+    font-size: 12px; font-weight: 600; color: #fff; min-width: 40px; transition: width 0.5s;
+}
+
+/* Tables */
+.corp-table-wrap {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; overflow: hidden; margin-bottom: 20px;
+}
+.corp-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.corp-table th {
+    text-align: left; padding: 12px 16px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: rgba(255,255,255,0.4);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-weight: 600;
+}
+.corp-table td {
+    padding: 12px 16px; color: rgba(255,255,255,0.75);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.corp-table tr:last-child td { border-bottom: none; }
+.corp-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* Badges */
+.cbadge {
+    display: inline-block; padding: 3px 10px; border-radius: 8px;
+    font-size: 11px; font-weight: 600;
+}
+.cbadge-admin { background: rgba(124,58,237,0.2); color: #a78bfa; }
+.cbadge-travel_manager { background: rgba(20,184,166,0.2); color: #5eead4; }
+.cbadge-member { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+.cbadge-employee { background: rgba(59,130,246,0.15); color: #93c5fd; }
+.cbadge-contractor { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.cbadge-affiliate { background: rgba(201,169,110,0.15); color: #C9A96E; }
+.cbadge-pending { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.cbadge-approved { background: rgba(34,197,94,0.15); color: #86efac; }
+.cbadge-denied { background: rgba(239,68,68,0.15); color: #fca5a5; }
+.cbadge-booked { background: rgba(20,184,166,0.15); color: #5eead4; }
+.cbadge-completed { background: rgba(34,197,94,0.15); color: #86efac; }
+
+/* Glass card generic */
+.corp-glass {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 20px; backdrop-filter: blur(12px); margin-bottom: 16px;
+}
+
+/* Action buttons */
+.corp-btn {
+    background: linear-gradient(135deg, #14b8a6, #0d9488); color: #fff;
+    border: none; border-radius: 8px; padding: 8px 16px;
+    font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.2s;
+}
+.corp-btn:hover { opacity: 0.85; }
+.corp-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.corp-btn.small { padding: 5px 12px; font-size: 12px; }
+.corp-btn.danger { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.corp-btn.secondary {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+}
+.corp-btn.ghost {
+    background: none; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.6);
+}
+.corp-btn.ghost:hover { border-color: rgba(255,255,255,0.25); }
+
+/* Inline forms */
+.corp-form-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.corp-input {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; padding: 8px 12px; color: #f5f5f5; font-size: 13px;
+    font-family: 'Outfit', sans-serif;
+}
+.corp-input:focus { outline: none; border-color: #14b8a6; }
+.corp-input::placeholder { color: rgba(255,255,255,0.3); }
+select.corp-input { cursor: pointer; }
+select.corp-input option { background: #1a1028; color: #f5f5f5; }
+textarea.corp-input { resize: vertical; min-height: 60px; }
+
+/* Inline form panels */
+.corp-inline-form {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px; display: none;
+}
+.corp-inline-form.visible { display: block; }
+.corp-inline-form h4 {
+    font-family: 'Space Grotesk', sans-serif; font-size: 15px; color: #f5f5f5; margin: 0 0 12px;
+}
+
+/* Filter pills */
+.corp-filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.corp-pill {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.corp-pill:hover { color: rgba(255,255,255,0.8); }
+.corp-pill.active { background: rgba(20,184,166,0.2); color: #14b8a6; border-color: rgba(20,184,166,0.3); }
+
+/* Policy cards grid */
+.corp-policy-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px; margin-bottom: 16px;
+}
+.corp-policy-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 18px; backdrop-filter: blur(12px);
+}
+.corp-policy-name {
+    font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600;
+    color: #f5f5f5; margin-bottom: 8px;
+}
+.corp-policy-detail { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+.corp-policy-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* Approval cards */
+.corp-approval-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 18px; backdrop-filter: blur(12px); margin-bottom: 12px;
+}
+.corp-approval-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.corp-approval-requester {
+    font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; color: #f5f5f5;
+}
+.corp-approval-detail { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+.corp-approval-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+
+/* Bookings filter bar */
+.corp-book-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+
+/* Empty states */
+.corp-empty {
+    text-align: center; padding: 40px 20px;
+    color: rgba(255,255,255,0.35); font-size: 14px;
+}
+
+/* Invite code display */
+.corp-invite-code {
+    font-family: 'Space Grotesk', monospace; font-size: 16px; font-weight: 700;
+    color: #14b8a6; letter-spacing: 1px;
+    background: rgba(20,184,166,0.1); padding: 8px 16px; border-radius: 8px;
+    display: inline-block; cursor: pointer;
+}
+.corp-invite-code:hover { background: rgba(20,184,166,0.2); }
+
+/* Toast */
+.corp-toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: rgba(20,184,166,0.95); color: #fff; padding: 12px 20px;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
+    z-index: 9999; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+}
+.corp-toast.error { background: rgba(239,68,68,0.95); }
+.corp-toast.show { opacity: 1; }
+
+/* Responsive */
+@media (max-width: 600px) {
+    .corp-stats { grid-template-columns: 1fr 1fr; }
+    .corp-ws-header { flex-direction: column; align-items: flex-start; }
+    .corp-bar-label { width: 80px; font-size: 11px; }
+}
+</style>
+
+<div class="corp-detail">
+    <a class="corp-back-link" href="/corporate">&larr; All Workspaces</a>
+
+    <div class="corp-ws-header">
+        <div class="corp-ws-logo {{ ws_color }}" id="wsLogo">{{ ws_initial }}</div>
+        <div>
+            <h1 class="corp-ws-title" id="wsName">{{ workspace.name }}</h1>
+            <div class="corp-ws-subtitle">
+                <span id="wsDomain">{{ workspace.company_domain or '' }}</span>
+                {% if workspace.invite_code %}
+                &middot; Invite: <span class="corp-invite-code" onclick="copyInvite()" title="Click to copy">{{ workspace.invite_code }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="corp-tabs">
+        <button class="corp-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="corp-tab" data-tab="members" onclick="switchTab('members')">Members</button>
+        <button class="corp-tab" data-tab="policies" onclick="switchTab('policies')">Policies</button>
+        <button class="corp-tab" data-tab="approvals" onclick="switchTab('approvals')">Approvals</button>
+        <button class="corp-tab" data-tab="bookings" onclick="switchTab('bookings')">Bookings</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         TAB 1: DASHBOARD
+         ═══════════════════════════════════════ -->
+    <div class="corp-tab-panel active" id="panel-dashboard">
+        <div class="corp-stats" id="dashStats"></div>
+        <div class="corp-chart" id="dashChart"></div>
+        <div id="dashRecent"></div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         TAB 2: MEMBERS
+         ═══════════════════════════════════════ -->
+    <div class="corp-tab-panel" id="panel-members">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+            <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px; color:#f5f5f5; margin:0;">Team Members</h3>
+            <button class="corp-btn" onclick="toggleInviteForm()">+ Invite Member</button>
+        </div>
+        <div id="inviteForm" class="corp-inline-form">
+            <h4>Invite a Member</h4>
+            <div class="corp-form-row">
+                <input type="email" id="invEmail" class="corp-input" placeholder="Email address" style="flex:2; min-width:200px;">
+                <select id="invRole" class="corp-input">
+                    <option value="member">Member</option>
+                    <option value="travel_manager">Travel Manager</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="corp-form-row">
+                <input type="text" id="invDept" class="corp-input" placeholder="Department (optional)" style="flex:2; min-width:200px;">
+                <select id="invType" class="corp-input">
+                    <option value="employee">Employee</option>
+                    <option value="contractor">Contractor</option>
+                    <option value="affiliate">Affiliate</option>
+                </select>
+                <button class="corp-btn" onclick="inviteMember()" id="invBtn">Send Invite</button>
+            </div>
+        </div>
+        <div class="corp-table-wrap">
+            <table class="corp-table" id="membersTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Type</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="membersBody"></tbody>
+            </table>
+        </div>
+        <div id="membersEmpty" class="corp-empty" style="display:none;">No members found.</div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         TAB 3: POLICIES
+         ═══════════════════════════════════════ -->
+    <div class="corp-tab-panel" id="panel-policies">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+            <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px; color:#f5f5f5; margin:0;">Travel Policies</h3>
+            <button class="corp-btn" onclick="togglePolicyForm()">+ Add Policy</button>
+        </div>
+        <div id="policyForm" class="corp-inline-form">
+            <h4>Create Travel Policy</h4>
+            <div class="corp-form-row">
+                <input type="text" id="polName" class="corp-input" placeholder="Policy name" style="flex:2;">
+                <input type="text" id="polDept" class="corp-input" placeholder="Department scope (optional)">
+            </div>
+            <div class="corp-form-row">
+                <input type="number" id="polMaxFlight" class="corp-input" placeholder="Max flight $" style="width:130px;" min="0">
+                <input type="number" id="polMaxHotel" class="corp-input" placeholder="Max hotel/night $" style="width:130px;" min="0">
+                <input type="number" id="polThreshold" class="corp-input" placeholder="Approval threshold $" style="width:150px;" min="0">
+            </div>
+            <div class="corp-form-row">
+                <select id="polCabin" class="corp-input" style="width:160px;">
+                    <option value="">Any cabin</option>
+                    <option value="economy">Economy</option>
+                    <option value="premium_economy">Premium Economy</option>
+                    <option value="business">Business</option>
+                    <option value="first">First</option>
+                </select>
+                <button class="corp-btn" onclick="createPolicy()" id="polBtn">Create Policy</button>
+            </div>
+        </div>
+        <div class="corp-policy-grid" id="policiesGrid"></div>
+        <div id="policiesEmpty" class="corp-empty" style="display:none;">No travel policies yet.</div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         TAB 4: APPROVALS
+         ═══════════════════════════════════════ -->
+    <div class="corp-tab-panel" id="panel-approvals">
+        <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px; color:#f5f5f5; margin:0 0 16px;">Booking Approvals</h3>
+        <div class="corp-filters" id="approvalFilters">
+            <button class="corp-pill active" data-status="" onclick="filterApprovals('')">All</button>
+            <button class="corp-pill" data-status="pending" onclick="filterApprovals('pending')">Pending</button>
+            <button class="corp-pill" data-status="approved" onclick="filterApprovals('approved')">Approved</button>
+            <button class="corp-pill" data-status="denied" onclick="filterApprovals('denied')">Denied</button>
+        </div>
+        <div id="approvalsList"></div>
+        <div id="approvalsEmpty" class="corp-empty" style="display:none;">No approval requests found.</div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         TAB 5: BOOKINGS
+         ═══════════════════════════════════════ -->
+    <div class="corp-tab-panel" id="panel-bookings">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+            <h3 style="font-family:'Space Grotesk',sans-serif; font-size:18px; color:#f5f5f5; margin:0;">Workspace Bookings</h3>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="corp-btn secondary" onclick="toggleBookOnBehalf()">Book on Behalf</button>
+                <button class="corp-btn ghost" onclick="exportCSV()">Export CSV</button>
+            </div>
+        </div>
+        <div id="bobForm" class="corp-inline-form">
+            <h4>Book on Behalf of a Member</h4>
+            <div class="corp-form-row">
+                <select id="bobMember" class="corp-input" style="flex:2; min-width:200px;">
+                    <option value="">Select member...</option>
+                </select>
+                <input type="text" id="bobTripName" class="corp-input" placeholder="Trip name" style="flex:2; min-width:180px;">
+                <button class="corp-btn" onclick="bookOnBehalf()" id="bobBtn">Create Trip</button>
+            </div>
+        </div>
+        <div class="corp-table-wrap">
+            <table class="corp-table" id="bookingsTable">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Amount</th>
+                        <th>Confirmation</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="bookingsBody"></tbody>
+            </table>
+        </div>
+        <div id="bookingsEmpty" class="corp-empty" style="display:none;">No bookings yet.</div>
+    </div>
+</div>
+
+<div id="corpToast" class="corp-toast"></div>
+
+<script>
+(function() {
+    var SLUG = '{{ workspace.slug }}';
+    var MY_ROLE = '{{ my_role }}';
+    var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+    var currentApprovalFilter = '';
+    var membersCache = [];
+
+    /* ── Utilities ────────────────────────── */
+    function toast(msg, isError) {
+        var el = document.getElementById('corpToast');
+        el.textContent = msg;
+        el.className = 'corp-toast show' + (isError ? ' error' : '');
+        setTimeout(function() { el.className = 'corp-toast'; }, 3000);
+    }
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    function fmtUSD(n) {
+        if (n === null || n === undefined) return '--';
+        return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return '--';
+        var d = new Date(iso);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function apiFetch(path, opts) {
+        opts = opts || {};
+        opts.headers = opts.headers || {};
+        opts.headers['X-CSRFToken'] = csrfToken;
+        if (opts.body && !opts.headers['Content-Type']) {
+            opts.headers['Content-Type'] = 'application/json';
+        }
+        return fetch(path, opts).then(function(r) { return r.json(); });
+    }
+
+    function copyInvite() {
+        var code = '{{ workspace.invite_code or "" }}';
+        if (navigator.clipboard && code) {
+            navigator.clipboard.writeText(code);
+            toast('Invite code copied');
+        }
+    }
+    window.copyInvite = copyInvite;
+
+    /* ── Tab switching ─────────────────────── */
+    function switchTab(name) {
+        document.querySelectorAll('.corp-tab').forEach(function(t) {
+            t.classList.toggle('active', t.getAttribute('data-tab') === name);
+        });
+        document.querySelectorAll('.corp-tab-panel').forEach(function(p) {
+            p.classList.toggle('active', p.id === 'panel-' + name);
+        });
+        if (name === 'dashboard') loadDashboard();
+        if (name === 'members') loadMembers();
+        if (name === 'policies') loadPolicies();
+        if (name === 'approvals') loadApprovals();
+        if (name === 'bookings') loadBookings();
+    }
+    window.switchTab = switchTab;
+
+    /* ═══════════════════════════════════════
+       TAB 1: DASHBOARD
+       ═══════════════════════════════════════ */
+    function loadDashboard() {
+        apiFetch('/api/workspaces/' + SLUG + '/dashboard')
+        .then(function(data) {
+            if (data.status !== 'ok') { toast(data.error || 'Failed to load', true); return; }
+            var d = data.dashboard;
+            renderDashStats(d);
+            renderDeptChart(d.bookings.by_department);
+            renderRecentBookings();
+        })
+        .catch(function() { toast('Dashboard load failed', true); });
+    }
+
+    function renderDashStats(d) {
+        var html = '';
+        html += '<div class="corp-stat-card"><div class="corp-stat-value">' + d.members.total + '</div><div class="corp-stat-label">Members</div></div>';
+        html += '<div class="corp-stat-card"><div class="corp-stat-value">' + d.bookings.total + '</div><div class="corp-stat-label">Total Bookings</div></div>';
+        html += '<div class="corp-stat-card"><div class="corp-stat-value gold">' + fmtUSD(d.bookings.total_spend_usd) + '</div><div class="corp-stat-label">Total Spend</div></div>';
+        html += '<div class="corp-stat-card"><div class="corp-stat-value purple">' + d.pending_approvals + '</div><div class="corp-stat-label">Pending Approvals</div></div>';
+        document.getElementById('dashStats').innerHTML = html;
+    }
+
+    function renderDeptChart(byDept) {
+        var el = document.getElementById('dashChart');
+        if (!byDept || Object.keys(byDept).length === 0) {
+            el.innerHTML = '<div class="corp-chart-title">Spend by Department</div><div class="corp-empty">No spending data yet</div>';
+            return;
+        }
+        var maxVal = 0;
+        var keys = Object.keys(byDept);
+        for (var i = 0; i < keys.length; i++) {
+            if (byDept[keys[i]] > maxVal) maxVal = byDept[keys[i]];
+        }
+        if (maxVal === 0) maxVal = 1;
+        var html = '<div class="corp-chart-title">Spend by Department</div>';
+        for (var j = 0; j < keys.length; j++) {
+            var pct = Math.round((byDept[keys[j]] / maxVal) * 100);
+            if (pct < 5) pct = 5;
+            html += '<div class="corp-bar-row">';
+            html += '<div class="corp-bar-label">' + esc(keys[j] || 'Unassigned') + '</div>';
+            html += '<div class="corp-bar-track"><div class="corp-bar-fill" style="width:' + pct + '%">' + fmtUSD(byDept[keys[j]]) + '</div></div>';
+            html += '</div>';
+        }
+        el.innerHTML = html;
+    }
+
+    function renderRecentBookings() {
+        apiFetch('/api/workspaces/' + SLUG + '/bookings')
+        .then(function(data) {
+            if (data.status !== 'ok') return;
+            var bks = (data.bookings || []).slice(0, 5);
+            var el = document.getElementById('dashRecent');
+            if (!bks.length) { el.innerHTML = ''; return; }
+            var html = '<div class="corp-chart-title">Recent Bookings</div>';
+            html += '<div class="corp-table-wrap"><table class="corp-table"><thead><tr><th>Employee</th><th>Status</th><th>Amount</th><th>Date</th></tr></thead><tbody>';
+            for (var i = 0; i < bks.length; i++) {
+                var b = bks[i];
+                html += '<tr>';
+                html += '<td>' + esc(b.user_name || 'Unknown') + '</td>';
+                html += '<td><span class="cbadge cbadge-' + (b.status || 'booked') + '">' + esc(b.status || '') + '</span></td>';
+                html += '<td>' + fmtUSD(b.vendor_payment_amount) + '</td>';
+                html += '<td>' + fmtDate(b.created_at) + '</td>';
+                html += '</tr>';
+            }
+            html += '</tbody></table></div>';
+            el.innerHTML = html;
+        });
+    }
+
+    /* ═══════════════════════════════════════
+       TAB 2: MEMBERS
+       ═══════════════════════════════════════ */
+    function toggleInviteForm() {
+        document.getElementById('inviteForm').classList.toggle('visible');
+    }
+    window.toggleInviteForm = toggleInviteForm;
+
+    function loadMembers() {
+        apiFetch('/api/workspaces/' + SLUG + '/members')
+        .then(function(data) {
+            if (data.status !== 'ok') { toast(data.error || 'Failed', true); return; }
+            membersCache = data.members || [];
+            renderMembers(membersCache);
+        });
+    }
+
+    function renderMembers(members) {
+        var tbody = document.getElementById('membersBody');
+        var empty = document.getElementById('membersEmpty');
+        if (!members.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+        empty.style.display = 'none';
+        var html = '';
+        for (var i = 0; i < members.length; i++) {
+            var m = members[i];
+            html += '<tr data-mid="' + m.id + '">';
+            html += '<td style="font-weight:600; color:#f5f5f5;">' + esc(m.user_name || 'Unknown') + '</td>';
+            html += '<td>' + esc(m.user_email || '') + '</td>';
+            html += '<td><span class="cbadge cbadge-' + m.role + '">' + esc(formatRole(m.role)) + '</span></td>';
+            html += '<td>' + esc(m.department || '--') + '</td>';
+            html += '<td><span class="cbadge cbadge-' + m.member_type + '">' + esc(m.member_type || '') + '</span></td>';
+            html += '<td>';
+            if (MY_ROLE === 'admin') {
+                html += '<button class="corp-btn small danger" onclick="removeMember(' + m.id + ')" title="Remove">Remove</button>';
+            }
+            html += '</td></tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function formatRole(r) {
+        if (r === 'admin') return 'Admin';
+        if (r === 'travel_manager') return 'Manager';
+        return 'Member';
+    }
+
+    function inviteMember() {
+        var email = document.getElementById('invEmail').value.trim();
+        if (!email) { toast('Email is required', true); return; }
+        var btn = document.getElementById('invBtn');
+        btn.disabled = true; btn.textContent = 'Inviting...';
+        apiFetch('/api/workspaces/' + SLUG + '/members', {
+            method: 'POST',
+            body: JSON.stringify({
+                email: email,
+                role: document.getElementById('invRole').value,
+                department: document.getElementById('invDept').value.trim(),
+                member_type: document.getElementById('invType').value
+            })
+        })
+        .then(function(data) {
+            btn.disabled = false; btn.textContent = 'Send Invite';
+            if (data.status === 'ok') {
+                toast('Member invited');
+                document.getElementById('invEmail').value = '';
+                document.getElementById('invDept').value = '';
+                document.getElementById('inviteForm').classList.remove('visible');
+                loadMembers();
+            } else {
+                toast(data.error || 'Failed', true);
+            }
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Send Invite'; toast('Network error', true); });
+    }
+    window.inviteMember = inviteMember;
+
+    function removeMember(mid) {
+        if (!confirm('Remove this member from the workspace?')) return;
+        apiFetch('/api/workspaces/' + SLUG + '/members/' + mid, { method: 'DELETE' })
+        .then(function(data) {
+            if (data.status === 'ok') { toast('Member removed'); loadMembers(); }
+            else { toast(data.error || 'Failed', true); }
+        })
+        .catch(function() { toast('Network error', true); });
+    }
+    window.removeMember = removeMember;
+
+    /* ═══════════════════════════════════════
+       TAB 3: POLICIES
+       ═══════════════════════════════════════ */
+    function togglePolicyForm() {
+        document.getElementById('policyForm').classList.toggle('visible');
+    }
+    window.togglePolicyForm = togglePolicyForm;
+
+    function loadPolicies() {
+        apiFetch('/api/workspaces/' + SLUG + '/policies')
+        .then(function(data) {
+            if (data.status !== 'ok') { toast(data.error || 'Failed', true); return; }
+            renderPolicies(data.policies || []);
+        });
+    }
+
+    function renderPolicies(policies) {
+        var grid = document.getElementById('policiesGrid');
+        var empty = document.getElementById('policiesEmpty');
+        if (!policies.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+        empty.style.display = 'none';
+        var html = '';
+        for (var i = 0; i < policies.length; i++) {
+            var p = policies[i];
+            html += '<div class="corp-policy-card">';
+            html += '<div class="corp-policy-name">' + esc(p.name) + '</div>';
+            if (p.applies_to_department) {
+                html += '<div class="corp-policy-detail">Department: ' + esc(p.applies_to_department) + '</div>';
+            }
+            if (p.max_flight_usd) {
+                html += '<div class="corp-policy-detail">Max flight: ' + fmtUSD(p.max_flight_usd) + '</div>';
+            }
+            if (p.max_hotel_per_night_usd) {
+                html += '<div class="corp-policy-detail">Max hotel/night: ' + fmtUSD(p.max_hotel_per_night_usd) + '</div>';
+            }
+            if (p.max_total_trip_usd) {
+                html += '<div class="corp-policy-detail">Max trip total: ' + fmtUSD(p.max_total_trip_usd) + '</div>';
+            }
+            if (p.approval_threshold_usd) {
+                html += '<div class="corp-policy-detail">Approval above: ' + fmtUSD(p.approval_threshold_usd) + '</div>';
+            }
+            if (p.preferred_cabin) {
+                html += '<div class="corp-policy-detail">Cabin: ' + esc(p.preferred_cabin.replace('_', ' ')) + '</div>';
+            }
+            html += '<div class="corp-policy-detail" style="margin-top:6px;"><span class="cbadge cbadge-approved">Active</span></div>';
+            if (MY_ROLE === 'admin') {
+                html += '<div class="corp-policy-actions">';
+                html += '<button class="corp-btn small danger" onclick="deletePolicy(' + p.id + ')">Delete</button>';
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+        grid.innerHTML = html;
+    }
+
+    function createPolicy() {
+        var name = document.getElementById('polName').value.trim();
+        if (!name) { toast('Policy name required', true); return; }
+        var btn = document.getElementById('polBtn');
+        btn.disabled = true; btn.textContent = 'Creating...';
+        var body = { name: name };
+        var dept = document.getElementById('polDept').value.trim();
+        if (dept) body.applies_to_department = dept;
+        var maxF = document.getElementById('polMaxFlight').value;
+        if (maxF) body.max_flight_usd = parseFloat(maxF);
+        var maxH = document.getElementById('polMaxHotel').value;
+        if (maxH) body.max_hotel_per_night_usd = parseFloat(maxH);
+        var thresh = document.getElementById('polThreshold').value;
+        if (thresh) body.approval_threshold_usd = parseFloat(thresh);
+        var cabin = document.getElementById('polCabin').value;
+        if (cabin) body.preferred_cabin = cabin;
+
+        apiFetch('/api/workspaces/' + SLUG + '/policies', {
+            method: 'POST',
+            body: JSON.stringify(body)
+        })
+        .then(function(data) {
+            btn.disabled = false; btn.textContent = 'Create Policy';
+            if (data.status === 'ok') {
+                toast('Policy created');
+                document.getElementById('polName').value = '';
+                document.getElementById('polDept').value = '';
+                document.getElementById('polMaxFlight').value = '';
+                document.getElementById('polMaxHotel').value = '';
+                document.getElementById('polThreshold').value = '';
+                document.getElementById('polCabin').value = '';
+                document.getElementById('policyForm').classList.remove('visible');
+                loadPolicies();
+            } else {
+                toast(data.error || 'Failed', true);
+            }
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Create Policy'; toast('Network error', true); });
+    }
+    window.createPolicy = createPolicy;
+
+    function deletePolicy(pid) {
+        if (!confirm('Delete this policy?')) return;
+        apiFetch('/api/workspaces/' + SLUG + '/policies/' + pid, { method: 'DELETE' })
+        .then(function(data) {
+            if (data.status === 'ok') { toast('Policy deleted'); loadPolicies(); }
+            else { toast(data.error || 'Failed', true); }
+        })
+        .catch(function() { toast('Network error', true); });
+    }
+    window.deletePolicy = deletePolicy;
+
+    /* ═══════════════════════════════════════
+       TAB 4: APPROVALS
+       ═══════════════════════════════════════ */
+    function filterApprovals(status) {
+        currentApprovalFilter = status;
+        document.querySelectorAll('#approvalFilters .corp-pill').forEach(function(p) {
+            p.classList.toggle('active', p.getAttribute('data-status') === status);
+        });
+        loadApprovals();
+    }
+    window.filterApprovals = filterApprovals;
+
+    function loadApprovals() {
+        var url = '/api/workspaces/' + SLUG + '/approvals';
+        if (currentApprovalFilter) url += '?status=' + currentApprovalFilter;
+        apiFetch(url)
+        .then(function(data) {
+            if (data.status !== 'ok') { toast(data.error || 'Failed', true); return; }
+            renderApprovals(data.approvals || []);
+        });
+    }
+
+    function renderApprovals(approvals) {
+        var el = document.getElementById('approvalsList');
+        var empty = document.getElementById('approvalsEmpty');
+        if (!approvals.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+        empty.style.display = 'none';
+        var html = '';
+        for (var i = 0; i < approvals.length; i++) {
+            var a = approvals[i];
+            html += '<div class="corp-approval-card">';
+            html += '<div class="corp-approval-top">';
+            html += '<div>';
+            html += '<div class="corp-approval-requester">' + esc(a.requester_name || 'Unknown') + '</div>';
+            html += '<div class="corp-approval-detail">' + esc(a.booking_type || '') + ' &middot; ' + fmtUSD(a.estimated_cost_usd) + '</div>';
+            if (a.description) {
+                html += '<div class="corp-approval-detail">' + esc(a.description) + '</div>';
+            }
+            if (a.policy_reason) {
+                html += '<div class="corp-approval-detail" style="color:#fcd34d;">' + esc(a.policy_reason) + '</div>';
+            }
+            if (a.department) {
+                html += '<div class="corp-approval-detail">Dept: ' + esc(a.department) + '</div>';
+            }
+            html += '</div>';
+            html += '<span class="cbadge cbadge-' + a.status + '">' + esc(a.status) + '</span>';
+            html += '</div>';
+
+            if (a.status === 'pending' && (MY_ROLE === 'admin' || MY_ROLE === 'travel_manager')) {
+                html += '<div class="corp-approval-actions">';
+                html += '<textarea class="corp-input" id="note-' + a.id + '" placeholder="Note (optional)" style="flex:2; min-width:180px; min-height:36px; height:36px;"></textarea>';
+                html += '<button class="corp-btn small" onclick="decideApproval(' + a.id + ',\'approved\')">Approve</button>';
+                html += '<button class="corp-btn small danger" onclick="decideApproval(' + a.id + ',\'denied\')">Deny</button>';
+                html += '</div>';
+            }
+            if (a.approver_name && a.status !== 'pending') {
+                html += '<div class="corp-approval-detail" style="margin-top:8px;">Decided by ' + esc(a.approver_name) + (a.approver_note ? ': ' + esc(a.approver_note) : '') + '</div>';
+            }
+            html += '</div>';
+        }
+        el.innerHTML = html;
+    }
+
+    function decideApproval(aid, decision) {
+        var noteEl = document.getElementById('note-' + aid);
+        var note = noteEl ? noteEl.value.trim() : '';
+        apiFetch('/api/workspaces/' + SLUG + '/approvals/' + aid, {
+            method: 'PUT',
+            body: JSON.stringify({ decision: decision, note: note })
+        })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                toast('Request ' + decision);
+                loadApprovals();
+            } else {
+                toast(data.error || 'Failed', true);
+            }
+        })
+        .catch(function() { toast('Network error', true); });
+    }
+    window.decideApproval = decideApproval;
+
+    /* ═══════════════════════════════════════
+       TAB 5: BOOKINGS
+       ═══════════════════════════════════════ */
+    function toggleBookOnBehalf() {
+        var form = document.getElementById('bobForm');
+        form.classList.toggle('visible');
+        if (form.classList.contains('visible')) populateBobMembers();
+    }
+    window.toggleBookOnBehalf = toggleBookOnBehalf;
+
+    function populateBobMembers() {
+        apiFetch('/api/workspaces/' + SLUG + '/members')
+        .then(function(data) {
+            if (data.status !== 'ok') return;
+            var sel = document.getElementById('bobMember');
+            sel.innerHTML = '<option value="">Select member...</option>';
+            var members = data.members || [];
+            for (var i = 0; i < members.length; i++) {
+                var m = members[i];
+                sel.innerHTML += '<option value="' + m.user_id + '">' + esc(m.user_name || m.user_email) + '</option>';
+            }
+        });
+    }
+
+    function loadBookings() {
+        apiFetch('/api/workspaces/' + SLUG + '/bookings')
+        .then(function(data) {
+            if (data.status !== 'ok') { toast(data.error || 'Failed', true); return; }
+            renderBookings(data.bookings || []);
+        });
+    }
+
+    function renderBookings(bookings) {
+        var tbody = document.getElementById('bookingsBody');
+        var empty = document.getElementById('bookingsEmpty');
+        if (!bookings.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+        empty.style.display = 'none';
+        var html = '';
+        for (var i = 0; i < bookings.length; i++) {
+            var b = bookings[i];
+            html += '<tr>';
+            html += '<td style="font-weight:600; color:#f5f5f5;">' + esc(b.user_name || 'Unknown') + '</td>';
+            html += '<td>' + esc(b.department || '--') + '</td>';
+            html += '<td><span class="cbadge cbadge-' + (b.status || 'booked') + '">' + esc(b.status || '') + '</span></td>';
+            html += '<td>' + fmtUSD(b.vendor_payment_amount) + '</td>';
+            html += '<td style="font-family:monospace; font-size:12px;">' + esc(b.confirmation_code || '--') + '</td>';
+            html += '<td>' + fmtDate(b.created_at) + '</td>';
+            html += '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function bookOnBehalf() {
+        var userId = document.getElementById('bobMember').value;
+        var tripName = document.getElementById('bobTripName').value.trim();
+        if (!userId) { toast('Select a member', true); return; }
+        if (!tripName) { toast('Trip name required', true); return; }
+        var btn = document.getElementById('bobBtn');
+        btn.disabled = true; btn.textContent = 'Creating...';
+        apiFetch('/api/workspaces/' + SLUG + '/book-on-behalf', {
+            method: 'POST',
+            body: JSON.stringify({ for_user_id: parseInt(userId), trip_name: tripName })
+        })
+        .then(function(data) {
+            btn.disabled = false; btn.textContent = 'Create Trip';
+            if (data.status === 'ok') {
+                toast('Trip created for ' + (data.for_user_name || 'member'));
+                document.getElementById('bobTripName').value = '';
+                document.getElementById('bobForm').classList.remove('visible');
+            } else {
+                toast(data.error || 'Failed', true);
+            }
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = 'Create Trip'; toast('Network error', true); });
+    }
+    window.bookOnBehalf = bookOnBehalf;
+
+    function exportCSV() {
+        window.location.href = '/api/workspaces/' + SLUG + '/export';
+    }
+    window.exportCSV = exportCSV;
+
+    /* ── Initial load ─────────────────────── */
+    loadDashboard();
+})();
+</script>
+"""
+
+
 def register_corporate_routes(app, csrf, limiter):
-    """Register corporate workspace routes (Builds #235-237)."""
+    """Register corporate workspace routes (Builds #235-238)."""
+    from server import BASE_TEMPLATE, is_feature_enabled
+
+    # ══════════════════════════════════════════════════
+    # BUILD #238 — PAGE ROUTES (Corporate Workspace UI)
+    # ══════════════════════════════════════════════════
+
+    @app.route('/corporate')
+    @login_required
+    def corporate_workspaces_page():
+        """Corporate workspaces list page."""
+        if not is_feature_enabled('corporate_workspaces'):
+            return redirect(url_for('home'))
+        return render_template_string(
+            BASE_TEMPLATE,
+            title='Corporate Workspaces',
+            content=render_template_string(CORPORATE_LIST_TEMPLATE),
+            current_user=current_user,
+        )
+
+    @app.route('/corporate/<slug>')
+    @login_required
+    def corporate_workspace_detail_page(slug):
+        """Corporate workspace detail page with 5 tabs."""
+        if not is_feature_enabled('corporate_workspaces'):
+            return redirect(url_for('home'))
+
+        ws, err = _get_workspace(slug)
+        if err:
+            return redirect(url_for('corporate_workspaces_page'))
+
+        member, err = _get_membership(ws)
+        if err:
+            return redirect(url_for('corporate_workspaces_page'))
+
+        # Determine color class for logo
+        tier_colors = {'enterprise': 'gold', 'pro': 'purple', 'starter': 'teal'}
+        ws_color = tier_colors.get(ws.tier, 'teal')
+        ws_initial = (ws.name or '?')[0].upper()
+
+        return render_template_string(
+            BASE_TEMPLATE,
+            title=ws.name + ' — Workspace',
+            content=render_template_string(
+                CORPORATE_DETAIL_TEMPLATE,
+                workspace=ws,
+                my_role=member.role,
+                ws_color=ws_color,
+                ws_initial=ws_initial,
+            ),
+            current_user=current_user,
+        )
 
     # ══════════════════════════════════════════════════
     # BUILD #235 — WORKSPACE MODEL + ADMIN + ROLES

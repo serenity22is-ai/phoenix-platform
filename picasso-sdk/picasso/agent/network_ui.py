@@ -299,74 +299,7 @@ NETWORK_TAB_HTML = """
 # TERMINAL TAB — ANASTASiA Terminal (AI Architect)
 # =====================================================================
 
-TERMINAL_TAB_HTML = """
-    <!-- TERMINAL TAB -->
-    <div id="tab-terminal" class="tab-content">
-        <div style="display:grid;grid-template-columns:260px 1fr;gap:0;height:calc(100vh - 180px);">
-            <!-- Session Sidebar -->
-            <div style="background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;">
-                <div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-                    <h3 style="font-size:14px;font-family:'Space Grotesk',sans-serif;">Sessions</h3>
-                    <button class="btn btn-primary" onclick="termNewSession()" style="padding:4px 12px;font-size:11px;">+ New</button>
-                </div>
-                <div id="term-sessions" style="flex:1;overflow-y:auto;padding:8px;"></div>
-                <div style="padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-dim);">
-                    Queries used: <strong id="term-total-queries" style="color:var(--accent);">0</strong>
-                </div>
-            </div>
-
-            <!-- Terminal Main -->
-            <div style="display:flex;flex-direction:column;background:var(--bg);">
-                <!-- Terminal Header -->
-                <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-                    <div>
-                        <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--accent);">ANASTASiA Terminal</span>
-                        <span id="term-session-title" style="font-size:12px;color:var(--text-dim);margin-left:8px;"></span>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <span id="term-session-queries" style="font-size:11px;color:var(--text-dim);padding:4px 10px;background:var(--input-bg);border-radius:6px;">0 queries</span>
-                        <button class="btn" onclick="termCloseSession()" style="padding:4px 12px;font-size:11px;background:transparent;border:1px solid var(--border);">Close Session</button>
-                    </div>
-                </div>
-
-                <!-- Messages Area -->
-                <div id="term-messages" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;">
-                    <div class="assist-msg assist-system" style="align-self:flex-start;max-width:85%;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;">
-                        <div style="font-size:13px;color:var(--text-dim);line-height:1.6;">
-                            <strong style="color:var(--accent);">ANASTASiA Terminal</strong> — Your AI architect.<br>
-                            I know your turnkey model inside and out. I can:
-                            <ul style="margin:8px 0 0 16px;list-style:disc;">
-                                <li>Troubleshoot API integration issues</li>
-                                <li>Build custom features and SDK modules</li>
-                                <li>Audit and deploy your custom code</li>
-                                <li>Configure pricing, branding, credentials</li>
-                                <li>Generate integration code for your stack</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Actions -->
-                <div style="padding:8px 20px;border-top:1px solid rgba(255,255,255,0.04);display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;">
-                    <button class="assist-quick" onclick="termSend('Run health check on my deployment')">Health Check</button>
-                    <button class="assist-quick" onclick="termSend('Show my credential vault status')">Vault Status</button>
-                    <button class="assist-quick" onclick="termSend('List my custom modules')">My Modules</button>
-                    <button class="assist-quick" onclick="termSend('Generate a webhook handler for booking notifications')">Build Webhook</button>
-                </div>
-
-                <!-- Input -->
-                <div style="padding:12px 20px 16px;border-top:1px solid var(--border);flex-shrink:0;">
-                    <div style="display:flex;gap:8px;">
-                        <textarea id="term-input" rows="2" placeholder="Build features, troubleshoot, deploy — everything happens here..."
-                            style="flex:1;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;resize:none;outline:none;"
-                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();termSendFromInput()}"></textarea>
-                        <button class="btn btn-primary" onclick="termSendFromInput()" style="padding:10px 20px;align-self:flex-end;">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-"""
+TERMINAL_TAB_HTML = ""
 
 # =====================================================================
 # MODULES TAB — Custom SDK Modules
@@ -964,94 +897,6 @@ async function loadAudit(page) {
 }
 
 // ===================================================================
-// TERMINAL TAB JS
-// ===================================================================
-
-let termCurrentSession = null;
-
-async function termNewSession() {
-    try {
-        const r = await fetch(API_BASE + '/api/v1/dev/sessions', {method:'POST', headers, body:'{}'});
-        const data = await r.json();
-        if (data.session_id) {
-            termCurrentSession = data.session_id;
-            document.getElementById('term-session-title').textContent = 'New Session';
-            document.getElementById('term-messages').innerHTML = '<div class="assist-msg assist-system" style="align-self:flex-start;max-width:85%;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;"><div style="font-size:13px;color:var(--text-dim);">Session started. How can I help?</div></div>';
-            loadTermSessions();
-        }
-    } catch(e) { showToast('Failed to create session: '+e.message, 'error'); }
-}
-
-async function termCloseSession() {
-    if (!termCurrentSession) return;
-    try {
-        await fetch(API_BASE + '/api/v1/dev/sessions/' + termCurrentSession + '/close', {method:'POST', headers});
-        termCurrentSession = null;
-        loadTermSessions();
-    } catch(e) {}
-}
-
-async function loadTermSessions() {
-    try {
-        const r = await fetch(API_BASE + '/api/v1/dev/sessions', {headers});
-        const data = await r.json();
-        const sessions = data.sessions || [];
-        const el = document.getElementById('term-sessions');
-        let totalQ = 0;
-        el.innerHTML = sessions.map(s => {
-            totalQ += s.queries_used||0;
-            return '<div class="term-session-item'+(s.session_id===termCurrentSession?' active':'')+'" onclick="termLoadSession(\\''+s.session_id+'\\')">' +
-                '<div style="font-size:12px;font-weight:500;">'+(s.title||'Untitled')+'</div>' +
-                '<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+s.message_count+' messages &middot; '+s.queries_used+' queries</div></div>';
-        }).join('');
-        document.getElementById('term-total-queries').textContent = totalQ;
-    } catch(e) {}
-}
-
-function termLoadSession(sessionId) {
-    termCurrentSession = sessionId;
-    document.querySelectorAll('.term-session-item').forEach(el => el.classList.remove('active'));
-    // Load session messages (via existing dev session endpoint)
-    loadTermSessions();
-}
-
-function termSendFromInput() {
-    const input = document.getElementById('term-input');
-    const msg = input.value.trim();
-    if (!msg) return;
-    input.value = '';
-    termSend(msg);
-}
-
-async function termSend(msg) {
-    if (!termCurrentSession) await termNewSession();
-    if (!termCurrentSession) return;
-
-    // Add user message
-    const msgEl = document.getElementById('term-messages');
-    msgEl.innerHTML += '<div class="assist-msg assist-user" style="align-self:flex-end;max-width:85%;padding:12px 16px;background:var(--accent);color:#fff;border-radius:12px;border-bottom-right-radius:4px;font-size:13px;">'+esc(msg)+'</div>';
-    msgEl.scrollTop = msgEl.scrollHeight;
-
-    // Send to API
-    try {
-        const r = await fetch(API_BASE + '/api/v1/dev/sessions/' + termCurrentSession + '/message', {
-            method: 'POST', headers,
-            body: JSON.stringify({message: msg})
-        });
-        const data = await r.json();
-        const reply = data.response || data.message || 'No response';
-        msgEl.innerHTML += '<div class="assist-msg assist-bot" style="align-self:flex-start;max-width:85%;padding:12px 16px;background:var(--card-hover);border:1px solid var(--border);border-radius:12px;border-bottom-left-radius:4px;font-size:13px;line-height:1.6;white-space:pre-wrap;">'+esc(reply)+'</div>';
-        msgEl.scrollTop = msgEl.scrollHeight;
-        // Update query count
-        if (data.queries_used !== undefined) {
-            document.getElementById('term-session-queries').textContent = data.queries_used + ' queries';
-        }
-    } catch(e) {
-        msgEl.innerHTML += '<div class="assist-msg" style="align-self:flex-start;max-width:85%;padding:12px;color:var(--danger);font-size:13px;">Error: '+esc(e.message)+'</div>';
-    }
-}
-
-// ===================================================================
 // MODULES TAB JS
 // ===================================================================
 
@@ -1089,9 +934,6 @@ def get_network_tabs_html():
     """Return the three tab button HTML strings."""
     return (
         '<div class="tab" onclick="switchTab(\'network\')">Network</div>'
-        '<div class="tab" onclick="switchTab(\'terminal\')" '
-        'style="background:linear-gradient(135deg,#7c3aed,#4f46e5);'
-        'color:#fff;border-color:#7c3aed;">Terminal</div>'
         '<div class="tab" onclick="switchTab(\'modules\')">Modules</div>'
     )
 
@@ -1146,13 +988,14 @@ def inject_network_ui(dashboard_html):
     _origSwitchTab(name);
     if (name === 'analytics') loadAnalytics();
     if (name === 'billing') loadBilling();
+    if (name === 'assistant') uniLoadSessions();
 };"""
     new_override = """switchTab = function(name) {
     _origSwitchTab(name);
     if (name === 'analytics') loadAnalytics();
     if (name === 'billing') loadBilling();
+    if (name === 'assistant') uniLoadSessions();
     if (name === 'network') loadNetworkStats();
-    if (name === 'terminal') loadTermSessions();
     if (name === 'modules') loadModules();
 };"""
     html = html.replace(old_override, new_override)

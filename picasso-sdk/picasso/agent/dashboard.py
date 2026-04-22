@@ -703,54 +703,74 @@ ADMIN_DASHBOARD_HTML = """<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- ASSISTANT TAB -->
+    <!-- ANASTASIA TERMINAL (UNIFIED) -->
     <div id="tab-assistant" class="tab-content">
-        <div class="card" style="padding: 0; overflow: hidden; height: calc(100vh - 180px); display: flex; flex-direction: column;">
-            <!-- Chat Header -->
-            <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-                <div>
-                    <h2 style="font-size: 16px; margin-bottom: 2px;">ANASTASiA</h2>
-                    <p style="font-size: 12px; color: var(--text-dim);">Search flights, configure settings, troubleshoot integration, generate code</p>
+        <div class="card" style="padding: 0; overflow: hidden; height: calc(100vh - 180px); display: grid; grid-template-columns: 260px 1fr;">
+            <!-- Session Sidebar -->
+            <div style="background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column;">
+                <div style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="font-size: 14px; font-family: 'Space Grotesk', sans-serif;">Sessions</h3>
+                    <button class="btn btn-primary" onclick="uniNewSession()" style="padding: 4px 12px; font-size: 11px;">+ New</button>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn" onclick="assistReset()" style="padding: 6px 14px; font-size: 12px; background: transparent; border: 1px solid var(--border);">Clear Chat</button>
-                    <span id="assist-usage" style="font-size: 11px; color: var(--text-dim); padding: 6px 10px; background: var(--input-bg); border-radius: 6px;">$0.00</span>
+                <div id="uni-sessions" style="flex: 1; overflow-y: auto; padding: 8px;"></div>
+                <div style="padding: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim);">
+                    Total queries: <strong id="uni-total-queries" style="color: var(--accent);">0</strong>
                 </div>
             </div>
 
-            <!-- Chat Messages -->
-            <div id="assist-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
-                <!-- Welcome message -->
-                <div class="assist-msg assist-system">
-                    <div style="font-size: 13px; color: var(--text-dim); line-height: 1.6;">
-                        <strong style="color: var(--accent);">Welcome!</strong> I'm ANASTASiA, your AI booking assistant. I can help with:
-                        <ul style="margin: 8px 0 0 16px; list-style: disc;">
-                            <li><strong>Flight search</strong> — "Find JFK to LHR next Tuesday, business class"</li>
-                            <li><strong>Configuration</strong> — "Change markup to 15%" or "Hide baggage info"</li>
-                            <li><strong>Troubleshooting</strong> — Paste any error message and I'll diagnose it</li>
-                            <li><strong>Integration</strong> — "Show me how to add search to my Django app"</li>
-                            <li><strong>Updates</strong> — "What SDK version am I on?"</li>
-                        </ul>
+            <!-- Main Chat Area -->
+            <div style="display: flex; flex-direction: column; background: var(--bg);">
+                <!-- Chat Header -->
+                <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h2 style="font-size: 16px; margin-bottom: 0;">ANASTASiA</h2>
+                        <span id="uni-session-title" style="font-size: 12px; color: var(--text-dim);"></span>
+                        <span id="uni-session-badge" style="display: none; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(99,102,241,0.15); color: #818cf8;">dev</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span id="uni-session-queries" style="font-size: 11px; color: var(--text-dim); padding: 4px 10px; background: var(--input-bg); border-radius: 6px;">0 queries</span>
+                        <button class="btn" onclick="uniCloseSession()" style="padding: 6px 14px; font-size: 12px; background: transparent; border: 1px solid var(--border);">Close</button>
                     </div>
                 </div>
-            </div>
 
-            <!-- Quick Actions -->
-            <div style="padding: 8px 20px; border-top: 1px solid rgba(255,255,255,0.04); display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;">
-                <button class="assist-quick" onclick="assistSend('Show my current pricing config')">Pricing Config</button>
-                <button class="assist-quick" onclick="assistSend('Run integration health check')">Health Check</button>
-                <button class="assist-quick" onclick="assistSend('Show me how to integrate the search widget')">Integration Guide</button>
-                <button class="assist-quick" onclick="assistSend('What SDK version am I on?')">SDK Version</button>
-            </div>
+                <!-- Chat Messages -->
+                <div id="uni-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                    <div class="assist-msg assist-system">
+                        <div style="font-size: 13px; color: var(--text-dim); line-height: 1.6;">
+                            <strong style="color: var(--accent);">ANASTASiA Terminal</strong> — Your AI architect for everything.<br>
+                            I know your turnkey model inside and out. I can:
+                            <ul style="margin: 8px 0 0 16px; list-style: disc;">
+                                <li><strong>Troubleshoot</strong> — API integration, pricing config, error diagnostics</li>
+                                <li><strong>Build</strong> — Custom modules, webhook handlers, SDK extensions</li>
+                                <li><strong>Configure</strong> — Pricing, branding, features, credentials</li>
+                                <li><strong>Search</strong> — "Find JFK to LHR next Tuesday, business class"</li>
+                                <li><strong>Deploy</strong> — Audit, test, and publish your custom code</li>
+                                <li><strong>Network</strong> — Credential vault status, connection health</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Input Area -->
-            <div style="padding: 12px 20px 16px; border-top: 1px solid var(--border); flex-shrink: 0;">
-                <div style="display: flex; gap: 8px;">
-                    <textarea id="assist-input" rows="2" placeholder="Ask anything — flights, config, errors, integration..."
-                        style="flex: 1; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 13px; resize: none; outline: none;"
-                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();assistSendFromInput()}"></textarea>
-                    <button class="btn btn-primary" onclick="assistSendFromInput()" id="assist-send-btn"
-                        style="padding: 10px 20px; align-self: flex-end;">Send</button>
+                <!-- Quick Actions -->
+                <div style="padding: 8px 20px; border-top: 1px solid rgba(255,255,255,0.04); display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;">
+                    <button class="assist-quick" onclick="uniSend('Run integration health check')">Health Check</button>
+                    <button class="assist-quick" onclick="uniSend('Show my current pricing config')">Pricing Config</button>
+                    <button class="assist-quick" onclick="uniSend('Show me how to integrate the search widget')">Integration Guide</button>
+                    <button class="assist-quick" onclick="uniSend('I want to create a new custom module')">Scaffold Module</button>
+                    <button class="assist-quick" onclick="uniSend('List my custom modules')">My Modules</button>
+                    <button class="assist-quick" onclick="uniSend('Show my credential vault status')">Vault Status</button>
+                    <button class="assist-quick" onclick="uniSend('Generate a webhook handler for booking notifications')">Build Webhook</button>
+                </div>
+
+                <!-- Input Area -->
+                <div style="padding: 12px 20px 16px; border-top: 1px solid var(--border); flex-shrink: 0;">
+                    <div style="display: flex; gap: 8px;">
+                        <textarea id="uni-input" rows="2" placeholder="Build features, troubleshoot, configure — everything happens here..."
+                            style="flex: 1; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 13px; resize: none; outline: none;"
+                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();uniSendFromInput()}"></textarea>
+                        <button class="btn btn-primary" onclick="uniSendFromInput()" id="uni-send-btn"
+                            style="padding: 10px 20px; align-self: flex-end;">Send</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1106,145 +1126,185 @@ async function saveFeatures() {
 }
 
 // ================================================================
-// ASSISTANT CHAT
+// UNIFIED ANASTASIA TERMINAL
 // ================================================================
 
-let assistSessionId = null;
-let assistBusy = false;
+let uniCurrentSession = null;
+let uniBusy = false;
 
-function assistAddMessage(role, text) {
-    const container = document.getElementById('assist-messages');
-    const div = document.createElement('div');
+function uniFormatMessage(text) {
+    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
+        return '<pre><code>' + code.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>';
+    });
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
+    text = text.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    text = text.replace(/\n\n/g, '<br><br>');
+    text = text.replace(/\n/g, '<br>');
+    return text;
+}
+
+function uniAddMessage(role, text) {
+    var container = document.getElementById('uni-messages');
+    var div = document.createElement('div');
     div.className = 'assist-msg assist-' + role;
-
     if (role === 'bot') {
-        // Parse markdown-like formatting
-        div.innerHTML = assistFormatMessage(text);
+        div.innerHTML = uniFormatMessage(text);
     } else {
         div.textContent = text;
     }
-
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
-function assistFormatMessage(text) {
-    // Code blocks
-    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
-        return '<pre><code>' + code.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code></pre>';
-    });
-    // Inline code
-    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // Bold
-    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    // Italic
-    text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    // Lists
-    text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
-    text = text.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-    // Numbered lists
-    text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-    // Line breaks
-    text = text.replace(/\n\n/g, '<br><br>');
-    text = text.replace(/\n/g, '<br>');
-
-    return text;
-}
-
-function assistShowTyping() {
-    const container = document.getElementById('assist-messages');
-    const div = document.createElement('div');
+function uniShowTyping() {
+    var container = document.getElementById('uni-messages');
+    var div = document.createElement('div');
     div.className = 'assist-typing';
-    div.id = 'assist-typing';
+    div.id = 'uni-typing';
     div.innerHTML = '<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
-function assistRemoveTyping() {
-    const el = document.getElementById('assist-typing');
+function uniRemoveTyping() {
+    var el = document.getElementById('uni-typing');
     if (el) el.remove();
 }
 
-async function assistSend(message) {
-    if (assistBusy || !message.trim()) return;
-    assistBusy = true;
-
-    const btn = document.getElementById('assist-send-btn');
-    btn.disabled = true;
-    btn.textContent = '...';
-
-    assistAddMessage('user', message);
-    assistShowTyping();
-
+async function uniNewSession() {
     try {
-        const body = { message: message };
-        if (assistSessionId) body.session_id = assistSessionId;
-
-        const r = await fetch(API_BASE + '/api/v1/assist', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-        });
-        const data = await r.json();
-
-        assistRemoveTyping();
-
-        if (data.error) {
-            assistAddMessage('bot', 'Error: ' + data.error);
-        } else {
-            assistSessionId = data.session_id || assistSessionId;
-            assistAddMessage('bot', data.response || data.message || 'No response');
-
-            // Update usage display
-            if (data.usage) {
-                document.getElementById('assist-usage').textContent =
-                    '$' + (data.usage.estimated_cost_usd || 0).toFixed(4);
-            }
-
-            // If config was changed, reload the config tabs
-            if (data.config_changed) {
-                loadConfig();
-                showToast('Config updated via assistant', 'success');
-            }
+        var r = await fetch(API_BASE + '/api/v1/dev/sessions', {method: 'POST', headers, body: '{}'});
+        var data = await r.json();
+        if (data.session_id) {
+            uniCurrentSession = data.session_id;
+            document.getElementById('uni-session-title').textContent = 'New Session';
+            document.getElementById('uni-session-badge').style.display = 'inline';
+            document.getElementById('uni-messages').innerHTML =
+                '<div class="assist-msg assist-system"><div style="font-size:13px;color:var(--text-dim);line-height:1.6;">' +
+                '<strong style="color:var(--accent);">New session started.</strong> Build, troubleshoot, configure, or search — just ask.</div></div>';
+            document.getElementById('uni-session-queries').textContent = '0 queries';
+            uniLoadSessions();
         }
-    } catch (e) {
-        assistRemoveTyping();
-        assistAddMessage('bot', 'Connection error: ' + e.message);
-    }
-
-    btn.disabled = false;
-    btn.textContent = 'Send';
-    assistBusy = false;
+    } catch(e) { showToast('Failed to create session: ' + e.message, 'error'); }
 }
 
-function assistSendFromInput() {
-    const input = document.getElementById('assist-input');
-    const msg = input.value.trim();
+async function uniCloseSession() {
+    if (!uniCurrentSession) return;
+    try {
+        await fetch(API_BASE + '/api/v1/dev/sessions/' + uniCurrentSession + '/close', {method: 'POST', headers});
+    } catch(e) {}
+    uniCurrentSession = null;
+    document.getElementById('uni-session-title').textContent = '';
+    document.getElementById('uni-session-badge').style.display = 'none';
+    document.getElementById('uni-messages').innerHTML =
+        '<div class="assist-msg assist-system"><div style="font-size:13px;color:var(--text-dim);line-height:1.6;">' +
+        '<strong style="color:var(--accent);">ANASTASiA Terminal</strong> — Click <strong>+ New</strong> or just type to start.</div></div>';
+    uniLoadSessions();
+    showToast('Session closed', 'success');
+}
+
+async function uniLoadSessions() {
+    try {
+        var r = await fetch(API_BASE + '/api/v1/dev/sessions', {headers});
+        var data = await r.json();
+        var sessions = data.sessions || [];
+        var el = document.getElementById('uni-sessions');
+        var totalQ = 0;
+        el.innerHTML = sessions.map(function(s) {
+            totalQ += s.queries_used || 0;
+            return '<div class="term-session-item' + (s.session_id === uniCurrentSession ? ' active' : '') +
+                '" onclick="uniSwitchSession(\'' + s.session_id + '\')">' +
+                '<div style="font-size:12px;font-weight:500;">' + (s.title || 'Untitled') + '</div>' +
+                '<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">' +
+                s.message_count + ' msgs &middot; ' + s.queries_used + ' queries</div></div>';
+        }).join('');
+        document.getElementById('uni-total-queries').textContent = totalQ;
+    } catch(e) {}
+}
+
+function uniSwitchSession(sessionId) {
+    uniCurrentSession = sessionId;
+    document.getElementById('uni-session-title').textContent = sessionId.substring(0, 8) + '...';
+    document.getElementById('uni-session-badge').style.display = 'inline';
+    document.getElementById('uni-messages').innerHTML =
+        '<div class="assist-msg assist-system"><div style="font-size:13px;color:var(--text-dim);">Session loaded. Continue where you left off.</div></div>';
+    uniLoadSessions();
+}
+
+function uniSendFromInput() {
+    var input = document.getElementById('uni-input');
+    var msg = input.value.trim();
     if (msg) {
-        assistSend(msg);
+        uniSend(msg);
         input.value = '';
     }
 }
 
-async function assistReset() {
-    if (assistSessionId) {
+async function uniSend(message) {
+    if (uniBusy || !message.trim()) return;
+    uniBusy = true;
+
+    var btn = document.getElementById('uni-send-btn');
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    uniAddMessage('user', message);
+    uniShowTyping();
+
+    // Auto-create session if none exists
+    if (!uniCurrentSession) {
         try {
-            await fetch(API_BASE + '/api/v1/assist/reset', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ session_id: assistSessionId }),
-            });
-        } catch (e) { /* ignore */ }
+            var cr = await fetch(API_BASE + '/api/v1/dev/sessions', {method: 'POST', headers, body: '{}'});
+            var cd = await cr.json();
+            if (cd.session_id) {
+                uniCurrentSession = cd.session_id;
+                document.getElementById('uni-session-title').textContent = 'New Session';
+                document.getElementById('uni-session-badge').style.display = 'inline';
+                uniLoadSessions();
+            }
+        } catch(e) {
+            uniRemoveTyping();
+            uniAddMessage('bot', 'Failed to create session: ' + e.message);
+            btn.disabled = false;
+            btn.textContent = 'Send';
+            uniBusy = false;
+            return;
+        }
     }
-    assistSessionId = null;
-    const container = document.getElementById('assist-messages');
-    // Keep only the welcome message
-    while (container.children.length > 1) {
-        container.removeChild(container.lastChild);
+
+    try {
+        var r = await fetch(API_BASE + '/api/v1/dev/sessions/' + uniCurrentSession + '/message', {
+            method: 'POST', headers,
+            body: JSON.stringify({message: message})
+        });
+        var data = await r.json();
+
+        uniRemoveTyping();
+
+        if (data.error) {
+            uniAddMessage('bot', 'Error: ' + data.error);
+        } else {
+            uniAddMessage('bot', data.response || data.message || 'No response');
+            if (data.queries_used !== undefined) {
+                document.getElementById('uni-session-queries').textContent = data.queries_used + ' queries';
+            }
+            if (data.config_changed) {
+                loadConfig();
+                showToast('Config updated via terminal', 'success');
+            }
+        }
+    } catch(e) {
+        uniRemoveTyping();
+        uniAddMessage('bot', 'Connection error: ' + e.message);
     }
-    document.getElementById('assist-usage').textContent = '$0.00';
-    showToast('Chat cleared', 'success');
+
+    btn.disabled = false;
+    btn.textContent = 'Send';
+    uniBusy = false;
 }
 
 // ============== ANALYTICS TAB ==============
@@ -1327,12 +1387,13 @@ async function loadBilling() {
     } catch(err) { console.error('Plans load error:', err); }
 }
 
-// Override switchTab to lazy-load analytics/billing
+// Override switchTab to lazy-load tabs
 const _origSwitchTab = switchTab;
 switchTab = function(name) {
     _origSwitchTab(name);
     if (name === 'analytics') loadAnalytics();
     if (name === 'billing') loadBilling();
+    if (name === 'assistant') uniLoadSessions();
 };
 
 // Initialize

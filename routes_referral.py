@@ -13,6 +13,9 @@ Endpoints:
   GET   /api/referral/my-conversions       — current user's conversion events list
   GET   /api/admin/referral/leaderboard    — admin: top referrers by conversions
 
+  UI Pages:
+  GET   /referral                          — my referral dashboard page
+
 Registration: register_referral_routes(app, csrf, limiter)
 """
 
@@ -21,7 +24,7 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, render_template_string
 from flask_login import current_user, login_required
 
 from models import (
@@ -89,8 +92,313 @@ def _get_points_for(event_type):
     return _DEFAULT_POINTS.get(event_type, 0)
 
 
+# ================================================================
+# Referral Dashboard Page Template
+# ================================================================
+
+REFERRAL_DASHBOARD_CONTENT = '''
+<style>
+    .ref-page { min-height: calc(100vh - 80px); padding: 40px 20px 80px; max-width: 960px; margin: 0 auto; }
+
+    /* Referral code card */
+    .ref-code-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; background: linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(20,184,166,0.08) 100%); border: 1px solid rgba(124,58,237,0.25); border-radius: var(--radius-xl); margin-bottom: 32px; flex-wrap: wrap; }
+    .ref-code-left { flex: 1; min-width: 200px; }
+    .ref-code-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .ref-code-value { font-family: var(--font-brand); font-size: 28px; font-weight: 700; color: var(--text-bright); letter-spacing: 4px; word-break: break-all; }
+    .ref-code-url { font-size: 12px; color: var(--text-muted); margin-top: 6px; word-break: break-all; }
+    .ref-code-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Stats grid */
+    .ref-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 36px; }
+    .ref-stat-card { padding: 20px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); text-align: center; transition: border-color 0.2s, transform 0.2s; }
+    .ref-stat-card:hover { border-color: var(--glass-border-hover); transform: translateY(-2px); }
+    .ref-stat-num { font-family: var(--font-brand); font-size: 32px; font-weight: 700; color: var(--text-bright); line-height: 1.1; margin-bottom: 6px; }
+    .ref-stat-num.teal { color: #14b8a6; }
+    .ref-stat-num.gold { color: #C9A96E; }
+    .ref-stat-num.purple { color: #a78bfa; }
+    .ref-stat-num.green { color: #4ade80; }
+    .ref-stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Funnel visualization */
+    .ref-funnel { margin-bottom: 36px; }
+    .ref-funnel h3 { font-family: var(--font-brand); font-size: 16px; letter-spacing: 2px; color: var(--text-bright); margin-bottom: 20px; text-transform: uppercase; }
+    .ref-funnel-bar { display: flex; align-items: center; margin-bottom: 12px; gap: 14px; }
+    .ref-funnel-label { width: 110px; font-size: 13px; color: var(--text-muted); text-align: right; text-transform: capitalize; flex-shrink: 0; }
+    .ref-funnel-track { flex: 1; height: 32px; background: rgba(255,255,255,0.04); border-radius: var(--radius-full); overflow: hidden; position: relative; border: 1px solid var(--glass-border); }
+    .ref-funnel-fill { height: 100%; border-radius: var(--radius-full); transition: width 0.8s cubic-bezier(0.16,1,0.3,1); display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; min-width: 0; }
+    .ref-funnel-fill.clicks { background: linear-gradient(90deg, rgba(124,58,237,0.4), rgba(124,58,237,0.7)); }
+    .ref-funnel-fill.signups { background: linear-gradient(90deg, rgba(20,184,166,0.4), rgba(20,184,166,0.7)); }
+    .ref-funnel-fill.searches { background: linear-gradient(90deg, rgba(201,169,110,0.4), rgba(201,169,110,0.7)); }
+    .ref-funnel-fill.bookings { background: linear-gradient(90deg, rgba(34,197,94,0.4), rgba(34,197,94,0.7)); }
+    .ref-funnel-fill.subscriptions { background: linear-gradient(90deg, rgba(239,68,68,0.3), rgba(239,68,68,0.6)); }
+    .ref-funnel-count { font-family: var(--font-brand); font-size: 13px; font-weight: 600; color: var(--text-bright); white-space: nowrap; }
+    .ref-funnel-pct { width: 50px; font-size: 12px; color: var(--text-muted); text-align: left; flex-shrink: 0; }
+
+    /* Conversion history table */
+    .ref-history { margin-bottom: 36px; }
+    .ref-history h3 { font-family: var(--font-brand); font-size: 16px; letter-spacing: 2px; color: var(--text-bright); margin-bottom: 16px; text-transform: uppercase; }
+    .ref-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .ref-table { width: 100%; border-collapse: collapse; }
+    .ref-table th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--glass-border); }
+    .ref-table td { padding: 12px 14px; font-size: 14px; color: var(--text-bright); border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .ref-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .ref-table .event-type { text-transform: capitalize; }
+
+    .ref-load-more { text-align: center; margin-top: 16px; }
+    .ref-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
+
+    .ref-loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 15px; }
+
+    @media (max-width: 640px) {
+        .ref-code-card { flex-direction: column; text-align: center; }
+        .ref-code-actions { justify-content: center; }
+        .ref-stats { grid-template-columns: repeat(2, 1fr); }
+        .ref-funnel-label { width: 80px; font-size: 11px; }
+        .ref-funnel-pct { width: 40px; font-size: 11px; }
+    }
+</style>
+
+<div class="ref-page">
+    <div class="mystes-page-header" style="margin-bottom: 32px;">
+        <h1>REFERRAL DASHBOARD</h1>
+        <p>Share your code, earn points on every milestone. Track your referral funnel in real time.</p>
+    </div>
+
+    <div id="refLoading" class="ref-loading">Loading your referral stats...</div>
+    <div id="refContent" style="display:none;">
+
+        <!-- Referral code card -->
+        <div class="ref-code-card" id="refCodeCard">
+            <div class="ref-code-left">
+                <div class="ref-code-label">Your Referral Code</div>
+                <div class="ref-code-value" id="refCodeValue">---</div>
+                <div class="ref-code-url" id="refCodeUrl"></div>
+            </div>
+            <div class="ref-code-actions">
+                <button class="mystes-btn mystes-btn-gold" id="copyCodeBtn" onclick="copyRefCode()">COPY CODE</button>
+                <button class="mystes-btn mystes-btn-ghost" id="copyLinkBtn" onclick="copyRefLink()">COPY LINK</button>
+            </div>
+        </div>
+
+        <!-- Stats grid -->
+        <div class="ref-stats" id="refStats"></div>
+
+        <!-- Funnel -->
+        <div class="ref-funnel mystes-card" id="refFunnel">
+            <h3>CONVERSION FUNNEL</h3>
+            <div id="funnelBars"></div>
+        </div>
+
+        <!-- Conversion history -->
+        <div class="ref-history">
+            <h3>CONVERSION HISTORY</h3>
+            <div id="refHistoryContent"></div>
+            <div class="ref-load-more" id="loadMoreWrap" style="display:none;">
+                <button class="mystes-btn mystes-btn-ghost mystes-btn-sm" id="loadMoreBtn" onclick="loadMoreConversions()">LOAD MORE</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var refCode = '';
+var convPage = 1;
+var convTotal = 0;
+var convLoaded = 0;
+
+function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+function copyRefCode() {
+    if (!refCode) return;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(refCode);
+        document.getElementById('copyCodeBtn').textContent = 'COPIED!';
+        setTimeout(function() { document.getElementById('copyCodeBtn').textContent = 'COPY CODE'; }, 2000);
+    } else {
+        prompt('Your referral code:', refCode);
+    }
+}
+
+function copyRefLink() {
+    if (!refCode) return;
+    var url = window.location.origin + '/?ref=' + refCode;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url);
+        document.getElementById('copyLinkBtn').textContent = 'COPIED!';
+        setTimeout(function() { document.getElementById('copyLinkBtn').textContent = 'COPY LINK'; }, 2000);
+    } else {
+        prompt('Your referral link:', url);
+    }
+}
+
+function eventTypeBadge(etype) {
+    var colors = {
+        'signup': 'mystes-badge mystes-badge-teal',
+        'first_search': 'mystes-badge mystes-badge-amber',
+        'first_booking': 'mystes-badge mystes-badge-green',
+        'subscription': 'mystes-badge mystes-badge-gold'
+    };
+    var label = etype.replace(/_/g, ' ');
+    return '<span class="' + (colors[etype] || 'mystes-badge mystes-badge-neutral') + '">' + label + '</span>';
+}
+
+function renderStats(data) {
+    var funnel = data.funnel || {};
+    var statsHtml = '';
+    statsHtml += '<div class="ref-stat-card"><div class="ref-stat-num purple">' + (data.total_clicks || 0) + '</div><div class="ref-stat-label">Total Clicks</div></div>';
+    statsHtml += '<div class="ref-stat-card"><div class="ref-stat-num teal">' + (data.unique_visitors || 0) + '</div><div class="ref-stat-label">Unique Visitors</div></div>';
+    statsHtml += '<div class="ref-stat-card"><div class="ref-stat-num">' + (funnel.signup || 0) + '</div><div class="ref-stat-label">Signups</div></div>';
+    statsHtml += '<div class="ref-stat-card"><div class="ref-stat-num green">' + (funnel.first_booking || 0) + '</div><div class="ref-stat-label">Bookings</div></div>';
+    statsHtml += '<div class="ref-stat-card"><div class="ref-stat-num gold">' + (data.total_points_earned || 0).toLocaleString() + '</div><div class="ref-stat-label">Points Earned</div></div>';
+    statsHtml += '<div class="ref-stat-card"><div class="ref-stat-num teal">$' + (data.total_commission_usd || 0).toFixed(2) + '</div><div class="ref-stat-label">Commission</div></div>';
+    document.getElementById('refStats').innerHTML = statsHtml;
+}
+
+function renderFunnel(data) {
+    var funnel = data.funnel || {};
+    var clicks = data.total_clicks || 0;
+    var steps = [
+        {key: 'clicks', label: 'Clicks', value: clicks, cls: 'clicks'},
+        {key: 'signup', label: 'Signups', value: funnel.signup || 0, cls: 'signups'},
+        {key: 'first_search', label: 'Searches', value: funnel.first_search || 0, cls: 'searches'},
+        {key: 'first_booking', label: 'Bookings', value: funnel.first_booking || 0, cls: 'bookings'},
+        {key: 'subscription', label: 'Subscriptions', value: funnel.subscription || 0, cls: 'subscriptions'}
+    ];
+    var maxVal = clicks || 1;
+
+    var html = '';
+    for (var i = 0; i < steps.length; i++) {
+        var s = steps[i];
+        var pct = maxVal > 0 ? Math.round((s.value / maxVal) * 100) : 0;
+        var barWidth = Math.max(pct, s.value > 0 ? 5 : 0);
+        html += '<div class="ref-funnel-bar">';
+        html += '<span class="ref-funnel-label">' + s.label + '</span>';
+        html += '<div class="ref-funnel-track"><div class="ref-funnel-fill ' + s.cls + '" style="width:' + barWidth + '%">';
+        if (barWidth > 15) html += '<span class="ref-funnel-count">' + s.value + '</span>';
+        html += '</div></div>';
+        if (barWidth <= 15 && s.value > 0) {
+            html += '<span class="ref-funnel-count" style="margin-left:-4px;">' + s.value + '</span>';
+        }
+        html += '<span class="ref-funnel-pct">' + pct + '%</span>';
+        html += '</div>';
+    }
+    document.getElementById('funnelBars').innerHTML = html;
+}
+
+function renderConversions(events, append) {
+    var container = document.getElementById('refHistoryContent');
+    if (!events || events.length === 0) {
+        if (!append) {
+            container.innerHTML = '<div class="ref-empty">No conversions yet. Share your referral code to start earning!</div>';
+        }
+        return;
+    }
+    var tableHtml = '';
+    if (!append) {
+        tableHtml += '<div class="ref-table-wrap"><table class="ref-table"><thead><tr>';
+        tableHtml += '<th>Date</th><th>Type</th><th>Points</th><th>Commission</th>';
+        tableHtml += '</tr></thead><tbody id="refTableBody">';
+    }
+    var rows = '';
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        var dateStr = ev.created_at ? new Date(ev.created_at).toLocaleDateString() : '-';
+        rows += '<tr>';
+        rows += '<td>' + dateStr + '</td>';
+        rows += '<td>' + eventTypeBadge(ev.event_type) + '</td>';
+        rows += '<td>+' + (ev.points_awarded || 0).toLocaleString() + '</td>';
+        rows += '<td>$' + (ev.commission_usd || 0).toFixed(2) + '</td>';
+        rows += '</tr>';
+    }
+    if (append) {
+        var tbody = document.getElementById('refTableBody');
+        if (tbody) tbody.insertAdjacentHTML('beforeend', rows);
+    } else {
+        tableHtml += rows + '</tbody></table></div>';
+        container.innerHTML = tableHtml;
+    }
+}
+
+function loadDashboard() {
+    fetch('/api/referral/my-stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            document.getElementById('refLoading').style.display = 'none';
+            document.getElementById('refContent').style.display = 'block';
+
+            refCode = data.referral_code || '';
+            document.getElementById('refCodeValue').textContent = refCode || 'No code assigned';
+            if (refCode) {
+                document.getElementById('refCodeUrl').textContent = window.location.origin + '/?ref=' + refCode;
+            }
+
+            renderStats(data);
+            renderFunnel(data);
+
+            // Load first page of conversions
+            loadConversions(1, false);
+        })
+        .catch(function() {
+            document.getElementById('refLoading').style.display = 'none';
+            document.getElementById('refContent').style.display = 'block';
+            document.getElementById('refStats').innerHTML = '<div class="ref-empty">Failed to load stats.</div>';
+        });
+}
+
+function loadConversions(page, append) {
+    fetch('/api/referral/my-conversions?page=' + page + '&per_page=15')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                convTotal = data.total || 0;
+                convLoaded += (data.conversions || []).length;
+                convPage = page;
+                renderConversions(data.conversions, append);
+                if (convLoaded < convTotal) {
+                    document.getElementById('loadMoreWrap').style.display = 'block';
+                } else {
+                    document.getElementById('loadMoreWrap').style.display = 'none';
+                }
+            }
+        })
+        .catch(function() {});
+}
+
+function loadMoreConversions() {
+    var btn = document.getElementById('loadMoreBtn');
+    btn.disabled = true;
+    btn.textContent = 'LOADING...';
+    loadConversions(convPage + 1, true);
+    setTimeout(function() { btn.disabled = false; btn.textContent = 'LOAD MORE'; }, 500);
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+'''
+
+
 def register_referral_routes(app, csrf, limiter):
     """Register referral attribution routes (Build #233)."""
+    from server import BASE_TEMPLATE
+
+    # ──────────────────────────────────────────────
+    # UI PAGE
+    # ──────────────────────────────────────────────
+
+    @app.route('/referral')
+    @login_required
+    def referral_dashboard_page():
+        """My Referral Dashboard — stats, funnel, conversion history."""
+        return render_template_string(
+            BASE_TEMPLATE,
+            title='Referral Dashboard',
+            content=REFERRAL_DASHBOARD_CONTENT,
+        )
 
     # ──────────────────────────────────────────────
     # TRACK CLICK (no auth — visitors aren't signed in)

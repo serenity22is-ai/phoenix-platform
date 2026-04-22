@@ -628,6 +628,10 @@ TRIP_DETAIL_CONTENT = """
             </div>
             {% endfor %}
         </div>
+        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+            <a href="/trips/{{ trip.id }}/plan" style="padding:8px 18px; background:rgba(20,184,166,0.15); border:1px solid rgba(20,184,166,0.3); border-radius:10px; color:#14b8a6; font-size:13px; font-weight:600; text-decoration:none; letter-spacing:0.5px; transition:all 0.2s;">&#9776; Trip Planner</a>
+            <a href="/trips/{{ trip.id }}/events" style="padding:8px 18px; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.3); border-radius:10px; color:#a78bfa; font-size:13px; font-weight:600; text-decoration:none; letter-spacing:0.5px; transition:all 0.2s;">&#9734; Events</a>
+        </div>
     </div>
 
     <!-- Main layout -->

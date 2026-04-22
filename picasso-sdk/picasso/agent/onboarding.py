@@ -738,15 +738,21 @@ function renderStep() {
                 <div class="plan-cards">
                     <div class="plan-card ${formData.plan_id==='pro'||!formData.plan_id?'selected':''}" onclick="selectPlan('pro')">
                         <h3>Pro</h3>
-                        <div class="price">$599<span>/mo</span></div>
-                        <div class="limit">10,000 AI requests/mo</div>
-                        <ul><li>Full Managed Service</li><li>Search + Booking + Ticketing</li><li>Update Call System</li><li>Analytics + Webhooks</li><li>White-Label Branding</li></ul>
+                        <div class="price">$299<span>/mo</span></div>
+                        <div class="limit">500 ANASTASiA queries/mo &middot; $0.12 overage</div>
+                        <ul><li>Full Managed Service</li><li>Search + Booking + Ticketing</li><li>White-Label Branding</li><li>Analytics + Webhooks</li><li>5% Credential Routing Fee</li></ul>
                     </div>
                     <div class="plan-card ${formData.plan_id==='enterprise'?'selected':''}" onclick="selectPlan('enterprise')">
                         <h3>Enterprise</h3>
-                        <div class="price">$1,499<span>/mo</span></div>
-                        <div class="limit">50,000 AI requests/mo</div>
-                        <ul><li>Everything in Pro</li><li>Credential Network</li><li>Daemon Bridge</li><li>Bulk Provisioning</li><li>Priority Support</li></ul>
+                        <div class="price">$599<span>/mo</span></div>
+                        <div class="limit">2,000 ANASTASiA queries/mo &middot; $0.08 overage</div>
+                        <ul><li>Everything in Pro</li><li>Credential Network Access</li><li>Daemon Bridge</li><li>Priority Support</li><li>3% Credential Routing Fee</li></ul>
+                    </div>
+                    <div class="plan-card ${formData.plan_id==='scale'?'selected':''}" onclick="selectPlan('scale')">
+                        <h3>Scale</h3>
+                        <div class="price">$999<span>/mo</span></div>
+                        <div class="limit">5,000 ANASTASiA queries/mo &middot; $0.05 overage</div>
+                        <ul><li>Everything in Enterprise</li><li>Bulk Provisioning</li><li>Cross-Platform Intelligence</li><li>Dedicated Support</li><li>2% Credential Routing Fee</li></ul>
                     </div>
                 </div>
             </div>`;

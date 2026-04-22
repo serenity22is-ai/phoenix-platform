@@ -2075,6 +2075,11 @@ BASE_TEMPLATE = '''
                         {% if feature_wishlist %}<a href="/collections" class="nav-more-link">Collections</a>{% endif %}
                         {% if feature_friends %}<a href="/friends" class="nav-more-link">Friends</a>{% endif %}
                         <a href="/travelers" class="nav-more-link">Travelers</a>
+                        <a href="/social" class="nav-more-link">Social</a>
+                        <a href="/referral" class="nav-more-link" style="color: #4ade80;">Referrals</a>
+                        <a href="/corporate" class="nav-more-link">Corporate</a>
+                        <a href="/carts" class="nav-more-link">Shared Carts</a>
+                        <a href="/arbitrate" class="nav-more-link" style="color: #f59e0b;">Arbitrate</a>
                         <a href="/business" class="nav-more-link" style="color: var(--mystes-silver);">Business</a>
                         <a href="/apai" class="nav-more-link" style="color: #a78bfa;">APAi</a>
                         {% if current_user.is_admin %}<a href="/admin" class="nav-more-link" style="color: var(--mystes-glow);">Admin</a>{% endif %}
